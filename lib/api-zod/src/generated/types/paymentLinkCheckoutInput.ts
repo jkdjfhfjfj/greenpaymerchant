@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface PaymentLinkCheckoutInput {
+  /** @exclusiveMinimum 0 */
+  amount?: number;
+  customerEmail: string;
+  customerName?: string;
+  customerPhone?: string;
 }

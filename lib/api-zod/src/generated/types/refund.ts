@@ -6,6 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
+export interface Refund {
+  reference: string;
+  originalReference: string;
+  amount: number;
+  currency: string;
   status: string;
+  /** @nullable */
+  reason?: string | null;
+  createdAt: Date;
 }

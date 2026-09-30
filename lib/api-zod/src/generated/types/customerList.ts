@@ -5,7 +5,8 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { Customer } from './customer';
 
-export interface HealthStatus {
-  status: string;
+export interface CustomerList {
+  items: Customer[];
 }

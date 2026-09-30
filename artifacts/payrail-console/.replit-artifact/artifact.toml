@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Payrail Payments Console"
+description = "An operations console for international collections and payouts across Paystack, PayHero, and Payzaapi, with payment links, settlement tracking, customer records, refunds, and webhook monitoring."
+version = "1.0.0"
+id = "artifacts/payrail-console"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19984
+
+[services.development]
+run = "pnpm --filter @workspace/payrail-console run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/payrail-console", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/payrail-console/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19984"
+BASE_PATH = "/"

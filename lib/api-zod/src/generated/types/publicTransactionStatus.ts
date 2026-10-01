@@ -5,7 +5,6 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
-import type { PublicTransactionStatusProvider } from './publicTransactionStatusProvider';
 import type { PublicTransactionStatusStatus } from './publicTransactionStatusStatus';
 
 export interface PublicTransactionStatus {
@@ -13,7 +12,6 @@ export interface PublicTransactionStatus {
   status: PublicTransactionStatusStatus;
   amount: number;
   currency: string;
-  provider: PublicTransactionStatusProvider;
   /** @nullable */
   paidAt?: Date | null;
   createdAt: Date;

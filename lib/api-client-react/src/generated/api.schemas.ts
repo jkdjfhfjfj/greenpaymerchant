@@ -146,6 +146,22 @@ export interface TransactionCreated {
   checkoutUrl: string | null;
 }
 
+export type PublicCheckoutSessionNextAction = typeof PublicCheckoutSessionNextAction[keyof typeof PublicCheckoutSessionNextAction];
+
+
+export const PublicCheckoutSessionNextAction = {
+  redirect: 'redirect',
+  mobile_prompt: 'mobile_prompt',
+  check_status: 'check_status',
+} as const;
+
+export interface PublicCheckoutSession {
+  reference: string;
+  /** @nullable */
+  checkoutUrl: string | null;
+  nextAction: PublicCheckoutSessionNextAction;
+}
+
 export type PublicTransactionStatusStatus = typeof PublicTransactionStatusStatus[keyof typeof PublicTransactionStatusStatus];
 
 
@@ -157,21 +173,11 @@ export const PublicTransactionStatusStatus = {
   refunded: 'refunded',
 } as const;
 
-export type PublicTransactionStatusProvider = typeof PublicTransactionStatusProvider[keyof typeof PublicTransactionStatusProvider];
-
-
-export const PublicTransactionStatusProvider = {
-  paystack: 'paystack',
-  payhero: 'payhero',
-  payzaapi: 'payzaapi',
-} as const;
-
 export interface PublicTransactionStatus {
   reference: string;
   status: PublicTransactionStatusStatus;
   amount: number;
   currency: string;
-  provider: PublicTransactionStatusProvider;
   /** @nullable */
   paidAt?: string | null;
   createdAt: string;
@@ -282,15 +288,6 @@ export const PublicPaymentLinkAmountType = {
   customer_choice: 'customer_choice',
 } as const;
 
-export type PublicPaymentLinkProvider = typeof PublicPaymentLinkProvider[keyof typeof PublicPaymentLinkProvider];
-
-
-export const PublicPaymentLinkProvider = {
-  paystack: 'paystack',
-  payhero: 'payhero',
-  payzaapi: 'payzaapi',
-} as const;
-
 export interface PublicPaymentLink {
   slug: string;
   name: string;
@@ -300,7 +297,6 @@ export interface PublicPaymentLink {
   /** @nullable */
   amount?: number | null;
   currency: string;
-  provider: PublicPaymentLinkProvider;
   /** @nullable */
   expiresAt?: string | null;
 }

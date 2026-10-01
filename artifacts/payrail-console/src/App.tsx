@@ -21,6 +21,7 @@ import {
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
+import HomePage from '@/pages/home';
 import { useAccess, Gate, Async, errMsg } from '@/components/kit';
 import { MerchantPage, KycPage, MerchantLinksPage, MerchantTransactionsPage, MerchantPayoutsPage } from '@/pages/merchant';
 import { DevelopersPage, ExchangePage } from '@/pages/developers';
@@ -268,12 +269,7 @@ function AppShell({ children }: { children: ReactNode }) {
 }
 
 function Welcome() {
-  return <div className="welcome-page"><header className="welcome-nav"><Brand /><div className="welcome-nav-right"><span className="live-label"><i /> Payments infrastructure</span><a className="welcome-link" href="/sign-in">Sign in <ArrowRight size={15} /></a></div></header><main>
-    <section className="welcome-hero"><div className="hero-copy"><span className="eyebrow"><span className="eyebrow-line" /> GREENPAY PAYMENTS CONSOLE</span><h1>Every payment,<br /><em>accounted for.</em></h1><p>Collections, settlements and payouts across Africa — in one clear operational view.</p><div className="hero-actions"><a className="btn btn-primary" href="/sign-up">Create your workspace <ArrowRight size={16} /></a><a className="text-link" href="/sign-in">Sign in to Greenpay</a></div><div className="hero-assurance"><ShieldCheck size={15} /><span>Built for finance teams. Designed for confidence.</span></div></div><div className="hero-visual"><div className="visual-arc arc-one" /><div className="visual-arc arc-two" /><div className="visual-grid" /><div className="route-note route-note-top"><span className="route-dot dot-gold" /> COLLECTIONS <small>USD / KES / OTHER</small></div><div className="flow-line flow-a" /><div className="flow-line flow-b" /><div className="visual-center"><Brand compact /><div className="visual-center-title">payment<br />orchestration</div><small>AFRICA · CONNECTED</small></div><div className="provider-node node-paystack"><span className="provider-glyph">P</span><div><strong>Paystack</strong><small>USD collections</small></div><Check size={14} /></div><div className="provider-node node-payhero"><span className="provider-glyph glyph-coral">H</span><div><strong>PayHero</strong><small>KES collections</small></div><Check size={14} /></div><div className="provider-node node-payza"><span className="provider-glyph glyph-blue">Pz</span><div><strong>Payzaapi</strong><small>Multi-currency</small></div><Check size={14} /></div><div className="visual-caption"><span className="caption-line" /> One route. Every currency.</div></div></section>
-    <section className="welcome-proof"><div className="proof-intro"><span className="eyebrow">OPERATIONS, WITHOUT THE GUESSWORK</span><h2>Clarity from collection<br />to settlement.</h2></div><div className="proof-item"><span className="proof-index">01</span><div><strong>Collections that find their rail</strong><p>USD routes to Paystack. KES to PayHero. Other currencies to Payzaapi.</p></div></div><div className="proof-item"><span className="proof-index">02</span><div><strong>Settlement timing in plain sight</strong><p>Track the T+3 settlement target without treating it as a provider guarantee.</p></div></div><div className="proof-item"><span className="proof-index">03</span><div><strong>Operations that leave a trail</strong><p>Verify, refund, reconcile and replay with the context your team needs.</p></div></div></section>
-    <section className="welcome-flow"><div><span className="eyebrow">A ROUTE YOU CAN EXPLAIN</span><h2>Local rails.<br /><em>One ledger.</em></h2><p>Three provider connections keep each currency on the path built for it. Greenpay gives your team one place to see the result.</p><a href="/sign-up" className="text-link">Get started with Greenpay <ArrowRight size={15} /></a></div><div className="flow-ledger"><div className="ledger-top"><span>ROUTING MAP</span><span className="mono">GP / 03</span></div><div className="ledger-row"><div className="currency-tag">$</div><div className="ledger-main"><strong>USD</strong><small>Collection route</small></div><div className="ledger-path" /><span className="ledger-provider">Paystack</span><CheckCircle2 size={16} /></div><div className="ledger-row"><div className="currency-tag">K</div><div className="ledger-main"><strong>KES</strong><small>Collection route</small></div><div className="ledger-path" /><span className="ledger-provider">PayHero</span><CheckCircle2 size={16} /></div><div className="ledger-row"><div className="currency-tag">↗</div><div className="ledger-main"><strong>Other currencies</strong><small>Multi-currency route</small></div><div className="ledger-path" /><span className="ledger-provider">Payzaapi</span><CheckCircle2 size={16} /></div><div className="ledger-foot"><Clock3 size={14} /><span>Expected settlement window</span><strong>T+3</strong></div></div></section>
-    <section className="welcome-cta"><div><span className="eyebrow">MADE FOR THE PEOPLE WHO CLOSE THE BOOKS</span><h2>Your payments deserve<br />a better paper trail.</h2></div><a href="/sign-up" className="btn btn-light">Create your workspace <ArrowRight size={16} /></a><span className="cta-orbit orbit-a" /><span className="cta-orbit orbit-b" /></section>
-  </main><footer className="welcome-footer"><Brand /><span>© Greenpay. Payments infrastructure for Africa.</span><a href="mailto:support@greenpay.africa">Talk to our team <ArrowUpRight size={14} /></a></footer></div>;
+  return <HomePage />;
 }
 
 function CollectionModal({ onClose }: { onClose: () => void }) {
@@ -539,7 +535,7 @@ function PublicCheckout() {
   const query = useGetPublicPaymentLink(slug);
   const checkout = useCheckoutPaymentLink();
   const [error, setError] = useState('');
-  const [checkoutResult, setCheckoutResult] = useState<{ url: string | null; provider: string; reference: string } | null>(null);
+  const [checkoutResult, setCheckoutResult] = useState<{ url: string | null; reference: string; nextAction: 'redirect' | 'mobile_prompt' | 'check_status' } | null>(null);
   const link = query.data;
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -548,11 +544,52 @@ function PublicCheckout() {
     const amount = Number(form.get('amount'));
     if (link.amountType === 'customer_choice' && !(amount > 0)) { setError('Enter a valid amount to continue.'); return; }
     checkout.mutate({ slug, data: { customerEmail: String(form.get('email')), customerName: String(form.get('name') || ''), customerPhone: String(form.get('phone') || ''), ...(link.amountType === 'customer_choice' ? { amount } : {}) } }, {
-      onSuccess: (result) => setCheckoutResult({ url: result.checkoutUrl, provider: result.transaction.provider, reference: result.transaction.reference }),
+      onSuccess: (result) => setCheckoutResult({ url: result.checkoutUrl, reference: result.reference, nextAction: result.nextAction }),
       onError: () => setError('We could not start checkout. Please confirm your details and try again.'),
     });
   }
-  return <div className="checkout-page"><header className="checkout-header"><Brand /><span><LockKeyhole size={14} /> Secure checkout</span></header><main className="checkout-card"><div className="checkout-brand-mark"><Brand compact /></div><QueryState loading={query.isLoading} error={query.isError} retry={() => { void query.refetch(); }} empty={!link}><>{link && <>{checkoutResult ? <div className="checkout-success"><div className="checkout-success-icon">{checkoutResult.provider === 'payhero' ? <CheckCircle2 size={21} /> : <ArrowUpRight size={21} />}</div><span className="eyebrow">{checkoutResult.provider === 'payhero' ? 'M-PESA PROMPT SENT' : 'CHECKOUT READY'}</span><h1>{checkoutResult.provider === 'payhero' ? 'Check your phone' : 'Continue to payment'}</h1><p>{checkoutResult.provider === 'payhero' ? `Approve the payment request on the customer’s phone. Reference: ${checkoutResult.reference}. Greenpay will only mark it paid after PayHero confirms.` : `Your payment session has been created. You will complete payment securely with ${label(link.provider)}.`}</p>{checkoutResult.url && <a href={checkoutResult.url} className="btn btn-primary btn-full" target="_blank" rel="noreferrer">Continue to secure payment <ArrowRight size={15} /></a>}<span className="checkout-trust">Greenpay does not mark payments successful until the provider confirms them.</span></div> : <><span className="eyebrow">PAYMENT REQUEST</span><h1>{link.name}</h1><p className="checkout-description">{link.description || 'Complete your details to continue to secure payment.'}</p><div className="checkout-price">{link.amountType === 'fixed' ? currency(link.amount, link.currency) : `Pay what you choose`}<span>{link.amountType === 'customer_choice' ? link.currency : `${link.currency} · one-time payment`}</span></div><form className="form-stack checkout-form" onSubmit={submit}>{link.amountType === 'customer_choice' && <Field label={`Amount (${link.currency})`}><input name="amount" type="number" min={link.currency === 'KES' ? '1' : '0.01'} step={link.currency === 'KES' ? '1' : '0.01'} placeholder="0.00" required data-testid="input-checkout-amount" /></Field>}<Field label="Email address"><input type="email" name="email" placeholder="you@example.com" required data-testid="input-checkout-email" /></Field><Field label="Full name"><input name="name" placeholder="Name on payment" required data-testid="input-checkout-name" /></Field><Field label={link.currency === 'KES' ? 'Phone (required for M-Pesa)' : 'Phone (optional)'}><input name="phone" type="tel" placeholder="+254…" required={link.currency === 'KES'} data-testid="input-checkout-phone" /></Field><ErrorLine error={error} /><Button type="submit" className="btn-full" disabled={checkout.isPending}>{checkout.isPending ? 'Preparing secure checkout…' : <>Continue to payment <ArrowRight size={15} /></>}</Button></form><div className="checkout-footer"><LockKeyhole size={13} /> Payment secured by {label(link.provider)}</div></>}</>}</></QueryState></main><footer className="checkout-bottom"><span>Powered by <strong>greenpay.</strong></span><a href="/">Payments operations platform</a></footer></div>;
+  return (
+    <div className="checkout-page">
+      <header className="checkout-header"><Brand /><span><LockKeyhole size={14} /> Secure checkout</span></header>
+      <main className="checkout-card">
+        <div className="checkout-brand-mark"><Brand compact /></div>
+        <QueryState loading={query.isLoading} error={query.isError} retry={() => { void query.refetch(); }} empty={!link}>
+          {link && (checkoutResult ? (
+            <div className="checkout-success">
+              <div className="checkout-success-icon"><ArrowUpRight size={21} /></div>
+              <span className="eyebrow">{checkoutResult.nextAction === 'mobile_prompt' ? 'PAYMENT REQUEST SENT' : 'PAYMENT SESSION READY'}</span>
+              <h1>{checkoutResult.nextAction === 'mobile_prompt' ? 'Check your phone' : checkoutResult.url ? 'Continue to payment' : 'Check your payment status'}</h1>
+              <p>{checkoutResult.nextAction === 'mobile_prompt'
+                ? 'Approve the payment request on your phone to continue. Your payment is only complete after confirmation.'
+                : checkoutResult.url ? 'Your payment session is ready. Continue to the secure payment page to complete it.'
+                  : 'Your payment request has been submitted. Open its status page to check for confirmation.'}</p>
+              <span className="checkout-trust">Reference: <span className="mono">{checkoutResult.reference}</span></span>
+              {checkoutResult.url && <a href={checkoutResult.url} className="btn btn-primary btn-full" target="_blank" rel="noreferrer" data-testid="link-checkout-continue">Continue to secure payment <ArrowRight size={15} /></a>}
+              <a href={`${basePath}/status/${encodeURIComponent(checkoutResult.reference)}`} className="text-link" data-testid="link-checkout-status">View payment status <ArrowRight size={15} /></a>
+              <span className="checkout-trust">Greenpay only marks your payment successful once it has been confirmed.</span>
+            </div>
+          ) : (
+            <>
+              <span className="eyebrow">PAYMENT REQUEST</span>
+              <h1>{link.name}</h1>
+              <p className="checkout-description">{link.description || 'Complete your details to continue to secure payment.'}</p>
+              <div className="checkout-price">{link.amountType === 'fixed' ? currency(link.amount, link.currency) : 'Pay what you choose'}<span>{link.amountType === 'customer_choice' ? link.currency : `${link.currency} · one-time payment`}</span></div>
+              <form className="form-stack checkout-form" onSubmit={submit}>
+                {link.amountType === 'customer_choice' && <Field label={`Amount (${link.currency})`}><input name="amount" type="number" min={link.currency === 'KES' ? '1' : '0.01'} step={link.currency === 'KES' ? '1' : '0.01'} placeholder="0.00" required data-testid="input-checkout-amount" /></Field>}
+                <Field label="Email address"><input type="email" name="email" placeholder="you@example.com" autoComplete="email" required data-testid="input-checkout-email" /></Field>
+                <Field label="Full name"><input name="name" placeholder="Name on payment" autoComplete="name" required data-testid="input-checkout-name" /></Field>
+                <Field label={link.currency === 'KES' ? 'Phone (required for mobile payment)' : 'Phone (optional)'}><input name="phone" type="tel" placeholder="+254…" autoComplete="tel" required={link.currency === 'KES'} data-testid="input-checkout-phone" /></Field>
+                <ErrorLine error={error} />
+                <Button type="submit" className="btn-full" disabled={checkout.isPending} data-testid="button-checkout-submit">{checkout.isPending ? 'Preparing secure checkout…' : <>Continue to payment <ArrowRight size={15} /></>}</Button>
+              </form>
+              <div className="checkout-footer"><LockKeyhole size={13} /> Secure checkout with Greenpay</div>
+            </>
+          ))}
+        </QueryState>
+      </main>
+      <footer className="checkout-bottom"><span>Powered by <strong>greenpay.</strong></span><a href={basePath || '/'} data-testid="link-checkout-home">Back to Greenpay</a></footer>
+    </div>
+  );
 }
 
 const wrap = (C: () => ReactNode) => () => <Protected><AppShell><C /></AppShell></Protected>;

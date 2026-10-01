@@ -367,7 +367,6 @@ export const GetPublicPaymentLinkResponse = zod.object({
   "amountType": zod.enum(['fixed', 'customer_choice']),
   "amount": zod.number().nullish(),
   "currency": zod.string(),
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
   "expiresAt": zod.coerce.date().nullish()
 })
 
@@ -391,29 +390,9 @@ export const CheckoutPaymentLinkBody = zod.object({
 })
 
 export const CheckoutPaymentLinkResponse = zod.object({
-  "transaction": zod.object({
-  "id": zod.number().int(),
   "reference": zod.string(),
-  "amount": zod.number(),
-  "fee": zod.number().nullish(),
-  "netAmount": zod.number().nullish(),
-  "currency": zod.string(),
-  "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
-  "paymentMethod": zod.string().nullish(),
-  "customerEmail": zod.string(),
-  "customerName": zod.string().nullish(),
-  "customerPhone": zod.string().nullish(),
-  "description": zod.string().nullish(),
-  "providerReference": zod.string().nullish(),
-  "paymentUrl": zod.string().nullish(),
-  "paymentLinkId": zod.number().int().nullish(),
-  "createdAt": zod.coerce.date(),
-  "paidAt": zod.coerce.date().nullish(),
-  "settlementAt": zod.coerce.date().nullish(),
-  "settlementStatus": zod.enum(['pending', 'due', 'settled', 'held', 'not_applicable'])
-}),
-  "checkoutUrl": zod.string().url().nullable()
+  "checkoutUrl": zod.string().url().nullable(),
+  "nextAction": zod.enum(['redirect', 'mobile_prompt', 'check_status'])
 })
 
 
@@ -429,7 +408,6 @@ export const GetPublicTransactionStatusResponse = zod.object({
   "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
   "amount": zod.number(),
   "currency": zod.string(),
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
   "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })

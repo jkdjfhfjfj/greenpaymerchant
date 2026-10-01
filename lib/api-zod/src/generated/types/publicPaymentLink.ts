@@ -6,7 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PublicPaymentLinkAmountType } from './publicPaymentLinkAmountType';
-import type { PublicPaymentLinkProvider } from './publicPaymentLinkProvider';
 
 export interface PublicPaymentLink {
   slug: string;
@@ -17,7 +16,6 @@ export interface PublicPaymentLink {
   /** @nullable */
   amount?: number | null;
   currency: string;
-  provider: PublicPaymentLinkProvider;
   /** @nullable */
   expiresAt?: Date | null;
 }

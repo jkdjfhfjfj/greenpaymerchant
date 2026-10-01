@@ -75,6 +75,7 @@ import type {
   ProviderCredential,
   ProviderCredentialList,
   ProviderStatusList,
+  PublicCheckoutSession,
   PublicPaymentLink,
   PublicTransactionStatus,
   Refund,
@@ -1109,7 +1110,7 @@ export const getCheckoutPaymentLinkUrl = (slug: string,) => {
  * @summary Start a checkout session for a public payment link
  */
 export const checkoutPaymentLink = async (slug: string,
-    paymentLinkCheckoutInput: PaymentLinkCheckoutInput, options?: Parameters<typeof customFetch>[1]): Promise<TransactionCreated> => {
+    paymentLinkCheckoutInput: PaymentLinkCheckoutInput, options?: Parameters<typeof customFetch>[1]): Promise<PublicCheckoutSession> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -1125,7 +1126,7 @@ export const checkoutPaymentLink = async (slug: string,
     }
     return headers;
   };
-return customFetch<TransactionCreated>(getCheckoutPaymentLinkUrl(slug),
+return customFetch<PublicCheckoutSession>(getCheckoutPaymentLinkUrl(slug),
   {
     ...options,
     method: 'POST',

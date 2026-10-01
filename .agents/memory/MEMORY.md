@@ -1,1 +1,2 @@
 - [Financial response ordering](financial-response-ordering.md) — provider callbacks may precede initiation replies; audit every state-write path, not only the canonical transition helper.
+- [Public payment branding](public-payment-branding.md) — customer pages use Greenpay branding; review response fields and errors, not only visible gateway labels.

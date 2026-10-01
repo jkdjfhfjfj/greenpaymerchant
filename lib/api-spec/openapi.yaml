@@ -262,7 +262,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TransactionCreated"
+                $ref: "#/components/schemas/PublicCheckoutSession"
   /public/transactions/{reference}:
     get:
       operationId: getPublicTransactionStatus
@@ -1156,9 +1156,18 @@ components:
       properties:
         transaction: { $ref: "#/components/schemas/Transaction" }
         checkoutUrl: { type: ["string", "null"], format: uri }
+    PublicCheckoutSession:
+      type: object
+      required: [reference, checkoutUrl, nextAction]
+      properties:
+        reference: { type: string }
+        checkoutUrl: { type: ["string", "null"], format: uri }
+        nextAction:
+          type: string
+          enum: [redirect, mobile_prompt, check_status]
     PublicTransactionStatus:
       type: object
-      required: [reference, status, amount, currency, provider, createdAt]
+      required: [reference, status, amount, currency, createdAt]
       properties:
         reference: { type: string }
         status:
@@ -1166,7 +1175,6 @@ components:
           enum: [pending, success, failed, cancelled, refunded]
         amount: { type: number }
         currency: { type: string }
-        provider: { type: string, enum: [paystack, payhero, payzaapi] }
         paidAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
     RefundInput:
@@ -1228,7 +1236,7 @@ components:
         expiresAt: { type: ["string", "null"], format: date-time }
     PublicPaymentLink:
       type: object
-      required: [slug, name, amountType, currency, provider]
+      required: [slug, name, amountType, currency]
       properties:
         slug: { type: string }
         name: { type: string }
@@ -1236,7 +1244,6 @@ components:
         amountType: { type: string, enum: [fixed, customer_choice] }
         amount: { type: ["number", "null"] }
         currency: { type: string }
-        provider: { type: string, enum: [paystack, payhero, payzaapi] }
         expiresAt: { type: ["string", "null"], format: date-time }
     PaymentLinkCheckoutInput:
       type: object

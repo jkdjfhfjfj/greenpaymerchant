@@ -9,12 +9,11 @@ import {
   GetPublicTransactionStatusResponse,
 } from "@workspace/api-zod";
 import { createCollection } from "../lib/greenpay-collection";
-import { providerForCurrency, verifyProviderPayment } from "../lib/greenpay-provider";
+import { ApiError, verifyProviderPayment } from "../lib/greenpay-provider";
 import {
   findTransaction,
   getPaymentLinkBySlug,
   markTransactionStatus,
-  transactionDto,
 } from "../lib/greenpay-ledger";
 import { db, merchantsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -47,7 +46,6 @@ router.get("/public/payment-links/:slug", async (req, res): Promise<void> => {
     amountType: link.amountType,
     amount: link.amount === null ? null : Number(link.amount),
     currency: link.currency,
-    provider: providerForCurrency(link.currency),
     expiresAt: link.expiresAt,
   }));
 });
@@ -91,10 +89,20 @@ router.post("/public/payment-links/:slug/checkout", async (req, res): Promise<vo
     paymentLinkId: link.id,
     paymentLinkSlug: link.slug,
     merchantId: link.merchantId ?? undefined,
+  }).catch((error: unknown) => {
+    const status = error instanceof ApiError ? error.statusCode : 500;
+    req.log.warn({ statusCode: status }, "Public checkout could not be initiated");
+    if (status === 400 || status === 422) {
+      throw new ApiError(status, "We could not start this payment. Please check your details and try again.");
+    }
+    throw new ApiError(503, "Payments are temporarily unavailable. Please try again shortly.");
   });
   res.status(201).json(CheckoutPaymentLinkResponse.parse({
-    transaction: transactionDto(result.transaction),
+    reference: result.transaction.reference,
     checkoutUrl: result.checkoutUrl,
+    nextAction: result.checkoutUrl
+      ? "redirect"
+      : result.transaction.provider === "payhero" ? "mobile_prompt" : "check_status",
   }));
 });
 
@@ -110,7 +118,10 @@ router.get("/public/transactions/:reference", async (req, res): Promise<void> =>
     return;
   }
   if (transaction.status === "pending") {
-    const verified = await verifyProviderPayment(transaction);
+    const verified = await verifyProviderPayment(transaction).catch(() => {
+      req.log.warn("Public payment confirmation is temporarily unavailable");
+      throw new ApiError(503, "Payment confirmation is temporarily unavailable. Please try again shortly.");
+    });
     transaction = await markTransactionStatus(transaction.reference, verified) ?? transaction;
   }
   res.json(GetPublicTransactionStatusResponse.parse({
@@ -118,7 +129,6 @@ router.get("/public/transactions/:reference", async (req, res): Promise<void> =>
     status: transaction.status,
     amount: Number(transaction.amount),
     currency: transaction.currency,
-    provider: transaction.provider,
     paidAt: transaction.paidAt,
     createdAt: transaction.createdAt,
   }));

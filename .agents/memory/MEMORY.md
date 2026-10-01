@@ -1,2 +1,4 @@
 - [Financial response ordering](financial-response-ordering.md) — provider callbacks may precede initiation replies; audit every state-write path, not only the canonical transition helper.
 - [Public payment branding](public-payment-branding.md) — customer pages use Greenpay branding; review response fields and errors, not only visible gateway labels.
+- [Drizzle BigInt defaults](drizzle-bigint-defaults.md) — native BigInt defaults break drizzle-kit schema serialization; retain runtime BigInt types with SQL defaults.
+- [Sierra Leone denomination](sierra-leone-denomination.md) — SLL request codes do not prove numeric units; preserve amounts and block FX until provider confirmation.

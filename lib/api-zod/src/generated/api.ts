@@ -5103,7 +5103,7 @@ export const UpdateAdminFxRateResponse = zod.object({
  */
 export const ListAdminProviderCredentialsResponse = zod.object({
   "items": zod.array(zod.object({
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary']),
   "configured": zod.boolean(),
   "enabled": zod.boolean(),
   "fields": zod.array(zod.object({
@@ -5122,7 +5122,7 @@ export const ListAdminProviderCredentialsResponse = zod.object({
  * @summary Encrypt and save or replace a provider's credentials
  */
 export const SaveAdminProviderCredentialsParams = zod.object({
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit'])
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary'])
 })
 
 export const SaveAdminProviderCredentialsBody = zod.object({
@@ -5131,7 +5131,7 @@ export const SaveAdminProviderCredentialsBody = zod.object({
 })
 
 export const SaveAdminProviderCredentialsResponse = zod.object({
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary']),
   "configured": zod.boolean(),
   "enabled": zod.boolean(),
   "fields": zod.array(zod.object({
@@ -5148,7 +5148,7 @@ export const SaveAdminProviderCredentialsResponse = zod.object({
  * @summary Delete stored credentials and disable the selected provider
  */
 export const DeleteAdminProviderCredentialsParams = zod.object({
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit'])
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary'])
 })
 
 export const DeleteAdminProviderCredentialsResponse = zod.void()

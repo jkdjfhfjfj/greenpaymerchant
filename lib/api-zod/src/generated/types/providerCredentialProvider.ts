@@ -14,4 +14,5 @@ export const ProviderCredentialProvider = {
   payhero: 'payhero',
   payzaapi: 'payzaapi',
   didit: 'didit',
+  cloudinary: 'cloudinary',
 } as const;

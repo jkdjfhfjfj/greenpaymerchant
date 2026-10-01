@@ -222,13 +222,13 @@ pre.code{max-width:100%;-webkit-overflow-scrolling:touch}
  .setting-row{gap:12px;min-height:56px}
  .switch{width:52px;height:30px}.switch::after{width:24px;height:24px;top:3px;left:3px}.switch[aria-checked=true]::after{transform:translateX(22px)}
  .chip{min-height:40px;padding:8px 14px}
- /* modals become bottom sheets */
- .modal-backdrop{align-items:end;padding:0;place-items:end stretch}
- .modal,.modal-wide{width:100%;max-height:calc(100dvh - 24px);border-radius:18px 18px 0 0;padding:18px 16px max(18px,env(safe-area-inset-bottom));animation:sheet .25s ease both}
+  /* Keep every mobile dialog centered in the viewport instead of below the fold. */
+  .modal-backdrop{align-items:center;place-items:center;overflow-y:auto;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+  .modal,.modal-wide{width:100%;max-height:calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));border-radius:18px;padding:18px 16px;animation:modal-in .18s ease both}
  .modal-head h2{font-size:17px}
  .modal .row-actions{flex-direction:column-reverse}.modal .row-actions .btn{width:100%}
  .modal .form-grid{grid-template-columns:1fr}
- @keyframes sheet{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+  @keyframes modal-in{from{transform:scale(.97);opacity:0}to{transform:none;opacity:1}}
  .secret-box{padding:12px}.copy-line{flex-wrap:wrap}.copy-line .btn{width:100%}
  .quote-hero{padding:16px}.quote-hero .big{font-size:26px;overflow-wrap:anywhere}
  .centered-page{padding:12px;place-items:start center}
@@ -268,7 +268,7 @@ pre.code{max-width:100%;-webkit-overflow-scrolling:touch}
  .dashboard-main-grid,.split{grid-template-columns:1fr}
  .hp-hero{gap:28px}.hp-grid{gap:12px}
 }
-@media(max-height:500px) and (orientation:landscape){.modal-backdrop{align-items:start;overflow-y:auto}.modal{max-height:none}}
+@media(max-height:500px) and (orientation:landscape){.modal-backdrop{align-items:center;place-items:center;overflow-y:auto}.modal{max-height:calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}}
 @media(prefers-reduced-motion:reduce){.page-content,.modal,.modal-backdrop{animation:none}}
 
 /* Merchant operations overview */

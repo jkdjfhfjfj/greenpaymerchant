@@ -492,7 +492,7 @@ export const createTransactionBodyCurrencyMax = 3;
 export const CreateTransactionBody = zod.object({
   "amount": zod.number().gt(createTransactionBodyAmountExclusiveMin),
   "currency": zod.string().min(createTransactionBodyCurrencyMin).max(createTransactionBodyCurrencyMax),
-  "paymentMethod": zod.enum(['hosted_checkout', 'mobile_prompt']).optional().describe('Optional provider-neutral payment method. It must be available for the selected currency; the server chooses the gateway from currency.'),
+  "paymentMethod": zod.enum(['hosted_checkout', 'mobile_prompt']).optional().describe('Optional provider-neutral payment method. It must be available for the selected currency; Greenpay selects the collection route based on currency.'),
   "customerEmail": zod.string().email(),
   "customerName": zod.string().optional(),
   "customerPhone": zod.string().optional(),
@@ -4231,7 +4231,7 @@ export const createDeveloperTransactionBodyCurrencyMax = 3;
 export const CreateDeveloperTransactionBody = zod.object({
   "amount": zod.number().gt(createDeveloperTransactionBodyAmountExclusiveMin),
   "currency": zod.string().min(createDeveloperTransactionBodyCurrencyMin).max(createDeveloperTransactionBodyCurrencyMax),
-  "paymentMethod": zod.enum(['hosted_checkout', 'mobile_prompt']).optional().describe('Optional provider-neutral payment method. It must be available for the selected currency; the server chooses the gateway from currency.'),
+  "paymentMethod": zod.enum(['hosted_checkout', 'mobile_prompt']).optional().describe('Optional provider-neutral payment method. It must be available for the selected currency; Greenpay selects the collection route based on currency.'),
   "customerEmail": zod.string().email(),
   "customerName": zod.string().optional(),
   "customerPhone": zod.string().optional(),

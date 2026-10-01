@@ -507,7 +507,7 @@ export interface TransactionList {
 }
 
 /**
- * Optional provider-neutral payment method. It must be available for the selected currency; the server chooses the gateway from currency.
+ * Optional provider-neutral payment method. It must be available for the selected currency; Greenpay selects the collection route based on currency.
  */
 export type TransactionInputPaymentMethod = typeof TransactionInputPaymentMethod[keyof typeof TransactionInputPaymentMethod];
 
@@ -525,7 +525,7 @@ export interface TransactionInput {
      * @maxLength 3
      */
   currency: string;
-  /** Optional provider-neutral payment method. It must be available for the selected currency; the server chooses the gateway from currency. */
+  /** Optional provider-neutral payment method. It must be available for the selected currency; Greenpay selects the collection route based on currency. */
   paymentMethod?: TransactionInputPaymentMethod;
   customerEmail: string;
   customerName?: string;

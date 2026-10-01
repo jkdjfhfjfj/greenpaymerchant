@@ -2929,7 +2929,7 @@ components:
       properties:
         amount: { type: number, exclusiveMinimum: 0 }
         currency: { type: string, minLength: 3, maxLength: 3 }
-        paymentMethod: { type: string, enum: [hosted_checkout, mobile_prompt], description: Optional provider-neutral payment method. It must be available for the selected currency; the server chooses the gateway from currency. }
+        paymentMethod: { type: string, enum: [hosted_checkout, mobile_prompt], description: Optional provider-neutral payment method. It must be available for the selected currency; Greenpay selects the collection route based on currency. }
         customerEmail: { type: string, format: email }
         customerName: { type: string }
         customerPhone: { type: string }

@@ -112,4 +112,8 @@ test("public checkout distinguishes payer validation errors from hidden payment-
   assert.equal(unavailable.status, 503);
   assert.match(unavailable.error, /Payments are unavailable for the selected currency/);
   assert.doesNotMatch(unavailable.error, /private|adapter/i);
+  assert.deepEqual(publicCheckoutFailure(503, "Collections in NGN are coming soon and are not currently enabled."), {
+    status: 503,
+    error: "Collections in NGN are coming soon and are not currently enabled.",
+  });
 });

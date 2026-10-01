@@ -54,6 +54,9 @@ history.
 
 - `ADMIN_EMAILS` authorizes verified Clerk accounts. Empty configuration must
   fail closed; never grant administrator access to the first signup.
+- Persisted platform-admin assignments are bound to Clerk user IDs and remain
+  effective only while the user has a verified primary email. Grant and revoke
+  actions require an audit reason; never remove the last effective administrator.
 - Database schema push is development-only. Production migrations require a
   separate reviewed deployment step.
 - T+3 settlement dates are forecasts rather than guarantees.

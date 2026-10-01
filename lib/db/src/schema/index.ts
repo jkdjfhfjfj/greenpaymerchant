@@ -30,3 +30,4 @@ export * from "./verification-limits";
 export * from "./support";
 export * from "./merchant-team";
 export * from "./content";
+export * from "./platform-admins";

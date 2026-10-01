@@ -24,6 +24,9 @@ import type {
   AdminAuditLog,
   AdminCaseRefundRecord,
   AdminCaseRefundRecordInput,
+  AdminCollectionCurrencyAvailability,
+  AdminCollectionCurrencyAvailabilityInput,
+  AdminCollectionCurrencyAvailabilityList,
   AdminContent,
   AdminContentList,
   AdminEmailDeliveryOutboxItem,
@@ -71,6 +74,7 @@ import type {
   DashboardSummary,
   DestinationChangeRequestInput,
   FeeScheduleResponse,
+  FindAdminPlatformUsersParams,
   FxQuote,
   GetDeveloperFxQuoteParams,
   GetMerchantFxQuoteParams,
@@ -134,6 +138,9 @@ import type {
   PayoutRequestDecisionInput,
   PayoutRequestInput,
   PayoutRequestList,
+  PlatformAdminRoleChangeInput,
+  PlatformAdminUser,
+  PlatformAdminUserList,
   PlatformBranding,
   PlatformOperationalStatus,
   PlatformSettings,
@@ -7516,6 +7523,171 @@ export const useUpdateAdminVerificationLimits = <TError = ErrorType<unknown>,
       return useMutation(getUpdateAdminVerificationLimitsMutationOptions(options));
     }
 
+export const getListAdminCollectionCurrencyAvailabilityUrl = () => {
+
+
+
+
+  return `/api/admin/collection-currencies`
+}
+
+/**
+ * @summary List the supported collection currencies and administrator launch state
+ */
+export const listAdminCollectionCurrencyAvailability = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminCollectionCurrencyAvailabilityList> => {
+
+  return customFetch<AdminCollectionCurrencyAvailabilityList>(getListAdminCollectionCurrencyAvailabilityUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminCollectionCurrencyAvailabilityQueryKey = () => {
+    return [
+    `/api/admin/collection-currencies`
+    ] as const;
+    }
+
+
+export const getListAdminCollectionCurrencyAvailabilityQueryOptions = <TData = Awaited<ReturnType<typeof listAdminCollectionCurrencyAvailability>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminCollectionCurrencyAvailability>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminCollectionCurrencyAvailabilityQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminCollectionCurrencyAvailability>>> = ({ signal }) => listAdminCollectionCurrencyAvailability({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminCollectionCurrencyAvailability>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminCollectionCurrencyAvailabilityQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminCollectionCurrencyAvailability>>>
+export type ListAdminCollectionCurrencyAvailabilityQueryError = ErrorType<void>
+
+
+/**
+ * @summary List the supported collection currencies and administrator launch state
+ */
+
+export function useListAdminCollectionCurrencyAvailability<TData = Awaited<ReturnType<typeof listAdminCollectionCurrencyAvailability>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminCollectionCurrencyAvailability>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminCollectionCurrencyAvailabilityQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateAdminCollectionCurrencyAvailabilityUrl = () => {
+
+
+
+
+  return `/api/admin/collection-currencies`
+}
+
+/**
+ * @summary Update the administrator launch state for one supported collection currency
+ */
+export const updateAdminCollectionCurrencyAvailability = async (adminCollectionCurrencyAvailabilityInput: AdminCollectionCurrencyAvailabilityInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminCollectionCurrencyAvailability> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminCollectionCurrencyAvailability>(getUpdateAdminCollectionCurrencyAvailabilityUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminCollectionCurrencyAvailabilityInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateAdminCollectionCurrencyAvailabilityMutationKey = () => ['updateAdminCollectionCurrencyAvailability'] as const;
+
+export const getUpdateAdminCollectionCurrencyAvailabilityMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminCollectionCurrencyAvailability>>, TError,UpdateAdminCollectionCurrencyAvailabilityMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAdminCollectionCurrencyAvailability>>, TError,UpdateAdminCollectionCurrencyAvailabilityMutationVariables, TContext> => {
+
+const mutationKey = getUpdateAdminCollectionCurrencyAvailabilityMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminCollectionCurrencyAvailability>>, UpdateAdminCollectionCurrencyAvailabilityMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateAdminCollectionCurrencyAvailability(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAdminCollectionCurrencyAvailabilityMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminCollectionCurrencyAvailability>>>
+    export type UpdateAdminCollectionCurrencyAvailabilityMutationBody = BodyType<AdminCollectionCurrencyAvailabilityInput>
+    export type UpdateAdminCollectionCurrencyAvailabilityMutationError = ErrorType<void>
+    export type UpdateAdminCollectionCurrencyAvailabilityMutationVariables = {data: BodyType<AdminCollectionCurrencyAvailabilityInput>}
+
+    /**
+ * @summary Update the administrator launch state for one supported collection currency
+ */
+export const useUpdateAdminCollectionCurrencyAvailability = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminCollectionCurrencyAvailability>>, TError,UpdateAdminCollectionCurrencyAvailabilityMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAdminCollectionCurrencyAvailability>>,
+        TError,
+        UpdateAdminCollectionCurrencyAvailabilityMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateAdminCollectionCurrencyAvailabilityMutationOptions(options));
+    }
+
 export const getGetMerchantKycUrl = () => {
 
 
@@ -10102,6 +10274,268 @@ export function useGetDeveloperFees<TData = Awaited<ReturnType<typeof getDevelop
 
 
 
+
+export const getFindAdminPlatformUsersUrl = (params: FindAdminPlatformUsersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/platform-admins/users?${stringifiedParams}` : `/api/admin/platform-admins/users`
+}
+
+/**
+ * @summary Find a Clerk user by exact email and return verified platform-admin access state
+ */
+export const findAdminPlatformUsers = async (params: FindAdminPlatformUsersParams, options?: Parameters<typeof customFetch>[1]): Promise<PlatformAdminUserList> => {
+
+  return customFetch<PlatformAdminUserList>(getFindAdminPlatformUsersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getFindAdminPlatformUsersQueryKey = (params?: FindAdminPlatformUsersParams,) => {
+    return [
+    `/api/admin/platform-admins/users`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getFindAdminPlatformUsersQueryOptions = <TData = Awaited<ReturnType<typeof findAdminPlatformUsers>>, TError = ErrorType<void>>(params: FindAdminPlatformUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof findAdminPlatformUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getFindAdminPlatformUsersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof findAdminPlatformUsers>>> = ({ signal }) => findAdminPlatformUsers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof findAdminPlatformUsers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type FindAdminPlatformUsersQueryResult = NonNullable<Awaited<ReturnType<typeof findAdminPlatformUsers>>>
+export type FindAdminPlatformUsersQueryError = ErrorType<void>
+
+
+/**
+ * @summary Find a Clerk user by exact email and return verified platform-admin access state
+ */
+
+export function useFindAdminPlatformUsers<TData = Awaited<ReturnType<typeof findAdminPlatformUsers>>, TError = ErrorType<void>>(
+ params: FindAdminPlatformUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof findAdminPlatformUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getFindAdminPlatformUsersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGrantPlatformAdminUrl = (userId: string,) => {
+
+
+
+
+  return `/api/admin/platform-admins/${userId}/grant`
+}
+
+/**
+ * @summary Grant persistent platform-admin access to a verified Clerk user
+ */
+export const grantPlatformAdmin = async (userId: string,
+    platformAdminRoleChangeInput: PlatformAdminRoleChangeInput, options?: Parameters<typeof customFetch>[1]): Promise<PlatformAdminUser> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<PlatformAdminUser>(getGrantPlatformAdminUrl(userId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(platformAdminRoleChangeInput)
+  }
+);}
+
+
+
+
+
+export const getGrantPlatformAdminMutationKey = () => ['grantPlatformAdmin'] as const;
+
+export const getGrantPlatformAdminMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof grantPlatformAdmin>>, TError,GrantPlatformAdminMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof grantPlatformAdmin>>, TError,GrantPlatformAdminMutationVariables, TContext> => {
+
+const mutationKey = getGrantPlatformAdminMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof grantPlatformAdmin>>, GrantPlatformAdminMutationVariables> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  grantPlatformAdmin(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GrantPlatformAdminMutationResult = NonNullable<Awaited<ReturnType<typeof grantPlatformAdmin>>>
+    export type GrantPlatformAdminMutationBody = BodyType<PlatformAdminRoleChangeInput>
+    export type GrantPlatformAdminMutationError = ErrorType<void>
+    export type GrantPlatformAdminMutationVariables = {userId: string;data: BodyType<PlatformAdminRoleChangeInput>}
+
+    /**
+ * @summary Grant persistent platform-admin access to a verified Clerk user
+ */
+export const useGrantPlatformAdmin = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof grantPlatformAdmin>>, TError,GrantPlatformAdminMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof grantPlatformAdmin>>,
+        TError,
+        GrantPlatformAdminMutationVariables,
+        TContext
+      > => {
+      return useMutation(getGrantPlatformAdminMutationOptions(options));
+    }
+
+export const getRevokePlatformAdminUrl = (userId: string,) => {
+
+
+
+
+  return `/api/admin/platform-admins/${userId}/revoke`
+}
+
+/**
+ * @summary Revoke a persistent platform-admin assignment with an audit reason
+ */
+export const revokePlatformAdmin = async (userId: string,
+    platformAdminRoleChangeInput: PlatformAdminRoleChangeInput, options?: Parameters<typeof customFetch>[1]): Promise<PlatformAdminUser> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<PlatformAdminUser>(getRevokePlatformAdminUrl(userId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(platformAdminRoleChangeInput)
+  }
+);}
+
+
+
+
+
+export const getRevokePlatformAdminMutationKey = () => ['revokePlatformAdmin'] as const;
+
+export const getRevokePlatformAdminMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokePlatformAdmin>>, TError,RevokePlatformAdminMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokePlatformAdmin>>, TError,RevokePlatformAdminMutationVariables, TContext> => {
+
+const mutationKey = getRevokePlatformAdminMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokePlatformAdmin>>, RevokePlatformAdminMutationVariables> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  revokePlatformAdmin(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokePlatformAdminMutationResult = NonNullable<Awaited<ReturnType<typeof revokePlatformAdmin>>>
+    export type RevokePlatformAdminMutationBody = BodyType<PlatformAdminRoleChangeInput>
+    export type RevokePlatformAdminMutationError = ErrorType<void>
+    export type RevokePlatformAdminMutationVariables = {userId: string;data: BodyType<PlatformAdminRoleChangeInput>}
+
+    /**
+ * @summary Revoke a persistent platform-admin assignment with an audit reason
+ */
+export const useRevokePlatformAdmin = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokePlatformAdmin>>, TError,RevokePlatformAdminMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokePlatformAdmin>>,
+        TError,
+        RevokePlatformAdminMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRevokePlatformAdminMutationOptions(options));
+    }
 
 export const getGetAdminSummaryUrl = () => {
 

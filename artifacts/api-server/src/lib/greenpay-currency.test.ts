@@ -36,7 +36,7 @@ test("currency routing is explicit and unknown codes cannot fall through to Payz
 test("the public currency contract exposes amount precision and readiness, not route names", () => {
   const response = ListSupportedCurrenciesResponse.parse({
     items: COLLECTION_CURRENCIES.map(({ code, name, minorUnits }) => ({
-      code, name, minorUnits, collectionReady: false,
+      code, name, minorUnits, comingSoon: code === "NGN", collectionReady: false,
       paymentMethods: collectionPaymentMethodsForCurrency(code, false),
     })),
   });
@@ -45,6 +45,10 @@ test("the public currency contract exposes amount precision and readiness, not r
   assert.equal(response.items.every((item) =>
     item.paymentMethods.length === 1 && item.paymentMethods[0]?.ready === item.collectionReady,
   ), true);
+  const launchPausedCurrency = response.items.find((item) => item.code === "NGN");
+  assert.equal(launchPausedCurrency?.comingSoon, true);
+  assert.equal(launchPausedCurrency?.collectionReady, false);
+  assert.equal(launchPausedCurrency?.paymentMethods.every((method) => !method.ready), true);
   assert.deepEqual(response.items.find((item) => item.code === "KES")?.paymentMethods[0], {
     id: "mobile_prompt",
     label: "Mobile money prompt",

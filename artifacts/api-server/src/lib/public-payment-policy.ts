@@ -49,6 +49,7 @@ export type PublicCheckoutCurrencyResult =
 export function publicCheckoutFailure(status: number, detail: string): { status: number; error: string } {
   if (status === 409) return { status, error: detail };
   if (status === 400 || status === 422) return { status, error: detail };
+  if (status === 503 && /coming soon/i.test(detail)) return { status, error: detail };
   return {
     status: 503,
     error: "Payments are unavailable for the selected currency right now. Please choose another currency or try again later.",

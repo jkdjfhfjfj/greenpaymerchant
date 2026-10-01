@@ -1,12 +1,15 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Search, LoaderCircle, Pencil, Trash2, Plus } from 'lucide-react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { Search, LoaderCircle, Pencil, Trash2, Plus, ShieldCheck } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRoute } from 'wouter';
 import {
   useGetAdminSummary, useListAdminMerchants, useUpdateAdminMerchant, useGetAdminPlatformSettings, useUpdateAdminPlatformSettings,
   useListAdminAuditLog, useListAdminFeeSchedules, useUpdateAdminFeeSchedule, useListAdminFxRates, useCreateAdminFxRate, useUpdateAdminFxRate,
   useListAdminProviderCredentials, useSaveAdminProviderCredentials, useDeleteAdminProviderCredentials,
   useGetAdminCloudinaryUploadStatus, useCreateAdminCloudinaryUploadSignature,
+  useFindAdminPlatformUsers, useGrantPlatformAdmin, useRevokePlatformAdmin, getFindAdminPlatformUsersQueryKey, getGetAccessProfileQueryKey,
+  useListAdminCollectionCurrencyAvailability, useUpdateAdminCollectionCurrencyAvailability,
+  getListAdminCollectionCurrencyAvailabilityQueryKey, useListSupportedCurrencies,
   type AdminMerchant, type AdminFxRate, type AdminFeeSchedule, type ProviderCredential, type ListAdminMerchantsParams, type PlatformSettings,
 } from '@workspace/api-client-react';
 import { Async, Btn, Card, CURRENCIES, Confirm, Err, Field, Gate, Heading, Modal, Note, Pager, Pill, Switch, fmtDate, money, nice, useInvalidateAll } from '@/components/kit';
@@ -21,6 +24,89 @@ function SummaryInner() {
   const tiles: [string, number | undefined, string][] = d ? [['Merchants', d.totalMerchants, 'mint'], ['Active', d.activeMerchants, 'cream'], ['Pending KYC', d.pendingKyc, 'peach'], ['Suspended', d.suspendedMerchants, 'peach'], ['Active API keys', d.activeApiKeys, 'blue'], ['Credential providers', d.credentialProviders, 'blue'], ['Transactions', d.totalTransactions, 'mint']] : [];
   return <><Heading eyebrow="ADMIN" title="Platform summary" subtitle="Merchants, verification, access and provider configuration at a glance." />
     <Async q={q}><div className="metric-grid">{tiles.map(([t, v, tone]) => <section key={t} className={`metric-card tone-${tone}`}><div className="metric-top"><span>{t}</span></div><div className="metric-value" data-testid={`metric-${t.toLowerCase().replaceAll(' ', '-')}`}>{(v ?? 0).toLocaleString()}</div></section>)}</div></Async></>;
+}
+
+export function AdminPlatformAdminsPage() { return <G><PlatformAdminsInner /></G>; }
+function PlatformAdminsInner() {
+  const [email, setEmail] = useState('');
+  const [searchEmail, setSearchEmail] = useState('');
+  const [selected, setSelected] = useState<{ userId: string; email: string; promote: boolean } | null>(null);
+  const [reason, setReason] = useState('');
+  const q = useFindAdminPlatformUsers({ email: searchEmail }, {
+    query: { queryKey: getFindAdminPlatformUsersQueryKey({ email: searchEmail }), enabled: Boolean(searchEmail) },
+  });
+  const grant = useGrantPlatformAdmin();
+  const revoke = useRevokePlatformAdmin();
+  const queryClient = useQueryClient();
+  const pending = grant.isPending || revoke.isPending;
+  const mutationError = grant.error || revoke.error;
+
+  function findUsers(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSearchEmail(email.trim().toLowerCase());
+  }
+
+  async function completeMutation() {
+    setSelected(null);
+    setReason('');
+    grant.reset();
+    revoke.reset();
+    await Promise.all([
+      q.refetch(),
+      queryClient.invalidateQueries({ queryKey: getGetAccessProfileQueryKey() }),
+    ]);
+  }
+
+  function confirmRoleChange(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selected || !reason.trim()) return;
+    const data = { reason: reason.trim() };
+    const onSuccess = () => { void completeMutation(); };
+    if (selected.promote) grant.mutate({ userId: selected.userId, data }, { onSuccess });
+    else revoke.mutate({ userId: selected.userId, data }, { onSuccess });
+  }
+
+  const users = q.data?.items ?? [];
+  return <>
+    <Heading eyebrow="ADMIN / ACCESS" title="Platform administrators" subtitle="Find users by exact verified primary email. Role decisions are persisted and recorded with your reason." />
+    <Card title="Find a verified Clerk user" subtitle="Email is only a lookup term. The server verifies the Clerk user's primary address before any role change.">
+      <form className="toolbar" onSubmit={findUsers}>
+        <div className="search-box"><Search size={14} /><input type="email" required maxLength={254} placeholder="name@example.com" value={email} onChange={(event) => setEmail(event.target.value)} data-testid="input-admin-user-email" /></div>
+        <Btn type="submit" disabled={q.isFetching} testId="button-find-admin-user">{q.isFetching ? <LoaderCircle size={14} className="spin" /> : <Search size={14} />}Find user</Btn>
+      </form>
+    </Card>
+    {searchEmail && <Async q={q} empty={!users.length} emptyTitle="No verified primary email match" emptyBody="Check the address and try again. Only users with that exact verified primary Clerk email are returned.">
+      <div className="table-wrap"><table className="dt"><thead><tr><th>User</th><th>Effective role</th><th>Persistent assignment</th><th>Bootstrap</th><th /></tr></thead><tbody>
+        {users.map((user) => <tr key={user.userId} data-testid={`row-platform-admin-${user.userId}`}>
+          <td><strong>{user.email}</strong><span className="sub mono">{user.userId}</span></td>
+          <td><Pill value={user.effectiveRole} /></td>
+          <td>{user.assignmentActive ? `Assigned ${fmtDate(user.assignedAt)}` : user.revokedAt ? `Revoked ${fmtDate(user.revokedAt)}` : 'Not assigned'}</td>
+          <td>{user.bootstrapAdmin ? <Pill value="non_revocable" /> : '—'}</td>
+          <td>{user.bootstrapAdmin
+            ? <span className="sub">Managed by ADMIN_EMAILS</span>
+            : <Btn variant={user.assignmentActive ? 'danger' : 'secondary'} small disabled={pending} onClick={() => { grant.reset(); revoke.reset(); setReason(''); setSelected({ userId: user.userId, email: user.email, promote: !user.assignmentActive }); }}>
+              {user.assignmentActive ? <><ShieldCheck size={13} />Demote</> : <><Plus size={13} />Promote</>}
+            </Btn>}</td>
+        </tr>)}
+      </tbody></table></div>
+    </Async>}
+    {selected && <Modal
+      title={selected.promote ? 'Promote platform administrator' : 'Demote platform administrator'}
+      description={`${selected.promote ? 'Grant' : 'Revoke'} platform-admin access for ${selected.email}. This change takes effect immediately and is recorded in the audit log.`}
+      onClose={() => { if (!pending) setSelected(null); }}>
+      <form className="form-stack" onSubmit={confirmRoleChange}>
+        <Note tone="warn">{selected.promote
+          ? 'Confirm only if this person should manage Greenpay platform-wide settings and customer operations.'
+          : 'Confirm only if another effective administrator can retain access. The last effective administrator cannot be removed.'}</Note>
+        <Field label="Required audit reason"><textarea required minLength={1} maxLength={1000} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain why this access change is necessary" data-testid="input-admin-role-reason" /></Field>
+        <Err error={mutationError} />
+        <div className="row-actions"><Btn variant="secondary" disabled={pending} onClick={() => setSelected(null)}>Cancel</Btn>
+          <Btn type="submit" variant={selected.promote ? 'primary' : 'danger'} disabled={pending || !reason.trim()} testId="button-confirm-admin-role">
+            {pending && <LoaderCircle size={14} className="spin" />}{selected.promote ? 'Confirm promotion' : 'Confirm demotion'}
+          </Btn></div>
+      </form>
+    </Modal>}
+  </>;
 }
 
 export function AdminMerchantsPage() { return <G><MerchantsInner /></G>; }
@@ -354,7 +440,7 @@ function CredEdit({ c, onClose }: { c: ProviderCredential; onClose: () => void }
     names.forEach((n) => { const v = String(f.get(n) || '').trim(); if (v) credentials[n] = v; });
     save.mutate({ provider: c.provider, data: { enabled, credentials } }, { onSuccess: () => { void inv(); onClose(); } });
   }
-  return <Modal title={`${nice(c.provider)} credentials`} description="Values replace what is stored. Existing secrets are never displayed." onClose={onClose}><form className="form-stack" onSubmit={submit} autoComplete="off">
+  return <Modal title={`${nice(c.provider)} credentials`} description="Values replace what is stored; blank fields are cleared. Enter every value you want to retain. Existing secrets are never displayed." onClose={onClose}><form className="form-stack" onSubmit={submit} autoComplete="off">
     {names.map((n) => <Field key={n} label={n} hint={OPTIONAL.has(n) ? 'Optional here, but required before verification sessions can start' : REQUIRED_HINT[n]}><input name={n} type={PLAIN.has(n) ? 'text' : 'password'} autoComplete="off" spellCheck={false} placeholder={c.fields.find((f) => f.name === n)?.present ? c.fields.find((f) => f.name === n)?.masked : ''} data-testid={`input-${n}`} /></Field>)}
     <div className="setting-row"><span>Enable provider</span><Switch on={enabled} onChange={setEnabled} label="enable provider" /></div>
     <Err error={save.error} /><Btn type="submit" disabled={save.isPending} testId="button-save-credentials">{save.isPending && <LoaderCircle size={14} className="spin" />}Save to vault</Btn></form></Modal>;
@@ -379,9 +465,16 @@ function SettingsInner() {
   const up = useUpdateAdminPlatformSettings();
   const cloudinaryStatus = useGetAdminCloudinaryUploadStatus();
   const cloudinarySignature = useCreateAdminCloudinaryUploadSignature();
+  const providerCredentials = useListAdminProviderCredentials();
+  const currencyAvailability = useListAdminCollectionCurrencyAvailability();
+  const supportedCurrencies = useListSupportedCurrencies();
+  const updateCurrencyAvailability = useUpdateAdminCollectionCurrencyAvailability();
+  const queryClient = useQueryClient();
   const inv = useInvalidateAll();
   const [off, setOff] = useState<string | null>(null);
   const [branding, setBranding] = useState<BrandingFormValues | null>(null);
+  const [cloudinaryEdit, setCloudinaryEdit] = useState<ProviderCredential | null>(null);
+  const cloudinaryCredential = providerCredentials.data?.items.find((item) => item.provider === 'cloudinary');
   useEffect(() => {
     if (!q.data) return;
     setBranding({
@@ -422,7 +515,19 @@ function SettingsInner() {
               {cloudinaryStatus.data?.configured
                 ? <Note>Cloudinary uploads are enabled{cloudinaryStatus.data.cloudName ? ` for ${cloudinaryStatus.data.cloudName}` : ''}.</Note>
                 : <Note tone="warn">Cloudinary uploads are not configured. Add the Cloud Name, API Key, and API Secret in Provider credentials to enable uploads.</Note>}
-              <a className="text-link" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/admin/credentials`}>Manage Cloudinary credentials</a>
+              <div className="row-actions">
+                <Btn
+                  variant="secondary"
+                  disabled={!cloudinaryCredential}
+                  onClick={() => cloudinaryCredential && setCloudinaryEdit(cloudinaryCredential)}
+                  testId="button-configure-cloudinary"
+                >
+                  <Pencil size={13} />{cloudinaryStatus.data?.configured ? 'Replace Cloudinary credentials' : 'Configure Cloudinary credentials'}
+                </Btn>
+                <a className="text-link" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/admin/credentials`}>All provider credentials</a>
+              </div>
+              {!cloudinaryCredential && providerCredentials.isLoading && <span className="sub">Loading credential settings…</span>}
+              {!cloudinaryCredential && providerCredentials.isError && <Err error={providerCredentials.error} />}
             </div>}
       </Card>
       <Card title="Platform identity" subtitle="Public details shown across the platform and onboarding.">
@@ -460,8 +565,30 @@ function SettingsInner() {
           <Btn type="submit" disabled={up.isPending} testId="button-save-platform-branding">{up.isPending && <LoaderCircle size={14} className="spin" />}Save platform identity</Btn>
         </form>}
       </Card>
+      {cloudinaryEdit && <CredEdit c={cloudinaryEdit} onClose={() => setCloudinaryEdit(null)} />}
       <Card title="Feature controls" subtitle="Platform-wide switches. Changes apply immediately and are audited.">
         {q.data && SETTINGS.map(([k, t, d]) => <div className="setting-row" key={k}><div><strong>{t}</strong><span>{d}</span></div><Switch on={q.data[k]} label={t} disabled={up.isPending} onChange={(v) => { if (v) up.mutate({ data: { [k]: v } }, { onSuccess: () => { void inv(); } }); else setOff(k); }} /></div>)}
+      </Card>
+      <Card title="Collection currency launch" subtitle="Control whether new collections may start in each supported currency.">
+        <Note tone="warn">Turning a currency off prevents new collections and displays “Coming soon” at checkout. Existing payment links remain visible and editable, but customers cannot collect in that currency until it is enabled again.</Note>
+        <Async q={supportedCurrencies}>
+          <Async q={currencyAvailability}>
+            <Err error={updateCurrencyAvailability.error} />
+            <div className="form-stack">
+              {(supportedCurrencies.data?.items ?? []).map((currency) => {
+                const override = currencyAvailability.data?.items.find((item) => item.currency === currency.code);
+                const enabled = override?.enabled ?? true;
+                return <div className="setting-row" key={currency.code} data-testid={`row-collection-currency-${currency.code}`}>
+                  <div><strong>{currency.code} · {currency.name}</strong><span>{enabled ? 'Active for new collections' : 'Coming soon · new collections blocked'}{override ? ` · Updated ${fmtDate(override.updatedAt)} by ${override.actorUserId}` : ' · Default active'}</span></div>
+                  <Switch on={enabled} label={`${currency.code} collection availability`} disabled={updateCurrencyAvailability.isPending} onChange={(next) => updateCurrencyAvailability.mutate({ data: { currency: currency.code as never, enabled: next } }, { onSuccess: async () => {
+                    await queryClient.invalidateQueries({ queryKey: getListAdminCollectionCurrencyAvailabilityQueryKey() });
+                    await queryClient.invalidateQueries();
+                  } })} />
+                </div>;
+              })}
+            </div>
+          </Async>
+        </Async>
       </Card>
     </div></Async>
     {off && <Confirm title="Turn off this control" body="This applies platform-wide immediately for every merchant." confirmLabel="Turn off" pending={up.isPending} error={up.error} onClose={() => { setOff(null); up.reset(); }} onConfirm={() => up.mutate({ data: { [off]: false } }, { onSuccess: () => { void inv(); setOff(null); } })} />}</>;

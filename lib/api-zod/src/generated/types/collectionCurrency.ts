@@ -20,8 +20,10 @@ export interface CollectionCurrency {
      * @maximum 2
      */
   minorUnits: number;
-  /** True only when the active route has credentials and is enabled. */
+  /** True only when the currency is admin-enabled and platform */
   collectionReady: boolean;
+  /** True when an administrator has explicitly disabled collections for launch. */
+  comingSoon: boolean;
   /** Provider-neutral payment actions actually supported by Greenpay for this currency. Readiness is evaluated separately. */
   paymentMethods: CollectionPaymentMethod[];
 }

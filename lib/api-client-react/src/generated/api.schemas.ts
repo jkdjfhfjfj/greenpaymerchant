@@ -725,7 +725,7 @@ export const CollectionPaymentMethodNextAction = {
 export interface CollectionPaymentMethod {
   id: CollectionPaymentMethodId;
   label: string;
-  /** True only when this currency's Greenpay collection route is enabled and configured. */
+  /** True only when this currency is admin-enabled and platform */
   ready: boolean;
   requiresPhone: boolean;
   nextAction: CollectionPaymentMethodNextAction;
@@ -744,8 +744,10 @@ export interface CollectionCurrency {
      * @maximum 2
      */
   minorUnits: number;
-  /** True only when the active route has credentials and is enabled. */
+  /** True only when the currency is admin-enabled and platform */
   collectionReady: boolean;
+  /** True when an administrator has explicitly disabled collections for launch. */
+  comingSoon: boolean;
   /** Provider-neutral payment actions actually supported by Greenpay for this currency. Readiness is evaluated separately. */
   paymentMethods: CollectionPaymentMethod[];
 }
@@ -2746,6 +2748,62 @@ export interface CurrencyCatalog {
   items: CollectionCurrency[];
 }
 
+export type AdminCollectionCurrencyAvailabilityCurrency = typeof AdminCollectionCurrencyAvailabilityCurrency[keyof typeof AdminCollectionCurrencyAvailabilityCurrency];
+
+
+export const AdminCollectionCurrencyAvailabilityCurrency = {
+  USD: 'USD',
+  KES: 'KES',
+  NGN: 'NGN',
+  GHS: 'GHS',
+  TZS: 'TZS',
+  XOF: 'XOF',
+  RWF: 'RWF',
+  UGX: 'UGX',
+  ZMW: 'ZMW',
+  MWK: 'MWK',
+  SLL: 'SLL',
+  CDF: 'CDF',
+  MZN: 'MZN',
+  XAF: 'XAF',
+} as const;
+
+export interface AdminCollectionCurrencyAvailability {
+  currency: AdminCollectionCurrencyAvailabilityCurrency;
+  enabled: boolean;
+  updatedAt: string;
+  actorUserId: string;
+}
+
+export interface AdminCollectionCurrencyAvailabilityList {
+  items: AdminCollectionCurrencyAvailability[];
+}
+
+export type AdminCollectionCurrencyAvailabilityInputCurrency = typeof AdminCollectionCurrencyAvailabilityInputCurrency[keyof typeof AdminCollectionCurrencyAvailabilityInputCurrency];
+
+
+export const AdminCollectionCurrencyAvailabilityInputCurrency = {
+  USD: 'USD',
+  KES: 'KES',
+  NGN: 'NGN',
+  GHS: 'GHS',
+  TZS: 'TZS',
+  XOF: 'XOF',
+  RWF: 'RWF',
+  UGX: 'UGX',
+  ZMW: 'ZMW',
+  MWK: 'MWK',
+  SLL: 'SLL',
+  CDF: 'CDF',
+  MZN: 'MZN',
+  XAF: 'XAF',
+} as const;
+
+export interface AdminCollectionCurrencyAvailabilityInput {
+  currency: AdminCollectionCurrencyAvailabilityInputCurrency;
+  enabled: boolean;
+}
+
 export interface ApiKeyList {
   items: ApiKey[];
 }
@@ -3115,6 +3173,38 @@ export interface AdminAuditLog {
   items: AdminAuditEntry[];
 }
 
+export type PlatformAdminUserEffectiveRole = typeof PlatformAdminUserEffectiveRole[keyof typeof PlatformAdminUserEffectiveRole];
+
+
+export const PlatformAdminUserEffectiveRole = {
+  platform_admin: 'platform_admin',
+  user: 'user',
+} as const;
+
+export interface PlatformAdminUser {
+  userId: string;
+  email: string;
+  effectiveRole: PlatformAdminUserEffectiveRole;
+  assignmentActive: boolean;
+  bootstrapAdmin: boolean;
+  /** @nullable */
+  assignedAt: string | null;
+  /** @nullable */
+  revokedAt: string | null;
+}
+
+export interface PlatformAdminUserList {
+  items: PlatformAdminUser[];
+}
+
+export interface PlatformAdminRoleChangeInput {
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
 export type AdminListSupportTicketsParams = {
 status?: AdminListSupportTicketsStatus;
 /**
@@ -3332,6 +3422,13 @@ from: string;
  * @maxLength 3
  */
 to: string;
+};
+
+export type FindAdminPlatformUsersParams = {
+/**
+ * @maxLength 254
+ */
+email: string;
 };
 
 export type ListAdminContentParams = {

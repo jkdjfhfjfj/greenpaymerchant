@@ -62,6 +62,20 @@ test("a timed-out initiation stays pending and can later reconcile to provider s
   }
 });
 
+test("an administrator-disabled currency is rejected before provider calls or transaction writes", async () => {
+  let providerCalled = false;
+  await assert.rejects(createCollection(testCollectionInput, {
+    isCurrencyEnabled: async () => false,
+    startProviderPayment: async () => {
+      providerCalled = true;
+      throw new Error("provider must not be called");
+    },
+  }), (error: unknown) => error instanceof Error &&
+    "statusCode" in error && error.statusCode === 503 &&
+    /USD.*coming soon/i.test(error.message));
+  assert.equal(providerCalled, false);
+});
+
 test("a success callback racing a rejected initiation cannot be overwritten as failed", async () => {
   let reference: string | undefined;
   try {

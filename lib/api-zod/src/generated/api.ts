@@ -782,11 +782,12 @@ export const GetPublicPaymentLinkResponse = zod.object({
   "code": zod.string().min(getPublicPaymentLinkResponseAvailableCurrenciesItemCodeMin).max(getPublicPaymentLinkResponseAvailableCurrenciesItemCodeMax),
   "name": zod.string(),
   "minorUnits": zod.number().int().min(getPublicPaymentLinkResponseAvailableCurrenciesItemMinorUnitsMin).max(getPublicPaymentLinkResponseAvailableCurrenciesItemMinorUnitsMax).describe('Maximum fractional digits accepted for Greenpay collections; KES is whole-unit only.'),
-  "collectionReady": zod.boolean().describe('True only when the active route has credentials and is enabled.'),
+  "collectionReady": zod.boolean().describe('True only when the currency is admin-enabled and platform'),
+  "comingSoon": zod.boolean().describe('True when an administrator has explicitly disabled collections for launch.'),
   "paymentMethods": zod.array(zod.object({
   "id": zod.enum(['hosted_checkout', 'mobile_prompt']),
   "label": zod.string(),
-  "ready": zod.boolean().describe('True only when this currency\'s Greenpay collection route is enabled and configured.'),
+  "ready": zod.boolean().describe('True only when this currency is admin-enabled and platform'),
   "requiresPhone": zod.boolean(),
   "nextAction": zod.enum(['redirect', 'mobile_prompt'])
 })).describe('Provider-neutral payment actions actually supported by Greenpay for this currency. Readiness is evaluated separately.')
@@ -3478,6 +3479,35 @@ export const UpdateAdminVerificationLimitsResponse = zod.object({
 
 
 /**
+ * @summary List the supported collection currencies and administrator launch state
+ */
+export const ListAdminCollectionCurrencyAvailabilityResponse = zod.object({
+  "items": zod.array(zod.object({
+  "currency": zod.enum(['USD', 'KES', 'NGN', 'GHS', 'TZS', 'XOF', 'RWF', 'UGX', 'ZMW', 'MWK', 'SLL', 'CDF', 'MZN', 'XAF']),
+  "enabled": zod.boolean(),
+  "updatedAt": zod.coerce.date(),
+  "actorUserId": zod.string()
+}))
+})
+
+
+/**
+ * @summary Update the administrator launch state for one supported collection currency
+ */
+export const UpdateAdminCollectionCurrencyAvailabilityBody = zod.object({
+  "currency": zod.enum(['USD', 'KES', 'NGN', 'GHS', 'TZS', 'XOF', 'RWF', 'UGX', 'ZMW', 'MWK', 'SLL', 'CDF', 'MZN', 'XAF']),
+  "enabled": zod.boolean()
+})
+
+export const UpdateAdminCollectionCurrencyAvailabilityResponse = zod.object({
+  "currency": zod.enum(['USD', 'KES', 'NGN', 'GHS', 'TZS', 'XOF', 'RWF', 'UGX', 'ZMW', 'MWK', 'SLL', 'CDF', 'MZN', 'XAF']),
+  "enabled": zod.boolean(),
+  "updatedAt": zod.coerce.date(),
+  "actorUserId": zod.string()
+})
+
+
+/**
  * @summary Read the merchant's verification status
  */
 export const getMerchantKycResponseLimitsItemCurrencyMin = 3;
@@ -4018,11 +4048,12 @@ export const ListSupportedCurrenciesResponse = zod.object({
   "code": zod.string().min(listSupportedCurrenciesResponseItemsItemCodeMin).max(listSupportedCurrenciesResponseItemsItemCodeMax),
   "name": zod.string(),
   "minorUnits": zod.number().int().min(listSupportedCurrenciesResponseItemsItemMinorUnitsMin).max(listSupportedCurrenciesResponseItemsItemMinorUnitsMax).describe('Maximum fractional digits accepted for Greenpay collections; KES is whole-unit only.'),
-  "collectionReady": zod.boolean().describe('True only when the active route has credentials and is enabled.'),
+  "collectionReady": zod.boolean().describe('True only when the currency is admin-enabled and platform'),
+  "comingSoon": zod.boolean().describe('True when an administrator has explicitly disabled collections for launch.'),
   "paymentMethods": zod.array(zod.object({
   "id": zod.enum(['hosted_checkout', 'mobile_prompt']),
   "label": zod.string(),
-  "ready": zod.boolean().describe('True only when this currency\'s Greenpay collection route is enabled and configured.'),
+  "ready": zod.boolean().describe('True only when this currency is admin-enabled and platform'),
   "requiresPhone": zod.boolean(),
   "nextAction": zod.enum(['redirect', 'mobile_prompt'])
 })).describe('Provider-neutral payment actions actually supported by Greenpay for this currency. Readiness is evaluated separately.')
@@ -4356,6 +4387,90 @@ export const GetDeveloperFeesResponse = zod.object({
 }),
   "source": zod.enum(['default', 'merchant']),
   "note": zod.string()
+})
+
+
+/**
+ * @summary Find a Clerk user by exact email and return verified platform-admin access state
+ */
+export const findAdminPlatformUsersQueryEmailMax = 254;
+
+
+
+export const FindAdminPlatformUsersQueryParams = zod.object({
+  "email": zod.coerce.string().email().max(findAdminPlatformUsersQueryEmailMax)
+})
+
+export const FindAdminPlatformUsersResponse = zod.object({
+  "items": zod.array(zod.object({
+  "userId": zod.string(),
+  "email": zod.string().email(),
+  "effectiveRole": zod.enum(['platform_admin', 'user']),
+  "assignmentActive": zod.boolean(),
+  "bootstrapAdmin": zod.boolean(),
+  "assignedAt": zod.coerce.date().nullable(),
+  "revokedAt": zod.coerce.date().nullable()
+}))
+})
+
+
+/**
+ * @summary Grant persistent platform-admin access to a verified Clerk user
+ */
+export const grantPlatformAdminPathUserIdMax = 128;
+
+
+
+export const GrantPlatformAdminParams = zod.object({
+  "userId": zod.coerce.string().min(1).max(grantPlatformAdminPathUserIdMax)
+})
+
+export const grantPlatformAdminBodyReasonMax = 1000;
+
+
+
+export const GrantPlatformAdminBody = zod.object({
+  "reason": zod.string().min(1).max(grantPlatformAdminBodyReasonMax)
+})
+
+export const GrantPlatformAdminResponse = zod.object({
+  "userId": zod.string(),
+  "email": zod.string().email(),
+  "effectiveRole": zod.enum(['platform_admin', 'user']),
+  "assignmentActive": zod.boolean(),
+  "bootstrapAdmin": zod.boolean(),
+  "assignedAt": zod.coerce.date().nullable(),
+  "revokedAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary Revoke a persistent platform-admin assignment with an audit reason
+ */
+export const revokePlatformAdminPathUserIdMax = 128;
+
+
+
+export const RevokePlatformAdminParams = zod.object({
+  "userId": zod.coerce.string().min(1).max(revokePlatformAdminPathUserIdMax)
+})
+
+export const revokePlatformAdminBodyReasonMax = 1000;
+
+
+
+export const RevokePlatformAdminBody = zod.object({
+  "reason": zod.string().min(1).max(revokePlatformAdminBodyReasonMax)
+})
+
+export const RevokePlatformAdminResponse = zod.object({
+  "userId": zod.string(),
+  "email": zod.string().email(),
+  "effectiveRole": zod.enum(['platform_admin', 'user']),
+  "assignmentActive": zod.boolean(),
+  "bootstrapAdmin": zod.boolean(),
+  "assignedAt": zod.coerce.date().nullable(),
+  "revokedAt": zod.coerce.date().nullable()
 })
 
 

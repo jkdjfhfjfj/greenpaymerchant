@@ -2,6 +2,9 @@ import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import {
+  FindAdminPlatformUsersQueryParams, FindAdminPlatformUsersResponse,
+  GrantPlatformAdminBody, GrantPlatformAdminParams, GrantPlatformAdminResponse,
+  RevokePlatformAdminBody, RevokePlatformAdminParams, RevokePlatformAdminResponse,
   CreateAdminFxRateBody, CreateAdminFxRateResponse, DeleteAdminProviderCredentialsParams,
   DeleteAdminProviderCredentialsResponse, GetAdminPlatformSettingsResponse, GetAdminSummaryResponse,
   GetAdminCloudinaryUploadStatusResponse, CreateAdminCloudinaryUploadSignatureResponse,
@@ -13,14 +16,18 @@ import {
   UpdateAdminFxRateParams, UpdateAdminFxRateResponse, UpdateAdminMerchantBody,
   UpdateAdminMerchantParams, UpdateAdminMerchantResponse, UpdateAdminPlatformSettingsBody,
   UpdateAdminPlatformSettingsResponse,
+  ListAdminCollectionCurrencyAvailabilityResponse, UpdateAdminCollectionCurrencyAvailabilityBody,
+  UpdateAdminCollectionCurrencyAvailabilityResponse,
 } from "@workspace/api-zod";
 import {
   adminAuditLogTable, db, feeSchedulesTable, fxRatesTable, merchantApiKeysTable,
   merchantsTable, platformSettingsTable, providerCredentialsTable, transactionsTable,
-  verificationTierLimitsTable, verificationUsageReservationsTable,
+  platformAdminAssignmentsTable, verificationTierLimitsTable, verificationUsageReservationsTable,
+  collectionCurrencyAvailabilityTable,
 } from "@workspace/db";
 import { encryptProviderCredentials, readProviderCredentials } from "../lib/secure-storage";
 import { credentialVaultReady } from "../lib/secret-crypto";
+import { collectionCurrencyAvailabilityAudit, supportedCollectionCurrencyCode } from "../lib/collection-currency-availability";
 import { providerCredential, providerCredentialFields } from "../lib/credential-runtime";
 import { cleanPublicUrl, normalizeWhatsAppContact } from "../lib/platform-branding";
 import { cloudinaryUploadStatus, createCloudinaryUploadSignature } from "../lib/cloudinary-upload";
@@ -32,13 +39,239 @@ import {
   type MerchantActionKey,
 } from "../lib/merchant-access-policy";
 import { verificationTierForMerchant } from "../lib/platform";
+import {
+  allowlistedAdminEmails, ClerkApiError, emailIsBootstrapAdmin, existingClerkUserIds, fetchClerkUser, findVerifiedClerkUsersByEmail,
+  platformAdminAuditDetails, remainingEffectiveAdminCount, verifiedPrimaryEmail, type ClerkUserRecord,
+} from "../lib/platform-admin";
 
 const router: IRouter = Router();
 const providers = ["paystack", "payhero", "payzaapi", "didit", "cloudinary"] as const;
 
+function collectionCurrencyAvailabilityDto(row: typeof collectionCurrencyAvailabilityTable.$inferSelect) {
+  return {
+    currency: row.currency,
+    enabled: row.enabled,
+    updatedAt: row.updatedAt,
+    actorUserId: row.actorUserId,
+  };
+}
+
+router.get("/admin/collection-currencies", async (_req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  const rows = await db.select().from(collectionCurrencyAvailabilityTable)
+    .orderBy(collectionCurrencyAvailabilityTable.currency);
+  res.json(ListAdminCollectionCurrencyAvailabilityResponse.parse({ items: rows.map(collectionCurrencyAvailabilityDto) }));
+});
+
+router.put("/admin/collection-currencies", async (req, res): Promise<void> => {
+  const parsed = UpdateAdminCollectionCurrencyAvailabilityBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const currency = supportedCollectionCurrencyCode(parsed.data.currency);
+  if (!currency) {
+    res.status(400).json({ error: "Currency must be one of Greenpay's supported collection currencies." });
+    return;
+  }
+  const actorUserId = actor(req);
+  const saved = await db.transaction(async (tx) => {
+    const now = new Date();
+    const [row] = await tx.insert(collectionCurrencyAvailabilityTable).values({
+      currency,
+      enabled: parsed.data.enabled,
+      updatedAt: now,
+      actorUserId,
+    }).onConflictDoUpdate({
+      target: collectionCurrencyAvailabilityTable.currency,
+      set: { enabled: parsed.data.enabled, updatedAt: now, actorUserId },
+    }).returning();
+    await tx.insert(adminAuditLogTable).values(collectionCurrencyAvailabilityAudit(actorUserId, currency, parsed.data.enabled));
+    return row!;
+  });
+  res.json(UpdateAdminCollectionCurrencyAvailabilityResponse.parse(collectionCurrencyAvailabilityDto(saved)));
+});
+
 function actor(req: Parameters<Parameters<IRouter["get"]>[1]>[0]): string {
   return getAuth(req).userId ?? "unknown-admin";
 }
+
+function clerkLookupFailure(error: unknown): { status: number; message: string } {
+  if (error instanceof ClerkApiError && error.status === 404) {
+    return { status: 404, message: "The Clerk user could not be found." };
+  }
+  return { status: 503, message: "Clerk could not verify the user. Try again shortly." };
+}
+
+async function platformAdminUserDto(user: ClerkUserRecord & { verifiedEmail: string }) {
+  const [assignment] = await db.select().from(platformAdminAssignmentsTable)
+    .where(eq(platformAdminAssignmentsTable.clerkUserId, user.id)).limit(1);
+  const bootstrapAdmin = emailIsBootstrapAdmin(user.verifiedEmail);
+  const assignmentActive = Boolean(assignment && !assignment.revokedAt);
+  return {
+    userId: user.id,
+    email: user.verifiedEmail,
+    effectiveRole: bootstrapAdmin || assignmentActive ? "platform_admin" as const : "user" as const,
+    assignmentActive,
+    bootstrapAdmin,
+    assignedAt: assignment?.createdAt ?? null,
+    revokedAt: assignment?.revokedAt ?? null,
+  };
+}
+
+async function verifiedBootstrapAdminIds(): Promise<Set<string>> {
+  const ids = new Set<string>();
+  for (const email of allowlistedAdminEmails()) {
+    const matches = await findVerifiedClerkUsersByEmail(email);
+    for (const user of matches) ids.add(user.id);
+  }
+  return ids;
+}
+
+router.get("/admin/platform-admins/users", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  const query = FindAdminPlatformUsersQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  try {
+    const users = await findVerifiedClerkUsersByEmail(query.data.email);
+    const items = await Promise.all(users.map(platformAdminUserDto));
+    res.json(FindAdminPlatformUsersResponse.parse({ items }));
+  } catch (error) {
+    req.log.error({ err: error }, "Platform-admin user lookup failed");
+    res.status(503).json({ error: "Clerk or the database could not verify platform-admin access. Try again shortly." });
+  }
+});
+
+router.post("/admin/platform-admins/:userId/grant", async (req, res): Promise<void> => {
+  const params = GrantPlatformAdminParams.safeParse(req.params);
+  const body = GrantPlatformAdminBody.safeParse(req.body);
+  if (!params.success || !body.success) {
+    res.status(400).json({ error: !params.success ? params.error.message : body.error?.message ?? "Invalid administrator grant." });
+    return;
+  }
+  const reason = body.data.reason.trim();
+  if (!reason) { res.status(400).json({ error: "A nonempty audit reason is required." }); return; }
+  let user: ClerkUserRecord;
+  try {
+    user = await fetchClerkUser(params.data.userId);
+  } catch (error) {
+    const failure = clerkLookupFailure(error);
+    res.status(failure.status).json({ error: failure.message });
+    return;
+  }
+  const email = verifiedPrimaryEmail(user);
+  if (!email) { res.status(400).json({ error: "The Clerk user's primary email must be verified before granting administrator access." }); return; }
+  if (emailIsBootstrapAdmin(email)) {
+    res.status(409).json({ error: "This administrator is managed by ADMIN_EMAILS and does not need a persistent assignment." });
+    return;
+  }
+
+  try {
+    const saved = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(719342001)`);
+      const now = new Date();
+      const [assignment] = await tx.insert(platformAdminAssignmentsTable).values({
+        clerkUserId: user.id,
+        verifiedEmailSnapshot: email,
+        assignedByClerkUserId: actor(req),
+        createdAt: now,
+        updatedAt: now,
+        revokedAt: null,
+      }).onConflictDoUpdate({
+        target: platformAdminAssignmentsTable.clerkUserId,
+        set: {
+          verifiedEmailSnapshot: email,
+          assignedByClerkUserId: actor(req),
+          updatedAt: now,
+          revokedAt: null,
+        },
+      }).returning();
+      await tx.insert(adminAuditLogTable).values({
+        actor: actor(req),
+        action: "platform_admin.granted",
+        target: `platform-admin:${user.id}`,
+        details: platformAdminAuditDetails(email, reason),
+      });
+      return assignment;
+    });
+    res.json(GrantPlatformAdminResponse.parse({
+      userId: user.id, email, effectiveRole: "platform_admin", assignmentActive: true,
+      bootstrapAdmin: false, assignedAt: saved.createdAt, revokedAt: null,
+    }));
+  } catch (error) {
+    req.log.error({ err: error, userId: user.id }, "Platform-admin grant failed");
+    res.status(503).json({ error: "The administrator assignment could not be saved. Try again shortly." });
+  }
+});
+
+router.post("/admin/platform-admins/:userId/revoke", async (req, res): Promise<void> => {
+  const params = RevokePlatformAdminParams.safeParse(req.params);
+  const body = RevokePlatformAdminBody.safeParse(req.body);
+  if (!params.success || !body.success) {
+    res.status(400).json({ error: !params.success ? params.error.message : body.error?.message ?? "Invalid administrator revocation." });
+    return;
+  }
+  const reason = body.data.reason.trim();
+  if (!reason) { res.status(400).json({ error: "A nonempty audit reason is required." }); return; }
+  let user: ClerkUserRecord;
+  try {
+    user = await fetchClerkUser(params.data.userId);
+  } catch (error) {
+    const failure = clerkLookupFailure(error);
+    res.status(failure.status).json({ error: failure.message });
+    return;
+  }
+  const email = verifiedPrimaryEmail(user);
+  if (!email) { res.status(400).json({ error: "The Clerk user's primary email must be verified before changing administrator access." }); return; }
+  if (emailIsBootstrapAdmin(email)) {
+    res.status(409).json({ error: "ADMIN_EMAILS bootstrap administrators are non-revocable." });
+    return;
+  }
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(719342001)`);
+      const [assignment] = await tx.select().from(platformAdminAssignmentsTable)
+        .where(and(
+          eq(platformAdminAssignmentsTable.clerkUserId, user.id),
+          isNull(platformAdminAssignmentsTable.revokedAt),
+        )).for("update").limit(1);
+      if (!assignment) return { outcome: "not_found" as const };
+
+      const activeAssignments = await tx.select({ clerkUserId: platformAdminAssignmentsTable.clerkUserId })
+        .from(platformAdminAssignmentsTable).where(isNull(platformAdminAssignmentsTable.revokedAt));
+      const existingAssignments = await existingClerkUserIds(activeAssignments.map((row) => row.clerkUserId));
+      const bootstrapIds = await verifiedBootstrapAdminIds();
+      if (remainingEffectiveAdminCount(
+        [...existingAssignments], bootstrapIds, user.id,
+      ) < 1) return { outcome: "last_admin" as const };
+
+      const now = new Date();
+      const [revoked] = await tx.update(platformAdminAssignmentsTable)
+        .set({ revokedAt: now, updatedAt: now })
+        .where(eq(platformAdminAssignmentsTable.clerkUserId, user.id)).returning();
+      await tx.insert(adminAuditLogTable).values({
+        actor: actor(req),
+        action: "platform_admin.revoked",
+        target: `platform-admin:${user.id}`,
+        details: platformAdminAuditDetails(email, reason),
+      });
+      return { outcome: "revoked" as const, assignment: revoked };
+    });
+    if (result.outcome === "not_found") {
+      res.status(404).json({ error: "This user has no active platform-admin assignment." });
+      return;
+    }
+    if (result.outcome === "last_admin") {
+      res.status(409).json({ error: "The last effective platform administrator cannot be removed." });
+      return;
+    }
+    res.json(RevokePlatformAdminResponse.parse({
+      userId: user.id, email, effectiveRole: "user", assignmentActive: false,
+      bootstrapAdmin: false, assignedAt: result.assignment.createdAt, revokedAt: result.assignment.revokedAt,
+    }));
+  } catch (error) {
+    req.log.error({ err: error, userId: user.id }, "Platform-admin revocation failed");
+    res.status(503).json({ error: "The administrator revocation could not be verified or saved. Try again shortly." });
+  }
+});
 
 async function audit(req: Parameters<Parameters<IRouter["get"]>[1]>[0], action: string, target: string, details: string) {
   await db.insert(adminAuditLogTable).values({ actor: actor(req), action, target, details });

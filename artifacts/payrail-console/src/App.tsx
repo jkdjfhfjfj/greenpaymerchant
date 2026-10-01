@@ -37,10 +37,10 @@ import { DeveloperDocsPage } from '@/pages/developer-docs';
 import { WalletPage, PayoutRequestsPage, AdminWalletsPage, AdminPayoutRequestsPage } from '@/pages/wallets';
 import { InvoicePage, InvoiceDetailPage, StatementsPage, CasesPage, AdminCasesPage, PublicReceiptPage } from '@/pages/business-tools';
 import { MerchantTeamPage, AcceptTeamInvitePage } from '@/pages/team';
-import { MerchantPage, KycPage, MerchantLinksPage, MerchantTransactionsPage, MerchantPayoutsPage } from '@/pages/merchant';
+import { MerchantDashboardPage, MerchantPage, KycPage, MerchantLinksPage, MerchantTransactionsPage, MerchantPayoutsPage } from '@/pages/merchant';
 import { DevelopersPage, ExchangePage } from '@/pages/developers';
 import { StatusPage, AuthSetupScreen } from '@/pages/status';
-import { AdminSummaryPage, AdminMerchantsPage, AdminMerchantControlsPage, AdminFeesPage, AdminExchangePage, AdminCredentialsPage, AdminSettingsPage, AdminAuditPage } from '@/pages/admin';
+import { AdminSummaryPage, AdminMerchantsPage, AdminMerchantControlsPage, AdminFeesPage, AdminExchangePage, AdminCredentialsPage, AdminSettingsPage, AdminAuditPage, AdminPlatformAdminsPage } from '@/pages/admin';
 import { AdminEmailDeliveryPage } from '@/pages/admin-email-delivery';
 import { AdminContentPage, PublicHelpPage, PublicContentPage, PublicContentIndexPage } from '@/pages/content';
 import { Route, Switch, Redirect, useLocation, Router as WouterRouter } from 'wouter';
@@ -118,6 +118,7 @@ const navSections: { title: string; items: NavItem[] }[] = [
     { label: 'Customers', href: '/customers', icon: CreditCard },
   ] },
   { title: 'MERCHANT', items: [
+    { label: 'Overview', href: '/merchant/dashboard', icon: LayoutDashboard },
     { label: 'Profile', href: '/merchant', icon: WalletCards },
     { label: 'Verification', href: '/merchant/kyc', icon: ShieldCheck },
     { label: 'My links', href: '/merchant/payment-links', icon: Link2 },
@@ -152,6 +153,7 @@ const adminSection: { title: string; items: NavItem[] } = { title: 'PLATFORM ADM
   { label: 'Credentials', href: '/admin/credentials', icon: LockKeyhole },
   { label: 'Controls', href: '/admin/settings', icon: Settings2 },
   { label: 'Audit log', href: '/admin/audit', icon: FileClock },
+  { label: 'Platform administrators', href: '/admin/administrators', icon: ShieldCheck },
   { label: 'Verification limits', href: '/admin/verification-limits', icon: ShieldCheck },
   { label: 'Funded wallets', href: '/admin/wallets', icon: WalletCards },
   { label: 'Payout approvals', href: '/admin/payout-requests', icon: Send },
@@ -173,10 +175,12 @@ const pageInfo: Record<string, { title: string; subtitle: string }> = {
   '/admin/verification-limits': { title: 'Verification limits', subtitle: '' },
   '/contact': { title: 'Contact', subtitle: '' }, '/platform-status': { title: 'Platform status', subtitle: '' },
   '/merchant': { title: 'Merchant profile', subtitle: '' }, '/merchant/kyc': { title: 'Verification', subtitle: '' },
+  '/merchant/dashboard': { title: 'Overview', subtitle: 'A clear view of collections and links for your business.' },
   '/merchant/payment-links': { title: 'My payment links', subtitle: '' }, '/merchant/transactions': { title: 'My transactions', subtitle: '' }, '/merchant/payouts': { title: 'Admin-operated payouts', subtitle: '' },
   '/developers': { title: 'API access', subtitle: '' }, '/exchange': { title: 'Exchange quotes', subtitle: '' },
   '/admin': { title: 'Admin summary', subtitle: '' }, '/admin/merchants': { title: 'Merchants', subtitle: '' }, '/admin/fees': { title: 'Fees', subtitle: '' },
   '/admin/exchange': { title: 'Rates', subtitle: '' }, '/admin/credentials': { title: 'Credentials', subtitle: '' }, '/admin/settings': { title: 'Controls', subtitle: '' }, '/admin/audit': { title: 'Audit log', subtitle: '' },
+  '/admin/administrators': { title: 'Platform administrators', subtitle: '' },
   '/operations': { title: 'Operations', subtitle: 'A clear view of money moving through your business.' }, '/': { title: 'Overview', subtitle: 'A clear view of money moving through your business.' },
   '/transactions': { title: 'Transactions', subtitle: 'Search, verify and resolve collection activity.' },
   '/payment-links': { title: 'Payment links', subtitle: 'Simple, shareable ways to collect across markets.' },
@@ -275,7 +279,7 @@ function Protected({ children }: { children: ReactNode }) {
 function RoleHome() {
   const access = useAccess();
   if (access.isLoading || access.isError) return <AppShell><Async q={access}>{null}</Async></AppShell>;
-  return <Redirect to={access.isAdmin ? '/admin' : '/merchant'} />;
+  return <Redirect to={access.isAdmin ? '/admin' : '/merchant/dashboard'} />;
 }
 
 function DashboardRoot() {
@@ -334,7 +338,9 @@ function CollectionModal({ onClose }: { onClose: () => void }) {
     event.preventDefault();
     setError('');
     if (!currencyOption?.collectionReady || !selectedMethod) {
-      setError(`Payments are not currently available in ${currencyCode}. Refresh availability or choose another currency.`);
+      setError(currencyOption?.comingSoon
+        ? `${currencyCode} collections are coming soon. Choose another currency.`
+        : `Payments are not currently available in ${currencyCode}. Refresh availability or choose another currency.`);
       return;
     }
     const form = new FormData(event.currentTarget);
@@ -356,25 +362,26 @@ function CollectionModal({ onClose }: { onClose: () => void }) {
       <div className="form-grid">
         <Field label="Amount"><input name="amount" type="number" min={currencyMinorUnits(currencyCode) === 0 ? '1' : '0.01'} step={currencyAmountStep(currencyCode)} placeholder="0.00" required data-testid="input-collection-amount" /></Field>
         <Field label="Currency"><select name="currency" value={currencyCode} onChange={(event) => { setCurrencyCode(event.target.value); setPaymentMethodId(''); }} disabled={currencyCatalog.isLoading || !supportedCurrencies.length} data-testid="select-collection-currency">
-          {supportedCurrencies.map((item) => <option key={item.code} value={item.code}>{item.code} · {item.name}{item.collectionReady ? '' : ' · unavailable'}</option>)}
+          {supportedCurrencies.map((item) => <option key={item.code} value={item.code}>{item.code} · {item.name}{item.comingSoon ? ' · Coming soon' : item.collectionReady ? '' : ' · unavailable'}</option>)}
         </select></Field>
       </div>
       <Field label="Payment method"><select value={selectedMethodId} onChange={(event) => setPaymentMethodId(event.target.value)} disabled={!paymentMethods.some((item) => item.ready)} data-testid="select-collection-payment-method">
-        {selectedMethodId === '' && <option value="">{currencyOption?.collectionReady ? 'No payment method available' : 'Payment method unavailable'}</option>}
-        {paymentMethods.map((method) => <option key={method.id} value={method.id} disabled={!method.ready}>{method.label}{method.ready ? '' : ' · unavailable'}</option>)}
+        {selectedMethodId === '' && <option value="">{currencyOption?.comingSoon ? 'Coming soon' : currencyOption?.collectionReady ? 'No payment method available' : 'Payment method unavailable'}</option>}
+        {paymentMethods.map((method) => <option key={method.id} value={method.id} disabled={!method.ready}>{method.label}{method.ready ? '' : currencyOption?.comingSoon ? ' · Coming soon' : ' · unavailable'}</option>)}
       </select></Field>
       {selectedMethod && <span className="sub">{selectedMethod.id === 'mobile_prompt'
         ? 'Mobile money is requested through an M-Pesa prompt on the customer’s phone.'
-        : 'The secure checkout shows any card, mobile-money, or bank options available for this currency.'}</span>}
+        : 'The secure hosted checkout shows the payment options supported for this currency. USD is not guaranteed to be card-only.'}</span>}
       {currencyCatalog.isLoading && <span className="sub">Loading supported currencies and payment options…</span>}
       {currencyCatalog.isError && <div className="provider-warning"><CircleAlert size={15} /><span>Payment availability could not be checked.</span><Button variant="secondary" disabled={currencyCatalog.isFetching} onClick={() => { void currencyCatalog.refetch(); }}>{currencyCatalog.isFetching ? 'Checking…' : 'Retry'}</Button></div>}
-      {currencyOption && !currencyOption.collectionReady && <div className="provider-warning"><CircleAlert size={15} /><span>Payments are not currently available in {currencyOption.code}. This deployment has no ready payment method for this currency.</span><Button variant="secondary" disabled={currencyCatalog.isFetching} onClick={() => { void currencyCatalog.refetch(); }}>{currencyCatalog.isFetching ? 'Checking…' : 'Refresh availability'}</Button></div>}
+      {currencyOption && currencyOption.comingSoon && <div className="provider-warning"><CircleAlert size={15} /><span>Coming soon: new collections in {currencyOption.code} are disabled by the platform administrator.</span></div>}
+      {currencyOption && !currencyOption.comingSoon && !currencyOption.collectionReady && <div className="provider-warning"><CircleAlert size={15} /><span>Payments are not currently available in {currencyOption.code}. This deployment has no ready payment method for this currency.</span><Button variant="secondary" disabled={currencyCatalog.isFetching} onClick={() => { void currencyCatalog.refetch(); }}>{currencyCatalog.isFetching ? 'Checking…' : 'Refresh availability'}</Button></div>}
       {currencyOption?.collectionReady && !paymentMethods.some((item) => item.ready) && <div className="provider-warning"><CircleAlert size={15} /><span>No payment method is currently available for {currencyOption.code}.</span><Button variant="secondary" disabled={currencyCatalog.isFetching} onClick={() => { void currencyCatalog.refetch(); }}>{currencyCatalog.isFetching ? 'Checking…' : 'Refresh availability'}</Button></div>}
       <Field label="Customer email"><input name="email" type="email" placeholder="finance@example.com" required data-testid="input-collection-email" /></Field>
       <Field label="Customer name"><input name="name" placeholder="Full name" data-testid="input-collection-name" /></Field>
       <Field label={`Customer phone${selectedMethod?.requiresPhone ? ' (required)' : ' (optional)'}`}><input name="phone" type="tel" placeholder="+254…" required={selectedMethod?.requiresPhone} data-testid="input-collection-phone" /></Field>
       <Field label="Description"><input name="description" placeholder="Invoice or order reference" data-testid="input-collection-description" /></Field>
-      <RouteHint currencyCode={currencyCode} /><ProviderNote /><ErrorLine error={error} />
+      <RouteHint currencyCode={currencyCode} paymentMethodId={selectedMethodId} /><ProviderNote /><ErrorLine error={error} />
       <Button type="submit" disabled={working || currencyCatalog.isLoading || !currencyOption?.collectionReady || !selectedMethod} className="btn-full">{working ? <><LoaderCircle className="spin" size={16} /> Starting collection</> : <>Create checkout <ArrowRight size={15} /></>}</Button>
     </form>}
   </Modal>;
@@ -388,10 +395,14 @@ function ErrorLine({ error }: { error: string }) {
   return error ? <div className="form-error" role="alert"><CircleAlert size={15} />{error}</div> : null;
 }
 
-function RouteHint({ currencyCode }: { currencyCode: string }) {
+function RouteHint({ currencyCode, paymentMethodId }: { currencyCode: string; paymentMethodId: string }) {
   const selected = currencyCode.toUpperCase();
-  const providerName = selected === 'USD' ? 'Paystack' : selected === 'KES' ? 'PayHero' : 'Payzaapi';
-  return <div className="route-hint"><span className="route-hint-dot" /><span>{selected} collection routed to <strong>{providerName}</strong></span></div>;
+  const hint = selected === 'USD' && paymentMethodId === 'hosted_checkout'
+    ? 'USD uses secure hosted checkout; available payment options appear on the next page.'
+    : selected === 'KES' && paymentMethodId === 'mobile_prompt'
+      ? 'A mobile money prompt will be sent to the customer’s phone.'
+      : `${selected} uses the secure payment method selected above.`;
+  return <div className="route-hint"><span className="route-hint-dot" /><span>{hint}</span></div>;
 }
 
 function ProviderNote() {
@@ -563,12 +574,12 @@ function PaymentLinkForm({ onClose, onCreated }: { onClose: () => void; onCreate
       <div className="form-grid">
         <Field label="Amount type"><select name="amountType" value={amountType} onChange={(event) => setAmountType(event.target.value as 'fixed' | 'customer_choice')} data-testid="select-link-amount-type"><option value="fixed">Fixed amount</option><option value="customer_choice">Customer chooses</option></select></Field>
         <Field label="Link currency"><select name="currency" value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value)} disabled={currencyCatalog.isLoading || !supportedCurrencies.length} data-testid="select-link-currency">
-          {supportedCurrencies.map((item) => <option key={item.code} value={item.code}>{item.code} · {item.name}{item.collectionReady ? '' : ' · unavailable'}</option>)}
+          {supportedCurrencies.map((item) => <option key={item.code} value={item.code}>{item.code} · {item.name}{item.comingSoon ? ' · Coming soon' : item.collectionReady ? '' : ' · unavailable'}</option>)}
         </select></Field>
       </div>
       {currencyCatalog.isLoading && <span className="sub">Loading supported currencies and payment availability…</span>}
       {currencyCatalog.isError && <div className="provider-warning"><CircleAlert size={15} /><span>Supported currencies could not be loaded.</span><Button variant="secondary" disabled={currencyCatalog.isFetching} onClick={() => { void currencyCatalog.refetch(); }}>{currencyCatalog.isFetching ? 'Checking…' : 'Retry'}</Button></div>}
-      {selectedCurrency && !selectedCurrency.collectionReady && <div className="provider-warning"><CircleAlert size={15} /><span>Checkout in {selectedCurrency.code} is not currently available. You can create the link now; payments will be unavailable until this currency route is enabled.</span></div>}
+      {selectedCurrency && !selectedCurrency.collectionReady && <div className="provider-warning"><CircleAlert size={15} /><span>{selectedCurrency.comingSoon ? `Coming soon: new collections in ${selectedCurrency.code} are disabled. You can still create or edit this payment link; existing links remain visible.` : `Checkout in ${selectedCurrency.code} is not currently available. You can create the link now; payments will be unavailable until this currency route is enabled.`}</span></div>}
       {amountType === 'fixed' && <Field label="Amount"><input name="amount" type="number" min={currencyMinorUnits(currencyCode) === 0 ? '1' : '0.01'} step={currencyAmountStep(currencyCode)} placeholder="0.00" required data-testid="input-link-amount" /></Field>}
       <Field label="Expires on (optional)"><input name="expiresAt" type="date" data-testid="input-link-expiry" /></Field>
       <ErrorLine error={error} />
@@ -804,12 +815,12 @@ function PublicCheckout() {
                     setPaymentMethodSelection(availableCurrencies.find((item) => item.code === nextCode)?.paymentMethods.find((item) => item.ready)?.id ?? '');
                     setError('');
                   }} data-testid="select-checkout-currency">
-                     {availableCurrencies.map((item) => <option key={item.code} value={item.code} disabled={!item.collectionReady}>{item.code} · {item.name}{item.collectionReady ? '' : ' · unavailable'}</option>)}
+                      {availableCurrencies.map((item) => <option key={item.code} value={item.code} disabled={!item.collectionReady}>{item.code} · {item.name}{item.comingSoon ? ' · Coming soon' : item.collectionReady ? '' : ' · unavailable'}</option>)}
                   </select></Field>
                   : <Field label="Payment currency"><input value={`${link.currency} · ${invoiceBalance !== null ? 'invoice amount; currency locked' : 'fixed amount; currency locked'}`} readOnly /></Field>}
                 <Field label="Payment method"><select value={selectedMethodId} onChange={(event) => setPaymentMethodSelection(event.target.value)} disabled={!paymentMethods.some((item) => item.ready)} required data-testid="select-checkout-payment-method">
-                  {selectedMethodId === '' && <option value="">{currencyOption?.collectionReady ? 'No payment method available' : 'No payment method available right now'}</option>}
-                  {paymentMethods.map((method) => <option key={method.id} value={method.id} disabled={!method.ready}>{method.label}{method.requiresPhone ? ' · phone required' : ''}{method.ready ? '' : ' · unavailable'}</option>)}
+                  {selectedMethodId === '' && <option value="">{currencyOption?.comingSoon ? 'Coming soon' : currencyOption?.collectionReady ? 'No payment method available' : 'No payment method available right now'}</option>}
+                  {paymentMethods.map((method) => <option key={method.id} value={method.id} disabled={!method.ready}>{method.label}{method.requiresPhone ? ' · phone required' : ''}{method.ready ? '' : currencyOption?.comingSoon ? ' · Coming soon' : ' · unavailable'}</option>)}
                 </select></Field>
                 {selectedMethod && <span className="checkout-trust">{selectedMethod.id === 'mobile_prompt'
                   ? 'Mobile money is requested through a secure M-Pesa prompt on your phone.'
@@ -818,7 +829,8 @@ function PublicCheckout() {
                 <Field label="Email address"><input type="email" name="email" placeholder="you@example.com" autoComplete="email" required data-testid="input-checkout-email" /></Field>
                 <Field label="Full name"><input name="name" placeholder="Name on payment" autoComplete="name" required data-testid="input-checkout-name" /></Field>
                 <Field label={`Phone${selectedMethod?.requiresPhone ? ' (required for this method)' : ' (optional)'}`}><input name="phone" type="tel" placeholder="+254…" autoComplete="tel" required={selectedMethod?.requiresPhone} data-testid="input-checkout-phone" /></Field>
-                {currencyOption && (!currencyOption.collectionReady || !paymentMethods.some((item) => item.ready)) && <div className="provider-warning"><CircleAlert size={15} /><span>{currencyOption.collectionReady
+                {currencyOption && currencyOption.comingSoon && <div className="provider-warning"><CircleAlert size={15} /><span>Coming soon: collections in {currencyOption.code} are not enabled yet. This payment link remains visible, but cannot collect until the currency is launched.</span></div>}
+                {currencyOption && !currencyOption.comingSoon && (!currencyOption.collectionReady || !paymentMethods.some((item) => item.ready)) && <div className="provider-warning"><CircleAlert size={15} /><span>{currencyOption.collectionReady
                   ? `No payment method is currently available for ${currencyOption.code}.`
                   : canChooseCurrency && hasReadyCurrencyOption
                     ? `Checkout in ${currencyOption.code} is not currently available. Choose another currency or refresh availability.`
@@ -841,9 +853,10 @@ const wrap = (C: () => ReactNode) => () => <Protected><AppShell><C /></AppShell>
 const protectedRoutes: [string, () => ReactNode][] = [
   ['/admin/merchants/:merchantId/controls', AdminMerchantControlsPage],
   ['/admin/email-delivery', AdminEmailDeliveryPage], ['/admin/content', AdminContentPage],
-  ['/merchant', MerchantPage], ['/merchant/kyc', KycPage], ['/merchant/payment-links', MerchantLinksPage], ['/merchant/transactions', MerchantTransactionsPage], ['/merchant/payouts', MerchantPayoutsPage],
+  ['/merchant/dashboard', MerchantDashboardPage], ['/merchant', MerchantPage], ['/merchant/kyc', KycPage], ['/merchant/payment-links', MerchantLinksPage], ['/merchant/transactions', MerchantTransactionsPage], ['/merchant/payouts', MerchantPayoutsPage],
   ['/developers', DevelopersPage], ['/exchange', ExchangePage], ['/admin', AdminSummaryPage], ['/admin/merchants', AdminMerchantsPage], ['/admin/fees', AdminFeesPage],
   ['/admin/exchange', AdminExchangePage], ['/admin/credentials', AdminCredentialsPage], ['/admin/settings', AdminSettingsPage], ['/admin/audit', AdminAuditPage],
+  ['/admin/administrators', AdminPlatformAdminsPage],
   ['/support', SupportPage], ['/admin/support', AdminSupportPage], ['/profile', ProfilePage], ['/notifications', NotificationsPage],
   ['/admin/verification-limits', VerificationLimitsPage], ['/developers/docs', DeveloperDocsPage],
   ['/wallets', WalletPage], ['/payout-requests', PayoutRequestsPage], ['/admin/wallets', AdminWalletsPage], ['/admin/payout-requests', AdminPayoutRequestsPage],
@@ -879,17 +892,41 @@ function PageMetadata() {
   useEffect(() => {
     const publicContent = /^\/(?:learn|guides|articles)(?:\/|$)/.test(location);
     if (publicContent) return;
+    const indexable = location === '/' || location === '/contact';
     let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
     if (!robots) { robots = document.createElement('meta'); robots.name = 'robots'; document.head.appendChild(robots); }
-    robots.content = location === '/' || location === '/contact' ? 'index, follow' : 'noindex, nofollow';
+    robots.content = indexable ? 'index, follow' : 'noindex, nofollow';
     const title = pageInfo[location]?.title
       || (location.startsWith('/invoices/') ? 'Invoice details' : location.startsWith('/receipt/') ? 'Payment receipt'
       : location.startsWith('/pay/') ? 'Secure checkout' : location.startsWith('/status/') ? 'Payment status'
       : location.startsWith('/sign-in') ? 'Sign in' : location.startsWith('/sign-up') ? 'Create your account'
       : location === '/team/accept' ? 'Accept team invitation' : 'Workspace');
     document.title = location === '/' ? `${platformName} | Payments for African businesses` : `${title} · ${platformName}`;
+    const descriptions: Record<string, string> = {
+      '/': `${platformName} helps businesses collect payments, create payment links, and track transaction and settlement status.`,
+      '/contact': `Contact ${platformName} for help with payment collection, merchant onboarding, and platform support.`,
+    };
+    const descriptionText = descriptions[location] || `${title} in ${platformName}.`;
     const description = document.querySelector<HTMLMetaElement>('meta[name="description"]');
-    if (description) description.content = location === '/' ? `${platformName} helps businesses collect payments, manage funded wallets, issue invoices and track payment activity.` : `${title} in ${platformName}.`;
+    if (description) description.content = descriptionText;
+    const canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (indexable) {
+      const canonicalUrl = new URL(`${basePath}${location === '/' ? '/' : location}`, window.location.origin).toString();
+      const canonicalLink = canonical ?? document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'canonical' }));
+      canonicalLink.href = canonicalUrl;
+      const ogUrl = document.querySelector<HTMLMetaElement>('meta[property="og:url"]');
+      if (ogUrl) ogUrl.content = canonicalUrl;
+      const ogTitle = document.querySelector<HTMLMetaElement>('meta[property="og:title"]');
+      if (ogTitle) ogTitle.content = document.title;
+      const ogDescription = document.querySelector<HTMLMetaElement>('meta[property="og:description"]');
+      if (ogDescription) ogDescription.content = descriptionText;
+      const twitterTitle = document.querySelector<HTMLMetaElement>('meta[name="twitter:title"]');
+      if (twitterTitle) twitterTitle.content = document.title;
+      const twitterDescription = document.querySelector<HTMLMetaElement>('meta[name="twitter:description"]');
+      if (twitterDescription) twitterDescription.content = descriptionText;
+    } else {
+      canonical?.remove();
+    }
   }, [location, platformName]);
   return null;
 }

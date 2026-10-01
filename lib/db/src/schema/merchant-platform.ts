@@ -168,6 +168,13 @@ export const providerCredentialsTable = pgTable("greenpay_provider_credentials",
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const collectionCurrencyAvailabilityTable = pgTable("greenpay_collection_currency_availability", {
+  currency: varchar("currency", { length: 3 }).primaryKey(),
+  enabled: boolean("enabled").notNull().default(true),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  actorUserId: varchar("actor_user_id", { length: 128 }).notNull(),
+});
+
 export const adminAuditLogTable = pgTable("greenpay_admin_audit_log", {
   id: serial("id").primaryKey(),
   actor: varchar("actor", { length: 128 }).notNull(),

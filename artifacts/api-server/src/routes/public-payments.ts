@@ -22,7 +22,7 @@ import {
 } from "../lib/greenpay-ledger";
 import {
   db, merchantInvoicesTable, merchantsTable, paymentLinksTable, refundsTable, transactionsTable,
-  verificationTierLimitsTable,
+  verificationTierLimitsTable, collectionCurrencyAvailabilityTable,
 } from "@workspace/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { assertMerchantActionEnabled, getPlatformSettings } from "../lib/platform";
@@ -38,6 +38,8 @@ const PAID_TRANSACTION_STATUSES = ["success", "refunded"] as const;
 
 async function getCollectionCurrencyOptions(verificationTier?: VerificationTier) {
   const platformReady = (await getPlatformSettings()).paymentsEnabled;
+  const adminAvailabilityRows = await db.select().from(collectionCurrencyAvailabilityTable);
+  const disabledCurrencies = new Set(adminAvailabilityRows.filter((row) => !row.enabled).map((row) => row.currency));
   const routeReadiness = {
     paystack: await providerIsConfigured("paystack"),
     payhero: await providerIsConfigured("payhero"),
@@ -50,13 +52,15 @@ async function getCollectionCurrencyOptions(verificationTier?: VerificationTier)
       .where(eq(verificationTierLimitsTable.tier, verificationTier)))
       .map(({ currency }) => currency.toUpperCase()));
   return COLLECTION_CURRENCIES.map(({ code, name, minorUnits }) => {
-    const collectionReady = platformReady &&
+    const comingSoon = disabledCurrencies.has(code);
+    const collectionReady = !comingSoon && platformReady &&
       routeReadiness[providerForCurrency(code)] &&
       (configuredTierCurrencies === undefined || configuredTierCurrencies.has(code));
     return {
       code,
       name,
       minorUnits,
+      comingSoon,
       collectionReady,
       paymentMethods: collectionPaymentMethodsForCurrency(code, collectionReady),
     };
@@ -143,7 +147,7 @@ async function invoicePaymentLinkState(
 }
 
 router.get("/currencies", async (_req, res): Promise<void> => {
-  res.setHeader("Cache-Control", "public, max-age=60");
+  res.setHeader("Cache-Control", "no-store");
   res.json(ListSupportedCurrenciesResponse.parse({ items: await getCollectionCurrencyOptions() }));
 });
 

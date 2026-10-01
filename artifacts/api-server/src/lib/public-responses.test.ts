@@ -23,6 +23,7 @@ test("public payment links omit processing partners", () => {
       name: "US Dollar",
       minorUnits: 2,
       collectionReady: false,
+      comingSoon: true,
       paymentMethods: [{
         id: "hosted_checkout",
         label: "Secure hosted checkout",

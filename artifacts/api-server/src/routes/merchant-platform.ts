@@ -33,6 +33,7 @@ import {
   assertSupportedCurrency, getPublicAppUrl, providerForCurrency, providerIsConfigured, resolveCollectionPaymentMethod,
 } from "../lib/greenpay-provider";
 import { requireAdmin, requireSignedIn } from "../middlewares/requireAdmin";
+import { resolvePlatformAdmin } from "../lib/platform-admin";
 import { developerApiAuth, requireApiScope } from "../middlewares/developerApiAuth";
 import {
   assertMerchantActionEnabled,
@@ -145,12 +146,11 @@ function endpointDto(row: typeof merchantWebhookEndpointsTable.$inferSelect) {
 router.get("/me", requireSignedIn, async (req, res): Promise<void> => {
   const userId = res.locals.clerkUserId as string;
   const access = await findMerchantAccessForUser(userId);
-  const allowed = (process.env.ADMIN_EMAILS ?? "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
   let isAdmin = false;
-  if (allowed.length) {
-    const { verifiedClerkEmail } = await import("../middlewares/requireAdmin");
-    const email = await verifiedClerkEmail(userId);
-    isAdmin = Boolean(email && allowed.includes(email));
+  try {
+    isAdmin = (await resolvePlatformAdmin(userId)).isAdmin;
+  } catch (error) {
+    req.log.warn({ err: error, userId }, "Could not resolve platform-admin access for access profile");
   }
   res.json(GetAccessProfileResponse.parse({
     userId, isAdmin, ...(access ? { role: access.role } : {}),
@@ -807,8 +807,9 @@ apiRouter.post("/transactions", requireApiScope("payments:write"), async (req, r
     }).where(eq(developerIdempotencyTable.id, reserved.id));
     const statusCode = typeof error === "object" && error !== null && "statusCode" in error
       ? Number(error.statusCode) : 502;
+    const comingSoonFailure = error instanceof Error && /coming soon/i.test(error.message);
     res.status(statusCode).json({
-      error: statusCode < 500 && error instanceof Error
+      error: ((statusCode < 500 || (statusCode === 503 && comingSoonFailure)) && error instanceof Error)
         ? error.message
         : "Payment initiation could not be confirmed. The idempotency reservation is retained to prevent a duplicate charge.",
     });

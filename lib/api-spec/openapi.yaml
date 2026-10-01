@@ -1499,6 +1499,35 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/VerificationLimitsResponse" }
+  /admin/collection-currencies:
+    get:
+      operationId: listAdminCollectionCurrencyAvailability
+      tags: [admin]
+      summary: List the supported collection currencies and administrator launch state
+      responses:
+        "200":
+          description: Supported currency launch overrides; unconfigured rows are active by default
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminCollectionCurrencyAvailabilityList" }
+        "403": { description: Administrator access required }
+    put:
+      operationId: updateAdminCollectionCurrencyAvailability
+      tags: [admin]
+      summary: Update the administrator launch state for one supported collection currency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminCollectionCurrencyAvailabilityInput" }
+      responses:
+        "200":
+          description: Updated currency launch override
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminCollectionCurrencyAvailability" }
+        "400": { description: Unsupported currency code or invalid input }
+        "403": { description: Administrator access required }
   /merchant/kyc:
     get:
       operationId: getMerchantKyc
@@ -1985,6 +2014,74 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/FeeScheduleResponse" }
+  /admin/platform-admins/users:
+    get:
+      operationId: findAdminPlatformUsers
+      tags: [admin]
+      summary: Find a Clerk user by exact email and return verified platform-admin access state
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema: { type: string, format: email, maxLength: 254 }
+      responses:
+        "200":
+          description: Exact-email verified Clerk user matches
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformAdminUserList" }
+        "400": { description: Invalid email query }
+        "503": { description: Clerk or the database could not verify user access }
+  /admin/platform-admins/{userId}/grant:
+    post:
+      operationId: grantPlatformAdmin
+      tags: [admin]
+      summary: Grant persistent platform-admin access to a verified Clerk user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlatformAdminRoleChangeInput" }
+      responses:
+        "200":
+          description: Platform-admin assignment saved with an audit record
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformAdminUser" }
+        "400": { description: Invalid reason }
+        "404": { description: Clerk user not found }
+        "409": { description: User already has a non-revocable bootstrap role }
+        "503": { description: Clerk or the database could not verify or save the assignment }
+  /admin/platform-admins/{userId}/revoke:
+    post:
+      operationId: revokePlatformAdmin
+      tags: [admin]
+      summary: Revoke a persistent platform-admin assignment with an audit reason
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlatformAdminRoleChangeInput" }
+      responses:
+        "200":
+          description: Platform-admin assignment revoked with an audit record
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformAdminUser" }
+        "400": { description: Invalid reason }
+        "404": { description: Clerk user or active assignment not found }
+        "409": { description: Bootstrap administrators are non-revocable or this is the last effective administrator }
+        "503": { description: Clerk or the database could not verify or save the revocation }
   /admin/summary:
     get:
       operationId: getAdminSummary
@@ -4161,12 +4258,13 @@ components:
           items: { $ref: "#/components/schemas/CollectionCurrency" }
     CollectionCurrency:
       type: object
-      required: [code, name, minorUnits, collectionReady, paymentMethods]
+      required: [code, name, minorUnits, collectionReady, comingSoon, paymentMethods]
       properties:
         code: { type: string, minLength: 3, maxLength: 3 }
         name: { type: string }
         minorUnits: { type: integer, minimum: 0, maximum: 2, description: Maximum fractional digits accepted for Greenpay collections; KES is whole-unit only. }
-        collectionReady: { type: boolean, description: True only when the active route has credentials and is enabled. }
+        collectionReady: { type: boolean, description: True only when the currency is admin-enabled and platform, provider-route, and applicable verification-tier readiness permit collection. }
+        comingSoon: { type: boolean, description: True when an administrator has explicitly disabled collections for launch. }
         paymentMethods:
           type: array
           description: Provider-neutral payment actions actually supported by Greenpay for this currency. Readiness is evaluated separately.
@@ -4177,9 +4275,30 @@ components:
       properties:
         id: { type: string, enum: [hosted_checkout, mobile_prompt] }
         label: { type: string }
-        ready: { type: boolean, description: True only when this currency's Greenpay collection route is enabled and configured. }
+        ready: { type: boolean, description: True only when this currency is admin-enabled and platform, provider-route, and applicable verification-tier readiness permit collection. }
         requiresPhone: { type: boolean }
         nextAction: { type: string, enum: [redirect, mobile_prompt] }
+    AdminCollectionCurrencyAvailability:
+      type: object
+      required: [currency, enabled, updatedAt, actorUserId]
+      properties:
+        currency: { type: string, enum: [USD, KES, NGN, GHS, TZS, XOF, RWF, UGX, ZMW, MWK, SLL, CDF, MZN, XAF] }
+        enabled: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+        actorUserId: { type: string }
+    AdminCollectionCurrencyAvailabilityList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AdminCollectionCurrencyAvailability" }
+    AdminCollectionCurrencyAvailabilityInput:
+      type: object
+      required: [currency, enabled]
+      properties:
+        currency: { type: string, enum: [USD, KES, NGN, GHS, TZS, XOF, RWF, UGX, ZMW, MWK, SLL, CDF, MZN, XAF] }
+        enabled: { type: boolean }
     ApiKeyList:
       type: object
       required: [items]
@@ -4457,3 +4576,26 @@ components:
         items:
           type: array
           items: { $ref: "#/components/schemas/AdminAuditEntry" }
+    PlatformAdminUser:
+      type: object
+      required: [userId, email, effectiveRole, assignmentActive, bootstrapAdmin, assignedAt, revokedAt]
+      properties:
+        userId: { type: string }
+        email: { type: string, format: email }
+        effectiveRole: { type: string, enum: [platform_admin, user] }
+        assignmentActive: { type: boolean }
+        bootstrapAdmin: { type: boolean }
+        assignedAt: { type: ["string", "null"], format: date-time }
+        revokedAt: { type: ["string", "null"], format: date-time }
+    PlatformAdminUserList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/PlatformAdminUser" }
+    PlatformAdminRoleChangeInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 1000 }

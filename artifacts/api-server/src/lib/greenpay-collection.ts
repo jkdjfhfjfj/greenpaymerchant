@@ -7,7 +7,7 @@ import {
 } from "@workspace/api-zod";
 import {
   db, feeSchedulesTable, merchantInvoicesTable, merchantsTable, paymentLinksTable,
-  refundsTable, transactionsTable,
+  refundsTable, transactionsTable, collectionCurrencyAvailabilityTable,
 } from "@workspace/db";
 import {
   ApiError, assertSupportedCurrency, providerForCurrency, providerIsConfigured, startProviderPayment,
@@ -36,6 +36,7 @@ export interface CreateCollectionInput {
 export interface CreateCollectionDependencies {
   assertPaymentsEnabled?: () => Promise<void>;
   providerIsConfigured?: (provider: ProviderName) => Promise<boolean>;
+  isCurrencyEnabled?: (currency: string) => Promise<boolean>;
   loadFeeSchedule?: (merchantId?: number) => Promise<typeof feeSchedulesTable.$inferSelect | undefined>;
   startProviderPayment?: (input: StartPaymentInput) => Promise<StartPaymentResult>;
 }
@@ -54,6 +55,13 @@ export async function createCollection(
   dependencies: CreateCollectionDependencies = {},
 ) {
   const currency = input.currency.toUpperCase();
+  const currencyEnabled = await (dependencies.isCurrencyEnabled ?? (async (code) => {
+    const [availability] = await db.select({ enabled: collectionCurrencyAvailabilityTable.enabled })
+      .from(collectionCurrencyAvailabilityTable)
+      .where(eq(collectionCurrencyAvailabilityTable.currency, code)).limit(1);
+    return availability?.enabled ?? true;
+  }))(currency);
+  if (!currencyEnabled) throw new ApiError(503, `Collections in ${currency} are coming soon and are not currently enabled.`);
   await (dependencies.assertPaymentsEnabled ?? (() => assertPlatformEnabled("paymentsEnabled")))();
   if (input.merchantId !== undefined) {
     const [merchant] = await db.select().from(merchantsTable).where(eq(merchantsTable.id, input.merchantId)).limit(1);

@@ -11,7 +11,7 @@ import type { CollectionPaymentMethodNextAction } from './collectionPaymentMetho
 export interface CollectionPaymentMethod {
   id: CollectionPaymentMethodId;
   label: string;
-  /** True only when this currency's Greenpay collection route is enabled and configured. */
+  /** True only when this currency is admin-enabled and platform */
   ready: boolean;
   requiresPhone: boolean;
   nextAction: CollectionPaymentMethodNextAction;

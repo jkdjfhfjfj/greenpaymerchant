@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'wouter';
-import { ArrowRight, ExternalLink, LoaderCircle, Plus, Trash2, Pause, Play, ShieldCheck } from 'lucide-react';
+import { Activity, ArrowRight, CheckCircle2, Clock3, ExternalLink, Link2, LoaderCircle, Plus, Trash2, Pause, Play, ShieldCheck } from 'lucide-react';
 import {
   useCreateMerchantProfile, useGetMerchantFees, useGetMerchantKyc, getGetMerchantKycQueryKey, useCreateMerchantKycSession,
   useCreateMerchantCloudinaryUploadSignature, useUpdateMerchantShopProfile,
@@ -10,6 +10,73 @@ import {
 import { Async, Btn, Card, COUNTRIES, CURRENCIES, Confirm, CopyBtn, Err, Field, Gate, Heading, Modal, Note, Pager, Pill, currencyAmountStep, currencyMinorUnits, fmtDate, money, nice, useAccess, useInvalidateAll } from '@/components/kit';
 import { usePlatformBranding } from '@/components/platform-brand';
 import { CloudinaryImageUpload } from '@/components/cloudinary-image-upload';
+
+export function MerchantDashboardPage() { return <Gate need="merchant"><MerchantDashboardInner /></Gate>; }
+
+function MerchantDashboardInner() {
+  const access = useAccess();
+  const transactions = useListMerchantTransactions({ page: 1, perPage: 20 });
+  const links = useListMerchantPaymentLinks();
+  const items = transactions.data?.items ?? [];
+  const linkItems = links.data?.items ?? [];
+  const recentSuccess = items.filter((item) => item.status === 'success').length;
+  const pending = items.filter((item) => item.status === 'pending').length;
+  const activeLinks = linkItems.filter((item) => item.status === 'active').length;
+  const volumes = items.reduce<Record<string, number>>((totals, item) => {
+    if (item.status === 'success') totals[item.currency] = (totals[item.currency] ?? 0) + item.amount;
+    return totals;
+  }, {});
+  const merchant = access.merchant;
+
+  return <>
+    <div className="merchant-welcome">
+      <div className="merchant-welcome-copy">
+        <span className="merchant-kicker">MERCHANT WORKSPACE / TODAY</span>
+        <h1>{merchant?.businessName || 'Your collections, at a glance.'}</h1>
+        <p>Follow recent payments and manage the links customers use to pay you.</p>
+      </div>
+      <div className="merchant-welcome-status">
+        <span className="merchant-status-label">Account</span>
+        <Pill value={merchant?.status} />
+        <span className="merchant-status-sub">{merchant?.country} <i /> {merchant?.baseCurrency} base currency</span>
+      </div>
+    </div>
+
+    <div className="merchant-dashboard-grid">
+      <section className="merchant-highlight">
+        <div className="merchant-highlight-top"><span className="merchant-highlight-icon"><Activity size={17} /></span><span>RECENT COLLECTIONS</span></div>
+        <strong>{transactions.isLoading ? '—' : transactions.isError ? 'Unavailable' : transactions.data?.total.toLocaleString() ?? items.length.toLocaleString()}</strong>
+        <p>Transactions on your account, with the latest 20 shown below.</p>
+        <Link href="/merchant/transactions" className="merchant-highlight-link">Review transactions <ArrowRight size={15} /></Link>
+      </section>
+      <section className="merchant-stat-panel">
+        <div className="merchant-stat"><span><CheckCircle2 size={15} /> Successful · recent 20</span><strong>{transactions.isLoading ? '—' : recentSuccess}</strong></div>
+        <div className="merchant-stat"><span><Clock3 size={15} /> Pending · recent 20</span><strong>{transactions.isLoading ? '—' : pending}</strong></div>
+        <div className="merchant-stat"><span><Link2 size={15} /> Active payment links</span><strong>{links.isLoading ? '—' : activeLinks}</strong></div>
+      </section>
+      <section className="merchant-volume-panel">
+        <div className="merchant-section-head"><div><span className="merchant-kicker">RECENT SUCCESSFUL VOLUME</span><h2>By currency</h2></div><span>Latest 20 transactions</span></div>
+        {transactions.isLoading ? <div className="merchant-loading-lines"><i /><i /><i /></div> : transactions.isError ? <div className="merchant-inline-error">Volume could not be loaded. <button onClick={() => { void transactions.refetch(); }}>Retry</button></div> : Object.keys(volumes).length ? <div className="merchant-currency-list">{Object.entries(volumes).map(([code, amount]) => <div className="merchant-currency-row" key={code}><span className="merchant-currency-mark">{code.slice(0, 1)}</span><strong>{code}</strong><span>Successful payments</span><b>{money(amount, code)}</b></div>)}</div> : <div className="merchant-empty-inline">Successful collection totals will appear here.</div>}
+      </section>
+      <section className="merchant-link-panel">
+        <div className="merchant-section-head"><div><span className="merchant-kicker">COLLECTION TOOLS</span><h2>Payment links</h2></div><Link href="/merchant/payment-links" className="merchant-text-link">Manage <ArrowRight size={14} /></Link></div>
+        <Async q={links} empty={!linkItems.length} emptyTitle="No links created yet" emptyBody="Create a link to give customers a simple way to pay." emptyAction={<Link href="/merchant/payment-links" className="btn btn-primary">Create your first link</Link>}>
+          <div className="merchant-link-list">{linkItems.slice(0, 4).map((link) => <div className="merchant-link-row" key={link.id}>
+            <div className="merchant-link-symbol"><Link2 size={15} /></div><div className="merchant-link-copy"><strong>{link.name}</strong><span>{link.amountType === 'fixed' ? money(link.amount, link.currency) : `Customer enters · ${link.currency}`}</span></div><Pill value={link.status} />
+          </div>)}</div>
+        </Async>
+      </section>
+    </div>
+
+    <Card title="Recent transactions" subtitle="Each amount stays in its original currency." action={<Link href="/merchant/transactions" className="panel-link">All transactions <ArrowRight size={13} /></Link>}>
+      <Async q={transactions} empty={!items.length} emptyTitle="No transactions yet" emptyBody="Payments made through your links or API will appear here." emptyAction={<Link href="/merchant/payment-links" className="text-link">Set up a payment link <ArrowRight size={13} /></Link>}>
+        <div className="table-wrap"><table className="dt"><thead><tr><th>Reference</th><th>Customer</th><th>Amount</th><th>Status</th><th>Payment method</th><th>Created</th></tr></thead><tbody>
+          {items.slice(0, 6).map((transaction) => <tr key={transaction.id} data-testid={`row-merchant-dashboard-tx-${transaction.id}`}><td className="mono">{transaction.reference}</td><td><strong>{transaction.customerName || transaction.customerEmail}</strong><span className="sub">{transaction.customerName ? transaction.customerEmail : transaction.description || 'Customer payment'}</span></td><td className="num">{money(transaction.amount, transaction.currency)}</td><td><Pill value={transaction.status} /></td><td>{nice(transaction.paymentMethod)}</td><td>{fmtDate(transaction.createdAt)}</td></tr>)}
+        </tbody></table></div>
+      </Async>
+    </Card>
+  </>;
+}
 
 export function MerchantPage() {
   const access = useAccess();
@@ -210,15 +277,16 @@ function LinksInner() {
   const [rm, setRm] = useState<number | null>(null);
   const items = q.data?.items ?? [];
   return <>
-    <Heading eyebrow="MERCHANT" title="Payment links" subtitle="Links you own. Customers pay through the provider routed for the currency." action={<Btn onClick={() => setOpen(true)} testId="button-new-link"><Plus size={15} />New link</Btn>} />
+    <Heading eyebrow="MERCHANT / COLLECTION TOOLS" title="Payment links" subtitle="Create, share and pause customer-facing links. Collected totals stay separated by transaction currency." action={<Btn onClick={() => setOpen(true)} testId="button-new-link"><Plus size={15} />New link</Btn>} />
     <Err error={update.error} />
     <Async q={q} empty={!items.length} emptyTitle="No payment links" emptyBody="Create a fixed-price or customer-entered link." emptyAction={<Btn onClick={() => setOpen(true)}>Create link</Btn>}>
-       <div className="table-wrap"><table className="dt"><thead><tr><th>Name</th><th>Amount</th><th>Status</th><th className="num">Payments</th><th className="num">Collected</th><th>Link</th><th /></tr></thead><tbody>
+       <div className="table-wrap"><table className="dt"><thead><tr><th>Name</th><th>Amount</th><th>Status</th><th className="num">Payments</th><th className="num">Collected by currency</th><th>Expires</th><th>Share link</th><th /></tr></thead><tbody>
         {items.map((l) => <tr key={l.id} data-testid={`row-link-${l.id}`}>
-          <td><strong>{l.name}</strong><span className="sub">{l.description}</span></td>
+           <td><strong>{l.name}</strong><span className="sub">{l.description || `Created ${fmtDate(l.createdAt)}`}</span></td>
           <td>{l.amountType === 'fixed' ? money(l.amount, l.currency) : `Customer enters (${l.currency})`}</td>
           <td><Pill value={l.status} /></td><td className="num">{l.paidCount}</td><td className="num"><LinkCollectedTotals link={l} /></td>
-          <td><div className="copy-line"><code className="mono" style={{ fontSize: 11 }}>{l.url}</code><CopyBtn text={l.url} /></div></td>
+           <td>{l.expiresAt ? fmtDate(l.expiresAt) : 'No expiry'}</td>
+           <td><div className="copy-line"><code className="mono" style={{ fontSize: 11 }}>{l.url}</code><CopyBtn text={l.url} /></div></td>
           <td><div className="row-actions">
             {l.status !== 'archived' && <Btn variant="quiet" small disabled={update.isPending} onClick={() => update.mutate({ id: l.id, data: { status: l.status === 'active' ? 'paused' : 'active' } }, { onSuccess: () => { void inv(); } })}>{l.status === 'active' ? <><Pause size={13} />Pause</> : <><Play size={13} />Resume</>}</Btn>}
             <Btn variant="danger" small onClick={() => setRm(l.id)}><Trash2 size={13} />Delete</Btn></div></td>
@@ -267,11 +335,20 @@ function TxInner() {
   const [page, setPage] = useState(1);
   const q = useListMerchantTransactions({ page, perPage: 20 });
   const items = q.data?.items ?? [];
+  const successful = items.filter((item) => item.status === 'success').length;
+  const awaiting = items.filter((item) => item.status === 'pending').length;
+  const attention = items.filter((item) => item.status === 'failed' || item.status === 'cancelled').length;
   return <>
-    <Heading eyebrow="MERCHANT" title="Transactions" subtitle="Payments belonging to your merchant account." />
+    <Heading eyebrow="MERCHANT / COLLECTIONS" title="Transactions" subtitle="A clear record of collections linked to your business. Amounts, fees and settlements remain in each transaction’s original currency." />
+    <div className="merchant-tx-summary" aria-label="Current page transaction summary">
+      <div><span>Page {page} / latest 20</span><strong>{q.isLoading ? '—' : q.data?.total.toLocaleString() ?? items.length}</strong><small>Total merchant records</small></div>
+      <div><span>Successful on page</span><strong>{q.isLoading ? '—' : successful}</strong><small>Confirmed collections</small></div>
+      <div><span>Pending on page</span><strong>{q.isLoading ? '—' : awaiting}</strong><small>Awaiting provider update</small></div>
+      <div><span>Needs attention on page</span><strong>{q.isLoading ? '—' : attention}</strong><small>Failed or cancelled</small></div>
+    </div>
     <Async q={q} empty={!items.length} emptyTitle="No transactions yet" emptyBody="Payments made through your links or API appear here.">
-      <div className="table-wrap"><table className="dt"><thead><tr><th>Reference</th><th>Customer</th><th className="num">Amount</th><th className="num">Fee</th><th>Status</th><th>Provider</th><th>Created</th></tr></thead><tbody>
-        {items.map((t) => <tr key={t.id} data-testid={`row-tx-${t.id}`}><td className="mono" style={{ fontSize: 12 }}>{t.reference}</td><td>{t.customerEmail}<span className="sub">{t.customerName}</span></td><td className="num">{money(t.amount, t.currency)}</td><td className="num">{t.fee != null ? money(t.fee, t.currency) : '-'}</td><td><Pill value={t.status} /></td><td>{nice(t.provider)}</td><td>{fmtDate(t.createdAt)}</td></tr>)}
+      <div className="table-wrap"><table className="dt"><thead><tr><th>Reference</th><th>Customer</th><th className="num">Amount</th><th className="num">Fee</th><th className="num">Net</th><th>Status</th><th>Settlement</th><th>Method</th><th>Created</th></tr></thead><tbody>
+        {items.map((t) => <tr key={t.id} data-testid={`row-tx-${t.id}`}><td className="mono" style={{ fontSize: 12 }}>{t.reference}<span className="sub">{t.description || nice(t.provider)}</span></td><td>{t.customerName || t.customerEmail}<span className="sub">{t.customerName ? t.customerEmail : t.customerPhone || 'Customer'}</span></td><td className="num">{money(t.amount, t.currency)}</td><td className="num">{t.fee != null ? money(t.fee, t.currency) : '—'}</td><td className="num">{t.netAmount != null ? money(t.netAmount, t.currency) : '—'}</td><td><Pill value={t.status} /></td><td><Pill value={t.settlementStatus} />{t.settlementAt && <span className="sub">{fmtDate(t.settlementAt)}</span>}</td><td>{nice(t.paymentMethod)}</td><td>{fmtDate(t.createdAt)}</td></tr>)}
       </tbody></table></div>
       {q.data && <Pager page={page} total={q.data.total} perPage={q.data.perPage || 20} onPage={setPage} />}
     </Async>

@@ -89,7 +89,7 @@ export function Gate({ children, need }: { children: ReactNode; need: 'admin' | 
   const a = useAccess();
   if (a.isLoading) return <Loading />;
   if (a.isError) return <Async q={a}>{null}</Async>;
-  if (need === 'admin' && !a.isAdmin) return <Empty title="Administrators only" body="Administrator access comes from the server-side ADMIN_EMAILS allowlist. If it is unset or does not include your email, admin areas stay blocked until an operator sets it." />;
+  if (need === 'admin' && !a.isAdmin) return <Empty title="Administrators only" body="Administrator access is assigned by the platform team or provided by a verified server-side ADMIN_EMAILS bootstrap entry." />;
   if (need === 'merchant' && !a.merchant) return <Empty title="Create your merchant profile first" body="This area is available once your business is registered." action={<a className="btn btn-primary" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/merchant`}>Go to onboarding</a>} />;
   return <>{children}</>;
 }

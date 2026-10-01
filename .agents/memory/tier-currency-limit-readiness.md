@@ -3,8 +3,8 @@ name: Tier-currency collection readiness
 description: How merchant verification limits interact with provider route readiness for collections.
 ---
 
-Merchant-linked checkout readiness must account for platform enablement, provider configuration, and a configured verification-tier/currency limit row. A missing row must fail closed and must not be advertised as ready. A present row with null amount fields is explicitly uncapped.
+Collection readiness has distinct gates: global payment enablement, provider configuration, and (for merchant-linked checkout) a configured verification-tier/currency limit row. A missing tier row must fail closed and must not be advertised as ready. A present row with null amount fields is explicitly uncapped. An explicit platform currency override is a separate launch gate: no override means enabled; a disabled override means “Coming soon” and must block every new collection through the shared collection path. Do not label provider or tier unavailability “Coming soon.”
 
-**Why:** A currency can appear globally configured because its provider credentials exist while every merchant checkout still fails because the merchant's verification tier has no limit row for that currency. Generic customer-facing 503s can hide this distinction.
+**Why:** Provider credentials can exist while merchant checkout still fails because its tier has no limit row. Separately, administrators need to pause launches without changing provider or verification-tier configuration; conflating these states gives merchants misleading availability.
 
-**How to apply:** When adding or reviewing merchant payment-link availability, combine provider readiness with the merchant's current verification tier and currency-limit configuration. Keep actual transaction enforcement fail-closed; do not create uncapped rows as a fallback.
+**How to apply:** Report provider/tier readiness separately from the admin-controlled “Coming soon” state. Keep transaction enforcement in the shared collection path; absent overrides default enabled, but availability-read errors must fail closed. Do not create uncapped tier rows as a fallback.

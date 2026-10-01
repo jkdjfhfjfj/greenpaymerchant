@@ -17,6 +17,11 @@ tags:
   - name: customers
   - name: webhooks
   - name: providers
+  - name: merchant
+  - name: developer-api
+  - name: admin
+  - name: kyc
+  - name: fx
 paths:
   /healthz:
     get:
@@ -431,6 +436,536 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProviderStatusList"
+  /me:
+    get:
+      operationId: getAccessProfile
+      tags: [merchant]
+      summary: Resolve the signed-in user and their merchant or admin access
+      responses:
+        "200":
+          description: User access profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccessProfile" }
+  /merchant:
+    get:
+      operationId: getMerchantProfile
+      tags: [merchant]
+      summary: Read the current user's merchant profile
+      responses:
+        "200":
+          description: Merchant profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantProfileResponse" }
+        "404": { description: Merchant onboarding is not complete }
+    post:
+      operationId: createMerchantProfile
+      tags: [merchant]
+      summary: Create a merchant workspace for the signed-in user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateMerchantInput" }
+      responses:
+        "201":
+          description: Merchant created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantProfileResponse" }
+        "409": { description: Merchant already exists }
+  /merchant/kyc:
+    get:
+      operationId: getMerchantKyc
+      tags: [kyc]
+      summary: Read the merchant's verification status
+      responses:
+        "200":
+          description: Verification status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KycStatus" }
+    post:
+      operationId: createMerchantKycSession
+      tags: [kyc]
+      summary: Create a hosted Didit identity or business verification session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateKycSessionInput" }
+      responses:
+        "201":
+          description: Didit hosted verification session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KycSessionResponse" }
+        "503": { description: Didit credentials or workflow are not configured }
+  /merchant/transactions:
+    get:
+      operationId: listMerchantTransactions
+      tags: [merchant]
+      summary: List transactions belonging to the current merchant only
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: perPage
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+      responses:
+        "200":
+          description: Merchant transactions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TransactionList" }
+  /merchant/payment-links:
+    get:
+      operationId: listMerchantPaymentLinks
+      tags: [merchant]
+      summary: List payment links belonging to the current merchant
+      responses:
+        "200":
+          description: Merchant payment links
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentLinkList" }
+    post:
+      operationId: createMerchantPaymentLink
+      tags: [merchant]
+      summary: Create a payment link for the current merchant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PaymentLinkInput" }
+      responses:
+        "201":
+          description: Merchant payment link
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentLink" }
+  /merchant/payment-links/{id}:
+    patch:
+      operationId: updateMerchantPaymentLink
+      tags: [merchant]
+      summary: Update a payment link owned by the current merchant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PaymentLinkUpdate" }
+      responses:
+        "200":
+          description: Updated payment link
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentLink" }
+        "404": { description: Link does not exist for this merchant }
+    delete:
+      operationId: deleteMerchantPaymentLink
+      tags: [merchant]
+      summary: Archive a payment link owned by the current merchant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Link archived }
+  /merchant/api-keys:
+    get:
+      operationId: listMerchantApiKeys
+      tags: [merchant]
+      summary: List masked developer API keys for the current merchant
+      responses:
+        "200":
+          description: API keys
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiKeyList" }
+    post:
+      operationId: createMerchantApiKey
+      tags: [merchant]
+      summary: Create a scoped developer API key (secret returned only once)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateApiKeyInput" }
+      responses:
+        "201":
+          description: API key created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreatedApiKey" }
+  /merchant/api-keys/{id}:
+    delete:
+      operationId: revokeMerchantApiKey
+      tags: [merchant]
+      summary: Revoke an API key belonging to the current merchant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: API key revoked }
+  /merchant/webhook-endpoints:
+    get:
+      operationId: listMerchantWebhookEndpoints
+      tags: [merchant]
+      summary: List the current merchant's outbound webhook endpoints
+      responses:
+        "200":
+          description: Webhook endpoints
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebhookEndpointList" }
+    post:
+      operationId: createMerchantWebhookEndpoint
+      tags: [merchant]
+      summary: Add a signed outbound webhook destination
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateWebhookEndpointInput" }
+      responses:
+        "201":
+          description: Destination created; signing secret is returned once
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreatedWebhookEndpoint" }
+  /merchant/webhook-endpoints/{id}:
+    delete:
+      operationId: deleteMerchantWebhookEndpoint
+      tags: [merchant]
+      summary: Disable an outbound webhook destination owned by the current merchant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Destination removed }
+  /merchant/fees:
+    get:
+      operationId: getMerchantFees
+      tags: [merchant]
+      summary: Read the active merchant fee schedule
+      responses:
+        "200":
+          description: Fee schedule
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FeeScheduleResponse" }
+  /merchant/fx-quote:
+    get:
+      operationId: getMerchantFxQuote
+      tags: [fx]
+      summary: Convert a payment amount using an active administrator-managed FX rate
+      parameters:
+        - name: amount
+          in: query
+          required: true
+          schema: { type: number, exclusiveMinimum: 0 }
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, minLength: 3, maxLength: 3 }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, minLength: 3, maxLength: 3 }
+      responses:
+        "200":
+          description: FX quote and applied fee
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FxQuote" }
+        "404": { description: No active exchange rate is available }
+  /v1/merchant:
+    get:
+      operationId: getDeveloperMerchant
+      tags: [developer-api]
+      summary: Read the merchant tied to the supplied developer API key
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Merchant profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantProfileResponse" }
+  /v1/payment-links:
+    get:
+      operationId: listDeveloperPaymentLinks
+      tags: [developer-api]
+      summary: List payment links belonging to the API key's merchant
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Merchant payment links
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentLinkList" }
+    post:
+      operationId: createDeveloperPaymentLink
+      tags: [developer-api]
+      summary: Create a payment link for the API key's merchant
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PaymentLinkInput" }
+      responses:
+        "201":
+          description: Payment link
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentLink" }
+  /v1/transactions:
+    get:
+      operationId: listDeveloperTransactions
+      tags: [developer-api]
+      summary: List transactions belonging to the API key's merchant
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: perPage
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+      responses:
+        "200":
+          description: Merchant transactions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TransactionList" }
+  /admin/summary:
+    get:
+      operationId: getAdminSummary
+      tags: [admin]
+      summary: Read platform-wide merchant, transaction, KYC, and provider counts
+      responses:
+        "200":
+          description: Administrative summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminSummary" }
+  /admin/merchants:
+    get:
+      operationId: listAdminMerchants
+      tags: [admin]
+      summary: Search and filter all merchant accounts
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, active, suspended, closed] }
+        - name: kycStatus
+          in: query
+          schema: { type: string, enum: [not_started, pending, approved, declined, in_review, expired] }
+      responses:
+        "200":
+          description: Merchant accounts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminMerchantList" }
+  /admin/merchants/{id}:
+    patch:
+      operationId: updateAdminMerchant
+      tags: [admin]
+      summary: Activate, suspend, close, or update a merchant account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminMerchantUpdate" }
+      responses:
+        "200":
+          description: Updated merchant
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminMerchant" }
+  /admin/fee-schedules:
+    get:
+      operationId: listAdminFeeSchedules
+      tags: [admin]
+      summary: Read global and merchant-specific platform fee schedules
+      responses:
+        "200":
+          description: Fee schedules
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminFeeScheduleList" }
+    put:
+      operationId: updateAdminFeeSchedule
+      tags: [admin]
+      summary: Set a global default or merchant-specific fee schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateFeeScheduleInput" }
+      responses:
+        "200":
+          description: Saved fee schedule
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminFeeSchedule" }
+  /admin/fx-rates:
+    get:
+      operationId: listAdminFxRates
+      tags: [admin]
+      summary: Read active and historical administrator-managed exchange rates
+      responses:
+        "200":
+          description: FX rates
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminFxRateList" }
+    post:
+      operationId: createAdminFxRate
+      tags: [admin]
+      summary: Add an exchange rate with an effective timestamp and optional expiry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateFxRateInput" }
+      responses:
+        "201":
+          description: Exchange rate created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminFxRate" }
+  /admin/fx-rates/{id}:
+    patch:
+      operationId: updateAdminFxRate
+      tags: [admin]
+      summary: Change or deactivate an exchange rate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateFxRateInput" }
+      responses:
+        "200":
+          description: Updated exchange rate
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminFxRate" }
+  /admin/provider-credentials:
+    get:
+      operationId: listAdminProviderCredentials
+      tags: [admin]
+      summary: Read credential readiness and masked keys for all providers
+      responses:
+        "200":
+          description: Credential readiness, never credential values
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProviderCredentialList" }
+  /admin/provider-credentials/{provider}:
+    put:
+      operationId: saveAdminProviderCredentials
+      tags: [admin]
+      summary: Encrypt and save or replace a provider's credentials
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema: { type: string, enum: [paystack, payhero, payzaapi, didit] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SaveProviderCredentialsInput" }
+      responses:
+        "200":
+          description: Saved readiness and masked credential metadata
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProviderCredential" }
+    delete:
+      operationId: deleteAdminProviderCredentials
+      tags: [admin]
+      summary: Delete stored credentials and disable the selected provider
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema: { type: string, enum: [paystack, payhero, payzaapi, didit] }
+      responses:
+        "204": { description: Provider credentials deleted }
+  /admin/platform-settings:
+    get:
+      operationId: getAdminPlatformSettings
+      tags: [admin]
+      summary: Read platform-wide feature controls
+      responses:
+        "200":
+          description: Platform settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformSettings" }
+    patch:
+      operationId: updateAdminPlatformSettings
+      tags: [admin]
+      summary: Enable or disable platform capabilities and onboarding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlatformSettingsUpdate" }
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformSettings" }
+  /admin/audit-log:
+    get:
+      operationId: listAdminAuditLog
+      tags: [admin]
+      summary: Review privileged account, fee, FX, settings, and credential changes
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+      responses:
+        "200":
+          description: Immutable administrative audit history
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminAuditLog" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: merchant API key
 components:
   schemas:
     HealthStatus:

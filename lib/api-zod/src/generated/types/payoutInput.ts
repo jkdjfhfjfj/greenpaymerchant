@@ -5,8 +5,10 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { PayoutInputFundingSource } from './payoutInputFundingSource';
 
 export interface PayoutInput {
+  fundingSource: PayoutInputFundingSource;
   /**
      * @minLength 8
      * @maxLength 128

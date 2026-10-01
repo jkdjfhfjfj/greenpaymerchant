@@ -13,4 +13,26 @@ export interface PlatformSettingsUpdate {
   refundsEnabled?: boolean;
   apiAccessEnabled?: boolean;
   kycRequired?: boolean;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  platformName?: string;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  baseCurrency?: string;
+  /** @maxLength 254 */
+  contactEmail?: string;
+  /** @maxLength 40 */
+  contactPhone?: string;
+  /** @maxLength 250 */
+  contactAddress?: string;
+  /** @maxLength 100 */
+  contactWhatsapp?: string;
+  /** @nullable */
+  logoUrl?: string | null;
+  /** @nullable */
+  faviconUrl?: string | null;
 }

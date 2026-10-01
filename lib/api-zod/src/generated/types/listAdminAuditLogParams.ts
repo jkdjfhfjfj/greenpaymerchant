@@ -11,4 +11,16 @@ export type ListAdminAuditLogParams = {
  * @minimum 1
  */
 page?: number;
+/**
+ * @maxLength 128
+ */
+user?: string;
+/**
+ * @maxLength 100
+ */
+action?: string;
+/**
+ * @maxLength 200
+ */
+search?: string;
 };

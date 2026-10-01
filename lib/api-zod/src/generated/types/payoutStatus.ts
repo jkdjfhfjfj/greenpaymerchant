@@ -10,10 +10,12 @@ export type PayoutStatus = typeof PayoutStatus[keyof typeof PayoutStatus];
 
 
 export const PayoutStatus = {
+  requested: 'requested',
   pending: 'pending',
   processing: 'processing',
   approved: 'approved',
   completed: 'completed',
   rejected: 'rejected',
   failed: 'failed',
+  uncertain: 'uncertain',
 } as const;

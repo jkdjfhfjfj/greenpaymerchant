@@ -16,13 +16,18 @@ export const merchantsTable = pgTable("greenpay_merchants", {
   diditSessionId: varchar("didit_session_id", { length: 200 }),
   diditSessionUrl: text("didit_session_url"),
   diditKind: varchar("didit_kind", { length: 8 }),
+  kybStatus: varchar("kyb_status", { length: 24 }).notNull().default("not_started"),
+  diditKybSessionId: varchar("didit_kyb_session_id", { length: 200 }),
+  diditKybSessionUrl: text("didit_kyb_session_url"),
   riskNote: varchar("risk_note", { length: 1000 }),
   verificationUpdatedAt: timestamp("verification_updated_at", { withTimezone: true }),
+  kybVerificationUpdatedAt: timestamp("kyb_verification_updated_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("greenpay_merchants_status_idx").on(table.status),
   index("greenpay_merchants_kyc_status_idx").on(table.kycStatus),
+  index("greenpay_merchants_kyb_status_idx").on(table.kybStatus),
 ]);
 
 export const merchantApiKeysTable = pgTable("greenpay_merchant_api_keys", {
@@ -87,6 +92,14 @@ export const platformSettingsTable = pgTable("greenpay_platform_settings", {
   refundsEnabled: boolean("refunds_enabled").notNull().default(true),
   apiAccessEnabled: boolean("api_access_enabled").notNull().default(true),
   kycRequired: boolean("kyc_required").notNull().default(true),
+  platformName: varchar("platform_name", { length: 100 }).notNull().default("Greenpay"),
+  baseCurrency: varchar("base_currency", { length: 3 }).notNull().default("USD"),
+  contactEmail: varchar("contact_email", { length: 254 }).notNull().default("support@greenpay.africa"),
+  contactPhone: varchar("contact_phone", { length: 40 }).notNull().default(""),
+  contactAddress: varchar("contact_address", { length: 250 }).notNull().default(""),
+  contactWhatsapp: varchar("contact_whatsapp", { length: 100 }).notNull().default(""),
+  logoUrl: text("logo_url"),
+  faviconUrl: text("favicon_url"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -153,10 +166,14 @@ export const adminAuditLogTable = pgTable("greenpay_admin_audit_log", {
   action: varchar("action", { length: 100 }).notNull(),
   target: varchar("target", { length: 200 }).notNull(),
   details: text("details"),
+  method: varchar("method", { length: 10 }),
+  route: varchar("route", { length: 250 }),
+  statusCode: integer("status_code"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("greenpay_admin_audit_log_created_at_idx").on(table.createdAt),
   index("greenpay_admin_audit_log_actor_idx").on(table.actor),
+  index("greenpay_admin_audit_log_action_idx").on(table.action),
 ]);
 
 export type MerchantRecord = typeof merchantsTable.$inferSelect;

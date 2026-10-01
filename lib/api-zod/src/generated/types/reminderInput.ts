@@ -6,11 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type AdminAuditLogItemsItem = {
-  id: number;
-  actor: string;
-  action: string;
-  target: string;
-  details?: string;
-  createdAt: Date;
-};
+export interface ReminderInput {
+  /** @maxLength 500 */
+  note?: string;
+}

@@ -5,10 +5,10 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
-import type { AdminAuditLogItemsItem } from './adminAuditLogItemsItem';
+import type { AdminAuditEntry } from './adminAuditEntry';
 
 export interface AdminAuditLog {
   page: number;
   total: number;
-  items: AdminAuditLogItemsItem[];
+  items: AdminAuditEntry[];
 }

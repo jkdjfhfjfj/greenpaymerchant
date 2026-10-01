@@ -5,6 +5,254 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+export type ContactTicketInputCategory = typeof ContactTicketInputCategory[keyof typeof ContactTicketInputCategory];
+
+
+export const ContactTicketInputCategory = {
+  payments: 'payments',
+  account: 'account',
+  verification: 'verification',
+  technical: 'technical',
+  other: 'other',
+} as const;
+
+export interface ContactTicketInput {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name: string;
+  /** @maxLength 254 */
+  email: string;
+  /**
+     * @minLength 3
+     * @maxLength 180
+     */
+  subject: string;
+  /**
+     * @minLength 10
+     * @maxLength 8000
+     */
+  message: string;
+  category?: ContactTicketInputCategory;
+}
+
+export type SupportTicketInputCategory = typeof SupportTicketInputCategory[keyof typeof SupportTicketInputCategory];
+
+
+export const SupportTicketInputCategory = {
+  payments: 'payments',
+  account: 'account',
+  verification: 'verification',
+  technical: 'technical',
+  other: 'other',
+} as const;
+
+export interface SupportTicketInput {
+  /**
+     * @minLength 3
+     * @maxLength 180
+     */
+  subject: string;
+  /**
+     * @minLength 10
+     * @maxLength 8000
+     */
+  message: string;
+  category?: SupportTicketInputCategory;
+}
+
+export type ContactTicketReceiptDelivery = typeof ContactTicketReceiptDelivery[keyof typeof ContactTicketReceiptDelivery];
+
+
+export const ContactTicketReceiptDelivery = {
+  in_app_recorded_email_unconfigured: 'in_app_recorded_email_unconfigured',
+} as const;
+
+export interface ContactTicketReceipt {
+  reference: string;
+  delivery: ContactTicketReceiptDelivery;
+}
+
+export type SupportTicketStatus = typeof SupportTicketStatus[keyof typeof SupportTicketStatus];
+
+
+export const SupportTicketStatus = {
+  open: 'open',
+  in_progress: 'in_progress',
+  waiting: 'waiting',
+  resolved: 'resolved',
+  closed: 'closed',
+} as const;
+
+export type SupportTicketDelivery = typeof SupportTicketDelivery[keyof typeof SupportTicketDelivery];
+
+
+export const SupportTicketDelivery = {
+  in_app_recorded_email_unconfigured: 'in_app_recorded_email_unconfigured',
+} as const;
+
+export interface SupportTicket {
+  id: number;
+  reference: string;
+  subject: string;
+  category: string;
+  status: SupportTicketStatus;
+  requesterName: string;
+  requesterEmail: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+  delivery: SupportTicketDelivery;
+}
+
+export type SupportMessageAuthorRole = typeof SupportMessageAuthorRole[keyof typeof SupportMessageAuthorRole];
+
+
+export const SupportMessageAuthorRole = {
+  customer: 'customer',
+  admin: 'admin',
+} as const;
+
+export type SupportMessageDelivery = typeof SupportMessageDelivery[keyof typeof SupportMessageDelivery];
+
+
+export const SupportMessageDelivery = {
+  in_app_recorded_email_unconfigured: 'in_app_recorded_email_unconfigured',
+} as const;
+
+export interface SupportMessage {
+  id: number;
+  ticketId: number;
+  authorRole: SupportMessageAuthorRole;
+  authorName: string;
+  body: string;
+  createdAt: string;
+  delivery: SupportMessageDelivery;
+}
+
+export interface SupportTicketDetail {
+  ticket: SupportTicket;
+  messages: SupportMessage[];
+}
+
+export interface SupportTicketList {
+  items: SupportTicket[];
+}
+
+export interface SupportMessageInput {
+  /**
+     * @minLength 1
+     * @maxLength 8000
+     */
+  body: string;
+}
+
+export type SupportTicketStatusInputStatus = typeof SupportTicketStatusInputStatus[keyof typeof SupportTicketStatusInputStatus];
+
+
+export const SupportTicketStatusInputStatus = {
+  open: 'open',
+  in_progress: 'in_progress',
+  waiting: 'waiting',
+  resolved: 'resolved',
+  closed: 'closed',
+} as const;
+
+export interface SupportTicketStatusInput {
+  status: SupportTicketStatusInputStatus;
+}
+
+export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
+
+
+export const NotificationType = {
+  support_reply: 'support_reply',
+  kyc_update: 'kyc_update',
+  payment_confirmed: 'payment_confirmed',
+  payout_update: 'payout_update',
+} as const;
+
+export interface Notification {
+  id: number;
+  type: NotificationType;
+  title: string;
+  body: string;
+  href: string;
+  createdAt: string;
+  /** @nullable */
+  readAt: string | null;
+}
+
+export interface NotificationList {
+  items: Notification[];
+  unreadCount: number;
+}
+
+export interface UnreadCount {
+  unreadCount: number;
+}
+
+export interface BusinessContact {
+  businessName: string;
+  /** @nullable */
+  contactName: string | null;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  phone: string | null;
+  merchantStatus: string;
+  kycStatus: string;
+}
+
+export interface BusinessContactInput {
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  contactName: string | null;
+  /**
+     * @maxLength 254
+     * @nullable
+     */
+  email: string | null;
+  /**
+     * @maxLength 40
+     * @nullable
+     */
+  phone: string | null;
+}
+
+export type PlatformOperationalStatusStatus = typeof PlatformOperationalStatusStatus[keyof typeof PlatformOperationalStatusStatus];
+
+
+export const PlatformOperationalStatusStatus = {
+  operational: 'operational',
+  degraded: 'degraded',
+  unavailable: 'unavailable',
+} as const;
+
+export type PlatformOperationalStatusServicesItemStatus = typeof PlatformOperationalStatusServicesItemStatus[keyof typeof PlatformOperationalStatusServicesItemStatus];
+
+
+export const PlatformOperationalStatusServicesItemStatus = {
+  operational: 'operational',
+  degraded: 'degraded',
+  unavailable: 'unavailable',
+} as const;
+
+export type PlatformOperationalStatusServicesItem = {
+  name: string;
+  status: PlatformOperationalStatusServicesItemStatus;
+  description: string;
+};
+
+export interface PlatformOperationalStatus {
+  status: PlatformOperationalStatusStatus;
+  checkedAt: string;
+  services: PlatformOperationalStatusServicesItem[];
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -309,16 +557,210 @@ export interface PaymentLinkCheckoutInput {
   customerPhone?: string;
 }
 
+export interface MerchantWallet {
+  currency: string;
+  availableBalance: number;
+  reservedBalance: number;
+  updatedAt: string;
+}
+
+export interface MerchantWalletList {
+  items: MerchantWallet[];
+}
+
+export type AdminWallet = MerchantWallet & {
+  merchantId: number;
+  businessName: string;
+};
+
+export interface AdminWalletList {
+  items: AdminWallet[];
+}
+
+export type WalletLedgerEntryDirection = typeof WalletLedgerEntryDirection[keyof typeof WalletLedgerEntryDirection];
+
+
+export const WalletLedgerEntryDirection = {
+  credit: 'credit',
+  debit: 'debit',
+} as const;
+
+export type WalletLedgerEntryKind = typeof WalletLedgerEntryKind[keyof typeof WalletLedgerEntryKind];
+
+
+export const WalletLedgerEntryKind = {
+  settlement_funding: 'settlement_funding',
+  payout_reserve: 'payout_reserve',
+  payout_release: 'payout_release',
+  payout_complete: 'payout_complete',
+  conversion: 'conversion',
+  refund_adjustment: 'refund_adjustment',
+} as const;
+
+export interface WalletLedgerEntry {
+  id: number;
+  currency: string;
+  amount: number;
+  direction: WalletLedgerEntryDirection;
+  kind: WalletLedgerEntryKind;
+  reference: string;
+  /** @nullable */
+  evidenceReference?: string | null;
+  createdAt: string;
+}
+
+export interface WalletLedgerList {
+  items: WalletLedgerEntry[];
+}
+
+export interface WalletFxQuote {
+  quoteId: string;
+  fromCurrency: string;
+  toCurrency: string;
+  sourceAmount: number;
+  sourceRate: number;
+  effectiveRate: number;
+  feeAmount: number;
+  targetAmount: number;
+  markupBps: number;
+  source: string;
+  quotedAt: string;
+  expiresAt: string;
+  note: string;
+}
+
+export interface WalletConversionInput {
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  fromCurrency: string;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  toCurrency: string;
+}
+
+export type WalletConversionAllocationType = typeof WalletConversionAllocationType[keyof typeof WalletConversionAllocationType];
+
+
+export const WalletConversionAllocationType = {
+  internal_wallet_allocation: 'internal_wallet_allocation',
+} as const;
+
+export type WalletConversion = WalletFxQuote & {
+  id: number;
+  idempotencyKey: string;
+  createdAt: string;
+  allocationType: WalletConversionAllocationType;
+};
+
+export interface PayoutRequestInput {
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency: string;
+  /** @minLength 1 */
+  method: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  accountName: string;
+  /**
+     * @minLength 3
+     * @maxLength 100
+     */
+  accountNumber: string;
+  /** @maxLength 100 */
+  bankCode?: string;
+  /** @maxLength 200 */
+  bankName?: string;
+}
+
+export type PayoutRequestStatus = typeof PayoutRequestStatus[keyof typeof PayoutRequestStatus];
+
+
+export const PayoutRequestStatus = {
+  requested: 'requested',
+  approved: 'approved',
+  processing: 'processing',
+  completed: 'completed',
+  rejected: 'rejected',
+  failed: 'failed',
+  uncertain: 'uncertain',
+} as const;
+
+export interface PayoutRequest {
+  id: number;
+  reference: string;
+  merchantId: number;
+  amount: number;
+  fee: number;
+  netAmount: number;
+  currency: string;
+  method: string;
+  accountName: string;
+  maskedAccount: string;
+  status: PayoutRequestStatus;
+  /** @nullable */
+  providerReference?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PayoutRequestList {
+  items: PayoutRequest[];
+}
+
+export interface PayoutRequestDecisionInput {
+  /**
+     * @minLength 1
+     * @maxLength 400
+     */
+  reason: string;
+}
+
+export interface WalletSettlementConfirmationInput {
+  /**
+     * @minLength 1
+     * @maxLength 150
+     */
+  settlementReference: string;
+  /**
+     * @minLength 3
+     * @maxLength 200
+     */
+  evidenceReference: string;
+}
+
+export interface WalletSettlementConfirmation {
+  settlementReference: string;
+  merchantId: number;
+  currency: string;
+  fundedAmount: number;
+  evidenceReference: string;
+  confirmedAt: string;
+}
+
 export type PayoutStatus = typeof PayoutStatus[keyof typeof PayoutStatus];
 
 
 export const PayoutStatus = {
+  requested: 'requested',
   pending: 'pending',
   processing: 'processing',
   approved: 'approved',
   completed: 'completed',
   rejected: 'rejected',
   failed: 'failed',
+  uncertain: 'uncertain',
 } as const;
 
 export type PayoutProvider = typeof PayoutProvider[keyof typeof PayoutProvider];
@@ -352,7 +794,16 @@ export interface PayoutList {
   items: Payout[];
 }
 
+export type PayoutInputFundingSource = typeof PayoutInputFundingSource[keyof typeof PayoutInputFundingSource];
+
+
+export const PayoutInputFundingSource = {
+  merchant_wallet: 'merchant_wallet',
+  platform: 'platform',
+} as const;
+
 export interface PayoutInput {
+  fundingSource: PayoutInputFundingSource;
   /**
      * @minLength 8
      * @maxLength 128
@@ -454,6 +905,337 @@ export interface SettlementList {
   items: Settlement[];
 }
 
+export interface InvoiceLineInput {
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  description: string;
+  /**
+     * @maximum 100000
+     * @exclusiveMinimum 0
+     */
+  quantity: number;
+  /**
+     * @minimum 0
+     * @maximum 100000000
+     */
+  unitAmount: number;
+}
+
+export type InvoiceLine = InvoiceLineInput & {
+  total: number;
+};
+
+export interface InvoiceInput {
+  /**
+     * @minLength 1
+     * @maxLength 150
+     */
+  customerName: string;
+  /** @maxLength 254 */
+  customerEmail: string;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency: string;
+  dueDate: string;
+  /**
+     * @minItems 1
+     * @maxItems 100
+     */
+  lines: InvoiceLineInput[];
+  /** @maxLength 2000 */
+  note?: string;
+}
+
+export interface InvoiceUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 150
+     */
+  customerName?: string;
+  /** @maxLength 254 */
+  customerEmail?: string;
+  dueDate?: string;
+  /**
+     * @minItems 1
+     * @maxItems 100
+     */
+  lines?: InvoiceLineInput[];
+  /** @maxLength 2000 */
+  note?: string;
+}
+
+export type InvoiceStatus = typeof InvoiceStatus[keyof typeof InvoiceStatus];
+
+
+export const InvoiceStatus = {
+  draft: 'draft',
+  sent: 'sent',
+  partially_paid: 'partially_paid',
+  paid: 'paid',
+  void: 'void',
+} as const;
+
+export type InvoicePaymentStatus = typeof InvoicePaymentStatus[keyof typeof InvoicePaymentStatus];
+
+
+export const InvoicePaymentStatus = {
+  success: 'success',
+  refunded: 'refunded',
+} as const;
+
+export interface InvoicePayment {
+  reference: string;
+  amount: number;
+  paidAt: string;
+  status: InvoicePaymentStatus;
+}
+
+export interface Invoice {
+  id: number;
+  reference: string;
+  customerName: string;
+  customerEmail: string;
+  currency: string;
+  dueDate: string;
+  lines: InvoiceLine[];
+  subtotal: number;
+  total: number;
+  paidAmount: number;
+  payments: InvoicePayment[];
+  status: InvoiceStatus;
+  /** @nullable */
+  note?: string | null;
+  /** @nullable */
+  paymentUrl: string | null;
+  createdAt: string;
+}
+
+export interface InvoiceList {
+  items: Invoice[];
+}
+
+export interface ReminderInput {
+  /** @maxLength 500 */
+  note?: string;
+}
+
+export type ReminderDeliveryStatus = typeof ReminderDeliveryStatus[keyof typeof ReminderDeliveryStatus];
+
+
+export const ReminderDeliveryStatus = {
+  unconfigured: 'unconfigured',
+} as const;
+
+export interface Reminder {
+  id: number;
+  invoiceId: number;
+  deliveryStatus: ReminderDeliveryStatus;
+  createdAt: string;
+  /** @nullable */
+  attemptedAt?: string | null;
+  message: string;
+}
+
+export interface ReminderList {
+  items: Reminder[];
+}
+
+export interface StatementTransaction {
+  reference: string;
+  amount: number;
+  fee: number;
+  currency: string;
+  paidAt: string;
+}
+
+export interface StatementRefund {
+  reference: string;
+  originalReference: string;
+  amount: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface StatementPayout {
+  reference: string;
+  amount: number;
+  fee: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+}
+
+export type StatementCurrencySummariesItemForecastLabel = typeof StatementCurrencySummariesItemForecastLabel[keyof typeof StatementCurrencySummariesItemForecastLabel];
+
+
+export const StatementCurrencySummariesItemForecastLabel = {
+  historical_average_estimate: 'historical_average_estimate',
+} as const;
+
+export type StatementCurrencySummariesItemForecast = {
+  label: StatementCurrencySummariesItemForecastLabel;
+  /** @nullable */
+  amount: number | null;
+  basisMonths: number;
+};
+
+export type StatementCurrencySummariesItem = {
+  currency: string;
+  grossConfirmed: number;
+  fees: number;
+  refundsTotal: number;
+  payoutsTotal: number;
+  forecast: StatementCurrencySummariesItemForecast;
+};
+
+export interface Statement {
+  month: string;
+  transactions: StatementTransaction[];
+  refunds: StatementRefund[];
+  payouts: StatementPayout[];
+  currencySummaries: StatementCurrencySummariesItem[];
+}
+
+export interface CaseMessageInput {
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  message: string;
+  /** @maxLength 2000 */
+  evidenceUrl?: string;
+}
+
+export type CaseMessageAuthorRole = typeof CaseMessageAuthorRole[keyof typeof CaseMessageAuthorRole];
+
+
+export const CaseMessageAuthorRole = {
+  merchant: 'merchant',
+  admin: 'admin',
+} as const;
+
+export interface CaseMessage {
+  id: string;
+  authorRole: CaseMessageAuthorRole;
+  message: string;
+  /** @nullable */
+  evidenceUrl: string | null;
+  createdAt: string;
+}
+
+export type CaseInputKind = typeof CaseInputKind[keyof typeof CaseInputKind];
+
+
+export const CaseInputKind = {
+  refund: 'refund',
+  dispute: 'dispute',
+} as const;
+
+export type CaseInput = CaseMessageInput & {
+  kind: CaseInputKind;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  transactionReference: string;
+};
+
+export type CaseReviewInputStatus = typeof CaseReviewInputStatus[keyof typeof CaseReviewInputStatus];
+
+
+export const CaseReviewInputStatus = {
+  in_review: 'in_review',
+  resolved: 'resolved',
+  declined: 'declined',
+} as const;
+
+export type CaseReviewInputFinancialMovement = typeof CaseReviewInputFinancialMovement[keyof typeof CaseReviewInputFinancialMovement];
+
+
+export const CaseReviewInputFinancialMovement = {
+  none: 'none',
+  requested: 'requested',
+  recorded: 'recorded',
+  confirmed: 'confirmed',
+} as const;
+
+export interface CaseReviewInput {
+  status: CaseReviewInputStatus;
+  financialMovement?: CaseReviewInputFinancialMovement;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  message: string;
+  /** @maxLength 2000 */
+  evidenceUrl?: string;
+}
+
+export type SupportCaseKind = typeof SupportCaseKind[keyof typeof SupportCaseKind];
+
+
+export const SupportCaseKind = {
+  refund: 'refund',
+  dispute: 'dispute',
+} as const;
+
+export type SupportCaseStatus = typeof SupportCaseStatus[keyof typeof SupportCaseStatus];
+
+
+export const SupportCaseStatus = {
+  requested: 'requested',
+  in_review: 'in_review',
+  resolved: 'resolved',
+  declined: 'declined',
+} as const;
+
+export type SupportCaseFinancialMovement = typeof SupportCaseFinancialMovement[keyof typeof SupportCaseFinancialMovement];
+
+
+export const SupportCaseFinancialMovement = {
+  none: 'none',
+  requested: 'requested',
+  recorded: 'recorded',
+  confirmed: 'confirmed',
+} as const;
+
+export interface SupportCase {
+  id: number;
+  kind: SupportCaseKind;
+  transactionReference: string;
+  status: SupportCaseStatus;
+  financialMovement: SupportCaseFinancialMovement;
+  messages: CaseMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CaseList {
+  items: SupportCase[];
+}
+
+export type PublicReceiptStatus = typeof PublicReceiptStatus[keyof typeof PublicReceiptStatus];
+
+
+export const PublicReceiptStatus = {
+  confirmed: 'confirmed',
+  refunded: 'refunded',
+} as const;
+
+export interface PublicReceipt {
+  reference: string;
+  businessName: string;
+  amount: number;
+  currency: string;
+  paidAt: string;
+  status: PublicReceiptStatus;
+}
+
 export interface Customer {
   id: number;
   name: string;
@@ -498,9 +1280,51 @@ export interface WebhookEventList {
   items: WebhookEvent[];
 }
 
+export interface PlatformBranding {
+  platformName: string;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  baseCurrency: string;
+  contactEmail: string;
+  contactPhone: string;
+  contactAddress: string;
+  contactWhatsapp: string;
+  /** @nullable */
+  logoUrl?: string | null;
+  /** @nullable */
+  faviconUrl?: string | null;
+}
+
+export interface AdminAuditEntry {
+  id: number;
+  actor: string;
+  action: string;
+  target: string;
+  /** @nullable */
+  details: string | null;
+  /** @nullable */
+  method: string | null;
+  /** @nullable */
+  route: string | null;
+  /** @nullable */
+  statusCode: number | null;
+  createdAt: string;
+}
+
 export interface ProviderStatusList {
   items: ProviderStatus[];
 }
+
+export type AccessProfileRole = typeof AccessProfileRole[keyof typeof AccessProfileRole];
+
+
+export const AccessProfileRole = {
+  owner: 'owner',
+  finance: 'finance',
+  viewer: 'viewer',
+} as const;
 
 export type MerchantProfileStatus = typeof MerchantProfileStatus[keyof typeof MerchantProfileStatus];
 
@@ -543,7 +1367,98 @@ export interface MerchantProfile {
 export interface AccessProfile {
   userId: string;
   isAdmin: boolean;
+  role?: AccessProfileRole;
   merchant: MerchantProfile | null;
+}
+
+export type MerchantTeamRole = typeof MerchantTeamRole[keyof typeof MerchantTeamRole];
+
+
+export const MerchantTeamRole = {
+  owner: 'owner',
+  finance: 'finance',
+  viewer: 'viewer',
+} as const;
+
+export type MerchantTeamInvitationRole = typeof MerchantTeamInvitationRole[keyof typeof MerchantTeamInvitationRole];
+
+
+export const MerchantTeamInvitationRole = {
+  finance: 'finance',
+  viewer: 'viewer',
+} as const;
+
+export type MerchantTeamMemberStatus = typeof MerchantTeamMemberStatus[keyof typeof MerchantTeamMemberStatus];
+
+
+export const MerchantTeamMemberStatus = {
+  active: 'active',
+} as const;
+
+export interface MerchantTeamMember {
+  id: number;
+  email: string;
+  role: MerchantTeamRole;
+  status: MerchantTeamMemberStatus;
+  createdAt: string;
+}
+
+export type MerchantTeamInvitationStatus = typeof MerchantTeamInvitationStatus[keyof typeof MerchantTeamInvitationStatus];
+
+
+export const MerchantTeamInvitationStatus = {
+  pending: 'pending',
+} as const;
+
+export interface MerchantTeamInvitation {
+  id: number;
+  email: string;
+  role: MerchantTeamInvitationRole;
+  status: MerchantTeamInvitationStatus;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface MerchantTeam {
+  members: MerchantTeamMember[];
+  invitations: MerchantTeamInvitation[];
+}
+
+export interface MerchantTeamInvitationInput {
+  /** @maxLength 254 */
+  email: string;
+  role: MerchantTeamInvitationRole;
+}
+
+export type MerchantTeamInvitationCreatedDelivery = typeof MerchantTeamInvitationCreatedDelivery[keyof typeof MerchantTeamInvitationCreatedDelivery];
+
+
+export const MerchantTeamInvitationCreatedDelivery = {
+  copy_link_required: 'copy_link_required',
+} as const;
+
+export interface MerchantTeamInvitationCreated {
+  invitation: MerchantTeamInvitation;
+  invitationUrl: string;
+  delivery: MerchantTeamInvitationCreatedDelivery;
+}
+
+export interface MerchantTeamRoleUpdate {
+  role: MerchantTeamInvitationRole;
+}
+
+export interface MerchantTeamInvitationAcceptanceInput {
+  /**
+     * @minLength 32
+     * @maxLength 256
+     */
+  token: string;
+}
+
+export interface MerchantTeamInvitationAcceptance {
+  merchantId: number;
+  businessName: string;
+  role: MerchantTeamInvitationRole;
 }
 
 export interface MerchantProfileResponse {
@@ -570,6 +1485,111 @@ export interface CreateMerchantInput {
   registrationNumber?: string;
 }
 
+export type VerificationTierLimitTier = typeof VerificationTierLimitTier[keyof typeof VerificationTierLimitTier];
+
+
+export const VerificationTierLimitTier = {
+  unverified: 'unverified',
+  kyc: 'kyc',
+  kyb: 'kyb',
+} as const;
+
+export interface VerificationTierLimit {
+  tier: VerificationTierLimitTier;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency: string;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  collectionPerTransactionLimit: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  collectionDailyLimit: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  collectionMonthlyLimit: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  payoutLimit: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  conversionLimit: number | null;
+  updatedAt: string;
+}
+
+export interface VerificationLimitsResponse {
+  items: VerificationTierLimit[];
+}
+
+export type VerificationTierLimitInputTier = typeof VerificationTierLimitInputTier[keyof typeof VerificationTierLimitInputTier];
+
+
+export const VerificationTierLimitInputTier = {
+  unverified: 'unverified',
+  kyc: 'kyc',
+  kyb: 'kyb',
+} as const;
+
+export interface VerificationTierLimitInput {
+  tier: VerificationTierLimitInputTier;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency: string;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  collectionPerTransactionLimit: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  collectionDailyLimit: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  collectionMonthlyLimit: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  payoutLimit: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  conversionLimit: number | null;
+}
+
+export interface VerificationLimitsInput {
+  /** @minItems 1 */
+  items: VerificationTierLimitInput[];
+}
+
+export type KycStatusTier = typeof KycStatusTier[keyof typeof KycStatusTier];
+
+
+export const KycStatusTier = {
+  unverified: 'unverified',
+  kyc: 'kyc',
+  kyb: 'kyb',
+} as const;
+
 export interface KycStatus {
   status: string;
   configured: boolean;
@@ -579,6 +1599,16 @@ export interface KycStatus {
   sessionUrl: string | null;
   /** @nullable */
   updatedAt?: string | null;
+  kybStatus: string;
+  kybConfigured: boolean;
+  /** @nullable */
+  kybSessionId: string | null;
+  /** @nullable */
+  kybSessionUrl: string | null;
+  /** @nullable */
+  kybUpdatedAt: string | null;
+  tier: KycStatusTier;
+  limits: VerificationTierLimit[];
   requirements?: string[];
 }
 
@@ -619,6 +1649,27 @@ export interface ApiKey {
   lastUsedAt?: string | null;
   /** @nullable */
   revokedAt?: string | null;
+}
+
+export interface CollectionCurrency {
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  code: string;
+  name: string;
+  /**
+     * Maximum fractional digits accepted for Greenpay collections; KES is whole-unit only.
+     * @minimum 0
+     * @maximum 2
+     */
+  minorUnits: number;
+  /** True only when the active route has credentials and is enabled. */
+  collectionReady: boolean;
+}
+
+export interface CurrencyCatalog {
+  items: CollectionCurrency[];
 }
 
 export interface ApiKeyList {
@@ -911,6 +1962,28 @@ export interface PlatformSettings {
   refundsEnabled: boolean;
   apiAccessEnabled: boolean;
   kycRequired: boolean;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  platformName: string;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  baseCurrency: string;
+  /** @maxLength 254 */
+  contactEmail: string;
+  /** @maxLength 40 */
+  contactPhone: string;
+  /** @maxLength 250 */
+  contactAddress: string;
+  /** @maxLength 100 */
+  contactWhatsapp: string;
+  /** @nullable */
+  logoUrl?: string | null;
+  /** @nullable */
+  faviconUrl?: string | null;
 }
 
 export interface PlatformSettingsUpdate {
@@ -920,22 +1993,54 @@ export interface PlatformSettingsUpdate {
   refundsEnabled?: boolean;
   apiAccessEnabled?: boolean;
   kycRequired?: boolean;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  platformName?: string;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  baseCurrency?: string;
+  /** @maxLength 254 */
+  contactEmail?: string;
+  /** @maxLength 40 */
+  contactPhone?: string;
+  /** @maxLength 250 */
+  contactAddress?: string;
+  /** @maxLength 100 */
+  contactWhatsapp?: string;
+  /** @nullable */
+  logoUrl?: string | null;
+  /** @nullable */
+  faviconUrl?: string | null;
 }
-
-export type AdminAuditLogItemsItem = {
-  id: number;
-  actor: string;
-  action: string;
-  target: string;
-  details?: string;
-  createdAt: string;
-};
 
 export interface AdminAuditLog {
   page: number;
   total: number;
-  items: AdminAuditLogItemsItem[];
+  items: AdminAuditEntry[];
 }
+
+export type AdminListSupportTicketsParams = {
+status?: AdminListSupportTicketsStatus;
+/**
+ * @maxLength 120
+ */
+search?: string;
+};
+
+export type AdminListSupportTicketsStatus = typeof AdminListSupportTicketsStatus[keyof typeof AdminListSupportTicketsStatus];
+
+
+export const AdminListSupportTicketsStatus = {
+  open: 'open',
+  in_progress: 'in_progress',
+  waiting: 'waiting',
+  resolved: 'resolved',
+  closed: 'closed',
+} as const;
 
 export type ListTransactionsParams = {
 search?: string;
@@ -967,6 +2072,43 @@ export type ListPaymentLinksParams = {
 search?: string;
 };
 
+export type ListMerchantWalletLedgerParams = {
+/**
+ * @minLength 3
+ * @maxLength 3
+ */
+currency?: string;
+};
+
+export type GetMerchantWalletFxQuoteParams = {
+/**
+ * @exclusiveMinimum 0
+ */
+amount: number;
+/**
+ * @minLength 3
+ * @maxLength 3
+ */
+from: string;
+/**
+ * @minLength 3
+ * @maxLength 3
+ */
+to: string;
+};
+
+export type ListMerchantWalletPayoutMethodsParams = {
+/**
+ * @minLength 3
+ * @maxLength 3
+ */
+currency: string;
+};
+
+export type ListAdminPayoutRequestsParams = {
+status?: string;
+};
+
 export type ListPayoutsParams = {
 status?: ListPayoutsStatus;
 currency?: string;
@@ -982,6 +2124,7 @@ export const ListPayoutsStatus = {
   completed: 'completed',
   rejected: 'rejected',
   failed: 'failed',
+  uncertain: 'uncertain',
 } as const;
 
 export type ListPayoutMethodsParams = {
@@ -1115,5 +2258,17 @@ export type ListAdminAuditLogParams = {
  * @minimum 1
  */
 page?: number;
+/**
+ * @maxLength 128
+ */
+user?: string;
+/**
+ * @maxLength 100
+ */
+action?: string;
+/**
+ * @maxLength 200
+ */
+search?: string;
 };
 

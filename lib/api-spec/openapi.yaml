@@ -22,7 +22,245 @@ tags:
   - name: admin
   - name: kyc
   - name: fx
+  - name: wallets
+  - name: payout-requests
 paths:
+  /contact/tickets:
+    post:
+      operationId: createContactTicket
+      tags: [support]
+      summary: Submit a public support request without exposing ticket-thread reads
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ContactTicketInput" }
+      responses:
+        "201":
+          description: Support request recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContactTicketReceipt" }
+        "400": { description: Invalid input }
+        "429": { description: Too many requests }
+  /support/tickets:
+    get:
+      operationId: listSupportTickets
+      tags: [support]
+      summary: List support tickets belonging to the signed-in user
+      responses:
+        "200":
+          description: The caller's support tickets
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportTicketList" }
+        "401": { description: Sign-in required }
+    post:
+      operationId: createSupportTicket
+      tags: [support]
+      summary: Create a signed-in user's support ticket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SupportTicketInput" }
+      responses:
+        "201":
+          description: Created ticket
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportTicket" }
+  /support/tickets/{id}:
+    get:
+      operationId: getSupportTicket
+      tags: [support]
+      summary: Read a support ticket owned by the signed-in user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Owned ticket and conversation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportTicketDetail" }
+        "404": { description: Ticket not found }
+  /support/tickets/{id}/messages:
+    post:
+      operationId: replySupportTicket
+      tags: [support]
+      summary: Add a message to the caller's support ticket
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SupportMessageInput" }
+      responses:
+        "201":
+          description: Message added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportMessage" }
+  /admin/support/tickets:
+    get:
+      operationId: adminListSupportTickets
+      tags: [support, admin]
+      summary: Search and filter the support inbox
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, in_progress, waiting, resolved, closed] }
+        - name: search
+          in: query
+          schema: { type: string, maxLength: 120 }
+      responses:
+        "200":
+          description: Support inbox
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportTicketList" }
+        "403": { description: Administrator access required }
+  /admin/support/tickets/{id}:
+    get:
+      operationId: adminGetSupportTicket
+      tags: [support, admin]
+      summary: Read any support ticket and its conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Ticket and conversation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportTicketDetail" }
+        "404": { description: Ticket not found }
+    patch:
+      operationId: adminUpdateSupportTicket
+      tags: [support, admin]
+      summary: Update support ticket status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SupportTicketStatusInput" }
+      responses:
+        "200":
+          description: Updated ticket
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportTicket" }
+  /admin/support/tickets/{id}/messages:
+    post:
+      operationId: adminReplySupportTicket
+      tags: [support, admin]
+      summary: Reply to any support ticket
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SupportMessageInput" }
+      responses:
+        "201":
+          description: Reply added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportMessage" }
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List persistent in-app notifications for the signed-in user
+      responses:
+        "200":
+          description: User notifications and unread count
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NotificationList" }
+  /notifications/{id}/read:
+    patch:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark one owned notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Updated notification
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Notification" }
+        "404": { description: Notification not found }
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all owned notifications as read
+      responses:
+        "200":
+          description: Current unread count
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnreadCount" }
+  /profile/business-contact:
+    get:
+      operationId: getBusinessContact
+      tags: [profile]
+      summary: Read the caller's editable merchant business contact details
+      responses:
+        "200":
+          description: Business contact profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BusinessContact" }
+    put:
+      operationId: updateBusinessContact
+      tags: [profile]
+      summary: Update the caller's business contact details without changing KYC ownership data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BusinessContactInput" }
+      responses:
+        "200":
+          description: Updated business contact profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BusinessContact" }
+  /platform-status:
+    get:
+      operationId: getPlatformStatus
+      tags: [health]
+      summary: Read public Greenpay platform availability without exposing payment routes
+      responses:
+        "200":
+          description: Platform operational status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformOperationalStatus" }
   /healthz:
     get:
       operationId: healthCheck
@@ -282,6 +520,235 @@ paths:
                 $ref: "#/components/schemas/PublicTransactionStatus"
         "404":
           description: Not found
+  /wallets:
+    get:
+      operationId: listMerchantWallets
+      tags: [wallets]
+      summary: List funded merchant wallets by currency
+      responses:
+        "200":
+          description: Funded wallets only; forecasts and unconfirmed collections are excluded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantWalletList" }
+  /wallets/ledger:
+    get:
+      operationId: listMerchantWalletLedger
+      tags: [wallets]
+      summary: List posted wallet journal entries
+      parameters:
+        - name: currency
+          in: query
+          schema: { type: string, minLength: 3, maxLength: 3 }
+      responses:
+        "200":
+          description: Append-only merchant wallet history
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalletLedgerList" }
+  /wallets/fx-quote:
+    get:
+      operationId: getMerchantWalletFxQuote
+      tags: [wallets, fx]
+      summary: Get a timestamped market-rate quote for an internal wallet conversion
+      description: |
+        Reference rates use target ISO-currency units per one source ISO-currency unit from the daily keyless Fawaz Ahmed currency-api. Pairs involving SLL are rejected until Payzaapi's legacy SLL amount scale is verified; SLE rates are never substituted. SLL wallet and payment-link amounts remain available without FX conversion.
+      parameters:
+        - name: amount
+          in: query
+          required: true
+          schema: { type: number, exclusiveMinimum: 0 }
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, minLength: 3, maxLength: 3 }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, minLength: 3, maxLength: 3 }
+      responses:
+        "200":
+          description: Timestamped market-rate quote with existing platform markup and fees
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalletFxQuote" }
+        "503":
+          description: Rate provider unavailable or rate is stale
+        "422":
+          description: The requested SLL FX pair is unsupported until the legacy SLL amount scale is verified
+  /wallets/conversions:
+    post:
+      operationId: convertMerchantWalletFunds
+      tags: [wallets, fx]
+      summary: Convert funded wallet allocation internally using a fresh quote
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WalletConversionInput" }
+      responses:
+        "201":
+          description: Internal wallet allocation conversion
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalletConversion" }
+        "409":
+          description: Insufficient available funds or idempotency conflict
+  /wallets/payout-methods:
+    get:
+      operationId: listMerchantWalletPayoutMethods
+      tags: [payout-requests]
+      summary: Discover payout methods and fees available to merchant wallet requests
+      parameters:
+        - name: currency
+          in: query
+          required: true
+          schema: { type: string, minLength: 3, maxLength: 3 }
+      responses:
+        "200":
+          description: Current provider methods, minimum and fees
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutMethodsResponse" }
+        "503":
+          description: Provider payout methods are not configured
+  /wallets/payout-requests:
+    get:
+      operationId: listMerchantPayoutRequests
+      tags: [payout-requests]
+      summary: List merchant payout requests
+      responses:
+        "200":
+          description: Payout requests with destination details redacted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutRequestList" }
+    post:
+      operationId: createMerchantPayoutRequest
+      tags: [payout-requests]
+      summary: Reserve funded wallet money for administrator-reviewed payout
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PayoutRequestInput" }
+      responses:
+        "201":
+          description: Reserved payout request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutRequest" }
+        "409":
+          description: Insufficient available funds or idempotency conflict
+  /admin/wallets:
+    get:
+      operationId: listAdminWallets
+      tags: [wallets, admin]
+      summary: List funded balances across merchant wallets
+      responses:
+        "200":
+          description: Funded and reserved balances by merchant and currency
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminWalletList" }
+  /admin/wallets/settlements/confirm:
+    post:
+      operationId: confirmWalletSettlement
+      tags: [wallets, admin]
+      summary: Confirm settlement with evidence and fund only eligible net collections
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WalletSettlementConfirmationInput" }
+      responses:
+        "201":
+          description: Settlement evidence recorded and wallet credited
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalletSettlementConfirmation" }
+        "409":
+          description: Settlement is not eligible or is already reconciled
+  /admin/payout-requests:
+    get:
+      operationId: listAdminPayoutRequests
+      tags: [payout-requests, admin]
+      summary: Review merchant payout requests
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Payout requests with destination details redacted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutRequestList" }
+  /admin/payout-requests/{id}/approve:
+    post:
+      operationId: approvePayoutRequest
+      tags: [payout-requests, admin]
+      summary: Approve and submit a reserved merchant payout exactly once
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Approved payout; uncertain outcomes retain funds on hold
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutRequest" }
+        "409":
+          description: Payout request has already been processed or has an uncertain outcome
+  /admin/payout-requests/{id}/reject:
+    post:
+      operationId: rejectPayoutRequest
+      tags: [payout-requests, admin]
+      summary: Reject a not-yet-submitted payout request and release its reservation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PayoutRequestDecisionInput" }
+      responses:
+        "200":
+          description: Request rejected and reservation released
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutRequest" }
+  /admin/payout-requests/{id}/reconcile:
+    post:
+      operationId: reconcilePayoutRequest
+      tags: [payout-requests, admin]
+      summary: Verify provider status for an uncertain payout without resubmitting it
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Reconciled provider outcome
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutRequest" }
   /payouts:
     get:
       operationId: listPayouts
@@ -292,7 +759,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [pending, processing, approved, completed, rejected, failed]
+            enum: [pending, processing, approved, completed, rejected, failed, uncertain]
         - name: currency
           in: query
           schema: { type: string }
@@ -306,7 +773,7 @@ paths:
     post:
       operationId: createPayout
       tags: [payouts]
-      summary: Send a payout through an available Payzaapi payout method
+      summary: Reserve merchant-funded payout requests or submit explicitly platform-funded payouts
       requestBody:
         required: true
         content:
@@ -315,7 +782,7 @@ paths:
               $ref: "#/components/schemas/PayoutInput"
       responses:
         "201":
-          description: Payout submitted
+          description: Platform-funded payout submission or reserved merchant payout request
           content:
             application/json:
               schema:
@@ -373,6 +840,242 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SettlementList"
+  /merchant/invoices:
+    get:
+      operationId: listMerchantInvoices
+      tags: [merchant]
+      summary: List merchant invoices
+      responses:
+        "200":
+          description: Merchant invoices
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvoiceList" }
+    post:
+      operationId: createMerchantInvoice
+      tags: [merchant]
+      summary: Create a merchant invoice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InvoiceInput" }
+      responses:
+        "201":
+          description: Invoice created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+  /merchant/invoices/{id}:
+    get:
+      operationId: getMerchantInvoice
+      tags: [merchant]
+      summary: Read a merchant invoice
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Invoice
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+    patch:
+      operationId: updateMerchantInvoice
+      tags: [merchant]
+      summary: Edit a draft merchant invoice
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InvoiceUpdate" }
+      responses:
+        "200":
+          description: Updated invoice
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+  /merchant/invoices/{id}/send:
+    post:
+      operationId: sendMerchantInvoice
+      tags: [merchant]
+      summary: Mark an invoice sent and persist its reminder state
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Invoice sent state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+  /merchant/invoices/{id}/void:
+    post:
+      operationId: voidMerchantInvoice
+      tags: [merchant]
+      summary: Void an unpaid invoice
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Voided invoice
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+  /merchant/invoices/{id}/payment-link:
+    post:
+      operationId: createInvoicePaymentLink
+      tags: [merchant]
+      summary: Create the safeguarded payment link for an invoice
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Invoice with payment link
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+  /merchant/invoices/{id}/reminders:
+    get:
+      operationId: listInvoiceReminders
+      tags: [merchant]
+      summary: List persisted reminder delivery attempts
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Reminder attempts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReminderList" }
+    post:
+      operationId: createInvoiceReminder
+      tags: [merchant]
+      summary: Record an invoice reminder request without claiming email delivery
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReminderInput" }
+      responses:
+        "201":
+          description: Persisted reminder state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Reminder" }
+  /merchant/statements/{month}:
+    get:
+      operationId: getMerchantStatement
+      tags: [merchant]
+      summary: Get confirmed monthly financial facts
+      parameters:
+        - { name: month, in: path, required: true, schema: { type: string, pattern: "^\\d{4}-\\d{2}$" } }
+      responses:
+        "200":
+          description: Statement transactions, refunds, payouts and separate historical forecast
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Statement" }
+  /merchant/cases:
+    get:
+      operationId: listMerchantCases
+      tags: [merchant]
+      summary: List merchant refund and dispute requests
+      responses:
+        "200":
+          description: Merchant cases
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CaseList" }
+    post:
+      operationId: createMerchantCase
+      tags: [merchant]
+      summary: Create a refund or dispute support case
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CaseInput" }
+      responses:
+        "201":
+          description: Case created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportCase" }
+  /merchant/cases/{id}:
+    get:
+      operationId: getMerchantCase
+      tags: [merchant]
+      summary: Read a merchant case and its thread
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Case detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportCase" }
+    post:
+      operationId: addMerchantCaseMessage
+      tags: [merchant]
+      summary: Add merchant text and evidence URL to a case
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CaseMessageInput" }
+      responses:
+        "200":
+          description: Updated case thread
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportCase" }
+  /admin/cases:
+    get:
+      operationId: listAdminCases
+      tags: [admin]
+      summary: Review merchant refund and dispute cases
+      responses:
+        "200":
+          description: Cases for administrative review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CaseList" }
+  /admin/cases/{id}:
+    patch:
+      operationId: reviewAdminCase
+      tags: [admin]
+      summary: Record administrative case review without initiating money movement
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CaseReviewInput" }
+      responses:
+        "200":
+          description: Reviewed case
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportCase" }
+  /public/receipts/{reference}:
+    get:
+      operationId: getPublicReceipt
+      tags: [transactions]
+      summary: Read a privacy-safe receipt for a confirmed payment
+      parameters:
+        - { name: reference, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Safe confirmed-payment receipt
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicReceipt" }
   /customers:
     get:
       operationId: listCustomers
@@ -424,6 +1127,17 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WebhookEvent"
+  /public/platform-branding:
+    get:
+      operationId: getPublicPlatformBranding
+      tags: [health]
+      summary: Read safe public platform name, identity, currency default and contact details
+      responses:
+        "200":
+          description: Public platform branding and contact details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlatformBranding" }
   /providers/status:
     get:
       operationId: getProviderStatus
@@ -475,6 +1189,32 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/MerchantProfileResponse" }
         "409": { description: Merchant already exists }
+  /admin/verification-limits:
+    get:
+      operationId: getAdminVerificationLimits
+      tags: [admin]
+      summary: Read configurable per-currency verification-tier limits
+      responses:
+        "200":
+          description: Verification limit matrix
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VerificationLimitsResponse" }
+    put:
+      operationId: updateAdminVerificationLimits
+      tags: [admin]
+      summary: Replace the configurable verification-tier limit matrix
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerificationLimitsInput" }
+      responses:
+        "200":
+          description: Saved verification limits
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VerificationLimitsResponse" }
   /merchant/kyc:
     get:
       operationId: getMerchantKyc
@@ -590,6 +1330,100 @@ paths:
           schema: { type: integer }
       responses:
         "204": { description: Link archived }
+  /merchant/team:
+    get:
+      operationId: listMerchantTeam
+      tags: [merchant]
+      summary: List active team members and pending invitations for the current merchant
+      responses:
+        "200":
+          description: Merchant team
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantTeam" }
+        "404": { description: Merchant workspace not found }
+    post:
+      operationId: createMerchantTeamInvitation
+      tags: [merchant]
+      summary: Create a secure invitation for a verified email address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MerchantTeamInvitationInput" }
+      responses:
+        "201":
+          description: Invitation created; copy the returned link to deliver it
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantTeamInvitationCreated" }
+        "403": { description: Owner permission required }
+  /merchant/team/invitations/{id}:
+    delete:
+      operationId: revokeMerchantTeamInvitation
+      tags: [merchant]
+      summary: Revoke a pending team invitation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Invitation revoked }
+        "404": { description: Invitation not found for this merchant }
+  /merchant/team/members/{id}:
+    patch:
+      operationId: updateMerchantTeamMember
+      tags: [merchant]
+      summary: Change a member between finance and viewer roles
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MerchantTeamRoleUpdate" }
+      responses:
+        "200":
+          description: Updated team member
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantTeamMember" }
+        "403": { description: Owner permission required }
+        "404": { description: Member not found for this merchant }
+    delete:
+      operationId: removeMerchantTeamMember
+      tags: [merchant]
+      summary: Remove a team member without affecting the merchant owner
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Team member removed }
+        "404": { description: Member not found for this merchant }
+  /merchant/team/accept:
+    post:
+      operationId: acceptMerchantTeamInvitation
+      tags: [merchant]
+      summary: Accept an invitation matching the signed-in verified email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MerchantTeamInvitationAcceptanceInput" }
+      responses:
+        "200":
+          description: Invitation accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantTeamInvitationAcceptance" }
+        "403": { description: Invitation email does not match the signed-in verified email }
+        "409": { description: Invitation is no longer pending }
   /merchant/api-keys:
     get:
       operationId: listMerchantApiKeys
@@ -702,6 +1536,18 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/FxQuote" }
         "404": { description: No active exchange rate is available }
+  /currencies:
+    get:
+      operationId: listSupportedCurrencies
+      tags: [developer-api]
+      summary: List supported collection currencies and current collection readiness
+      description: Public catalog of supported Greenpay currencies. Readiness does not reveal which payment route is used and may change as credentials are configured.
+      responses:
+        "200":
+          description: Supported collection currencies
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CurrencyCatalog" }
   /v1/merchant:
     get:
       operationId: getDeveloperMerchant
@@ -1054,11 +1900,20 @@ paths:
     get:
       operationId: listAdminAuditLog
       tags: [admin]
-      summary: Review privileged account, fee, FX, settings, and credential changes
+      summary: Review administrative and meaningful signed-in user/API activity
       parameters:
         - name: page
           in: query
           schema: { type: integer, minimum: 1, default: 1 }
+        - name: user
+          in: query
+          schema: { type: string, maxLength: 128 }
+        - name: action
+          in: query
+          schema: { type: string, maxLength: 100 }
+        - name: search
+          in: query
+          schema: { type: string, maxLength: 200 }
       responses:
         "200":
           description: Immutable administrative audit history
@@ -1072,6 +1927,135 @@ components:
       scheme: bearer
       bearerFormat: merchant API key
   schemas:
+    ContactTicketInput:
+      type: object
+      required: [name, email, subject, message]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        email: { type: string, format: email, maxLength: 254 }
+        subject: { type: string, minLength: 3, maxLength: 180 }
+        message: { type: string, minLength: 10, maxLength: 8000 }
+        category: { type: string, enum: [payments, account, verification, technical, other] }
+    SupportTicketInput:
+      type: object
+      required: [subject, message]
+      properties:
+        subject: { type: string, minLength: 3, maxLength: 180 }
+        message: { type: string, minLength: 10, maxLength: 8000 }
+        category: { type: string, enum: [payments, account, verification, technical, other] }
+    ContactTicketReceipt:
+      type: object
+      required: [reference, delivery]
+      properties:
+        reference: { type: string }
+        delivery: { type: string, enum: [in_app_recorded_email_unconfigured] }
+    SupportTicket:
+      type: object
+      required: [id, reference, subject, category, status, requesterName, requesterEmail, createdAt, updatedAt, messageCount, delivery]
+      properties:
+        id: { type: integer }
+        reference: { type: string }
+        subject: { type: string }
+        category: { type: string }
+        status: { type: string, enum: [open, in_progress, waiting, resolved, closed] }
+        requesterName: { type: string }
+        requesterEmail: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        messageCount: { type: integer }
+        delivery: { type: string, enum: [in_app_recorded_email_unconfigured] }
+    SupportMessage:
+      type: object
+      required: [id, ticketId, authorRole, authorName, body, createdAt, delivery]
+      properties:
+        id: { type: integer }
+        ticketId: { type: integer }
+        authorRole: { type: string, enum: [customer, admin] }
+        authorName: { type: string }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
+        delivery: { type: string, enum: [in_app_recorded_email_unconfigured] }
+    SupportTicketDetail:
+      type: object
+      required: [ticket, messages]
+      properties:
+        ticket: { $ref: "#/components/schemas/SupportTicket" }
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/SupportMessage" }
+    SupportTicketList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/SupportTicket" }
+    SupportMessageInput:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 8000 }
+    SupportTicketStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [open, in_progress, waiting, resolved, closed] }
+    Notification:
+      type: object
+      required: [id, type, title, body, href, createdAt, readAt]
+      properties:
+        id: { type: integer }
+        type: { type: string, enum: [support_reply, kyc_update, payment_confirmed, payout_update] }
+        title: { type: string }
+        body: { type: string }
+        href: { type: string }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: ["string", "null"], format: date-time }
+    NotificationList:
+      type: object
+      required: [items, unreadCount]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Notification" }
+        unreadCount: { type: integer }
+    UnreadCount:
+      type: object
+      required: [unreadCount]
+      properties:
+        unreadCount: { type: integer }
+    BusinessContact:
+      type: object
+      required: [businessName, contactName, email, phone, merchantStatus, kycStatus]
+      properties:
+        businessName: { type: string }
+        contactName: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        merchantStatus: { type: string }
+        kycStatus: { type: string }
+    BusinessContactInput:
+      type: object
+      required: [contactName, email, phone]
+      properties:
+        contactName: { type: ["string", "null"], maxLength: 120 }
+        email: { type: ["string", "null"], format: email, maxLength: 254 }
+        phone: { type: ["string", "null"], maxLength: 40 }
+    PlatformOperationalStatus:
+      type: object
+      required: [status, checkedAt, services]
+      properties:
+        status: { type: string, enum: [operational, degraded, unavailable] }
+        checkedAt: { type: string, format: date-time }
+        services:
+          type: array
+          items:
+            type: object
+            required: [name, status, description]
+            properties:
+              name: { type: string }
+              status: { type: string, enum: [operational, degraded, unavailable] }
+              description: { type: string }
     HealthStatus:
       type: object
       properties:
@@ -1253,6 +2237,146 @@ components:
         customerEmail: { type: string, format: email }
         customerName: { type: string }
         customerPhone: { type: string }
+    MerchantWallet:
+      type: object
+      required: [currency, availableBalance, reservedBalance, updatedAt]
+      properties:
+        currency: { type: string }
+        availableBalance: { type: number }
+        reservedBalance: { type: number }
+        updatedAt: { type: string, format: date-time }
+    MerchantWalletList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/MerchantWallet" }
+    AdminWallet:
+      allOf:
+        - $ref: "#/components/schemas/MerchantWallet"
+        - type: object
+          required: [merchantId, businessName]
+          properties:
+            merchantId: { type: integer }
+            businessName: { type: string }
+    AdminWalletList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AdminWallet" }
+    WalletLedgerEntry:
+      type: object
+      required: [id, currency, amount, direction, kind, reference, createdAt]
+      properties:
+        id: { type: integer }
+        currency: { type: string }
+        amount: { type: number }
+        direction: { type: string, enum: [credit, debit] }
+        kind: { type: string, enum: [settlement_funding, payout_reserve, payout_release, payout_complete, conversion, refund_adjustment] }
+        reference: { type: string }
+        evidenceReference: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+    WalletLedgerList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/WalletLedgerEntry" }
+    WalletFxQuote:
+      type: object
+      required: [quoteId, fromCurrency, toCurrency, sourceAmount, sourceRate, effectiveRate, feeAmount, targetAmount, markupBps, source, quotedAt, expiresAt, note]
+      properties:
+        quoteId: { type: string }
+        fromCurrency: { type: string }
+        toCurrency: { type: string }
+        sourceAmount: { type: number }
+        sourceRate: { type: number }
+        effectiveRate: { type: number }
+        feeAmount: { type: number }
+        targetAmount: { type: number }
+        markupBps: { type: integer }
+        source: { type: string }
+        quotedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        note: { type: string }
+    WalletConversionInput:
+      type: object
+      required: [amount, fromCurrency, toCurrency]
+      properties:
+        amount: { type: number, exclusiveMinimum: 0 }
+        fromCurrency: { type: string, minLength: 3, maxLength: 3 }
+        toCurrency: { type: string, minLength: 3, maxLength: 3 }
+    WalletConversion:
+      allOf:
+        - $ref: "#/components/schemas/WalletFxQuote"
+        - type: object
+          required: [id, idempotencyKey, createdAt, allocationType]
+          properties:
+            id: { type: integer }
+            idempotencyKey: { type: string }
+            createdAt: { type: string, format: date-time }
+            allocationType: { type: string, enum: [internal_wallet_allocation] }
+    PayoutRequestInput:
+      type: object
+      required: [amount, currency, method, accountName, accountNumber]
+      properties:
+        amount: { type: number, exclusiveMinimum: 0 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        method: { type: string, minLength: 1 }
+        accountName: { type: string, minLength: 1, maxLength: 200 }
+        accountNumber: { type: string, minLength: 3, maxLength: 100 }
+        bankCode: { type: string, maxLength: 100 }
+        bankName: { type: string, maxLength: 200 }
+    PayoutRequest:
+      type: object
+      required: [id, reference, merchantId, amount, fee, netAmount, currency, method, accountName, maskedAccount, status, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        reference: { type: string }
+        merchantId: { type: integer }
+        amount: { type: number }
+        fee: { type: number }
+        netAmount: { type: number }
+        currency: { type: string }
+        method: { type: string }
+        accountName: { type: string }
+        maskedAccount: { type: string }
+        status: { type: string, enum: [requested, approved, processing, completed, rejected, failed, uncertain] }
+        providerReference: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PayoutRequestList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/PayoutRequest" }
+    PayoutRequestDecisionInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 400 }
+    WalletSettlementConfirmationInput:
+      type: object
+      required: [settlementReference, evidenceReference]
+      properties:
+        settlementReference: { type: string, minLength: 1, maxLength: 150 }
+        evidenceReference: { type: string, minLength: 3, maxLength: 200 }
+    WalletSettlementConfirmation:
+      type: object
+      required: [settlementReference, merchantId, currency, fundedAmount, evidenceReference, confirmedAt]
+      properties:
+        settlementReference: { type: string }
+        merchantId: { type: integer }
+        currency: { type: string }
+        fundedAmount: { type: number }
+        evidenceReference: { type: string }
+        confirmedAt: { type: string, format: date-time }
     Payout:
       type: object
       required: [id, reference, amount, currency, method, accountName, status, provider, createdAt]
@@ -1269,7 +2393,7 @@ components:
         maskedAccount: { type: string }
         status:
           type: string
-          enum: [pending, processing, approved, completed, rejected, failed]
+          enum: [requested, pending, processing, approved, completed, rejected, failed, uncertain]
         provider: { type: string, enum: [payzaapi, paystack] }
         createdAt: { type: string, format: date-time }
     PayoutList:
@@ -1281,8 +2405,11 @@ components:
           items: { $ref: "#/components/schemas/Payout" }
     PayoutInput:
       type: object
-      required: [amount, currency, method, accountNumber, accountName, idempotencyKey]
+      required: [fundingSource, amount, currency, method, accountNumber, accountName, idempotencyKey]
       properties:
+        fundingSource:
+          type: string
+          enum: [merchant_wallet, platform]
         idempotencyKey: { type: string, minLength: 8, maxLength: 128 }
         merchantId: { type: integer, minimum: 1 }
         amount: { type: number, exclusiveMinimum: 0 }
@@ -1351,6 +2478,228 @@ components:
         items:
           type: array
           items: { $ref: "#/components/schemas/Settlement" }
+    InvoiceLineInput:
+      type: object
+      required: [description, quantity, unitAmount]
+      properties:
+        description: { type: string, minLength: 1, maxLength: 300 }
+        quantity: { type: number, exclusiveMinimum: 0, maximum: 100000 }
+        unitAmount: { type: number, minimum: 0, maximum: 100000000 }
+    InvoiceLine:
+      allOf:
+        - $ref: "#/components/schemas/InvoiceLineInput"
+        - type: object
+          required: [total]
+          properties:
+            total: { type: number }
+    InvoiceInput:
+      type: object
+      required: [customerName, customerEmail, currency, dueDate, lines]
+      properties:
+        customerName: { type: string, minLength: 1, maxLength: 150 }
+        customerEmail: { type: string, format: email, maxLength: 254 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        dueDate: { type: string, format: date }
+        lines:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: "#/components/schemas/InvoiceLineInput" }
+        note: { type: string, maxLength: 2000 }
+    InvoiceUpdate:
+      type: object
+      properties:
+        customerName: { type: string, minLength: 1, maxLength: 150 }
+        customerEmail: { type: string, format: email, maxLength: 254 }
+        dueDate: { type: string, format: date }
+        lines:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: "#/components/schemas/InvoiceLineInput" }
+        note: { type: string, maxLength: 2000 }
+    Invoice:
+      type: object
+      required: [id, reference, customerName, customerEmail, currency, dueDate, lines, subtotal, total, paidAmount, payments, status, createdAt, paymentUrl]
+      properties:
+        id: { type: integer }
+        reference: { type: string }
+        customerName: { type: string }
+        customerEmail: { type: string }
+        currency: { type: string }
+        dueDate: { type: string, format: date }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/InvoiceLine" }
+        subtotal: { type: number }
+        total: { type: number }
+        paidAmount: { type: number }
+        payments:
+          type: array
+          items: { $ref: "#/components/schemas/InvoicePayment" }
+        status: { type: string, enum: [draft, sent, partially_paid, paid, void] }
+        note: { type: ["string", "null"] }
+        paymentUrl: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+    InvoicePayment:
+      type: object
+      required: [reference, amount, paidAt, status]
+      properties:
+        reference: { type: string }
+        amount: { type: number }
+        paidAt: { type: string, format: date-time }
+        status: { type: string, enum: [success, refunded] }
+    InvoiceList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Invoice" }
+    ReminderInput:
+      type: object
+      properties:
+        note: { type: string, maxLength: 500 }
+    Reminder:
+      type: object
+      required: [id, invoiceId, deliveryStatus, createdAt, message]
+      properties:
+        id: { type: integer }
+        invoiceId: { type: integer }
+        deliveryStatus: { type: string, enum: [unconfigured] }
+        createdAt: { type: string, format: date-time }
+        attemptedAt: { type: ["string", "null"], format: date-time }
+        message: { type: string }
+    ReminderList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Reminder" }
+    StatementTransaction:
+      type: object
+      required: [reference, amount, fee, currency, paidAt]
+      properties:
+        reference: { type: string }
+        amount: { type: number }
+        fee: { type: number }
+        currency: { type: string }
+        paidAt: { type: string, format: date-time }
+    StatementRefund:
+      type: object
+      required: [reference, originalReference, amount, currency, status, createdAt]
+      properties:
+        reference: { type: string }
+        originalReference: { type: string }
+        amount: { type: number }
+        currency: { type: string }
+        status: { type: string }
+        createdAt: { type: string, format: date-time }
+    StatementPayout:
+      type: object
+      required: [reference, amount, fee, currency, status, createdAt]
+      properties:
+        reference: { type: string }
+        amount: { type: number }
+        fee: { type: number }
+        currency: { type: string }
+        status: { type: string }
+        createdAt: { type: string, format: date-time }
+    Statement:
+      type: object
+      required: [month, transactions, refunds, payouts, currencySummaries]
+      properties:
+        month: { type: string }
+        transactions:
+          type: array
+          items: { $ref: "#/components/schemas/StatementTransaction" }
+        refunds:
+          type: array
+          items: { $ref: "#/components/schemas/StatementRefund" }
+        payouts:
+          type: array
+          items: { $ref: "#/components/schemas/StatementPayout" }
+        currencySummaries:
+          type: array
+          items:
+            type: object
+            required: [currency, grossConfirmed, fees, refundsTotal, payoutsTotal, forecast]
+            properties:
+              currency: { type: string }
+              grossConfirmed: { type: number }
+              fees: { type: number }
+              refundsTotal: { type: number }
+              payoutsTotal: { type: number }
+              forecast:
+                type: object
+                required: [label, amount, basisMonths]
+                properties:
+                  label: { type: string, enum: [historical_average_estimate] }
+                  amount: { type: ["number", "null"] }
+                  basisMonths: { type: integer }
+    CaseMessageInput:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string, minLength: 1, maxLength: 4000 }
+        evidenceUrl: { type: string, format: uri, maxLength: 2000 }
+    CaseMessage:
+      type: object
+      required: [id, authorRole, message, createdAt, evidenceUrl]
+      properties:
+        id: { type: string }
+        authorRole: { type: string, enum: [merchant, admin] }
+        message: { type: string }
+        evidenceUrl: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+    CaseInput:
+      allOf:
+        - $ref: "#/components/schemas/CaseMessageInput"
+        - type: object
+          required: [kind, transactionReference]
+          properties:
+            kind: { type: string, enum: [refund, dispute] }
+            transactionReference: { type: string, minLength: 1, maxLength: 100 }
+    CaseReviewInput:
+      type: object
+      required: [status, message]
+      properties:
+        status: { type: string, enum: [in_review, resolved, declined] }
+        financialMovement: { type: string, enum: [none, requested, recorded, confirmed] }
+        message: { type: string, minLength: 1, maxLength: 4000 }
+        evidenceUrl: { type: string, format: uri, maxLength: 2000 }
+    SupportCase:
+      type: object
+      required: [id, kind, transactionReference, status, financialMovement, messages, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        kind: { type: string, enum: [refund, dispute] }
+        transactionReference: { type: string }
+        status: { type: string, enum: [requested, in_review, resolved, declined] }
+        financialMovement: { type: string, enum: [none, requested, recorded, confirmed] }
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/CaseMessage" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CaseList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/SupportCase" }
+    PublicReceipt:
+      type: object
+      required: [reference, businessName, amount, currency, paidAt, status]
+      properties:
+        reference: { type: string }
+        businessName: { type: string }
+        amount: { type: number }
+        currency: { type: string }
+        paidAt: { type: string, format: date-time }
+        status: { type: string, enum: [confirmed, refunded] }
     Customer:
       type: object
       required: [id, name, email, orderCount, currencySummary]
@@ -1389,6 +2738,31 @@ components:
         items:
           type: array
           items: { $ref: "#/components/schemas/WebhookEvent" }
+    PlatformBranding:
+      type: object
+      required: [platformName, baseCurrency, contactEmail, contactPhone, contactAddress, contactWhatsapp]
+      properties:
+        platformName: { type: string }
+        baseCurrency: { type: string, minLength: 3, maxLength: 3 }
+        contactEmail: { type: string }
+        contactPhone: { type: string }
+        contactAddress: { type: string }
+        contactWhatsapp: { type: string }
+        logoUrl: { type: ["string", "null"], format: uri }
+        faviconUrl: { type: ["string", "null"], format: uri }
+    AdminAuditEntry:
+      type: object
+      required: [id, actor, action, target, createdAt, details, method, route, statusCode]
+      properties:
+        id: { type: integer }
+        actor: { type: string }
+        action: { type: string }
+        target: { type: string }
+        details: { type: ["string", "null"] }
+        method: { type: ["string", "null"] }
+        route: { type: ["string", "null"] }
+        statusCode: { type: ["integer", "null"] }
+        createdAt: { type: string, format: date-time }
     ProviderStatus:
       type: object
       required: [provider, configured, mode, currencies, collectionsEnabled, payoutsEnabled]
@@ -1415,10 +2789,76 @@ components:
       properties:
         userId: { type: string }
         isAdmin: { type: boolean }
+        role: { type: string, enum: [owner, finance, viewer] }
         merchant:
           anyOf:
             - { $ref: "#/components/schemas/MerchantProfile" }
             - { type: "null" }
+    MerchantTeamRole:
+      type: string
+      enum: [owner, finance, viewer]
+    MerchantTeamInvitationRole:
+      type: string
+      enum: [finance, viewer]
+    MerchantTeamMember:
+      type: object
+      required: [id, email, role, status, createdAt]
+      properties:
+        id: { type: integer }
+        email: { type: string, format: email }
+        role: { $ref: "#/components/schemas/MerchantTeamRole" }
+        status: { type: string, enum: [active] }
+        createdAt: { type: string, format: date-time }
+    MerchantTeamInvitation:
+      type: object
+      required: [id, email, role, status, createdAt, expiresAt]
+      properties:
+        id: { type: integer }
+        email: { type: string, format: email }
+        role: { $ref: "#/components/schemas/MerchantTeamInvitationRole" }
+        status: { type: string, enum: [pending] }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+    MerchantTeam:
+      type: object
+      required: [members, invitations]
+      properties:
+        members:
+          type: array
+          items: { $ref: "#/components/schemas/MerchantTeamMember" }
+        invitations:
+          type: array
+          items: { $ref: "#/components/schemas/MerchantTeamInvitation" }
+    MerchantTeamInvitationInput:
+      type: object
+      required: [email, role]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        role: { $ref: "#/components/schemas/MerchantTeamInvitationRole" }
+    MerchantTeamInvitationCreated:
+      type: object
+      required: [invitation, invitationUrl, delivery]
+      properties:
+        invitation: { $ref: "#/components/schemas/MerchantTeamInvitation" }
+        invitationUrl: { type: string, format: uri }
+        delivery: { type: string, enum: [copy_link_required] }
+    MerchantTeamRoleUpdate:
+      type: object
+      required: [role]
+      properties:
+        role: { $ref: "#/components/schemas/MerchantTeamInvitationRole" }
+    MerchantTeamInvitationAcceptanceInput:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string, minLength: 32, maxLength: 256 }
+    MerchantTeamInvitationAcceptance:
+      type: object
+      required: [merchantId, businessName, role]
+      properties:
+        merchantId: { type: integer }
+        businessName: { type: string }
+        role: { $ref: "#/components/schemas/MerchantTeamInvitationRole" }
     MerchantProfile:
       type: object
       required: [id, businessName, country, baseCurrency, status, kycStatus, createdAt]
@@ -1448,15 +2888,62 @@ components:
         country: { type: string, minLength: 2, maxLength: 2 }
         baseCurrency: { type: string, minLength: 3, maxLength: 3 }
         registrationNumber: { type: string, maxLength: 150 }
+    VerificationTierLimit:
+      type: object
+      required: [tier, currency, collectionPerTransactionLimit, collectionDailyLimit, collectionMonthlyLimit, payoutLimit, conversionLimit, updatedAt]
+      properties:
+        tier: { type: string, enum: [unverified, kyc, kyb] }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        collectionPerTransactionLimit: { type: ["number", "null"], minimum: 0 }
+        collectionDailyLimit: { type: ["number", "null"], minimum: 0 }
+        collectionMonthlyLimit: { type: ["number", "null"], minimum: 0 }
+        payoutLimit: { type: ["number", "null"], minimum: 0 }
+        conversionLimit: { type: ["number", "null"], minimum: 0 }
+        updatedAt: { type: string, format: date-time }
+    VerificationLimitsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/VerificationTierLimit" }
+    VerificationTierLimitInput:
+      type: object
+      required: [tier, currency, collectionPerTransactionLimit, collectionDailyLimit, collectionMonthlyLimit, payoutLimit, conversionLimit]
+      properties:
+        tier: { type: string, enum: [unverified, kyc, kyb] }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        collectionPerTransactionLimit: { type: ["number", "null"], minimum: 0 }
+        collectionDailyLimit: { type: ["number", "null"], minimum: 0 }
+        collectionMonthlyLimit: { type: ["number", "null"], minimum: 0 }
+        payoutLimit: { type: ["number", "null"], minimum: 0 }
+        conversionLimit: { type: ["number", "null"], minimum: 0 }
+    VerificationLimitsInput:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/VerificationTierLimitInput" }
     KycStatus:
       type: object
-      required: [status, configured, sessionId, sessionUrl]
+      required: [status, configured, sessionId, sessionUrl, kybStatus, kybConfigured, kybSessionId, kybSessionUrl, kybUpdatedAt, tier, limits]
       properties:
         status: { type: string }
         configured: { type: boolean }
         sessionId: { type: ["string", "null"] }
         sessionUrl: { type: ["string", "null"] }
         updatedAt: { type: ["string", "null"], format: date-time }
+        kybStatus: { type: string }
+        kybConfigured: { type: boolean }
+        kybSessionId: { type: ["string", "null"] }
+        kybSessionUrl: { type: ["string", "null"] }
+        kybUpdatedAt: { type: ["string", "null"], format: date-time }
+        tier: { type: string, enum: [unverified, kyc, kyb] }
+        limits:
+          type: array
+          items: { $ref: "#/components/schemas/VerificationTierLimit" }
         requirements:
           type: array
           items: { type: string }
@@ -1485,6 +2972,21 @@ components:
         createdAt: { type: string, format: date-time }
         lastUsedAt: { type: ["string", "null"], format: date-time }
         revokedAt: { type: ["string", "null"], format: date-time }
+    CurrencyCatalog:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/CollectionCurrency" }
+    CollectionCurrency:
+      type: object
+      required: [code, name, minorUnits, collectionReady]
+      properties:
+        code: { type: string, minLength: 3, maxLength: 3 }
+        name: { type: string }
+        minorUnits: { type: integer, minimum: 0, maximum: 2, description: Maximum fractional digits accepted for Greenpay collections; KES is whole-unit only. }
+        collectionReady: { type: boolean, description: True only when the active route has credentials and is enabled. }
     ApiKeyList:
       type: object
       required: [items]
@@ -1705,7 +3207,7 @@ components:
           additionalProperties: { type: string }
     PlatformSettings:
       type: object
-      required: [newMerchantSignups, paymentsEnabled, payoutsEnabled, refundsEnabled, apiAccessEnabled, kycRequired]
+      required: [newMerchantSignups, paymentsEnabled, payoutsEnabled, refundsEnabled, apiAccessEnabled, kycRequired, platformName, baseCurrency, contactEmail, contactPhone, contactAddress, contactWhatsapp]
       properties:
         newMerchantSignups: { type: boolean }
         paymentsEnabled: { type: boolean }
@@ -1713,6 +3215,14 @@ components:
         refundsEnabled: { type: boolean }
         apiAccessEnabled: { type: boolean }
         kycRequired: { type: boolean }
+        platformName: { type: string, minLength: 1, maxLength: 100 }
+        baseCurrency: { type: string, minLength: 3, maxLength: 3 }
+        contactEmail: { type: string, maxLength: 254 }
+        contactPhone: { type: string, maxLength: 40 }
+        contactAddress: { type: string, maxLength: 250 }
+        contactWhatsapp: { type: string, maxLength: 100 }
+        logoUrl: { type: ["string", "null"], format: uri }
+        faviconUrl: { type: ["string", "null"], format: uri }
     PlatformSettingsUpdate:
       type: object
       properties:
@@ -1722,6 +3232,14 @@ components:
         refundsEnabled: { type: boolean }
         apiAccessEnabled: { type: boolean }
         kycRequired: { type: boolean }
+        platformName: { type: string, minLength: 1, maxLength: 100 }
+        baseCurrency: { type: string, minLength: 3, maxLength: 3 }
+        contactEmail: { type: string, maxLength: 254 }
+        contactPhone: { type: string, maxLength: 40 }
+        contactAddress: { type: string, maxLength: 250 }
+        contactWhatsapp: { type: string, maxLength: 100 }
+        logoUrl: { type: ["string", "null"], format: uri }
+        faviconUrl: { type: ["string", "null"], format: uri }
     AdminAuditLog:
       type: object
       required: [items, page, total]
@@ -1730,13 +3248,4 @@ components:
         total: { type: integer }
         items:
           type: array
-          items:
-            type: object
-            required: [id, actor, action, target, createdAt]
-            properties:
-              id: { type: integer }
-              actor: { type: string }
-              action: { type: string }
-              target: { type: string }
-              details: { type: string }
-              createdAt: { type: string, format: date-time }
+          items: { $ref: "#/components/schemas/AdminAuditEntry" }

@@ -24,3 +24,8 @@ export * from "./settlements";
 export * from "./refunds";
 export * from "./webhook-events";
 export * from "./merchant-platform";
+export * from "./wallet";
+export * from "./business-tools";
+export * from "./verification-limits";
+export * from "./support";
+export * from "./merchant-team";

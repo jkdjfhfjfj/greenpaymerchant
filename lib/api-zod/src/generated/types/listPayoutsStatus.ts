@@ -16,4 +16,5 @@ export const ListPayoutsStatus = {
   completed: 'completed',
   rejected: 'rejected',
   failed: 'failed',
+  uncertain: 'uncertain',
 } as const;

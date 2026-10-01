@@ -5,6 +5,8 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { KycStatusTier } from './kycStatusTier';
+import type { VerificationTierLimit } from './verificationTierLimit';
 
 export interface KycStatus {
   status: string;
@@ -15,5 +17,15 @@ export interface KycStatus {
   sessionUrl: string | null;
   /** @nullable */
   updatedAt?: Date | null;
+  kybStatus: string;
+  kybConfigured: boolean;
+  /** @nullable */
+  kybSessionId: string | null;
+  /** @nullable */
+  kybSessionUrl: string | null;
+  /** @nullable */
+  kybUpdatedAt: Date | null;
+  tier: KycStatusTier;
+  limits: VerificationTierLimit[];
   requirements?: string[];
 }

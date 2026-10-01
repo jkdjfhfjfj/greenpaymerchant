@@ -270,3 +270,59 @@ pre.code{max-width:100%;-webkit-overflow-scrolling:touch}
 }
 @media(max-height:500px) and (orientation:landscape){.modal-backdrop{align-items:start;overflow-y:auto}.modal{max-height:none}}
 @media(prefers-reduced-motion:reduce){.page-content,.modal,.modal-backdrop{animation:none}}
+
+/* Provider readiness settings */
+.readiness-banner{display:flex;align-items:center;gap:14px;margin-bottom:16px;padding:16px 18px;border:1px solid var(--line);border-radius:14px;background:var(--paper)}
+.readiness-banner-mark{width:38px;height:38px;flex:0 0 38px;display:grid;place-items:center;border-radius:11px;background:#eaf2ec;color:var(--forest)}
+.readiness-banner>div:nth-child(2){min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
+.readiness-banner>div:nth-child(2) strong{font-size:14px}
+.readiness-banner>div:nth-child(2) span{color:var(--mute);font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+.readiness-state{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;padding:6px 10px;border-radius:999px;font-size:11px;font-weight:650;white-space:nowrap}
+.readiness-state i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.readiness-state.ready{color:#2f6350;background:#e1efe6}
+.readiness-state.needs-attention{color:#7a5a16;background:#f8f0dc}
+.settings-provider-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px;margin-bottom:16px}
+.settings-provider-card{min-width:0;display:flex;flex-direction:column;gap:14px;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--paper)}
+.settings-provider-top{min-width:0;display:flex;align-items:center;gap:10px}
+.settings-provider-title{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}
+.settings-provider-title h2{font-size:15px}
+.settings-provider-title span{color:var(--mute);font-size:11px}
+.provider-capabilities{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.provider-capabilities>div{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px;border-radius:9px;background:var(--cream)}
+.provider-capabilities>div>span{font-size:11px;color:var(--mute);overflow-wrap:anywhere}
+.provider-currencies{display:flex;flex-direction:column;gap:8px;min-width:0}
+.provider-currencies>div{display:flex;flex-wrap:wrap;gap:6px}
+.provider-currencies>div>span{padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:var(--cream);font:600 11px 'IBM Plex Mono',monospace}
+.provider-currencies em{color:var(--mute);font-size:12px}
+.provider-credentials{display:flex;align-items:center;gap:7px;font-size:12px;overflow-wrap:anywhere}
+.provider-credentials svg{flex:0 0 auto}
+.provider-credentials.credential-ok{color:#2f6350}
+.provider-credentials.credential-missing{color:#9d6b18}
+.provider-admin-note{color:var(--mute);font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.routing-panel{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.routing-panel>:first-child{grid-column:1/-1}
+.routing-panel .panel-head{margin-bottom:0}
+.routing-rule{min-width:0;display:grid;grid-template-columns:auto auto minmax(0,1fr);align-items:center;gap:8px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--cream)}
+.routing-rule>span{padding:4px 7px;border-radius:6px;background:var(--paper);font:650 11px 'IBM Plex Mono',monospace}
+.routing-rule>strong{min-width:0;font-size:12px;overflow-wrap:anywhere}
+.routing-rule>small{grid-column:1/-1;color:var(--mute);font-size:11px;overflow-wrap:anywhere}
+.setting-row>div:first-child,.setting-row>span{min-width:0;flex:1;overflow-wrap:anywhere}
+.setting-row .switch{flex:0 0 auto}
+.cloudinary-upload input[type=file]{display:block;width:100%;max-width:100%;min-width:0}
+@media(max-width:640px){
+  .readiness-banner{align-items:flex-start;flex-wrap:wrap;gap:10px;padding:14px}
+  .readiness-banner>div:nth-child(2){flex-basis:calc(100% - 52px)}
+  .readiness-banner>.readiness-state{margin-left:48px}
+  .settings-provider-list{grid-template-columns:minmax(0,1fr)}
+  .settings-provider-card{padding:14px}
+  .settings-provider-top{align-items:flex-start;flex-wrap:wrap}
+  .settings-provider-top>.status-pill{margin-left:auto}
+  .provider-capabilities>div{flex-wrap:wrap}
+  .routing-panel{grid-template-columns:minmax(0,1fr)}
+  .routing-panel>:first-child{grid-column:1}
+}
+@media(max-width:380px){
+  .readiness-banner>.readiness-state{margin-left:0}
+  .provider-capabilities{grid-template-columns:minmax(0,1fr)}
+  .settings-provider-top>.status-pill{margin-left:48px}
+}

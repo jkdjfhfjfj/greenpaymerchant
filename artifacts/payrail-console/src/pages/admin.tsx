@@ -1,10 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Search, LoaderCircle, Pencil, Trash2, Plus } from 'lucide-react';
 import {
   useGetAdminSummary, useListAdminMerchants, useUpdateAdminMerchant, useGetAdminPlatformSettings, useUpdateAdminPlatformSettings,
   useListAdminAuditLog, useListAdminFeeSchedules, useUpdateAdminFeeSchedule, useListAdminFxRates, useCreateAdminFxRate, useUpdateAdminFxRate,
   useListAdminProviderCredentials, useSaveAdminProviderCredentials, useDeleteAdminProviderCredentials,
-  type AdminMerchant, type AdminFxRate, type AdminFeeSchedule, type ProviderCredential, type ListAdminMerchantsParams,
+  type AdminMerchant, type AdminFxRate, type AdminFeeSchedule, type ProviderCredential, type ListAdminMerchantsParams, type PlatformSettings,
 } from '@workspace/api-client-react';
 import { Async, Btn, Card, CURRENCIES, Confirm, Err, Field, Gate, Heading, Modal, Note, Pager, Pill, Switch, fmtDate, money, nice, useInvalidateAll } from '@/components/kit';
 
@@ -172,7 +172,8 @@ function CredEdit({ c, onClose }: { c: ProviderCredential; onClose: () => void }
     <Err error={save.error} /><Btn type="submit" disabled={save.isPending} testId="button-save-credentials">{save.isPending && <LoaderCircle size={14} className="spin" />}Save to vault</Btn></form></Modal>;
 }
 
-const SETTINGS: [keyof import('@workspace/api-client-react').PlatformSettings, string, string][] = [
+type PlatformFlagSetting = Pick<PlatformSettings, 'newMerchantSignups' | 'paymentsEnabled' | 'payoutsEnabled' | 'refundsEnabled' | 'apiAccessEnabled' | 'kycRequired'>;
+const SETTINGS: [keyof PlatformFlagSetting, string, string][] = [
   ['newMerchantSignups', 'New merchant sign-ups', 'Allow new businesses to register.'],
   ['paymentsEnabled', 'Payments', 'Allow new collections to start.'],
   ['payoutsEnabled', 'Payouts', 'Allow payouts to be requested.'],
@@ -181,24 +182,86 @@ const SETTINGS: [keyof import('@workspace/api-client-react').PlatformSettings, s
   ['kycRequired', 'Verification required', 'Require approved KYC before activity.'],
 ];
 export function AdminSettingsPage() { return <G><SettingsInner /></G>; }
+type BrandingFormValues = Pick<PlatformSettings, 'platformName' | 'baseCurrency' | 'contactEmail' | 'contactPhone' | 'contactAddress' | 'contactWhatsapp'> & {
+  logoUrl: string;
+  faviconUrl: string;
+};
 function SettingsInner() {
   const q = useGetAdminPlatformSettings();
   const up = useUpdateAdminPlatformSettings();
   const inv = useInvalidateAll();
   const [off, setOff] = useState<string | null>(null);
-  return <><Heading eyebrow="ADMIN" title="Feature controls" subtitle="Platform-wide switches. Changes apply immediately and are audited." />
+  const [branding, setBranding] = useState<BrandingFormValues | null>(null);
+  useEffect(() => {
+    if (!q.data) return;
+    setBranding({
+      platformName: q.data.platformName,
+      baseCurrency: q.data.baseCurrency,
+      contactEmail: q.data.contactEmail,
+      contactPhone: q.data.contactPhone,
+      contactAddress: q.data.contactAddress,
+      contactWhatsapp: q.data.contactWhatsapp,
+      logoUrl: q.data.logoUrl ?? '',
+      faviconUrl: q.data.faviconUrl ?? '',
+    });
+  }, [q.data]);
+  function updateBranding<K extends keyof BrandingFormValues>(key: K, value: BrandingFormValues[K]) {
+    setBranding((current) => current ? { ...current, [key]: value } : current);
+  }
+  function submitBranding(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!branding) return;
+    up.mutate({ data: {
+      ...branding,
+      baseCurrency: branding.baseCurrency.toUpperCase(),
+      contactEmail: branding.contactEmail.trim(),
+      contactPhone: branding.contactPhone.trim(),
+      contactAddress: branding.contactAddress.trim(),
+      contactWhatsapp: branding.contactWhatsapp.trim(),
+      logoUrl: branding.logoUrl.trim() || null,
+      faviconUrl: branding.faviconUrl.trim() || null,
+    } }, { onSuccess: () => { void inv(); } });
+  }
+  return <><Heading eyebrow="ADMIN" title="Platform settings" subtitle="Brand identity, customer contact details and platform-wide feature switches. Changes are audited." />
     <Err error={up.error} />
-    <Async q={q}><Card>{q.data && SETTINGS.map(([k, t, d]) => <div className="setting-row" key={k}><div><strong>{t}</strong><span>{d}</span></div><Switch on={q.data![k]} label={t} disabled={up.isPending} onChange={(v) => { if (v) up.mutate({ data: { [k]: v } }, { onSuccess: () => { void inv(); } }); else setOff(k); }} /></div>)}</Card></Async>
+    <Async q={q}><div className="form-stack">
+      <Card title="Platform identity" subtitle="Public details shown across the platform and onboarding.">
+        {branding && <form className="form-stack" onSubmit={submitBranding}>
+          <Field label="Platform name"><input value={branding.platformName} onChange={(e) => updateBranding('platformName', e.target.value)} required minLength={1} maxLength={100} data-testid="input-platform-name" /></Field>
+          <div className="form-grid">
+            <Field label="Base currency" hint="Display and new-merchant onboarding default only; changing it never converts or changes existing balances."><select value={branding.baseCurrency} onChange={(e) => updateBranding('baseCurrency', e.target.value)} data-testid="select-platform-base-currency">{[...new Set([branding.baseCurrency, ...CURRENCIES])].map((currency) => <option key={currency}>{currency}</option>)}</select></Field>
+            <Field label="Logo URL" hint="Optional HTTPS image URL"><input type="url" value={branding.logoUrl} onChange={(e) => updateBranding('logoUrl', e.target.value)} placeholder="https://…" data-testid="input-platform-logo-url" /></Field>
+            <Field label="Favicon URL" hint="Optional HTTPS image URL"><input type="url" value={branding.faviconUrl} onChange={(e) => updateBranding('faviconUrl', e.target.value)} placeholder="https://…" data-testid="input-platform-favicon-url" /></Field>
+          </div>
+          <div className="form-grid">
+            <Field label="Contact email"><input type="email" value={branding.contactEmail} onChange={(e) => updateBranding('contactEmail', e.target.value)} maxLength={254} data-testid="input-platform-contact-email" /></Field>
+            <Field label="Contact phone"><input type="tel" value={branding.contactPhone} onChange={(e) => updateBranding('contactPhone', e.target.value)} maxLength={40} data-testid="input-platform-contact-phone" /></Field>
+            <Field label="WhatsApp contact" hint="Use an international phone number or an https://wa.me link"><input value={branding.contactWhatsapp} onChange={(e) => updateBranding('contactWhatsapp', e.target.value)} maxLength={100} data-testid="input-platform-contact-whatsapp" /></Field>
+          </div>
+          <Field label="Contact address"><textarea value={branding.contactAddress} onChange={(e) => updateBranding('contactAddress', e.target.value)} maxLength={250} data-testid="input-platform-contact-address" /></Field>
+          <Btn type="submit" disabled={up.isPending} testId="button-save-platform-branding">{up.isPending && <LoaderCircle size={14} className="spin" />}Save platform identity</Btn>
+        </form>}
+      </Card>
+      <Card title="Feature controls" subtitle="Platform-wide switches. Changes apply immediately and are audited.">
+        {q.data && SETTINGS.map(([k, t, d]) => <div className="setting-row" key={k}><div><strong>{t}</strong><span>{d}</span></div><Switch on={q.data[k]} label={t} disabled={up.isPending} onChange={(v) => { if (v) up.mutate({ data: { [k]: v } }, { onSuccess: () => { void inv(); } }); else setOff(k); }} /></div>)}
+      </Card>
+    </div></Async>
     {off && <Confirm title="Turn off this control" body="This applies platform-wide immediately for every merchant." confirmLabel="Turn off" pending={up.isPending} error={up.error} onClose={() => { setOff(null); up.reset(); }} onConfirm={() => up.mutate({ data: { [off]: false } }, { onSuccess: () => { void inv(); setOff(null); } })} />}</>;
 }
 
 export function AdminAuditPage() { return <G><AuditInner /></G>; }
 function AuditInner() {
   const [page, setPage] = useState(1);
-  const q = useListAdminAuditLog({ page });
+  const [user, setUser] = useState('');
+  const [action, setAction] = useState('');
+  const [search, setSearch] = useState('');
+  const q = useListAdminAuditLog({ page, ...(user ? { user } : {}), ...(action ? { action } : {}), ...(search ? { search } : {}) });
   const items = q.data?.items ?? [];
-  return <><Heading eyebrow="ADMIN" title="Audit log" subtitle="Who changed what, newest first." />
-    <Async q={q} empty={!items.length} emptyTitle="No audit entries" emptyBody="Administrative actions will be recorded here."><div className="table-wrap"><table className="dt"><thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr></thead><tbody>
-      {items.map((a) => <tr key={a.id} data-testid={`row-audit-${a.id}`}><td>{fmtDate(a.createdAt)}</td><td className="mono" style={{ fontSize: 12 }}>{a.actor}</td><td><strong>{nice(a.action)}</strong></td><td>{a.target}</td><td>{a.details || '-'}</td></tr>)}
-    </tbody></table></div>{q.data && <Pager page={page} total={q.data.total} perPage={Math.max(items.length, 20)} onPage={setPage} />}</Async></>;
+  return <><Heading eyebrow="ADMIN" title="Audit log" subtitle="Server-recorded user and API activity, including the acting identity, method, route and response status." />
+    <div className="toolbar"><div className="search-box"><Search size={14} /><input placeholder="Search actor, target or route" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} data-testid="input-audit-search" /></div>
+      <input aria-label="Filter by user or API identity" placeholder="User / API identity" value={user} onChange={(e) => { setPage(1); setUser(e.target.value); }} data-testid="input-audit-user" />
+      <input aria-label="Filter by action" placeholder="Action" value={action} onChange={(e) => { setPage(1); setAction(e.target.value); }} data-testid="input-audit-action" /></div>
+    <Async q={q} empty={!items.length} emptyTitle="No audit entries" emptyBody="Administrative and meaningful signed-in user/API actions are recorded here."><div className="table-wrap"><table className="dt"><thead><tr><th>When</th><th>User / API actor</th><th>Action</th><th>Method</th><th>Route</th><th>Status</th><th>Target</th><th>Details</th></tr></thead><tbody>
+      {items.map((a) => <tr key={a.id} data-testid={`row-audit-${a.id}`}><td>{fmtDate(a.createdAt)}</td><td className="mono" style={{ fontSize: 12 }}>{a.actor}</td><td><strong>{nice(a.action)}</strong></td><td>{a.method || '—'}</td><td className="mono">{a.route || '—'}</td><td>{a.statusCode ?? '—'}</td><td>{a.target}</td><td>{a.details || '—'}</td></tr>)}
+    </tbody></table></div>{q.data && <Pager page={page} total={q.data.total} perPage={50} onPage={setPage} />}</Async></>;
 }

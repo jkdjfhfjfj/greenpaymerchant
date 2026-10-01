@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import {
@@ -20,6 +20,7 @@ import {
 import { encryptProviderCredentials, readProviderCredentials } from "../lib/secure-storage";
 import { credentialVaultReady } from "../lib/secret-crypto";
 import { providerCredential, providerCredentialFields } from "../lib/credential-runtime";
+import { cleanPublicUrl, normalizeWhatsAppContact } from "../lib/platform-branding";
 
 const router: IRouter = Router();
 const providers = ["paystack", "payhero", "payzaapi", "didit"] as const;
@@ -67,8 +68,24 @@ function settingsDto(row: typeof platformSettingsTable.$inferSelect) {
     refundsEnabled: row.refundsEnabled,
     apiAccessEnabled: row.apiAccessEnabled,
     kycRequired: row.kycRequired,
+    platformName: row.platformName,
+    baseCurrency: row.baseCurrency,
+    contactEmail: row.contactEmail,
+    contactPhone: row.contactPhone,
+    contactAddress: row.contactAddress,
+    contactWhatsapp: row.contactWhatsapp,
+    logoUrl: row.logoUrl,
+    faviconUrl: row.faviconUrl,
   };
 }
+
+const defaultSettings = {
+  newMerchantSignups: true, paymentsEnabled: true, payoutsEnabled: true,
+  refundsEnabled: true, apiAccessEnabled: true, kycRequired: true,
+  platformName: "Greenpay", baseCurrency: "USD",
+  contactEmail: "support@greenpay.africa", contactPhone: "",
+  contactAddress: "", contactWhatsapp: "", logoUrl: null, faviconUrl: null,
+};
 
 async function credentialDto(provider: typeof providers[number]) {
   const stored = await readProviderCredentials(provider);
@@ -257,10 +274,7 @@ router.delete("/admin/provider-credentials/:provider", async (req, res): Promise
 
 router.get("/admin/platform-settings", async (_req, res): Promise<void> => {
   const [row] = await db.select().from(platformSettingsTable).where(eq(platformSettingsTable.id, 1)).limit(1);
-  const settings = row ? settingsDto(row) : {
-    newMerchantSignups: true, paymentsEnabled: true, payoutsEnabled: true,
-    refundsEnabled: true, apiAccessEnabled: true, kycRequired: true,
-  };
+  const settings = row ? settingsDto(row) : defaultSettings;
   res.json(GetAdminPlatformSettingsResponse.parse(settings));
 });
 
@@ -268,11 +282,37 @@ router.patch("/admin/platform-settings", async (req, res): Promise<void> => {
   const parsed = UpdateAdminPlatformSettingsBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   if (!Object.keys(parsed.data).length) { res.status(400).json({ error: "Provide at least one platform setting to update." }); return; }
+  const updates = { ...parsed.data } as Partial<typeof platformSettingsTable.$inferInsert>;
+  try {
+    if (updates.platformName !== undefined) {
+      updates.platformName = updates.platformName.trim();
+      if (!updates.platformName || /[\u0000-\u001f\u007f]/.test(updates.platformName)) {
+        res.status(400).json({ error: "Platform name must contain readable text." }); return;
+      }
+    }
+    if (updates.baseCurrency !== undefined) {
+      updates.baseCurrency = updates.baseCurrency.trim().toUpperCase();
+      const { assertSupportedCurrency } = await import("../lib/greenpay-provider");
+      assertSupportedCurrency(updates.baseCurrency);
+    }
+    for (const key of ["contactEmail", "contactPhone", "contactAddress", "contactWhatsapp"] as const) {
+      if (updates[key] !== undefined) updates[key] = updates[key]!.trim();
+    }
+    if (updates.contactWhatsapp !== undefined) updates.contactWhatsapp = normalizeWhatsAppContact(updates.contactWhatsapp);
+    if (updates.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.contactEmail)) {
+      res.status(400).json({ error: "Contact email must be a valid email address." }); return;
+    }
+    updates.logoUrl = cleanPublicUrl(updates.logoUrl, "Logo URL");
+    updates.faviconUrl = cleanPublicUrl(updates.faviconUrl, "Favicon URL");
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "Invalid platform branding." });
+    return;
+  }
   const existing = await db.select().from(platformSettingsTable).where(eq(platformSettingsTable.id, 1)).limit(1);
   const [row] = existing.length
-    ? await db.update(platformSettingsTable).set({ ...parsed.data, updatedAt: new Date() }).where(eq(platformSettingsTable.id, 1)).returning()
-    : await db.insert(platformSettingsTable).values({ id: 1, ...parsed.data }).returning();
-  await audit(req, "platform_settings.updated", "platform", `Changed ${Object.keys(parsed.data).join(", ")}.`);
+    ? await db.update(platformSettingsTable).set({ ...updates, updatedAt: new Date() }).where(eq(platformSettingsTable.id, 1)).returning()
+    : await db.insert(platformSettingsTable).values({ id: 1, ...updates }).returning();
+  await audit(req, "platform_settings.updated", "platform", `Changed ${Object.keys(parsed.data).join(", ")}. The base currency is a display and onboarding default; existing balances were not converted.`);
   res.json(UpdateAdminPlatformSettingsResponse.parse(settingsDto(row)));
 });
 
@@ -280,8 +320,23 @@ router.get("/admin/audit-log", async (req, res): Promise<void> => {
   const parsed = ListAdminAuditLogQueryParams.safeParse(req.query);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const perPage = 50;
-  const [count] = await db.select({ count: sql<number>`count(*)::int` }).from(adminAuditLogTable);
-  const rows = await db.select().from(adminAuditLogTable).orderBy(desc(adminAuditLogTable.createdAt))
+  const conditions = [];
+  if (parsed.data.user) conditions.push(ilike(adminAuditLogTable.actor, `%${parsed.data.user}%`));
+  if (parsed.data.action) conditions.push(ilike(adminAuditLogTable.action, `%${parsed.data.action}%`));
+  if (parsed.data.search) {
+    const term = `%${parsed.data.search}%`;
+    conditions.push(or(
+      ilike(adminAuditLogTable.actor, term),
+      ilike(adminAuditLogTable.action, term),
+      ilike(adminAuditLogTable.target, term),
+      ilike(adminAuditLogTable.details, term),
+      ilike(adminAuditLogTable.route, term),
+      ilike(adminAuditLogTable.method, term),
+    )!);
+  }
+  const where = conditions.length ? and(...conditions) : undefined;
+  const [count] = await db.select({ count: sql<number>`count(*)::int` }).from(adminAuditLogTable).where(where);
+  const rows = await db.select().from(adminAuditLogTable).where(where).orderBy(desc(adminAuditLogTable.createdAt))
     .limit(perPage).offset((parsed.data.page - 1) * perPage);
   res.json(ListAdminAuditLogResponse.parse({
     items: rows, page: parsed.data.page, total: Number(count?.count ?? 0),

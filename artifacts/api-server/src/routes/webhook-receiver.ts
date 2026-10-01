@@ -15,7 +15,7 @@ import {
 } from "../lib/greenpay-ledger";
 import { providerCredential } from "../lib/credential-runtime";
 import { equalSignature } from "../lib/secure-storage";
-import { diditCanonicalStatus, timestampIsFresh } from "../lib/security-policy";
+import { diditDecisionStatus, timestampIsFresh } from "../lib/security-policy";
 
 const router: IRouter = Router();
 
@@ -78,10 +78,7 @@ router.post("/didit", async (req, res): Promise<void> => {
         signal: AbortSignal.timeout(10_000),
       });
       if (!decisionResponse.ok) throw new Error("Didit decision service could not confirm the session.");
-      const decision = asObject(await decisionResponse.json());
-      const decisionBody = asObject(decision.decision);
-      const authoritativeStatus = stringValue(decision.status) ?? stringValue(decisionBody.status);
-      const mapped = diditCanonicalStatus(authoritativeStatus);
+      const mapped = diditDecisionStatus(await decisionResponse.json(), sessionId);
       if (!mapped) {
         await tx.insert(webhookEventsTable).values({
           deliveryKey, provider: "didit", event, reference: sessionId,

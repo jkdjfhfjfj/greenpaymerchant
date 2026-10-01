@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'wouter';
 import { ArrowRight, ExternalLink, LoaderCircle, Plus, Trash2, Pause, Play, ShieldCheck } from 'lucide-react';
 import {
-  useCreateMerchantProfile, useGetMerchantFees, useGetMerchantKyc, useCreateMerchantKycSession,
+  useCreateMerchantProfile, useGetMerchantFees, useGetMerchantKyc, getGetMerchantKycQueryKey, useCreateMerchantKycSession,
   useListMerchantPaymentLinks, useCreateMerchantPaymentLink, useUpdateMerchantPaymentLink, useDeleteMerchantPaymentLink,
   useListMerchantTransactions, useListMerchantPayouts,
 } from '@workspace/api-client-react';
@@ -63,15 +63,39 @@ export function KycPage() {
   return <Gate need="merchant"><KycInner /></Gate>;
 }
 function KycInner() {
-  const q = useGetMerchantKyc();
+  const q = useGetMerchantKyc({ query: {
+    queryKey: getGetMerchantKycQueryKey(),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      const hasActiveSession = Boolean(query.state.data?.sessionId);
+      return hasActiveSession && ['not_started', 'pending', 'in_review'].includes(status || '') ? 15_000 : false;
+    },
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+  } });
   const start = useCreateMerchantKycSession();
   const inv = useInvalidateAll();
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      const status = q.data?.status;
+      if (document.visibilityState === 'visible' && q.data?.sessionId && ['not_started', 'pending', 'in_review'].includes(status || '')) {
+        void q.refetch();
+      }
+    };
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [q.data?.sessionId, q.data?.status, q.refetch]);
   const run = (kind: 'kyc' | 'kyb') => start.mutate({ data: { kind } }, { onSuccess: (r) => { void inv(); window.open(r.url, '_blank', 'noopener'); } });
   return <>
-    <Heading eyebrow="MERCHANT / VERIFICATION" title="Identity and business verification" subtitle="Hosted verification runs on Didit. Your status updates when Didit reports back." />
+    <Heading eyebrow="MERCHANT / VERIFICATION" title="Identity and business verification" subtitle="Hosted verification runs on Didit. Active checks sync automatically and refresh when you return to this page." />
     <Async q={q}>{q.data && <div className="split">
       <Card title="Current status" action={<Btn variant="secondary" small onClick={() => { void q.refetch(); }}>Refresh</Btn>}>
         <div className="kv"><div><span>Status</span><Pill value={q.data.status} /></div><div><span>Session</span><strong className="mono" style={{ fontSize: 12 }}>{q.data.sessionId || 'None'}</strong></div><div><span>Updated</span><strong>{fmtDate(q.data.updatedAt)}</strong></div></div>
+        {q.data.sessionId && ['not_started', 'pending', 'in_review'].includes(q.data.status) && <span className="sub" role="status">Checking for Didit status updates every 15 seconds while this session is active.</span>}
         {!!q.data.requirements?.length && <ul style={{ margin: '14px 0 0', paddingLeft: 18, fontSize: 13 }}>{q.data.requirements.map((r) => <li key={r}>{r}</li>)}</ul>}
         {q.data.sessionUrl && <p style={{ marginTop: 14 }}><a className="text-link" href={q.data.sessionUrl} target="_blank" rel="noreferrer">Resume hosted session <ExternalLink size={13} /></a></p>}
       </Card>

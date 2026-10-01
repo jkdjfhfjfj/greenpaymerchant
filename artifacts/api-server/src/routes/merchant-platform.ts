@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { createHash } from "node:crypto";
-import { and, desc, eq, ilike, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNull, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import {
   CreateMerchantApiKeyBody, CreateMerchantApiKeyResponse, CreateMerchantKycSessionBody,
@@ -33,7 +33,7 @@ import { apiKeyHash, encryptSecret, validateWebhookUrl } from "../lib/secure-sto
 import { findTransaction, markTransactionStatus, paymentLinkDto, payoutDto, transactionDto } from "../lib/greenpay-ledger";
 import { verifyProviderPayment } from "../lib/greenpay-provider";
 import { calculateFxQuote } from "../lib/fx-math";
-import { ownsMerchantRecord } from "../lib/security-policy";
+import { diditDecisionStatus, diditStatusNeedsRefresh, ownsMerchantRecord } from "../lib/security-policy";
 import { idempotencyDisposition } from "../lib/payment-safety";
 
 const router: IRouter = Router();
@@ -160,12 +160,45 @@ router.post("/merchant", requireSignedIn, async (req, res): Promise<void> => {
 });
 
 router.get("/merchant/kyc", requireSignedIn, async (_req, res): Promise<void> => {
-  const merchant = await ownedMerchant(res);
+  let merchant = await ownedMerchant(res);
   if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
   const didit = await import("../lib/credential-runtime");
   const apiKey = await didit.providerCredential("didit", "DIDIT_API_KEY");
   const individualWorkflow = await didit.providerCredential("didit", "DIDIT_WORKFLOW_ID");
   const businessWorkflow = await didit.providerCredential("didit", "DIDIT_KYB_WORKFLOW_ID");
+  if (diditStatusNeedsRefresh(merchant.kycStatus, merchant.diditSessionId)) {
+    if (!apiKey) {
+      _req.log.warn("Didit status refresh is unavailable because API credentials are not configured");
+    } else {
+      try {
+        const response = await fetch(`https://verification.didit.me/v3/session/${encodeURIComponent(merchant.diditSessionId!)}/decision/`, {
+          headers: { "x-api-key": apiKey, Accept: "application/json" },
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!response.ok) throw new Error(`Didit decision endpoint returned ${response.status}.`);
+        const status = diditDecisionStatus(await response.json(), merchant.diditSessionId!);
+        if (!status) throw new Error("Didit decision response was missing a recognized status or matching session ID.");
+        if (status !== merchant.kycStatus) {
+          const [updated] = await db.update(merchantsTable).set({
+            kycStatus: status, verificationUpdatedAt: new Date(), updatedAt: new Date(),
+          }).where(and(
+            eq(merchantsTable.id, merchant.id),
+            eq(merchantsTable.diditSessionId, merchant.diditSessionId!),
+            inArray(merchantsTable.kycStatus, ["not_started", "pending", "in_review"]),
+          )).returning();
+          if (updated) {
+            merchant = updated;
+          } else {
+            // A signed webhook or a newer session decision won the race. Return the newest stored state.
+            const [latest] = await db.select().from(merchantsTable).where(eq(merchantsTable.id, merchant.id)).limit(1);
+            if (latest) merchant = latest;
+          }
+        }
+      } catch (error) {
+        _req.log.warn({ err: error, sessionId: merchant.diditSessionId }, "Didit status refresh failed; retaining the last verified status");
+      }
+    }
+  }
   const requirements = ["identity", "liveness", "AML", "address"];
   res.json(GetMerchantKycResponse.parse({
     status: merchant.kycStatus, configured: Boolean(apiKey && individualWorkflow && businessWorkflow),

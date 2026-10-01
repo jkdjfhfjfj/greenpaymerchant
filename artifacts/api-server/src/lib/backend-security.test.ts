@@ -5,7 +5,7 @@ import { calculateFxQuote } from "./fx-math";
 import {
   featureIsEnabled, hasRequiredScope, merchantCapabilityIsEnabled,
   ownsMerchantRecord, timestampIsFresh, developerApiStatusAllowed,
-  paymentTransitionAllowed, diditCanonicalStatus,
+  paymentTransitionAllowed, diditCanonicalStatus, diditDecisionStatus, diditStatusNeedsRefresh,
 } from "./security-policy";
 import {
   CUSTOMER_REIMBURSED_REFUND_STATUSES,
@@ -100,9 +100,41 @@ test("concurrent success and failure callbacks can produce only one terminal tra
 
 test("canonical Didit state can revoke approval when the authoritative decision changes", () => {
   assert.equal(diditCanonicalStatus("Approved"), "approved");
-  assert.equal(diditCanonicalStatus("Expired"), "expired");
+  assert.equal(diditCanonicalStatus("  APPROVED  "), "approved");
+  assert.equal(diditCanonicalStatus("Kyc Expired"), "expired");
+  assert.equal(diditCanonicalStatus("not_started"), "not_started");
   assert.equal(diditCanonicalStatus("Declined"), "declined");
+  assert.equal(diditCanonicalStatus("Abandoned"), "expired");
   assert.equal(diditCanonicalStatus("unknown"), undefined);
+});
+
+test("Didit v3 response envelope reads a manual top-level approval before decision details", () => {
+  const sessionId = "didit-session-123";
+  assert.equal(diditDecisionStatus({
+    session_id: sessionId,
+    status: "Approved",
+    decision: { status: "In Review" },
+  }, sessionId), "approved");
+  assert.equal(diditDecisionStatus({
+    session_id: sessionId,
+    status: "IN REVIEW",
+  }, sessionId), "in_review");
+  assert.equal(diditDecisionStatus({
+    session_id: sessionId,
+    decision: { status: "Approved" },
+  }, sessionId), "approved");
+  assert.equal(diditDecisionStatus({ session_id: "other-session", status: "Approved" }, sessionId), undefined);
+  assert.equal(diditDecisionStatus({ session_id: sessionId, status: "Not a Didit status" }, sessionId), undefined);
+});
+
+test("Didit KYC freshness refreshes only active session states", () => {
+  for (const status of ["not_started", "pending", "in_review"]) {
+    assert.equal(diditStatusNeedsRefresh(status, "didit-session-123"), true);
+  }
+  for (const status of ["approved", "declined", "expired", undefined]) {
+    assert.equal(diditStatusNeedsRefresh(status, "didit-session-123"), false);
+  }
+  assert.equal(diditStatusNeedsRefresh("pending", null), false);
 });
 
 test("provider success requires matching reference, amount, and currency evidence", () => {

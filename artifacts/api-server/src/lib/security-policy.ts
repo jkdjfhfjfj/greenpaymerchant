@@ -35,12 +35,35 @@ export function paymentTransitionAllowed(current: string, next: string): boolean
 }
 
 export function diditCanonicalStatus(value: string | undefined): string | undefined {
-  if (!value) return undefined;
+  if (!value?.trim()) return undefined;
+  const status = value.trim().toLowerCase().replaceAll("_", " ");
   const map: Record<string, string> = {
     approved: "approved", declined: "declined", "in review": "in_review",
-    "in progress": "pending", "not started": "not_started", abandoned: "declined",
+    "in progress": "pending", "not started": "not_started", abandoned: "expired",
     expired: "expired", "kyc expired": "expired", resubmitted: "pending",
     "awaiting user": "in_review",
   };
-  return map[value.toLowerCase()];
+  return map[status];
+}
+
+export function diditDecisionStatus(
+  response: unknown,
+  expectedSessionId: string,
+): string | undefined {
+  if (!response || typeof response !== "object" || Array.isArray(response)) return undefined;
+  const envelope = response as Record<string, unknown>;
+  if (envelope.session_id !== expectedSessionId) return undefined;
+
+  const decision = envelope.decision && typeof envelope.decision === "object" && !Array.isArray(envelope.decision)
+    ? envelope.decision as Record<string, unknown>
+    : undefined;
+  const topLevelStatus = typeof envelope.status === "string" ? envelope.status : undefined;
+  const decisionStatus = typeof decision?.status === "string" ? decision.status : undefined;
+
+  // Didit's v3 endpoint reports its authoritative session status at the top level.
+  return diditCanonicalStatus(topLevelStatus) ?? diditCanonicalStatus(decisionStatus);
+}
+
+export function diditStatusNeedsRefresh(status: string | undefined, sessionId: string | null | undefined): boolean {
+  return Boolean(sessionId && status && ["not_started", "pending", "in_review"].includes(status));
 }

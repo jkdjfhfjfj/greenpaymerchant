@@ -270,6 +270,13 @@
   .support-reply-actions .support-button { align-self: flex-end; }
   .notification-row { padding: 14px 12px; gap: 10px; }
   .notification-row-unread { display: none; }
+  .notification-popover {
+    position: fixed;
+    top: calc(64px + env(safe-area-inset-top));
+    right: max(12px, env(safe-area-inset-right));
+    width: min(370px, calc(100vw - 24px));
+    max-height: calc(100dvh - 88px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
   .status-service-row { align-items: flex-start; }
   .status-service-row > .support-status { margin-top: 4px; }
   .support-public-footer { flex-direction: column; }

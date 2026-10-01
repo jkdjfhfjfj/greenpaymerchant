@@ -13,12 +13,7 @@ export function currencyAmountStep(code: string) {
 }
 export const COUNTRIES: [string, string][] = [['KE', 'Kenya'], ['NG', 'Nigeria'], ['GH', 'Ghana'], ['UG', 'Uganda'], ['TZ', 'Tanzania'], ['RW', 'Rwanda'], ['ZM', 'Zambia'], ['MW', 'Malawi'], ['SN', 'Senegal'], ['CI', "Cote d'Ivoire"], ['CM', 'Cameroon'], ['ZA', 'South Africa'], ['EG', 'Egypt'], ['MA', 'Morocco'], ['ET', 'Ethiopia']];
 
-export function money(value: number | null | undefined, code = 'USD') {
-  if (value === undefined || value === null || Number.isNaN(value)) return '-';
-  const digits = currencyMinorUnits(code);
-  if (code.toUpperCase() === 'SLL') return `SLL ${value.toLocaleString('en', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
-  try { return new Intl.NumberFormat('en', { style: 'currency', currency: code, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value); } catch { return `${code} ${value.toLocaleString('en', { maximumFractionDigits: digits })}`; }
-}
+export { formatFinancialAmount as money } from '@/lib/money-format';
 export function fmtDate(value?: string | null) {
   if (!value) return '-';
   const d = new Date(value);

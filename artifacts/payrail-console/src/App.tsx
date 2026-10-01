@@ -21,6 +21,7 @@ import {
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
+import { formatFinancialAmount as currency } from '@/lib/money-format';
 import HomePage from '@/pages/home';
 import { useAccess, Gate, Async, errMsg, CURRENCIES, currencyAmountStep, currencyMinorUnits } from '@/components/kit';
 import { PlatformBrand, PlatformBrandingProvider, usePlatformBranding } from '@/components/platform-brand';
@@ -179,16 +180,6 @@ const pageInfo: Record<string, { title: string; subtitle: string }> = {
   '/webhooks': { title: 'Webhooks', subtitle: 'Inspect delivery outcomes and safely replay events.' },
   '/settings': { title: 'Provider readiness', subtitle: 'Collection and payout access, by provider.' },
 };
-
-function currency(value: number | null | undefined, code = 'USD') {
-  if (value === undefined || value === null || Number.isNaN(value)) return '—';
-  const digits = currencyMinorUnits(code);
-  try {
-    return new Intl.NumberFormat('en', { style: 'currency', currency: code, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value);
-  } catch {
-    return `${code} ${value.toLocaleString('en', { maximumFractionDigits: digits })}`;
-  }
-}
 
 function dateTime(value?: string | null) {
   if (!value) return '—';

@@ -4,18 +4,21 @@ import {
   db,
   merchantBusinessContactsTable,
   merchantsTable,
-  payoutsTable,
   supportDeliveryOutboxTable,
   supportMessagesTable,
   supportTicketsTable,
-  transactionsTable,
   userNotificationsTable,
   type SupportMessage,
   type SupportTicket,
 } from "@workspace/db";
 import { redactSupportText } from "./support-rules";
+import { enqueueTransactionalEmail, type EmailDeliveryState } from "./mailtrap-delivery";
+import { logger } from "./logger";
 
-export const emailDeliveryState = "in_app_recorded_email_unconfigured" as const;
+// Contact-ticket creation is still in the legacy held queue until an admin
+// explicitly reviews/requeues it. This value is an actual outbox state, not a
+// statement that a message has been sent.
+export const emailDeliveryState = "unconfigured" as const;
 
 export function makeSupportReference(): string {
   return `GP-${randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`;
@@ -24,7 +27,7 @@ export function makeSupportReference(): string {
 export async function addNotification(input: {
   userId: string;
   eventKey: string;
-  type: "support_reply" | "kyc_update" | "payment_confirmed" | "payout_update";
+  type: "support_reply" | "kyc_update" | "payment_confirmed" | "payment_failed" | "payout_update";
   title: string;
   body: string;
   href: string;
@@ -47,6 +50,7 @@ export async function addSupportMessage(input: {
       authorClerkId: input.authorClerkId,
       authorName: input.authorName,
       body: safeBody,
+      emailDeliveryState: "unconfigured",
     }).returning();
     await tx.update(supportTicketsTable).set({
       updatedAt: created.createdAt,
@@ -62,6 +66,47 @@ export async function addSupportMessage(input: {
     }).onConflictDoNothing();
     return created;
   });
+  const purpose = input.authorRole === "admin" ? "support_reply" : "support_receipt";
+  let deliveryState: EmailDeliveryState | "unconfigured" = "unconfigured";
+  let queuedEmail: Awaited<ReturnType<typeof enqueueTransactionalEmail>> | null = null;
+  try {
+    queuedEmail = await enqueueTransactionalEmail({
+      eventKey: `support-message:${message.id}`,
+      purpose,
+      recipientEmail: input.ticket.requesterEmail,
+      template: purpose,
+      payload: {
+        ticketId: input.ticket.id,
+        ticketReference: input.ticket.reference,
+        messageId: message.id,
+        subject: input.ticket.subject,
+        body: safeBody,
+      },
+    });
+  } catch (error) {
+    logger.error({
+      messageId: message.id,
+      error: error instanceof Error ? error.message : "Unknown support email queue error.",
+    }, "Support message was saved but its email could not be queued; the support outbox remains held for review");
+  }
+  if (queuedEmail) {
+    deliveryState = queuedEmail.deliveryState;
+    const stateUpdates = await Promise.allSettled([
+      db.update(supportMessagesTable).set({ emailDeliveryState: queuedEmail.deliveryState })
+        .where(eq(supportMessagesTable.id, message.id)),
+      db.update(supportTicketsTable).set({ emailDeliveryState: queuedEmail.deliveryState })
+        .where(eq(supportTicketsTable.id, input.ticket.id)),
+      db.update(supportDeliveryOutboxTable).set({ deliveryState: queuedEmail.deliveryState })
+        .where(eq(supportDeliveryOutboxTable.eventKey, `ticket-message:${message.id}`)),
+    ]);
+    if (stateUpdates.some((result) => result.status === "rejected")) {
+      logger.warn({ messageId: message.id }, "Support email is durably queued but a support delivery status snapshot could not be updated");
+    }
+  }
+  const messageWithDelivery = {
+    ...message,
+    emailDeliveryState: deliveryState,
+  };
   if (input.authorRole === "admin" && input.ticket.ownerClerkId) {
     await addNotification({
       userId: input.ticket.ownerClerkId,
@@ -72,7 +117,7 @@ export async function addSupportMessage(input: {
       href: `/support?ticket=${input.ticket.id}`,
     });
   }
-  return message;
+  return messageWithDelivery;
 }
 
 export async function supportTicketDtos(tickets: SupportTicket[]) {
@@ -96,7 +141,7 @@ export async function supportTicketDtos(tickets: SupportTicket[]) {
     createdAt: ticket.createdAt,
     updatedAt: ticket.updatedAt,
     messageCount: countById.get(ticket.id) ?? 0,
-    delivery: emailDeliveryState,
+    delivery: ticket.emailDeliveryState as EmailDeliveryState | "unconfigured",
   }));
 }
 
@@ -108,63 +153,13 @@ export function supportMessageDto(message: SupportMessage) {
     authorName: message.authorName,
     body: message.body,
     createdAt: message.createdAt,
-    delivery: emailDeliveryState,
+    delivery: message.emailDeliveryState as EmailDeliveryState | "unconfigured",
   };
 }
 
-export async function syncAuthoritativeNotifications(userId: string): Promise<void> {
-  const [merchant] = await db.select().from(merchantsTable)
-    .where(eq(merchantsTable.ownerClerkId, userId)).limit(1);
-  if (!merchant) return;
-
-  if (merchant.kycStatus !== "not_started" || merchant.verificationUpdatedAt) {
-    const kycEvent = merchant.verificationUpdatedAt?.toISOString() ?? merchant.kycStatus;
-    await addNotification({
-      userId,
-      eventKey: `kyc:${merchant.id}:${merchant.kycStatus}:${kycEvent}`,
-      type: "kyc_update",
-      title: "Business verification status updated",
-      body: `Your verification status is ${merchant.kycStatus.replaceAll("_", " ")}.`,
-      href: "/merchant/kyc",
-    });
-  }
-
-  const paidTransactions = await db.select({
-    reference: transactionsTable.reference,
-    paidAt: transactionsTable.paidAt,
-    createdAt: transactionsTable.createdAt,
-  }).from(transactionsTable).where(and(
-    eq(transactionsTable.merchantId, merchant.id),
-    eq(transactionsTable.status, "success"),
-  )).orderBy(sql`${transactionsTable.paidAt} desc nulls last`).limit(100);
-  for (const payment of paidTransactions) {
-    await addNotification({
-      userId,
-      eventKey: `payment-confirmed:${payment.reference}`,
-      type: "payment_confirmed",
-      title: "Payment confirmed",
-      body: `Payment ${payment.reference} has been confirmed.`,
-      href: `/status/${encodeURIComponent(payment.reference)}`,
-    });
-  }
-
-  const payoutEvents = await db.select({
-    reference: payoutsTable.reference,
-    status: payoutsTable.status,
-  }).from(payoutsTable).where(and(
-    eq(payoutsTable.merchantId, merchant.id),
-    sql`${payoutsTable.status} <> 'pending' AND ${payoutsTable.status} <> 'processing'`,
-  )).orderBy(sql`${payoutsTable.createdAt} desc`).limit(100);
-  for (const payout of payoutEvents) {
-    await addNotification({
-      userId,
-      eventKey: `payout:${payout.reference}:${payout.status}`,
-      type: "payout_update",
-      title: "Payout status updated",
-      body: `Payout ${payout.reference} is ${payout.status}.`,
-      href: "/merchant/payouts",
-    });
-  }
+export async function syncAuthoritativeNotifications(_userId: string): Promise<void> {
+  // Notifications are written by actual transition hooks. Reading payment,
+  // payout, or profile state must never synthesize an event or email.
 }
 
 export async function unreadNotificationCount(userId: string): Promise<number> {

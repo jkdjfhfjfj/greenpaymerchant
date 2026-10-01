@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, Eye, EyeOff, FileText, HelpCircle, History, LoaderCircle, Pencil, Plus, Save, Upload } from 'lucide-react';
 import { Async, Btn, Err, Field, Gate, Heading, Note, Pill } from '@/components/kit';
+import { usePlatformBranding } from '@/components/platform-brand';
 import '@/pages/content.css';
 
 type ContentKind = 'guide' | 'article' | 'faq';
@@ -245,6 +246,7 @@ type PublicRecord = Omit<ContentRecord, 'status' | 'createdAt' | 'version' | 'up
 type PublicListResponse = { items: PublicSummary[] };
 
 export function PublicHelpPage() {
+  const branding = usePlatformBranding();
   const query = useQuery({
     queryKey: ['public-content', 'help'],
     queryFn: () => contentRequest<PublicListResponse>('/api/public/content?kind=faq'),
@@ -267,11 +269,12 @@ export function PublicHelpPage() {
       <section><h2>More Greenpay FAQ answers</h2><Async q={query} empty={!query.data?.items.length} emptyTitle="No additional FAQs published" emptyBody="These confirmed payment facts remain available above."><ul className="public-content-list">{query.data?.items.map((item) => <li key={item.id}><a href={`/learn/${item.slug}`}><strong>{item.title}</strong><span>{item.summary}</span></a></li>)}</ul></Async></section>
       <p className="public-content-links"><a href="/guides">Browse Greenpay guides</a><a href="/articles">Read articles</a></p>
     </article>
-    <footer className="public-content-footer">Greenpay · Payment records that distinguish requests, forecasts and confirmed money.</footer>
+    <footer className="public-content-footer">Greenpay · Payment records that distinguish requests, forecasts and confirmed money. <a href={import.meta.env.BASE_URL} aria-label={`Powered by ${branding.platformName} — visit homepage`} style={{ color: 'inherit', fontWeight: 600 }}>Powered by {branding.platformName}</a></footer>
   </main>;
 }
 
 export function PublicContentPage({ kind }: { kind: ContentKind }) {
+  const branding = usePlatformBranding();
   const slug = window.location.pathname.split('/').filter(Boolean).at(-1) ?? '';
   const query = useQuery({
     queryKey: ['public-content', kind, slug],
@@ -293,11 +296,12 @@ export function PublicContentPage({ kind }: { kind: ContentKind }) {
         <p className="public-content-links"><a href="/learn">Greenpay help and FAQs</a>{kind !== 'guide' && <a href="/guides">Greenpay guides</a>}</p>
       </>}
     </article>
-    <footer className="public-content-footer">Greenpay · Payment records that distinguish requests, forecasts and confirmed money.</footer>
+    <footer className="public-content-footer">Greenpay · Payment records that distinguish requests, forecasts and confirmed money. <a href={import.meta.env.BASE_URL} aria-label={`Powered by ${branding.platformName} — visit homepage`} style={{ color: 'inherit', fontWeight: 600 }}>Powered by {branding.platformName}</a></footer>
   </main>;
 }
 
 export function PublicContentIndexPage({ kind }: { kind: 'guide' | 'article' }) {
+  const branding = usePlatformBranding();
   const query = useQuery({
     queryKey: ['public-content', 'index', kind],
     queryFn: () => contentRequest<PublicListResponse>(`/api/public/content?kind=${kind}`),
@@ -313,6 +317,6 @@ export function PublicContentIndexPage({ kind }: { kind: 'guide' | 'article' }) 
   return <main className="public-content-page">
     <header className="public-content-header"><a href="/" className="public-content-brand">Green<span>pay</span></a><nav aria-label="Public navigation"><a href="/learn">Help & FAQs</a><a href="/guides">Guides</a><a href="/articles">Articles</a><a href="/contact">Contact support</a><a href="/sign-in">Sign in</a><a href="/admin/content">Content admin</a></nav></header>
     <article className="public-content-main"><div className="public-eyebrow">GREENPAY / KNOWLEDGE</div><h1>Greenpay {label.toLowerCase()}</h1><p className="public-lead">Factual information about Greenpay payment records and the steps that connect collections, settlement and payouts.</p><Async q={query} empty={!query.data?.items.length} emptyTitle={`No ${label.toLowerCase()} published yet`} emptyBody="New Greenpay content will appear here when an administrator publishes it."><ul className="public-content-list">{query.data?.items.map((item) => <li key={item.id}><a href={`/${kind === 'guide' ? 'guides' : 'articles'}/${item.slug}`}><strong>{item.title}</strong><span>{item.summary}</span></a></li>)}</ul></Async><p className="public-content-links"><a href="/learn">Visit Greenpay help and FAQs</a></p></article>
-    <footer className="public-content-footer">Greenpay · Payment records that distinguish requests, forecasts and confirmed money.</footer>
+    <footer className="public-content-footer">Greenpay · Payment records that distinguish requests, forecasts and confirmed money. <a href={import.meta.env.BASE_URL} aria-label={`Powered by ${branding.platformName} — visit homepage`} style={{ color: 'inherit', fontWeight: 600 }}>Powered by {branding.platformName}</a></footer>
   </main>;
 }

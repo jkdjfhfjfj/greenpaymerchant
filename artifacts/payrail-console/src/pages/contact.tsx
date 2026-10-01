@@ -133,7 +133,7 @@ export function ContactPage() {
       {branding.contactAddress && <p>{branding.contactAddress}</p>}
       {whatsappUrl && <p><a className="support-header-link" href={whatsappUrl} target="_blank" rel="noreferrer">WhatsApp contact</a></p>}
     </section>}
-    <footer className="support-public-footer">For your security, never send passwords, authentication codes, or payment credentials.</footer>
+    <footer className="support-public-footer"><span>For your security, never send passwords, authentication codes, or payment credentials.</span><a href={import.meta.env.BASE_URL} aria-label={`Powered by ${branding.platformName} — visit homepage`}>Powered by {branding.platformName}</a></footer>
   </main>;
 }
 

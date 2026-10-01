@@ -154,7 +154,7 @@ export default function HomePage() {
 
     <footer className="hp-footer">
       <Mark /><span>Payments for businesses, backed by clear records.</span>
-      <div><a href="/learn" data-testid="link-footer-help">Help & FAQs</a><a href="/guides">Guides</a><a href="/articles">Articles</a><a href="/sign-in" data-testid="link-footer-sign-in">Sign in</a><a href="/sign-up" data-testid="link-footer-sign-up">Sign up</a><a href="/contact" data-testid="link-footer-support">Contact</a><a href="/platform-status" data-testid="link-footer-platform-status">Platform status</a></div>
+      <div><a href="/learn" data-testid="link-footer-help">Help & FAQs</a><a href="/guides">Guides</a><a href="/articles">Articles</a><a href="/sign-in" data-testid="link-footer-sign-in">Sign in</a><a href="/sign-up" data-testid="link-footer-sign-up">Sign up</a><a href="/contact" data-testid="link-footer-support">Contact</a><a href="/platform-status" data-testid="link-footer-platform-status">Platform status</a><a href={import.meta.env.BASE_URL} aria-label={`Powered by ${branding.platformName} — visit homepage`}>Powered by {branding.platformName}</a></div>
     </footer>
   </div>;
 }

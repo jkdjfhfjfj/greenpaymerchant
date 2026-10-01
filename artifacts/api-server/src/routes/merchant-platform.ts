@@ -7,6 +7,8 @@ import {
   CreateMerchantKycSessionResponse, CreateMerchantPaymentLinkBody, CreateMerchantPaymentLinkResponse,
   CreateMerchantProfileBody, CreateMerchantProfileResponse, CreateMerchantWebhookEndpointBody,
   CreateMerchantWebhookEndpointResponse, RevokeMerchantApiKeyResponse, DeleteMerchantPaymentLinkResponse,
+  CreateMerchantCloudinaryUploadSignatureResponse, UpdateMerchantShopProfileBody,
+  UpdateMerchantShopProfileResponse,
   DeleteMerchantWebhookEndpointResponse, GetAccessProfileResponse, GetMerchantFeesResponse,
   GetMerchantFxQuoteQueryParams, GetMerchantFxQuoteResponse, GetMerchantKycResponse,
   GetMerchantProfileResponse, ListDeveloperPaymentLinksResponse, ListDeveloperTransactionsQueryParams,
@@ -49,6 +51,8 @@ import { developerTransactionRequestFingerprint, idempotencyDisposition } from "
 import { verificationTierForMerchant } from "../lib/platform";
 import { getAuth } from "@clerk/express";
 import { findMerchantAccessForUser, resolveMerchantAccess } from "../lib/merchant-access";
+import { cleanPublicUrl } from "../lib/platform-branding";
+import { cloudinaryUploadStatus, createCloudinaryUploadSignature } from "../lib/cloudinary-upload";
 
 const router: IRouter = Router();
 const apiRouter: IRouter = Router();
@@ -57,6 +61,8 @@ function profile(row: typeof merchantsTable.$inferSelect) {
   return {
     id: row.id,
     businessName: row.businessName,
+    shopName: row.shopName,
+    shopLogoUrl: row.shopLogoUrl,
     country: row.country,
     baseCurrency: row.baseCurrency,
     registrationNumber: row.registrationNumber,
@@ -78,7 +84,7 @@ async function ownedMerchant(res: Parameters<Parameters<IRouter["get"]>[1]>[1]) 
   const path = res.req.path;
   const method = res.req.method.toUpperCase();
   const ownerOnly = path === "/merchant" ||
-    /^\/merchant\/(?:kyc|api-keys(?:\/|$)|webhook-endpoints(?:\/|$))/.test(path);
+    /^\/merchant\/(?:kyc|shop-profile(?:\/|$)|api-keys(?:\/|$)|webhook-endpoints(?:\/|$))/.test(path);
   const permission = ownerOnly ? "owner" : ["POST", "PATCH", "PUT", "DELETE"].includes(method) ? "finance" : "read";
   return resolveMerchantAccess(res.req, res, permission);
 }
@@ -169,6 +175,57 @@ router.get("/merchant", requireSignedIn, async (_req, res): Promise<void> => {
     return;
   }
   res.json(GetMerchantProfileResponse.parse({ merchant: profile(merchant) }));
+});
+
+router.patch("/merchant/shop-profile", requireSignedIn, async (req, res): Promise<void> => {
+  const merchant = await ownedMerchant(res);
+  if (!merchant) {
+    res.status(404).json({ error: "Merchant onboarding is not complete." });
+    return;
+  }
+  const parsed = UpdateMerchantShopProfileBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const updates: Partial<typeof merchantsTable.$inferInsert> = { updatedAt: new Date() };
+  try {
+    if (Object.hasOwn(parsed.data, "shopName")) {
+      const shopName = parsed.data.shopName?.trim() || null;
+      if (shopName && /[\u0000-\u001f\u007f]/.test(shopName)) {
+        res.status(400).json({ error: "Shop name must contain readable text." });
+        return;
+      }
+      updates.shopName = shopName;
+    }
+    if (Object.hasOwn(parsed.data, "shopLogoUrl")) {
+      updates.shopLogoUrl = cleanPublicUrl(parsed.data.shopLogoUrl, "Shop logo URL") ?? null;
+    }
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "Invalid shop profile." });
+    return;
+  }
+  if (Object.keys(updates).length === 1) {
+    res.status(400).json({ error: "Provide a shop name or logo URL to update." });
+    return;
+  }
+  const [updated] = await db.update(merchantsTable).set(updates)
+    .where(eq(merchantsTable.id, merchant.id)).returning();
+  res.json(UpdateMerchantShopProfileResponse.parse({ merchant: profile(updated) }));
+});
+
+router.post("/merchant/shop-profile/upload-signature", requireSignedIn, async (_req, res): Promise<void> => {
+  const merchant = await ownedMerchant(res);
+  if (!merchant) {
+    res.status(404).json({ error: "Merchant onboarding is not complete." });
+    return;
+  }
+  if (!cloudinaryUploadStatus().configured) {
+    res.status(503).json({
+      error: "Cloudinary uploads are not configured. An administrator must set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in Replit Secrets.",
+    });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store");
+  const signedUpload = createCloudinaryUploadSignature(`greenpay/merchants/${merchant.id}/profile`);
+  res.json(CreateMerchantCloudinaryUploadSignatureResponse.parse(signedUpload));
 });
 
 router.post("/merchant", requireSignedIn, async (req, res): Promise<void> => {

@@ -164,12 +164,16 @@ router.get("/public/payment-links/:slug", async (req, res): Promise<void> => {
     res.status(invoiceState.problem.status).json({ error: invoiceState.problem.message });
     return;
   }
+  let shopName: string | null = null;
+  let shopLogoUrl: string | null = null;
   let verificationTier: VerificationTier | undefined;
   if (link.merchantId !== null) {
     const [merchant] = await db.select({
       status: merchantsTable.status,
       kycStatus: merchantsTable.kycStatus,
       kybStatus: merchantsTable.kybStatus,
+      shopName: merchantsTable.shopName,
+      shopLogoUrl: merchantsTable.shopLogoUrl,
     }).from(merchantsTable)
       .where(eq(merchantsTable.id, link.merchantId)).limit(1);
     if (!merchant || merchant.status !== "active") {
@@ -177,6 +181,8 @@ router.get("/public/payment-links/:slug", async (req, res): Promise<void> => {
       return;
     }
     verificationTier = merchantVerificationTier(merchant.kycStatus, merchant.kybStatus);
+    shopName = merchant.shopName;
+    shopLogoUrl = merchant.shopLogoUrl;
   }
   const currencies = await getCollectionCurrencyOptions(verificationTier);
   const availableCurrencies = link.amountType === "customer_choice" && invoiceState.invoiceOutstandingAmount === null
@@ -189,6 +195,8 @@ router.get("/public/payment-links/:slug", async (req, res): Promise<void> => {
     amountType: link.amountType,
     amount: link.amount === null ? null : Number(link.amount),
     currency: link.currency,
+    shopName,
+    shopLogoUrl,
     availableCurrencies,
     expiresAt: link.expiresAt,
     invoiceOutstandingAmount: invoiceState.invoiceOutstandingAmount,
@@ -296,6 +304,7 @@ router.post("/public/payment-links/:slug/checkout", async (req, res): Promise<vo
 });
 
 router.get("/public/transactions/:reference", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
   const params = GetPublicTransactionStatusParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -313,6 +322,17 @@ router.get("/public/transactions/:reference", async (req, res): Promise<void> =>
     });
     transaction = await markTransactionStatus(transaction.reference, verified) ?? transaction;
   }
+  let shopName: string | null = null;
+  let shopLogoUrl: string | null = null;
+  if (transaction.merchantId !== null) {
+    const [merchant] = await db.select({
+      shopName: merchantsTable.shopName,
+      shopLogoUrl: merchantsTable.shopLogoUrl,
+    }).from(merchantsTable)
+      .where(eq(merchantsTable.id, transaction.merchantId)).limit(1);
+    shopName = merchant?.shopName ?? null;
+    shopLogoUrl = merchant?.shopLogoUrl ?? null;
+  }
   res.json(GetPublicTransactionStatusResponse.parse({
     reference: transaction.reference,
     status: transaction.status,
@@ -320,6 +340,8 @@ router.get("/public/transactions/:reference", async (req, res): Promise<void> =>
     currency: transaction.currency,
     paidAt: transaction.paidAt,
     createdAt: transaction.createdAt,
+    shopName,
+    shopLogoUrl,
   }));
 });
 

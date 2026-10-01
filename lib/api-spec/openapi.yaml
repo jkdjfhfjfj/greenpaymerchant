@@ -1428,6 +1428,38 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/MerchantProfileResponse" }
         "409": { description: Merchant already exists }
+  /merchant/shop-profile:
+    patch:
+      operationId: updateMerchantShopProfile
+      tags: [merchant]
+      summary: Update the current merchant's public shop identity
+      description: Updates a public display name and shop image without changing the verified legal business name.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MerchantShopProfileUpdate" }
+      responses:
+        "200":
+          description: Updated merchant profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantProfileResponse" }
+        "404": { description: Merchant onboarding is not complete }
+  /merchant/shop-profile/upload-signature:
+    post:
+      operationId: createMerchantCloudinaryUploadSignature
+      tags: [merchant]
+      summary: Create a signed Cloudinary upload for the current merchant's shop image
+      description: Returns a short-lived signature scoped to a server-selected folder owned by the current merchant. Never returns the Cloudinary API secret.
+      responses:
+        "200":
+          description: Signed Cloudinary upload parameters
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CloudinaryUploadSignature" }
+        "404": { description: Merchant onboarding is not complete }
+        "503": { description: Cloudinary uploads are not configured }
   /merchant/action-controls:
     get:
       operationId: getMerchantActionControls
@@ -2328,6 +2360,31 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PlatformSettings" }
+  /admin/platform-settings/cloudinary-status:
+    get:
+      operationId: getAdminCloudinaryUploadStatus
+      tags: [admin]
+      summary: Read Cloudinary upload configuration status
+      description: Returns only whether signed uploads are configured and the public Cloudinary cloud name, never API credentials.
+      responses:
+        "200":
+          description: Cloudinary upload readiness
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CloudinaryUploadStatus" }
+  /admin/platform-settings/upload-signature:
+    post:
+      operationId: createAdminCloudinaryUploadSignature
+      tags: [admin]
+      summary: Create a signed Cloudinary upload for platform branding
+      description: Returns signed upload parameters scoped to the server-selected platform assets folder. Never returns the Cloudinary API secret.
+      responses:
+        "200":
+          description: Signed Cloudinary upload parameters
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CloudinaryUploadSignature" }
+        "503": { description: Cloudinary uploads are not configured }
   /admin/email-delivery/settings:
     get:
       operationId: getAdminEmailDeliverySettings
@@ -2798,7 +2855,7 @@ components:
           enum: [redirect, mobile_prompt, check_status]
     PublicTransactionStatus:
       type: object
-      required: [reference, status, amount, currency, createdAt]
+      required: [reference, status, amount, currency, createdAt, shopName, shopLogoUrl]
       properties:
         reference: { type: string }
         status:
@@ -2808,6 +2865,8 @@ components:
         currency: { type: string }
         paidAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
+        shopName: { type: ["string", "null"], maxLength: 100, description: Public merchant display name; never the verified legal name unless the merchant chose it. }
+        shopLogoUrl: { type: ["string", "null"], format: uri, description: Public merchant shop image URL. }
     RefundInput:
       type: object
       properties:
@@ -2877,7 +2936,7 @@ components:
         expiresAt: { type: ["string", "null"], format: date-time }
     PublicPaymentLink:
       type: object
-      required: [slug, name, amountType, currency, availableCurrencies]
+      required: [slug, name, amountType, currency, availableCurrencies, shopName, shopLogoUrl]
       properties:
         slug: { type: string }
         name: { type: string }
@@ -2885,6 +2944,8 @@ components:
         amountType: { type: string, enum: [fixed, customer_choice] }
         amount: { type: ["number", "null"] }
         currency: { type: string }
+        shopName: { type: ["string", "null"], maxLength: 100, description: Public merchant display name; never the verified legal name unless the merchant chose it. }
+        shopLogoUrl: { type: ["string", "null"], format: uri, description: Public merchant shop image URL. }
         availableCurrencies:
           type: array
           description: Customer-choice links include supported currency options. Fixed-price and invoice links include only their stored currency; amounts are not converted.
@@ -3857,10 +3918,12 @@ components:
         role: { $ref: "#/components/schemas/MerchantTeamInvitationRole" }
     MerchantProfile:
       type: object
-      required: [id, businessName, country, baseCurrency, status, kycStatus, createdAt]
+      required: [id, businessName, shopName, shopLogoUrl, country, baseCurrency, status, kycStatus, createdAt]
       properties:
         id: { type: integer }
         businessName: { type: string }
+        shopName: { type: ["string", "null"], maxLength: 100, description: Optional public-facing merchant display name; separate from the verified legal business name. }
+        shopLogoUrl: { type: ["string", "null"], format: uri, description: Optional public-facing merchant shop image. }
         country: { type: string }
         baseCurrency: { type: string }
         registrationNumber: { type: ["string", "null"] }
@@ -3871,6 +3934,12 @@ components:
         refundsEnabled: { type: boolean }
         apiAccessEnabled: { type: boolean }
         createdAt: { type: string, format: date-time }
+    MerchantShopProfileUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        shopName: { type: ["string", "null"], maxLength: 100 }
+        shopLogoUrl: { type: ["string", "null"], format: uri }
     MerchantProfileResponse:
       type: object
       required: [merchant]
@@ -4364,6 +4433,21 @@ components:
         contactWhatsapp: { type: string, maxLength: 100 }
         logoUrl: { type: ["string", "null"], format: uri }
         faviconUrl: { type: ["string", "null"], format: uri }
+    CloudinaryUploadStatus:
+      type: object
+      required: [configured, cloudName]
+      properties:
+        configured: { type: boolean }
+        cloudName: { type: ["string", "null"], description: Public Cloudinary cloud name when configured in the server environment. }
+    CloudinaryUploadSignature:
+      type: object
+      required: [cloudName, apiKey, timestamp, signature, folder]
+      properties:
+        cloudName: { type: string }
+        apiKey: { type: string }
+        timestamp: { type: integer }
+        signature: { type: string }
+        folder: { type: string }
     AdminAuditLog:
       type: object
       required: [items, page, total]

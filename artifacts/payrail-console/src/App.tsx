@@ -298,10 +298,10 @@ function AppShell({ children }: { children: ReactNode }) {
       <div className="sidebar-brand"><Brand /><button className="mobile-close icon-button" onClick={() => setMenuOpen(false)} aria-label="Close navigation"><X size={18} /></button></div>
       <div className="workspace-switch"><span className="workspace-avatar">K</span><span className="workspace-copy"><strong>{access.merchant?.businessName || 'No merchant yet'}</strong><small>{access.isAdmin ? 'Platform administrator' : access.merchant ? 'Merchant workspace' : 'Onboarding needed'}</small></span><ChevronDown size={15} /></div>
       <nav className="main-nav" aria-label="Main navigation">{sections.map((section) => <div className="nav-section" key={section.title}><div className="nav-label">{section.title}</div>{section.items.map((item) => { const Icon = item.icon; const current = location === item.href; return <a key={item.href} href={item.href} className={`nav-item ${current ? 'nav-active' : ''}`} onClick={(event) => { event.preventDefault(); setLocation(item.href); setMenuOpen(false); }} data-testid={`nav-${item.label.toLowerCase().replaceAll(' ', '-')}`}><Icon size={17} strokeWidth={1.8} /><span>{item.label}</span>{item.href === '/webhooks' && <span className="nav-dot" />}</a>; })}</div>)}</nav>
-      <div className="sidebar-bottom"><a className="readiness-card" href={`${basePath}/platform-status`}><div className="readiness-icon"><ShieldCheck size={16} /></div><div><strong>Platform status</strong><span>View service readiness</span></div><ArrowRight size={14} /></a><a className="help-link" href={`${basePath}/support`}><Headphones size={16} />Contact support</a><div className="profile-row"><div className="profile-avatar">{user?.firstName?.[0] || user?.primaryEmailAddress?.emailAddress?.[0] || 'O'}</div><a className="profile-name" href={`${basePath}/profile`}><strong>{user?.fullName || 'Operations user'}</strong><small>{user?.primaryEmailAddress?.emailAddress || 'Signed in'}</small></a><button className="icon-button profile-logout" onClick={() => signOut({ redirectUrl: basePath || '/' })} aria-label="Sign out" title="Sign out" data-testid="button-sign-out"><LogOut size={16} /></button></div></div>
+      <div className="sidebar-bottom"><a className="help-link" href={`${basePath}/support`}><Headphones size={16} />Contact support</a><div className="profile-row"><div className="profile-avatar">{user?.firstName?.[0] || user?.primaryEmailAddress?.emailAddress?.[0] || 'O'}</div><a className="profile-name" href={`${basePath}/profile`}><strong>{user?.fullName || 'Operations user'}</strong><small>{user?.primaryEmailAddress?.emailAddress || 'Signed in'}</small></a><button className="icon-button profile-logout" onClick={() => signOut({ redirectUrl: basePath || '/' })} aria-label="Sign out" title="Sign out" data-testid="button-sign-out"><LogOut size={16} /></button></div></div>
     </aside>
     {menuOpen && <button className="mobile-scrim" aria-label="Close menu" onClick={() => setMenuOpen(false)} />}
-    <main className="main-column"><header className="topbar"><button className="mobile-menu icon-button" aria-label="Open navigation" onClick={() => setMenuOpen(true)} data-testid="button-open-navigation"><Menu size={19} /></button><div className="breadcrumbs"><span>{branding.platformName}</span><span className="crumb-sep">/</span><strong>{active.title}</strong></div><div className="topbar-right"><div className="environment"><span />Workspace</div><NotificationBell /><div className="top-divider" /><a className="top-user" href={`${basePath}/profile`} aria-label="Open your profile"><span>{user?.firstName || 'Operator'}</span><div className="profile-avatar profile-avatar-small">{user?.firstName?.[0] || 'O'}</div></a></div></header><div className="page-content">{children}</div><footer className="app-footer"><span>{branding.platformName} Console</span><span>Dates shown in your device timezone <span className="footer-sep">·</span> <a href={`${basePath}/support`}>Support</a></span></footer></main>
+    <main className="main-column"><header className="topbar"><button className="mobile-menu icon-button" aria-label="Open navigation" onClick={() => setMenuOpen(true)} data-testid="button-open-navigation"><Menu size={19} /></button><div className="breadcrumbs"><span>{branding.platformName}</span><span className="crumb-sep">/</span><strong>{active.title}</strong></div><div className="topbar-right"><div className="environment"><span />Workspace</div><NotificationBell /><div className="top-divider" /><a className="top-user" href={`${basePath}/profile`} aria-label="Open your profile"><span>{user?.firstName || 'Operator'}</span><div className="profile-avatar profile-avatar-small">{user?.firstName?.[0] || 'O'}</div></a></div></header><div className="page-content">{children}</div><footer className="app-footer"><a href={basePath || '/'} aria-label={`Powered by ${branding.platformName} — visit homepage`}>Powered by {branding.platformName}</a><span>Dates shown in your device timezone <span className="footer-sep">·</span> <a href={`${basePath}/support`}>Support</a></span></footer></main>
     {newCollectionOpen && <CollectionModal onClose={() => setNewCollectionOpen(false)} />}
   </div>;
 }
@@ -363,6 +363,9 @@ function CollectionModal({ onClose }: { onClose: () => void }) {
         {selectedMethodId === '' && <option value="">{currencyOption?.collectionReady ? 'No payment method available' : 'Payment method unavailable'}</option>}
         {paymentMethods.map((method) => <option key={method.id} value={method.id} disabled={!method.ready}>{method.label}{method.ready ? '' : ' · unavailable'}</option>)}
       </select></Field>
+      {selectedMethod && <span className="sub">{selectedMethod.id === 'mobile_prompt'
+        ? 'Mobile money is requested through an M-Pesa prompt on the customer’s phone.'
+        : 'The secure checkout shows any card, mobile-money, or bank options available for this currency.'}</span>}
       {currencyCatalog.isLoading && <span className="sub">Loading supported currencies and payment options…</span>}
       {currencyCatalog.isError && <div className="provider-warning"><CircleAlert size={15} /><span>Payment availability could not be checked.</span><Button variant="secondary" disabled={currencyCatalog.isFetching} onClick={() => { void currencyCatalog.refetch(); }}>{currencyCatalog.isFetching ? 'Checking…' : 'Retry'}</Button></div>}
       {currencyOption && !currencyOption.collectionReady && <div className="provider-warning"><CircleAlert size={15} /><span>Payments are not currently available in {currencyOption.code}. This deployment has no ready payment method for this currency.</span><Button variant="secondary" disabled={currencyCatalog.isFetching} onClick={() => { void currencyCatalog.refetch(); }}>{currencyCatalog.isFetching ? 'Checking…' : 'Refresh availability'}</Button></div>}
@@ -766,7 +769,12 @@ function PublicCheckout() {
     <div className="checkout-page">
       <header className="checkout-header"><Brand /><span><LockKeyhole size={14} /> Secure checkout</span></header>
       <main className="checkout-card">
-        <div className="checkout-brand-mark"><Brand compact /></div>
+        {link && <div className="customer-shop-brand" data-testid="checkout-shop-brand">
+          {link.shopLogoUrl
+            ? <img src={link.shopLogoUrl} alt={`${link.shopName || branding.platformName} shop image`} />
+            : <span className="customer-shop-placeholder">{(link.shopName || branding.platformName).slice(0, 1).toUpperCase()}</span>}
+          <div className="customer-shop-name"><span>PAYING</span><strong>{link.shopName || branding.platformName}</strong></div>
+        </div>}
         <QueryState loading={query.isLoading} error={query.isError} retry={() => { void query.refetch(); }} empty={!link}>
           {link && (checkoutResult ? (
             <div className="checkout-success">
@@ -803,11 +811,9 @@ function PublicCheckout() {
                   {selectedMethodId === '' && <option value="">{currencyOption?.collectionReady ? 'No payment method available' : 'No payment method available right now'}</option>}
                   {paymentMethods.map((method) => <option key={method.id} value={method.id} disabled={!method.ready}>{method.label}{method.requiresPhone ? ' · phone required' : ''}{method.ready ? '' : ' · unavailable'}</option>)}
                 </select></Field>
-                {selectedMethod && <span className="checkout-trust">{selectedMethod.nextAction === 'mobile_prompt'
-                  ? 'Approve the secure payment request on your phone to continue.'
-                  : selectedMethod.nextAction === 'redirect'
-                    ? 'You’ll continue to a secure payment page to complete checkout.'
-                    : 'Follow the payment status after continuing.'}</span>}
+                {selectedMethod && <span className="checkout-trust">{selectedMethod.id === 'mobile_prompt'
+                  ? 'Mobile money is requested through a secure M-Pesa prompt on your phone.'
+                  : 'The secure checkout shows any card, mobile-money, or bank options available for this currency.'}</span>}
                 {(link.amountType === 'customer_choice' || invoiceBalance !== null) && <Field label={invoiceBalance !== null ? `Payment amount (${currencyCode}), up to ${currency(invoiceBalance, link.currency)}` : `Amount (${currencyCode})`}><input key={currencyCode} name="amount" type="number" min={currencyMinorUnits(currencyCode) === 0 ? '1' : '0.01'} max={invoiceBalance ?? undefined} defaultValue={invoiceBalance ?? undefined} step={currencyAmountStep(currencyCode)} placeholder="0.00" required data-testid="input-checkout-amount" /></Field>}
                 <Field label="Email address"><input type="email" name="email" placeholder="you@example.com" autoComplete="email" required data-testid="input-checkout-email" /></Field>
                 <Field label="Full name"><input name="name" placeholder="Name on payment" autoComplete="name" required data-testid="input-checkout-name" /></Field>
@@ -826,7 +832,7 @@ function PublicCheckout() {
           ))}
         </QueryState>
       </main>
-      <footer className="checkout-bottom"><span>Powered by <strong>{branding.platformName}</strong></span><a href={basePath || '/'} data-testid="link-checkout-home">Back to {branding.platformName}</a></footer>
+      <footer className="checkout-bottom"><a href={basePath || '/'} data-testid="link-checkout-home">Powered by <strong>{branding.platformName}</strong></a></footer>
     </div>
   );
 }

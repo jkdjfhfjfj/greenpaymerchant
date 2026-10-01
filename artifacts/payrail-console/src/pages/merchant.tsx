@@ -3,11 +3,13 @@ import { Link } from 'wouter';
 import { ArrowRight, ExternalLink, LoaderCircle, Plus, Trash2, Pause, Play, ShieldCheck } from 'lucide-react';
 import {
   useCreateMerchantProfile, useGetMerchantFees, useGetMerchantKyc, getGetMerchantKycQueryKey, useCreateMerchantKycSession,
+  useCreateMerchantCloudinaryUploadSignature, useUpdateMerchantShopProfile,
   useListMerchantPaymentLinks, useCreateMerchantPaymentLink, useUpdateMerchantPaymentLink, useDeleteMerchantPaymentLink,
   useListMerchantTransactions, useListMerchantPayouts, useListSupportedCurrencies,
 } from '@workspace/api-client-react';
 import { Async, Btn, Card, COUNTRIES, CURRENCIES, Confirm, CopyBtn, Err, Field, Gate, Heading, Modal, Note, Pager, Pill, currencyAmountStep, currencyMinorUnits, fmtDate, money, nice, useAccess, useInvalidateAll } from '@/components/kit';
 import { usePlatformBranding } from '@/components/platform-brand';
+import { CloudinaryImageUpload } from '@/components/cloudinary-image-upload';
 
 export function MerchantPage() {
   const access = useAccess();
@@ -49,6 +51,7 @@ export function MerchantPage() {
               <div><span>Created</span><strong>{fmtDate(m.createdAt)}</strong></div>
             </div>
           </Card>
+          <ShopProfileEditor merchant={m} isOwner={access.data?.role === 'owner'} />
           {m.kycStatus !== 'approved' && <Note tone="warn">Verification is {nice(m.kycStatus).toLowerCase()}. <Link href="/merchant/kyc" className="text-link">Open verification <ArrowRight size={13} /></Link></Note>}
         </div>
         <Card title="Your fee schedule" subtitle="Applied to calculations and quotes">
@@ -59,6 +62,51 @@ export function MerchantPage() {
       </div>}
     </Async>
   </>;
+}
+
+type MerchantShopProfile = NonNullable<ReturnType<typeof useAccess>['merchant']>;
+function ShopProfileEditor({ merchant, isOwner }: { merchant: MerchantShopProfile; isOwner: boolean }) {
+  const update = useUpdateMerchantShopProfile();
+  const signature = useCreateMerchantCloudinaryUploadSignature();
+  const invalidate = useInvalidateAll();
+  const [shopName, setShopName] = useState(merchant.shopName ?? '');
+  const [shopLogoUrl, setShopLogoUrl] = useState(merchant.shopLogoUrl ?? '');
+
+  useEffect(() => {
+    setShopName(merchant.shopName ?? '');
+    setShopLogoUrl(merchant.shopLogoUrl ?? '');
+  }, [merchant.id, merchant.shopName, merchant.shopLogoUrl]);
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    update.mutate({ data: { shopName: shopName.trim() || null, shopLogoUrl: shopLogoUrl.trim() || null } }, {
+      onSuccess: () => { void invalidate(); },
+    });
+  }
+
+  return <Card title="Public shop profile" subtitle="Shown to customers on payment links and payment-status pages.">
+    {isOwner ? <form className="form-stack" onSubmit={submit}>
+      <Field label="Shop name" hint="Optional. Leave blank to show Greenpay branding to customers.">
+        <input value={shopName} onChange={(event) => setShopName(event.target.value)} maxLength={100} placeholder="Enter a public shop name" data-testid="input-shop-name" />
+      </Field>
+      <CloudinaryImageUpload
+        label="Shop profile image"
+        value={shopLogoUrl}
+        description="This image appears beside your shop name on customer-facing payment pages. Upload first, then save."
+        getSignature={() => signature.mutateAsync(undefined)}
+        onUploaded={setShopLogoUrl}
+      />
+      <Field label="Shop image URL" hint="Optional HTTPS URL; uploading an image fills this field.">
+        <input type="url" value={shopLogoUrl} onChange={(event) => setShopLogoUrl(event.target.value)} placeholder="https://…" data-testid="input-shop-image-url" />
+      </Field>
+      <Err error={update.error} />
+      <Btn type="submit" disabled={update.isPending} testId="button-save-shop-profile">{update.isPending ? 'Saving…' : 'Save shop profile'}</Btn>
+    </form> : <div className="form-stack">
+      <div className="kv"><div><span>Public shop name</span><strong>{merchant.shopName || 'Not set · Greenpay branding shown to customers'}</strong></div></div>
+      {merchant.shopLogoUrl && <img className="cloudinary-image-preview" src={merchant.shopLogoUrl} alt={`${merchant.shopName || 'Shop'} profile image`} />}
+      <Note tone="warn">Only the merchant account owner can change public shop details.</Note>
+    </div>}
+  </Card>;
 }
 
 export function KycPage() {

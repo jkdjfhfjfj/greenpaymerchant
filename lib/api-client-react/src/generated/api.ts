@@ -52,6 +52,8 @@ import type {
   CaseList,
   CaseMessageInput,
   CaseReviewInput,
+  CloudinaryUploadSignature,
+  CloudinaryUploadStatus,
   ContactTicketInput,
   ContactTicketReceipt,
   ContentInput,
@@ -104,6 +106,7 @@ import type {
   MerchantCaseAttachmentUploadIntent,
   MerchantCaseAttachmentUploadIntentInput,
   MerchantProfileResponse,
+  MerchantShopProfileUpdate,
   MerchantTeam,
   MerchantTeamInvitationAcceptance,
   MerchantTeamInvitationAcceptanceInput,
@@ -7106,6 +7109,170 @@ export const useCreateMerchantProfile = <TError = ErrorType<void>,
       return useMutation(getCreateMerchantProfileMutationOptions(options));
     }
 
+export const getUpdateMerchantShopProfileUrl = () => {
+
+
+
+
+  return `/api/merchant/shop-profile`
+}
+
+/**
+ * Updates a public display name and shop image without changing the verified legal business name.
+ * @summary Update the current merchant's public shop identity
+ */
+export const updateMerchantShopProfile = async (merchantShopProfileUpdate: MerchantShopProfileUpdate, options?: Parameters<typeof customFetch>[1]): Promise<MerchantProfileResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<MerchantProfileResponse>(getUpdateMerchantShopProfileUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(merchantShopProfileUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateMerchantShopProfileMutationKey = () => ['updateMerchantShopProfile'] as const;
+
+export const getUpdateMerchantShopProfileMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMerchantShopProfile>>, TError,UpdateMerchantShopProfileMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMerchantShopProfile>>, TError,UpdateMerchantShopProfileMutationVariables, TContext> => {
+
+const mutationKey = getUpdateMerchantShopProfileMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMerchantShopProfile>>, UpdateMerchantShopProfileMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateMerchantShopProfile(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMerchantShopProfileMutationResult = NonNullable<Awaited<ReturnType<typeof updateMerchantShopProfile>>>
+    export type UpdateMerchantShopProfileMutationBody = BodyType<MerchantShopProfileUpdate>
+    export type UpdateMerchantShopProfileMutationError = ErrorType<void>
+    export type UpdateMerchantShopProfileMutationVariables = {data: BodyType<MerchantShopProfileUpdate>}
+
+    /**
+ * @summary Update the current merchant's public shop identity
+ */
+export const useUpdateMerchantShopProfile = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMerchantShopProfile>>, TError,UpdateMerchantShopProfileMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateMerchantShopProfile>>,
+        TError,
+        UpdateMerchantShopProfileMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateMerchantShopProfileMutationOptions(options));
+    }
+
+export const getCreateMerchantCloudinaryUploadSignatureUrl = () => {
+
+
+
+
+  return `/api/merchant/shop-profile/upload-signature`
+}
+
+/**
+ * Returns a short-lived signature scoped to a server-selected folder owned by the current merchant. Never returns the Cloudinary API secret.
+ * @summary Create a signed Cloudinary upload for the current merchant's shop image
+ */
+export const createMerchantCloudinaryUploadSignature = async ( options?: Parameters<typeof customFetch>[1]): Promise<CloudinaryUploadSignature> => {
+
+  return customFetch<CloudinaryUploadSignature>(getCreateMerchantCloudinaryUploadSignatureUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateMerchantCloudinaryUploadSignatureMutationKey = () => ['createMerchantCloudinaryUploadSignature'] as const;
+
+export const getCreateMerchantCloudinaryUploadSignatureMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMerchantCloudinaryUploadSignature>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMerchantCloudinaryUploadSignature>>, TError,void, TContext> => {
+
+const mutationKey = getCreateMerchantCloudinaryUploadSignatureMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMerchantCloudinaryUploadSignature>>, void> = () => {
+
+
+          return  createMerchantCloudinaryUploadSignature(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMerchantCloudinaryUploadSignatureMutationResult = NonNullable<Awaited<ReturnType<typeof createMerchantCloudinaryUploadSignature>>>
+
+    export type CreateMerchantCloudinaryUploadSignatureMutationError = ErrorType<void>
+
+
+    /**
+ * @summary Create a signed Cloudinary upload for the current merchant's shop image
+ */
+export const useCreateMerchantCloudinaryUploadSignature = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMerchantCloudinaryUploadSignature>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMerchantCloudinaryUploadSignature>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCreateMerchantCloudinaryUploadSignatureMutationOptions(options));
+    }
+
 export const getGetMerchantActionControlsUrl = () => {
 
 
@@ -11749,6 +11916,159 @@ export const useUpdateAdminPlatformSettings = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateAdminPlatformSettingsMutationOptions(options));
+    }
+
+export const getGetAdminCloudinaryUploadStatusUrl = () => {
+
+
+
+
+  return `/api/admin/platform-settings/cloudinary-status`
+}
+
+/**
+ * Returns only whether signed uploads are configured and the public Cloudinary cloud name, never API credentials.
+ * @summary Read Cloudinary upload configuration status
+ */
+export const getAdminCloudinaryUploadStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<CloudinaryUploadStatus> => {
+
+  return customFetch<CloudinaryUploadStatus>(getGetAdminCloudinaryUploadStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminCloudinaryUploadStatusQueryKey = () => {
+    return [
+    `/api/admin/platform-settings/cloudinary-status`
+    ] as const;
+    }
+
+
+export const getGetAdminCloudinaryUploadStatusQueryOptions = <TData = Awaited<ReturnType<typeof getAdminCloudinaryUploadStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminCloudinaryUploadStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminCloudinaryUploadStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminCloudinaryUploadStatus>>> = ({ signal }) => getAdminCloudinaryUploadStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminCloudinaryUploadStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminCloudinaryUploadStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminCloudinaryUploadStatus>>>
+export type GetAdminCloudinaryUploadStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Read Cloudinary upload configuration status
+ */
+
+export function useGetAdminCloudinaryUploadStatus<TData = Awaited<ReturnType<typeof getAdminCloudinaryUploadStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminCloudinaryUploadStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminCloudinaryUploadStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAdminCloudinaryUploadSignatureUrl = () => {
+
+
+
+
+  return `/api/admin/platform-settings/upload-signature`
+}
+
+/**
+ * Returns signed upload parameters scoped to the server-selected platform assets folder. Never returns the Cloudinary API secret.
+ * @summary Create a signed Cloudinary upload for platform branding
+ */
+export const createAdminCloudinaryUploadSignature = async ( options?: Parameters<typeof customFetch>[1]): Promise<CloudinaryUploadSignature> => {
+
+  return customFetch<CloudinaryUploadSignature>(getCreateAdminCloudinaryUploadSignatureUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateAdminCloudinaryUploadSignatureMutationKey = () => ['createAdminCloudinaryUploadSignature'] as const;
+
+export const getCreateAdminCloudinaryUploadSignatureMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminCloudinaryUploadSignature>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdminCloudinaryUploadSignature>>, TError,void, TContext> => {
+
+const mutationKey = getCreateAdminCloudinaryUploadSignatureMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminCloudinaryUploadSignature>>, void> = () => {
+
+
+          return  createAdminCloudinaryUploadSignature(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAdminCloudinaryUploadSignatureMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminCloudinaryUploadSignature>>>
+
+    export type CreateAdminCloudinaryUploadSignatureMutationError = ErrorType<void>
+
+
+    /**
+ * @summary Create a signed Cloudinary upload for platform branding
+ */
+export const useCreateAdminCloudinaryUploadSignature = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminCloudinaryUploadSignature>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAdminCloudinaryUploadSignature>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCreateAdminCloudinaryUploadSignatureMutationOptions(options));
     }
 
 export const getGetAdminEmailDeliverySettingsUrl = () => {

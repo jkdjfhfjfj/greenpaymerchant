@@ -4,6 +4,7 @@ import { getAuth } from "@clerk/express";
 import {
   CreateAdminFxRateBody, CreateAdminFxRateResponse, DeleteAdminProviderCredentialsParams,
   DeleteAdminProviderCredentialsResponse, GetAdminPlatformSettingsResponse, GetAdminSummaryResponse,
+  GetAdminCloudinaryUploadStatusResponse, CreateAdminCloudinaryUploadSignatureResponse,
   ListAdminAuditLogQueryParams, ListAdminAuditLogResponse, ListAdminFeeSchedulesResponse,
   ListAdminFxRatesResponse, ListAdminMerchantsQueryParams, ListAdminMerchantsResponse,
   ListAdminProviderCredentialsResponse, SaveAdminProviderCredentialsBody,
@@ -22,6 +23,7 @@ import { encryptProviderCredentials, readProviderCredentials } from "../lib/secu
 import { credentialVaultReady } from "../lib/secret-crypto";
 import { providerCredential, providerCredentialFields } from "../lib/credential-runtime";
 import { cleanPublicUrl, normalizeWhatsAppContact } from "../lib/platform-branding";
+import { cloudinaryUploadStatus, createCloudinaryUploadSignature } from "../lib/cloudinary-upload";
 import {
   MERCHANT_ACTION_KEYS,
   normalizeMerchantActionControls,
@@ -86,7 +88,7 @@ async function adminMerchantControlsDto(merchant: typeof merchantsTable.$inferSe
 
 function merchantDto(row: typeof merchantsTable.$inferSelect) {
   return {
-    id: row.id, businessName: row.businessName, country: row.country,
+    id: row.id, businessName: row.businessName, shopName: row.shopName, shopLogoUrl: row.shopLogoUrl, country: row.country,
     baseCurrency: row.baseCurrency, registrationNumber: row.registrationNumber,
     status: row.status, kycStatus: row.kycStatus, createdAt: row.createdAt,
     ownerUserId: row.ownerClerkId, riskNote: row.riskNote, diditSessionId: row.diditSessionId,
@@ -516,6 +518,23 @@ router.patch("/admin/platform-settings", async (req, res): Promise<void> => {
     : await db.insert(platformSettingsTable).values({ id: 1, ...updates }).returning();
   await audit(req, "platform_settings.updated", "platform", `Changed ${Object.keys(parsed.data).join(", ")}. The base currency is a display and onboarding default; existing balances were not converted.`);
   res.json(UpdateAdminPlatformSettingsResponse.parse(settingsDto(row)));
+});
+
+router.get("/admin/platform-settings/cloudinary-status", async (_req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json(GetAdminCloudinaryUploadStatusResponse.parse(cloudinaryUploadStatus()));
+});
+
+router.post("/admin/platform-settings/upload-signature", async (_req, res): Promise<void> => {
+  if (!cloudinaryUploadStatus().configured) {
+    res.status(503).json({
+      error: "Cloudinary uploads are not configured. An administrator must set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in Replit Secrets.",
+    });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store");
+  const signedUpload = createCloudinaryUploadSignature("greenpay/platform");
+  res.json(CreateAdminCloudinaryUploadSignatureResponse.parse(signedUpload));
 });
 
 router.get("/admin/audit-log", async (req, res): Promise<void> => {

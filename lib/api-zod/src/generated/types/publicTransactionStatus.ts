@@ -15,4 +15,15 @@ export interface PublicTransactionStatus {
   /** @nullable */
   paidAt?: Date | null;
   createdAt: Date;
+  /**
+     * Public merchant display name; never the verified legal name unless the merchant chose it.
+     * @maxLength 100
+     * @nullable
+     */
+  shopName: string | null;
+  /**
+     * Public merchant shop image URL.
+     * @nullable
+     */
+  shopLogoUrl: string | null;
 }

@@ -17,6 +17,17 @@ export interface PublicPaymentLink {
   /** @nullable */
   amount?: number | null;
   currency: string;
+  /**
+     * Public merchant display name; never the verified legal name unless the merchant chose it.
+     * @maxLength 100
+     * @nullable
+     */
+  shopName: string | null;
+  /**
+     * Public merchant shop image URL.
+     * @nullable
+     */
+  shopLogoUrl: string | null;
   /** Customer-choice links include supported currency options. Fixed-price and invoice links include only their stored currency; amounts are not converted. */
   availableCurrencies: CollectionCurrency[];
   /** @nullable */

@@ -6,9 +6,11 @@ import {
   useGetAdminSummary, useListAdminMerchants, useUpdateAdminMerchant, useGetAdminPlatformSettings, useUpdateAdminPlatformSettings,
   useListAdminAuditLog, useListAdminFeeSchedules, useUpdateAdminFeeSchedule, useListAdminFxRates, useCreateAdminFxRate, useUpdateAdminFxRate,
   useListAdminProviderCredentials, useSaveAdminProviderCredentials, useDeleteAdminProviderCredentials,
+  useGetAdminCloudinaryUploadStatus, useCreateAdminCloudinaryUploadSignature,
   type AdminMerchant, type AdminFxRate, type AdminFeeSchedule, type ProviderCredential, type ListAdminMerchantsParams, type PlatformSettings,
 } from '@workspace/api-client-react';
 import { Async, Btn, Card, CURRENCIES, Confirm, Err, Field, Gate, Heading, Modal, Note, Pager, Pill, Switch, fmtDate, money, nice, useInvalidateAll } from '@/components/kit';
+import { CloudinaryImageUpload } from '@/components/cloudinary-image-upload';
 
 const G = ({ children }: { children: React.ReactNode }) => <Gate need="admin">{children}</Gate>;
 
@@ -374,6 +376,8 @@ type BrandingFormValues = Pick<PlatformSettings, 'platformName' | 'baseCurrency'
 function SettingsInner() {
   const q = useGetAdminPlatformSettings();
   const up = useUpdateAdminPlatformSettings();
+  const cloudinaryStatus = useGetAdminCloudinaryUploadStatus();
+  const cloudinarySignature = useCreateAdminCloudinaryUploadSignature();
   const inv = useInvalidateAll();
   const [off, setOff] = useState<string | null>(null);
   const [branding, setBranding] = useState<BrandingFormValues | null>(null);
@@ -410,6 +414,13 @@ function SettingsInner() {
   return <><Heading eyebrow="ADMIN" title="Platform settings" subtitle="Brand identity, customer contact details and platform-wide feature switches. Changes are audited." />
     <Err error={up.error} />
     <Async q={q}><div className="form-stack">
+      <Card title="Cloudinary API settings" subtitle="Uploads are signed on the server. API secrets are kept in Replit Secrets and are never shown here.">
+        {cloudinaryStatus.isLoading ? <span className="sub">Checking Cloudinary configuration…</span>
+          : cloudinaryStatus.isError ? <Err error={cloudinaryStatus.error} />
+            : cloudinaryStatus.data?.configured
+              ? <Note>Cloudinary uploads are enabled{cloudinaryStatus.data.cloudName ? ` for ${cloudinaryStatus.data.cloudName}` : ''}.</Note>
+              : <Note tone="warn">Cloudinary uploads are not configured. Add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in Replit Secrets to enable uploads.</Note>}
+      </Card>
       <Card title="Platform identity" subtitle="Public details shown across the platform and onboarding.">
         {branding && <form className="form-stack" onSubmit={submitBranding}>
           <Field label="Platform name"><input value={branding.platformName} onChange={(e) => updateBranding('platformName', e.target.value)} required minLength={1} maxLength={100} data-testid="input-platform-name" /></Field>
@@ -417,6 +428,24 @@ function SettingsInner() {
             <Field label="Base currency" hint="Display and new-merchant onboarding default only; changing it never converts or changes existing balances."><select value={branding.baseCurrency} onChange={(e) => updateBranding('baseCurrency', e.target.value)} data-testid="select-platform-base-currency">{[...new Set([branding.baseCurrency, ...CURRENCIES])].map((currency) => <option key={currency}>{currency}</option>)}</select></Field>
             <Field label="Logo URL" hint="Optional HTTPS image URL"><input type="url" value={branding.logoUrl} onChange={(e) => updateBranding('logoUrl', e.target.value)} placeholder="https://…" data-testid="input-platform-logo-url" /></Field>
             <Field label="Favicon URL" hint="Optional HTTPS image URL"><input type="url" value={branding.faviconUrl} onChange={(e) => updateBranding('faviconUrl', e.target.value)} placeholder="https://…" data-testid="input-platform-favicon-url" /></Field>
+          </div>
+          <div className="form-grid">
+            <CloudinaryImageUpload
+              label="Upload platform logo"
+              value={branding.logoUrl}
+              description="Upload a logo to Cloudinary, then save platform identity."
+              disabled={!cloudinaryStatus.data?.configured}
+              getSignature={() => cloudinarySignature.mutateAsync(undefined)}
+              onUploaded={(url) => updateBranding('logoUrl', url)}
+            />
+            <CloudinaryImageUpload
+              label="Upload platform favicon"
+              value={branding.faviconUrl}
+              description="Upload an icon to Cloudinary, then save platform identity."
+              disabled={!cloudinaryStatus.data?.configured}
+              getSignature={() => cloudinarySignature.mutateAsync(undefined)}
+              onUploaded={(url) => updateBranding('faviconUrl', url)}
+            />
           </div>
           <div className="form-grid">
             <Field label="Contact email"><input type="email" value={branding.contactEmail} onChange={(e) => updateBranding('contactEmail', e.target.value)} maxLength={254} data-testid="input-platform-contact-email" /></Field>

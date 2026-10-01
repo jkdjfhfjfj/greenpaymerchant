@@ -757,6 +757,8 @@ export const GetPublicPaymentLinkParams = zod.object({
   "slug": zod.coerce.string()
 })
 
+export const getPublicPaymentLinkResponseShopNameMax = 100;
+
 export const getPublicPaymentLinkResponseAvailableCurrenciesItemCodeMin = 3;
 export const getPublicPaymentLinkResponseAvailableCurrenciesItemCodeMax = 3;
 
@@ -774,6 +776,8 @@ export const GetPublicPaymentLinkResponse = zod.object({
   "amountType": zod.enum(['fixed', 'customer_choice']),
   "amount": zod.number().nullish(),
   "currency": zod.string(),
+  "shopName": zod.string().max(getPublicPaymentLinkResponseShopNameMax).nullable().describe('Public merchant display name; never the verified legal name unless the merchant chose it.'),
+  "shopLogoUrl": zod.string().url().nullable().describe('Public merchant shop image URL.'),
   "availableCurrencies": zod.array(zod.object({
   "code": zod.string().min(getPublicPaymentLinkResponseAvailableCurrenciesItemCodeMin).max(getPublicPaymentLinkResponseAvailableCurrenciesItemCodeMax),
   "name": zod.string(),
@@ -830,13 +834,19 @@ export const GetPublicTransactionStatusParams = zod.object({
   "reference": zod.coerce.string()
 })
 
+export const getPublicTransactionStatusResponseShopNameMax = 100;
+
+
+
 export const GetPublicTransactionStatusResponse = zod.object({
   "reference": zod.string(),
   "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
   "amount": zod.number(),
   "currency": zod.string(),
   "paidAt": zod.coerce.date().nullish(),
-  "createdAt": zod.coerce.date()
+  "createdAt": zod.coerce.date(),
+  "shopName": zod.string().max(getPublicTransactionStatusResponseShopNameMax).nullable().describe('Public merchant display name; never the verified legal name unless the merchant chose it.'),
+  "shopLogoUrl": zod.string().url().nullable().describe('Public merchant shop image URL.')
 })
 
 
@@ -3201,6 +3211,10 @@ export const GetProviderStatusResponse = zod.object({
 /**
  * @summary Resolve the signed-in user and their merchant or admin access
  */
+export const getAccessProfileResponseMerchantOneShopNameMax = 100;
+
+
+
 export const GetAccessProfileResponse = zod.object({
   "userId": zod.string(),
   "isAdmin": zod.boolean(),
@@ -3208,6 +3222,8 @@ export const GetAccessProfileResponse = zod.object({
   "merchant": zod.union([zod.object({
   "id": zod.number().int(),
   "businessName": zod.string(),
+  "shopName": zod.string().max(getAccessProfileResponseMerchantOneShopNameMax).nullable().describe('Optional public-facing merchant display name; separate from the verified legal business name.'),
+  "shopLogoUrl": zod.string().url().nullable().describe('Optional public-facing merchant shop image.'),
   "country": zod.string(),
   "baseCurrency": zod.string(),
   "registrationNumber": zod.string().nullish(),
@@ -3225,10 +3241,16 @@ export const GetAccessProfileResponse = zod.object({
 /**
  * @summary Read the current user's merchant profile
  */
+export const getMerchantProfileResponseMerchantShopNameMax = 100;
+
+
+
 export const GetMerchantProfileResponse = zod.object({
   "merchant": zod.object({
   "id": zod.number().int(),
   "businessName": zod.string(),
+  "shopName": zod.string().max(getMerchantProfileResponseMerchantShopNameMax).nullable().describe('Optional public-facing merchant display name; separate from the verified legal business name.'),
+  "shopLogoUrl": zod.string().url().nullable().describe('Optional public-facing merchant shop image.'),
   "country": zod.string(),
   "baseCurrency": zod.string(),
   "registrationNumber": zod.string().nullish(),
@@ -3266,10 +3288,16 @@ export const CreateMerchantProfileBody = zod.object({
   "registrationNumber": zod.string().max(createMerchantProfileBodyRegistrationNumberMax).optional()
 })
 
+export const createMerchantProfileResponseMerchantShopNameMax = 100;
+
+
+
 export const CreateMerchantProfileResponse = zod.object({
   "merchant": zod.object({
   "id": zod.number().int(),
   "businessName": zod.string(),
+  "shopName": zod.string().max(createMerchantProfileResponseMerchantShopNameMax).nullable().describe('Optional public-facing merchant display name; separate from the verified legal business name.'),
+  "shopLogoUrl": zod.string().url().nullable().describe('Optional public-facing merchant shop image.'),
   "country": zod.string(),
   "baseCurrency": zod.string(),
   "registrationNumber": zod.string().nullish(),
@@ -3281,6 +3309,56 @@ export const CreateMerchantProfileResponse = zod.object({
   "apiAccessEnabled": zod.boolean().optional(),
   "createdAt": zod.coerce.date()
 })
+})
+
+
+/**
+ * Updates a public display name and shop image without changing the verified legal business name.
+ * @summary Update the current merchant's public shop identity
+ */
+export const updateMerchantShopProfileBodyShopNameMax = 100;
+
+
+
+export const UpdateMerchantShopProfileBody = zod.object({
+  "shopName": zod.string().max(updateMerchantShopProfileBodyShopNameMax).nullish(),
+  "shopLogoUrl": zod.string().url().nullish()
+})
+
+export const updateMerchantShopProfileResponseMerchantShopNameMax = 100;
+
+
+
+export const UpdateMerchantShopProfileResponse = zod.object({
+  "merchant": zod.object({
+  "id": zod.number().int(),
+  "businessName": zod.string(),
+  "shopName": zod.string().max(updateMerchantShopProfileResponseMerchantShopNameMax).nullable().describe('Optional public-facing merchant display name; separate from the verified legal business name.'),
+  "shopLogoUrl": zod.string().url().nullable().describe('Optional public-facing merchant shop image.'),
+  "country": zod.string(),
+  "baseCurrency": zod.string(),
+  "registrationNumber": zod.string().nullish(),
+  "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "paymentsEnabled": zod.boolean().optional(),
+  "payoutsEnabled": zod.boolean().optional(),
+  "refundsEnabled": zod.boolean().optional(),
+  "apiAccessEnabled": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+})
+})
+
+
+/**
+ * Returns a short-lived signature scoped to a server-selected folder owned by the current merchant. Never returns the Cloudinary API secret.
+ * @summary Create a signed Cloudinary upload for the current merchant's shop image
+ */
+export const CreateMerchantCloudinaryUploadSignatureResponse = zod.object({
+  "cloudName": zod.string(),
+  "apiKey": zod.string(),
+  "timestamp": zod.number().int(),
+  "signature": zod.string(),
+  "folder": zod.string()
 })
 
 
@@ -3955,10 +4033,16 @@ export const ListSupportedCurrenciesResponse = zod.object({
 /**
  * @summary Read the merchant tied to the supplied developer API key
  */
+export const getDeveloperMerchantResponseMerchantShopNameMax = 100;
+
+
+
 export const GetDeveloperMerchantResponse = zod.object({
   "merchant": zod.object({
   "id": zod.number().int(),
   "businessName": zod.string(),
+  "shopName": zod.string().max(getDeveloperMerchantResponseMerchantShopNameMax).nullable().describe('Optional public-facing merchant display name; separate from the verified legal business name.'),
+  "shopLogoUrl": zod.string().url().nullable().describe('Optional public-facing merchant shop image.'),
   "country": zod.string(),
   "baseCurrency": zod.string(),
   "registrationNumber": zod.string().nullish(),
@@ -4533,10 +4617,16 @@ export const ListAdminMerchantsQueryParams = zod.object({
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']).optional()
 })
 
+export const listAdminMerchantsResponseItemsItemOneShopNameMax = 100;
+
+
+
 export const ListAdminMerchantsResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().int(),
   "businessName": zod.string(),
+  "shopName": zod.string().max(listAdminMerchantsResponseItemsItemOneShopNameMax).nullable().describe('Optional public-facing merchant display name; separate from the verified legal business name.'),
+  "shopLogoUrl": zod.string().url().nullable().describe('Optional public-facing merchant shop image.'),
   "country": zod.string(),
   "baseCurrency": zod.string(),
   "registrationNumber": zod.string().nullish(),
@@ -4583,9 +4673,15 @@ export const UpdateAdminMerchantBody = zod.object({
   "apiAccessEnabled": zod.boolean().optional()
 })
 
+export const updateAdminMerchantResponseOneShopNameMax = 100;
+
+
+
 export const UpdateAdminMerchantResponse = zod.object({
   "id": zod.number().int(),
   "businessName": zod.string(),
+  "shopName": zod.string().max(updateAdminMerchantResponseOneShopNameMax).nullable().describe('Optional public-facing merchant display name; separate from the verified legal business name.'),
+  "shopLogoUrl": zod.string().url().nullable().describe('Optional public-facing merchant shop image.'),
   "country": zod.string(),
   "baseCurrency": zod.string(),
   "registrationNumber": zod.string().nullish(),
@@ -5159,6 +5255,29 @@ export const UpdateAdminPlatformSettingsResponse = zod.object({
   "contactWhatsapp": zod.string().max(updateAdminPlatformSettingsResponseContactWhatsappMax),
   "logoUrl": zod.string().url().nullish(),
   "faviconUrl": zod.string().url().nullish()
+})
+
+
+/**
+ * Returns only whether signed uploads are configured and the public Cloudinary cloud name, never API credentials.
+ * @summary Read Cloudinary upload configuration status
+ */
+export const GetAdminCloudinaryUploadStatusResponse = zod.object({
+  "configured": zod.boolean(),
+  "cloudName": zod.string().nullable().describe('Public Cloudinary cloud name when configured in the server environment.')
+})
+
+
+/**
+ * Returns signed upload parameters scoped to the server-selected platform assets folder. Never returns the Cloudinary API secret.
+ * @summary Create a signed Cloudinary upload for platform branding
+ */
+export const CreateAdminCloudinaryUploadSignatureResponse = zod.object({
+  "cloudName": zod.string(),
+  "apiKey": zod.string(),
+  "timestamp": zod.number().int(),
+  "signature": zod.string(),
+  "folder": zod.string()
 })
 
 

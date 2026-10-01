@@ -128,7 +128,7 @@ function pageDocument(input: {
 <body>
 <header class="site-header"><a class="brand" href="/" aria-label="Greenpay home">Green<b>pay</b></a><nav aria-label="Primary"><a href="/learn">Help &amp; FAQs</a><a href="/guides">Guides</a><a href="/articles">Articles</a><a href="/contact">Contact support</a><a href="/sign-in">Sign in</a><a href="/admin/content">Content admin</a></nav></header>
 ${input.content}
-<footer class="site-footer"><a class="brand" href="/">Green<b>pay</b></a><span>Payment records that distinguish requests, forecasts and confirmed money.</span><a href="/learn">Help center</a><a href="/contact">Contact support</a><a href="/admin/content">Content admin</a></footer>
+<footer class="site-footer"><a class="brand" href="/">Green<b>pay</b></a><span>Payment records that distinguish requests, forecasts and confirmed money.</span><a href="/learn">Help center</a><a href="/contact">Contact support</a><a href="/admin/content">Content admin</a><a href="${escapeHtml(`${input.base}/`)}" aria-label="Powered by ${siteName} — visit homepage">Powered by ${siteName}</a></footer>
 </body></html>`;
 }
 

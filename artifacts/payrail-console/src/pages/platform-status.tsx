@@ -51,7 +51,7 @@ export function PlatformStatusPage() {
       </>}
     </section>
     <aside className="status-explainer"><strong>Platform status is different from payment status.</strong><span>To check an individual payment, use the payment receipt page and its unique reference. A platform health update cannot confirm whether a particular payment completed.</span></aside>
-      <footer className="support-public-footer"><Link href="/" data-testid="link-status-back-home">Back to {branding.platformName}</Link><span>Availability refreshes automatically.</span></footer>
+      <footer className="support-public-footer"><Link href="/" data-testid="link-status-back-home">Back to {branding.platformName}</Link><span>Availability refreshes automatically.</span><a href={import.meta.env.BASE_URL} aria-label={`Powered by ${branding.platformName} — visit homepage`}>Powered by {branding.platformName}</a></footer>
   </main>;
 }
 

@@ -11,6 +11,17 @@ import type { MerchantProfileStatus } from './merchantProfileStatus';
 export interface MerchantProfile {
   id: number;
   businessName: string;
+  /**
+     * Optional public-facing merchant display name; separate from the verified legal business name.
+     * @maxLength 100
+     * @nullable
+     */
+  shopName: string | null;
+  /**
+     * Optional public-facing merchant shop image.
+     * @nullable
+     */
+  shopLogoUrl: string | null;
   country: string;
   baseCurrency: string;
   /** @nullable */

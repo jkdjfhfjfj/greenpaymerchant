@@ -575,6 +575,17 @@ export interface PublicTransactionStatus {
   /** @nullable */
   paidAt?: string | null;
   createdAt: string;
+  /**
+     * Public merchant display name; never the verified legal name unless the merchant chose it.
+     * @maxLength 100
+     * @nullable
+     */
+  shopName: string | null;
+  /**
+     * Public merchant shop image URL.
+     * @nullable
+     */
+  shopLogoUrl: string | null;
 }
 
 export interface RefundInput {
@@ -748,6 +759,17 @@ export interface PublicPaymentLink {
   /** @nullable */
   amount?: number | null;
   currency: string;
+  /**
+     * Public merchant display name; never the verified legal name unless the merchant chose it.
+     * @maxLength 100
+     * @nullable
+     */
+  shopName: string | null;
+  /**
+     * Public merchant shop image URL.
+     * @nullable
+     */
+  shopLogoUrl: string | null;
   /** Customer-choice links include supported currency options. Fixed-price and invoice links include only their stored currency; amounts are not converted. */
   availableCurrencies: CollectionCurrency[];
   /** @nullable */
@@ -2208,6 +2230,17 @@ export const MerchantProfileKycStatus = {
 export interface MerchantProfile {
   id: number;
   businessName: string;
+  /**
+     * Optional public-facing merchant display name; separate from the verified legal business name.
+     * @maxLength 100
+     * @nullable
+     */
+  shopName: string | null;
+  /**
+     * Optional public-facing merchant shop image.
+     * @nullable
+     */
+  shopLogoUrl: string | null;
   country: string;
   baseCurrency: string;
   /** @nullable */
@@ -2321,6 +2354,16 @@ export interface MerchantTeamInvitationAcceptance {
   merchantId: number;
   businessName: string;
   role: MerchantTeamInvitationRole;
+}
+
+export interface MerchantShopProfileUpdate {
+  /**
+     * @maxLength 100
+     * @nullable
+     */
+  shopName?: string | null;
+  /** @nullable */
+  shopLogoUrl?: string | null;
 }
 
 export interface MerchantProfileResponse {
@@ -3046,6 +3089,23 @@ export interface PlatformSettingsUpdate {
   logoUrl?: string | null;
   /** @nullable */
   faviconUrl?: string | null;
+}
+
+export interface CloudinaryUploadStatus {
+  configured: boolean;
+  /**
+     * Public Cloudinary cloud name when configured in the server environment.
+     * @nullable
+     */
+  cloudName: string | null;
+}
+
+export interface CloudinaryUploadSignature {
+  cloudName: string;
+  apiKey: string;
+  timestamp: number;
+  signature: string;
+  folder: string;
 }
 
 export interface AdminAuditLog {

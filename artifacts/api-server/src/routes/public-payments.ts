@@ -17,11 +17,96 @@ import {
   getPaymentLinkBySlug,
   markTransactionStatus,
 } from "../lib/greenpay-ledger";
-import { db, merchantsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
-import { getPlatformSettings } from "../lib/platform";
+import {
+  db, merchantInvoicesTable, merchantsTable, paymentLinksTable, refundsTable, transactionsTable,
+} from "@workspace/db";
+import { and, eq, inArray } from "drizzle-orm";
+import { assertMerchantActionEnabled, getPlatformSettings } from "../lib/platform";
+import { invoiceOutstandingAmount } from "../lib/merchant-business-tools";
+import { CUSTOMER_REIMBURSED_REFUND_STATUSES } from "../lib/payment-safety";
+import { resolvePublicCheckoutAmount } from "../lib/public-payment-policy";
 
 const router: IRouter = Router();
+const PAID_TRANSACTION_STATUSES = ["success", "refunded"] as const;
+
+type InvoicePaymentLinkState = {
+  invoiceOutstandingAmount: number | null;
+  hasPendingCollection: boolean;
+  problem: { status: number; message: string } | null;
+};
+
+async function invoicePaymentLinkState(
+  link: Awaited<ReturnType<typeof getPaymentLinkBySlug>>,
+): Promise<InvoicePaymentLinkState> {
+  if (!link) return { invoiceOutstandingAmount: null, hasPendingCollection: false, problem: null };
+  const [invoiceReference] = await db.select({ id: merchantInvoicesTable.id }).from(merchantInvoicesTable)
+    .where(eq(merchantInvoicesTable.paymentLinkId, link.id)).limit(1);
+  if (!invoiceReference) return { invoiceOutstandingAmount: null, hasPendingCollection: false, problem: null };
+
+  return db.transaction(async (tx): Promise<InvoicePaymentLinkState> => {
+    // Keep the same invoice-then-link lock order as createCollection so
+    // customer-facing reads cannot deadlock an in-flight checkout.
+    const [invoice] = await tx.select().from(merchantInvoicesTable)
+      .where(eq(merchantInvoicesTable.id, invoiceReference.id)).for("update").limit(1);
+    const [lockedLink] = await tx.select().from(paymentLinksTable)
+      .where(eq(paymentLinksTable.id, link.id)).for("update").limit(1);
+    if (!invoice || !lockedLink || lockedLink.status !== "active" || invoice.paymentLinkId !== lockedLink.id) {
+      if (lockedLink?.status === "active") {
+        await tx.update(paymentLinksTable).set({ status: "archived" }).where(and(
+          eq(paymentLinksTable.id, lockedLink.id),
+          eq(paymentLinksTable.status, "active"),
+        ));
+      }
+      return {
+        invoiceOutstandingAmount: null,
+        hasPendingCollection: false,
+        problem: { status: 409, message: "This invoice payment link is no longer current. Ask the merchant for a fresh payment link." },
+      };
+    }
+    const [pendingCollection] = await tx.select({ id: transactionsTable.id }).from(transactionsTable).where(and(
+      eq(transactionsTable.merchantId, invoice.merchantId),
+      eq(transactionsTable.paymentLinkId, lockedLink.id),
+      eq(transactionsTable.status, "pending"),
+    )).limit(1);
+    const paidTransactions = await tx.select().from(transactionsTable).where(and(
+      eq(transactionsTable.merchantId, invoice.merchantId),
+      eq(transactionsTable.paymentLinkId, lockedLink.id),
+      inArray(transactionsTable.status, [...PAID_TRANSACTION_STATUSES]),
+    ));
+    const collected = paidTransactions.reduce((sum, row) => sum + (row.paidAt ? Number(row.amount) : 0), 0);
+    let refunded = 0;
+    for (const transaction of paidTransactions) {
+      const confirmedRefunds = await tx.select({ amount: refundsTable.amount }).from(refundsTable).where(and(
+        eq(refundsTable.originalReference, transaction.reference),
+        inArray(refundsTable.status, [...CUSTOMER_REIMBURSED_REFUND_STATUSES]),
+      ));
+      refunded += confirmedRefunds.reduce((sum, row) => sum + Number(row.amount), 0);
+    }
+    const outstanding = invoiceOutstandingAmount(
+      invoice.total,
+      Math.max(0, Math.min(invoice.total, collected - refunded)),
+    );
+    const stale = invoice.status === "void" || outstanding <= 0 ||
+      lockedLink.amountType !== "fixed" || Number(lockedLink.amount) !== outstanding ||
+      Number(invoice.paymentLinkAmount ?? lockedLink.amount) !== outstanding;
+    if (stale) {
+      await tx.update(paymentLinksTable).set({ status: "archived" }).where(and(
+        eq(paymentLinksTable.id, lockedLink.id),
+        eq(paymentLinksTable.status, "active"),
+      ));
+      return {
+        invoiceOutstandingAmount: outstanding,
+        hasPendingCollection: Boolean(pendingCollection),
+        problem: { status: 409, message: "This invoice payment link is no longer current. Ask the merchant for a fresh payment link." },
+      };
+    }
+    return {
+      invoiceOutstandingAmount: outstanding,
+      hasPendingCollection: Boolean(pendingCollection),
+      problem: null,
+    };
+  });
+}
 
 router.get("/currencies", async (_req, res): Promise<void> => {
   const platformReady = (await getPlatformSettings()).paymentsEnabled;
@@ -41,6 +126,7 @@ router.get("/currencies", async (_req, res): Promise<void> => {
 });
 
 router.get("/public/payment-links/:slug", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
   const params = GetPublicPaymentLinkParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -49,6 +135,11 @@ router.get("/public/payment-links/:slug", async (req, res): Promise<void> => {
   const link = await getPaymentLinkBySlug(params.data.slug);
   if (!link || (link.expiresAt && link.expiresAt.getTime() <= Date.now())) {
     res.status(404).json({ error: "This payment link is no longer available." });
+    return;
+  }
+  const invoiceState = await invoicePaymentLinkState(link);
+  if (invoiceState.problem) {
+    res.status(invoiceState.problem.status).json({ error: invoiceState.problem.message });
     return;
   }
   if (link.merchantId !== null) {
@@ -67,6 +158,7 @@ router.get("/public/payment-links/:slug", async (req, res): Promise<void> => {
     amount: link.amount === null ? null : Number(link.amount),
     currency: link.currency,
     expiresAt: link.expiresAt,
+    invoiceOutstandingAmount: invoiceState.invoiceOutstandingAmount,
   }));
 });
 
@@ -82,7 +174,19 @@ router.post("/public/payment-links/:slug/checkout", async (req, res): Promise<vo
     res.status(404).json({ error: "This payment link is no longer available." });
     return;
   }
+  const invoiceState = await invoicePaymentLinkState(link);
+  if (invoiceState.problem) {
+    res.status(invoiceState.problem.status).json({ error: invoiceState.problem.message });
+    return;
+  }
+  if (invoiceState.hasPendingCollection) {
+    res.status(409).json({
+      error: "An invoice payment is awaiting confirmation. The outstanding balance is held until its outcome is known.",
+    });
+    return;
+  }
   if (link.merchantId !== null) {
+    await assertMerchantActionEnabled(link.merchantId, "collect");
     const [merchant] = await db.select({ status: merchantsTable.status }).from(merchantsTable)
       .where(eq(merchantsTable.id, link.merchantId)).limit(1);
     if (!merchant || merchant.status !== "active") {
@@ -90,11 +194,22 @@ router.post("/public/payment-links/:slug/checkout", async (req, res): Promise<vo
       return;
     }
   }
-  const amount = link.amountType === "fixed" ? Number(link.amount) : body.data.amount;
-  if (!(amount && amount > 0)) {
-    res.status(400).json({ error: "Enter an amount greater than zero." });
+  const amountResult = resolvePublicCheckoutAmount({
+    amountType: link.amountType === "fixed" ? "fixed" : "customer_choice",
+    fixedAmount: link.amount === null ? null : Number(link.amount),
+    requestedAmount: body.data.amount,
+    invoiceOutstandingAmount: invoiceState.invoiceOutstandingAmount,
+  });
+  if ("error" in amountResult) {
+    const message = amountResult.error === "amount_exceeds_invoice_balance"
+      ? "The requested payment exceeds the invoice's current outstanding balance."
+      : amountResult.error === "fixed_link_amount_missing"
+        ? "This fixed payment link has no valid amount."
+        : "Enter an amount greater than zero.";
+    res.status(400).json({ error: message });
     return;
   }
+  const amount = amountResult.amount;
   if (link.currency === "KES" && !body.data.customerPhone?.trim()) {
     res.status(400).json({ error: "A phone number is required for the M-Pesa prompt." });
     return;
@@ -112,6 +227,9 @@ router.post("/public/payment-links/:slug/checkout", async (req, res): Promise<vo
   }).catch((error: unknown) => {
     const status = error instanceof ApiError ? error.statusCode : 500;
     req.log.warn({ statusCode: status }, "Public checkout could not be initiated");
+    if (status === 409) {
+      throw new ApiError(status, error instanceof Error ? error.message : "This payment link is no longer current.");
+    }
     if (status === 400 || status === 422) {
       throw new ApiError(status, "We could not start this payment. Please check your details and try again.");
     }

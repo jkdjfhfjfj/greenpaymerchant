@@ -71,11 +71,76 @@ export function invoicePaymentStatus(status: string, paidAmount: number, total: 
   return paidAmount >= total ? "paid" : paidAmount > 0 ? "partially_paid" : "sent";
 }
 
+export function invoiceOutstandingAmount(total: number, paidAmount: number): number {
+  if (!Number.isFinite(total) || !Number.isFinite(paidAmount) || total < 0 || paidAmount < 0) {
+    throw Object.assign(new Error("Invoice balances must be finite and non-negative."), { statusCode: 400 });
+  }
+  return Math.max(0, Math.round((total - paidAmount) * 100) / 100);
+}
+
+export function caseAttachmentName(value: string, contentType: string): string {
+  const name = value.trim().replaceAll("\\", "/").split("/").at(-1) ?? "";
+  const extension = contentType === "application/pdf" ? ".pdf"
+    : contentType === "image/png" ? ".png"
+      : contentType === "image/jpeg" ? ".jpg" : "";
+  if (!extension || !name || name.length > 180 || /[\u0000-\u001f\u007f]/.test(name) ||
+      !name.toLowerCase().endsWith(extension) && !(contentType === "image/jpeg" && name.toLowerCase().endsWith(".jpeg"))) {
+    throw Object.assign(new Error("Choose a PDF, PNG, or JPEG file with a matching file extension."), { statusCode: 400 });
+  }
+  return name;
+}
+
+export function csvSafeCell(value: string | number | null | undefined): string {
+  let text = String(value ?? "");
+  if (/^[\s\u0000-\u001f]*[=+\-@]/u.test(text)) text = `'${text}`;
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
 export function parseStatementMonth(value: string): { start: Date; end: Date } | null {
   if (!/^\d{4}-\d{2}$/.test(value)) return null;
   const [year, month] = value.split("-").map(Number);
   if (month < 1 || month > 12) return null;
   return { start: new Date(Date.UTC(year, month - 1, 1)), end: new Date(Date.UTC(year, month, 1)) };
+}
+
+export function confirmedStatementRows<T extends { status: string }>(
+  rows: T[],
+  confirmedStatuses: readonly string[],
+): T[] {
+  const allowed = new Set(confirmedStatuses);
+  return rows.filter((row) => allowed.has(row.status));
+}
+
+export function statementCashDate<T extends { createdAt: Date; confirmedAt: Date | null }>(row: T) {
+  return {
+    cashDate: row.confirmedAt ?? row.createdAt,
+    cashDateBasis: row.confirmedAt ? "confirmed_at" as const : "legacy_created_at" as const,
+  };
+}
+
+export function confirmedWalletPayoutsInMonth<
+  T extends { status: string; completedAt: Date | null },
+>(
+  rows: T[],
+  confirmedStatuses: readonly string[],
+  start: Date,
+  end: Date,
+): T[] {
+  return confirmedStatementRows(rows, confirmedStatuses).filter((row) =>
+    row.completedAt !== null && row.completedAt >= start && row.completedAt < end);
+}
+
+export function confirmedStatementPayouts<
+  T extends { reference: string; status: string },
+  U extends { reference: string },
+>(
+  legacyPayouts: T[],
+  walletPayouts: U[],
+  confirmedStatuses: readonly string[],
+): T[] {
+  const walletBackedReferences = new Set(walletPayouts.map((row) => row.reference));
+  return confirmedStatementRows(legacyPayouts, confirmedStatuses)
+    .filter((row) => !walletBackedReferences.has(row.reference));
 }
 
 export function validateEvidenceUrl(value: string | undefined): string | null {

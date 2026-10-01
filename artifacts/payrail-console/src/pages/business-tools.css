@@ -12,6 +12,19 @@
 .business-metrics>article>strong{font-size:21px;letter-spacing:-.02em}
 .business-metrics>article>small{font-size:11.5px;color:var(--mute)}
 .business-actions{display:flex;flex-wrap:wrap;gap:9px}
+.business-payment-url{flex:1 1 100%;max-width:700px}
+.business-reminder-form{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;flex:1 1 100%;padding:12px;border:1px solid var(--line);border-radius:11px;background:#fbf9f2}
+.business-reminder-form .field{flex:1 1 250px}
+.business-attachments{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
+.business-attachment{display:flex;flex-direction:column;gap:4px;max-width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--paper);text-decoration:none!important}
+.business-attachment strong{max-width:100%;overflow-wrap:anywhere}
+.business-attachment small{color:var(--mute)}
+.business-refund-record{padding:13px;border:1px solid #ecd9a8;border-radius:11px;background:#fffaf0}
+.business-refund-record h3,.business-refund-evidence h3{font-size:14px;margin:0 0 4px}
+.business-refund-record p{font-size:12px;line-height:1.5;color:#715719;margin:0}
+.business-refund-evidence{display:flex;flex-direction:column;gap:8px;padding:11px;border:1px solid var(--line);border-radius:10px;background:#f7faf7}
+.business-refund-evidence article{display:flex;flex-direction:column;gap:4px;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--paper);font-size:12px}
+.business-refund-evidence article span,.business-refund-evidence article time{color:var(--mute);overflow-wrap:anywhere}
 .business-note{font-size:13px;line-height:1.55;margin:0 0 14px;color:var(--ink2)}
 .business-month{display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:600;color:var(--mute);min-width:155px}
 .business-forecast{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
@@ -58,6 +71,9 @@
   .business-line-row .field:first-child{grid-column:1/-1}
   .business-case-summary{align-items:flex-start;flex-direction:column}
   .business-case-status{justify-content:flex-start}
+  .business-reminder-form{align-items:stretch}
+  .business-reminder-form>.btn{width:100%}
+  .business-refund-record .business-actions>.btn{flex:1 1 100%}
   .business-receipt{padding:12px}
   .business-receipt-card{padding:22px}
 }

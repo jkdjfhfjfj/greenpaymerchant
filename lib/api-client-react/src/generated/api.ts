@@ -2422,6 +2422,7 @@ export const getCheckoutPaymentLinkUrl = (slug: string,) => {
 }
 
 /**
+ * Customer-choice links may use any collection currency. Fixed-price and invoice links remain in their listed currency; no automatic conversion occurs. The server routes by currency and validates any selected payment method against that currency.
  * @summary Start a checkout session for a public payment link
  */
 export const checkoutPaymentLink = async (slug: string,
@@ -2456,7 +2457,7 @@ return customFetch<PublicCheckoutSession>(getCheckoutPaymentLinkUrl(slug),
 
 export const getCheckoutPaymentLinkMutationKey = () => ['checkoutPaymentLink'] as const;
 
-export const getCheckoutPaymentLinkMutationOptions = <TError = ErrorType<unknown>,
+export const getCheckoutPaymentLinkMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkoutPaymentLink>>, TError,CheckoutPaymentLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof checkoutPaymentLink>>, TError,CheckoutPaymentLinkMutationVariables, TContext> => {
 
@@ -2485,13 +2486,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CheckoutPaymentLinkMutationResult = NonNullable<Awaited<ReturnType<typeof checkoutPaymentLink>>>
     export type CheckoutPaymentLinkMutationBody = BodyType<PaymentLinkCheckoutInput>
-    export type CheckoutPaymentLinkMutationError = ErrorType<unknown>
+    export type CheckoutPaymentLinkMutationError = ErrorType<void>
     export type CheckoutPaymentLinkMutationVariables = {slug: string;data: BodyType<PaymentLinkCheckoutInput>}
 
     /**
  * @summary Start a checkout session for a public payment link
  */
-export const useCheckoutPaymentLink = <TError = ErrorType<unknown>,
+export const useCheckoutPaymentLink = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkoutPaymentLink>>, TError,CheckoutPaymentLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof checkoutPaymentLink>>,

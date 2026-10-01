@@ -4,3 +4,4 @@
 - [Sierra Leone denomination](sierra-leone-denomination.md) — SLL request codes do not prove numeric units; preserve amounts and block FX until provider confirmation.
 - [Historical cash dates](historical-cash-dates.md) — never invent confirmation dates for legacy rows; distinguish fallback dates from authoritative cash dates.
 - [Monorepo test bundles](monorepo-test-bundles.md) — bundling workspace sources changes where external dependencies resolve; preserve declaring-package resolution.
+- [Checkout method capabilities](checkout-method-capabilities.md) — expose only customer actions the adapter can enforce; hosted checkout is not a verified list of card/bank channels.

@@ -483,6 +483,7 @@ paths:
       operationId: checkoutPaymentLink
       tags: [payment-links]
       summary: Start a checkout session for a public payment link
+      description: Customer-choice links may use any collection currency. Fixed-price and invoice links remain in their listed currency; no automatic conversion occurs. The server routes by currency and validates any selected payment method against that currency.
       parameters:
         - name: slug
           in: path
@@ -501,6 +502,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PublicCheckoutSession"
+        "400":
+          description: Invalid currency, amount precision, or payment method for the payment link
+        "503":
+          description: The selected currency is not currently available for collection
   /public/transactions/{reference}:
     get:
       operationId: getPublicTransactionStatus
@@ -2770,6 +2775,7 @@ components:
       properties:
         amount: { type: number, exclusiveMinimum: 0 }
         currency: { type: string, minLength: 3, maxLength: 3 }
+        paymentMethod: { type: string, enum: [hosted_checkout, mobile_prompt], description: Optional provider-neutral payment method. It must be available for the selected currency; the server chooses the gateway from currency. }
         customerEmail: { type: string, format: email }
         customerName: { type: string }
         customerPhone: { type: string }
@@ -2820,7 +2826,7 @@ components:
         createdAt: { type: string, format: date-time }
     PaymentLink:
       type: object
-      required: [id, slug, name, amountType, currency, status, url, paidCount, createdAt]
+      required: [id, slug, name, amountType, currency, status, url, paidCount, totalPaid, totalPaidByCurrency, createdAt]
       properties:
         id: { type: integer }
         slug: { type: string }
@@ -2832,9 +2838,19 @@ components:
         status: { type: string, enum: [active, paused, archived] }
         url: { type: string, format: uri }
         paidCount: { type: integer }
-        totalPaid: { type: number }
+        totalPaid: { type: number, description: Successful and refunded transaction amounts in the payment link's original currency only. It does not combine amounts charged in other currencies. }
+        totalPaidByCurrency:
+          type: array
+          description: Successful and refunded gross transaction totals grouped by their actual transaction currency.
+          items: { $ref: "#/components/schemas/PaymentLinkCurrencyTotal" }
         expiresAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
+    PaymentLinkCurrencyTotal:
+      type: object
+      required: [currency, amount]
+      properties:
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        amount: { type: number, description: Sum of successful and refunded transactions in this currency. }
     PaymentLinkList:
       type: object
       required: [items]
@@ -2861,7 +2877,7 @@ components:
         expiresAt: { type: ["string", "null"], format: date-time }
     PublicPaymentLink:
       type: object
-      required: [slug, name, amountType, currency]
+      required: [slug, name, amountType, currency, availableCurrencies]
       properties:
         slug: { type: string }
         name: { type: string }
@@ -2869,6 +2885,10 @@ components:
         amountType: { type: string, enum: [fixed, customer_choice] }
         amount: { type: ["number", "null"] }
         currency: { type: string }
+        availableCurrencies:
+          type: array
+          description: Customer-choice links include supported currency options. Fixed-price and invoice links include only their stored currency; amounts are not converted.
+          items: { $ref: "#/components/schemas/CollectionCurrency" }
         expiresAt: { type: ["string", "null"], format: date-time }
         invoiceOutstandingAmount: { type: ["number", "null"], minimum: 0, description: Current outstanding invoice balance for invoice-hosted checkout; absent for non-invoice payment links. }
     PaymentLinkCheckoutInput:
@@ -2876,6 +2896,8 @@ components:
       required: [customerEmail]
       properties:
         amount: { type: number, exclusiveMinimum: 0 }
+        currency: { type: string, minLength: 3, maxLength: 3, description: Optional currency for a customer-choice link. Defaults to the link currency. A fixed-price or invoice link cannot change currency. The amount is interpreted in this currency without automatic conversion. }
+        paymentMethod: { type: string, enum: [hosted_checkout, mobile_prompt], description: Optional provider-neutral method; it must be available for the selected currency. }
         customerEmail: { type: string, format: email }
         customerName: { type: string }
         customerPhone: { type: string }
@@ -4070,12 +4092,25 @@ components:
           items: { $ref: "#/components/schemas/CollectionCurrency" }
     CollectionCurrency:
       type: object
-      required: [code, name, minorUnits, collectionReady]
+      required: [code, name, minorUnits, collectionReady, paymentMethods]
       properties:
         code: { type: string, minLength: 3, maxLength: 3 }
         name: { type: string }
         minorUnits: { type: integer, minimum: 0, maximum: 2, description: Maximum fractional digits accepted for Greenpay collections; KES is whole-unit only. }
         collectionReady: { type: boolean, description: True only when the active route has credentials and is enabled. }
+        paymentMethods:
+          type: array
+          description: Provider-neutral payment actions actually supported by Greenpay for this currency. Readiness is evaluated separately.
+          items: { $ref: "#/components/schemas/CollectionPaymentMethod" }
+    CollectionPaymentMethod:
+      type: object
+      required: [id, label, ready, requiresPhone, nextAction]
+      properties:
+        id: { type: string, enum: [hosted_checkout, mobile_prompt] }
+        label: { type: string }
+        ready: { type: boolean, description: True only when this currency's Greenpay collection route is enabled and configured. }
+        requiresPhone: { type: boolean }
+        nextAction: { type: string, enum: [redirect, mobile_prompt] }
     ApiKeyList:
       type: object
       required: [items]

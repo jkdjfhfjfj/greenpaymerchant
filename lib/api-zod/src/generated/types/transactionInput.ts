@@ -5,6 +5,7 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { TransactionInputPaymentMethod } from './transactionInputPaymentMethod';
 
 export interface TransactionInput {
   /** @exclusiveMinimum 0 */
@@ -14,6 +15,8 @@ export interface TransactionInput {
      * @maxLength 3
      */
   currency: string;
+  /** Optional provider-neutral payment method. It must be available for the selected currency; the server chooses the gateway from currency. */
+  paymentMethod?: TransactionInputPaymentMethod;
   customerEmail: string;
   customerName?: string;
   customerPhone?: string;

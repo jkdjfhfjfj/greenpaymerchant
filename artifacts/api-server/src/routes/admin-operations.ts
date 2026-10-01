@@ -53,6 +53,7 @@ import {
   filterSettlements,
   paymentLinkRows,
   paymentLinkDto,
+  paymentLinkStats,
   payoutDto,
   recordWebhookEvent,
   transactionDto,
@@ -105,7 +106,7 @@ router.post("/payment-links", async (req, res): Promise<void> => {
     status: "active",
     expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
   }).returning();
-  res.status(201).json(CreatePaymentLinkResponse.parse(paymentLinkDto(link, 0, 0)));
+  res.status(201).json(CreatePaymentLinkResponse.parse(paymentLinkDto(link, 0, [])));
 });
 
 router.patch("/payment-links/:id", async (req, res): Promise<void> => {
@@ -130,14 +131,11 @@ router.patch("/payment-links/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Payment link not found." });
     return;
   }
-  const [summary] = await db.select({
-    count: sql<number>`count(*) filter (where ${transactionsTable.status} in ('success', 'refunded'))::int`,
-    total: sql<number>`coalesce(sum(${transactionsTable.amount}) filter (where ${transactionsTable.status} in ('success', 'refunded')), 0)::numeric`,
-  }).from(transactionsTable).where(eq(transactionsTable.paymentLinkId, link.id));
+  const summary = await paymentLinkStats(link.id);
   res.json(UpdatePaymentLinkResponse.parse(paymentLinkDto(
     link,
-    Number(summary?.count ?? 0),
-    Number(summary?.total ?? 0),
+    summary.paidCount,
+    summary.totalsByCurrency,
   )));
 });
 

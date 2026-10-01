@@ -16,7 +16,7 @@ import {
   useUpdatePaymentLink, useDeletePaymentLink, useGetPublicPaymentLink, useCheckoutPaymentLink,
   useListPayouts, useCreatePayout, useListPayoutMethods, useListBanks, useListSettlements,
   useListCustomers, useListWebhookEvents, useReplayWebhookEvent, useGetProviderStatus,
-  getGetTransactionQueryKey, useListAdminMerchants,
+  getGetTransactionQueryKey, useListAdminMerchants, useListSupportedCurrencies,
 } from '@workspace/api-client-react';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -318,13 +318,25 @@ function isCurrencyAmountValid(amount: number, code: string) {
 
 function CollectionModal({ onClose }: { onClose: () => void }) {
   const mutation = useCreateTransaction();
+  const currencyCatalog = useListSupportedCurrencies();
+  const supportedCurrencies = currencyCatalog.data?.items ?? [];
   const [currencyCode, setCurrencyCode] = useState('USD');
+  const [paymentMethodId, setPaymentMethodId] = useState('');
   const [checkout, setCheckout] = useState<{ url: string | null; provider: string; reference: string } | null>(null);
   const [error, setError] = useState('');
   const [working, setWorking] = useState(false);
+  const currencyOption = supportedCurrencies.find((item) => item.code === currencyCode);
+  const paymentMethods = currencyOption?.paymentMethods ?? [];
+  const selectedMethod = paymentMethods.find((item) => item.id === paymentMethodId && item.ready)
+    ?? paymentMethods.find((item) => item.ready);
+  const selectedMethodId = selectedMethod?.id ?? '';
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
+    if (!currencyOption?.collectionReady || !selectedMethod) {
+      setError(`Payments are not currently available in ${currencyCode}. Refresh availability or choose another currency.`);
+      return;
+    }
     const form = new FormData(event.currentTarget);
     const amount = Number(form.get('amount'));
     if (!isCurrencyAmountValid(amount, currencyCode)) {
@@ -332,10 +344,10 @@ function CollectionModal({ onClose }: { onClose: () => void }) {
       return;
     }
     const phone = String(form.get('phone') || '').trim();
-    if (currencyCode === 'KES' && !phone) { setError('Enter a phone number for the M-Pesa prompt.'); return; }
-    mutation.mutate({ data: { amount, currency: currencyCode, customerEmail: String(form.get('email')), customerName: String(form.get('name') || ''), customerPhone: phone, description: String(form.get('description') || '') } }, {
+    if (selectedMethod.requiresPhone && !phone) { setError('Enter a phone number to continue with this payment method.'); return; }
+    mutation.mutate({ data: { amount, currency: currencyCode, paymentMethod: selectedMethod.id, customerEmail: String(form.get('email')), customerName: String(form.get('name') || ''), customerPhone: phone, description: String(form.get('description') || '') } }, {
       onSuccess: (result) => { setCheckout({ url: result.checkoutUrl, provider: result.transaction.provider, reference: result.transaction.reference }); setWorking(false); },
-      onError: () => { setWorking(false); setError('We could not start this collection. Review provider readiness and try again.'); },
+      onError: (failure) => { setWorking(false); setError(errMsg(failure)); },
     });
     setWorking(true);
   }
@@ -343,14 +355,24 @@ function CollectionModal({ onClose }: { onClose: () => void }) {
     {checkout ? <div className="form-stack"><div className="route-confirm"><CheckCircle2 size={20} /><div><strong>{checkout.provider === 'payhero' ? 'M-Pesa prompt requested' : 'Checkout session created'}</strong><span>{checkout.provider === 'payhero' ? `Check the customer’s phone to complete payment. Reference ${checkout.reference}.` : 'No payment is marked successful until the provider confirms it.'}</span></div></div>{checkout.url && <a href={checkout.url} target="_blank" rel="noreferrer" className="btn btn-primary btn-full">Open checkout <ExternalLink size={15} /></a>}<Button variant="secondary" className="btn-full" onClick={onClose}>Close</Button></div> : <form className="form-stack" onSubmit={submit}>
       <div className="form-grid">
         <Field label="Amount"><input name="amount" type="number" min={currencyMinorUnits(currencyCode) === 0 ? '1' : '0.01'} step={currencyAmountStep(currencyCode)} placeholder="0.00" required data-testid="input-collection-amount" /></Field>
-        <Field label="Currency"><select name="currency" value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value)} data-testid="select-collection-currency">{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></Field>
+        <Field label="Currency"><select name="currency" value={currencyCode} onChange={(event) => { setCurrencyCode(event.target.value); setPaymentMethodId(''); }} disabled={currencyCatalog.isLoading || !supportedCurrencies.length} data-testid="select-collection-currency">
+          {supportedCurrencies.map((item) => <option key={item.code} value={item.code}>{item.code} · {item.name}{item.collectionReady ? '' : ' · unavailable'}</option>)}
+        </select></Field>
       </div>
+      <Field label="Payment method"><select value={selectedMethodId} onChange={(event) => setPaymentMethodId(event.target.value)} disabled={!paymentMethods.some((item) => item.ready)} data-testid="select-collection-payment-method">
+        {selectedMethodId === '' && <option value="">{currencyOption?.collectionReady ? 'No payment method available' : 'Payment method unavailable'}</option>}
+        {paymentMethods.map((method) => <option key={method.id} value={method.id} disabled={!method.ready}>{method.label}{method.ready ? '' : ' · unavailable'}</option>)}
+      </select></Field>
+      {currencyCatalog.isLoading && <span className="sub">Loading supported currencies and payment options…</span>}
+      {currencyCatalog.isError && <div className="provider-warning"><CircleAlert size={15} /><span>Payment availability could not be checked.</span><Button variant="secondary" disabled={currencyCatalog.isFetching} onClick={() => { void currencyCatalog.refetch(); }}>{currencyCatalog.isFetching ? 'Checking…' : 'Retry'}</Button></div>}
+      {currencyOption && !currencyOption.collectionReady && <div className="provider-warning"><CircleAlert size={15} /><span>Payments are not currently available in {currencyOption.code}. This deployment has no ready payment method for this currency.</span><Button variant="secondary" disabled={currencyCatalog.isFetching} onClick={() => { void currencyCatalog.refetch(); }}>{currencyCatalog.isFetching ? 'Checking…' : 'Refresh availability'}</Button></div>}
+      {currencyOption?.collectionReady && !paymentMethods.some((item) => item.ready) && <div className="provider-warning"><CircleAlert size={15} /><span>No payment method is currently available for {currencyOption.code}.</span><Button variant="secondary" disabled={currencyCatalog.isFetching} onClick={() => { void currencyCatalog.refetch(); }}>{currencyCatalog.isFetching ? 'Checking…' : 'Refresh availability'}</Button></div>}
       <Field label="Customer email"><input name="email" type="email" placeholder="finance@example.com" required data-testid="input-collection-email" /></Field>
       <Field label="Customer name"><input name="name" placeholder="Full name" data-testid="input-collection-name" /></Field>
-      <Field label={`Customer phone${currencyCode === 'KES' ? ' (required for M-Pesa)' : ''}`}><input name="phone" type="tel" placeholder="+254…" required={currencyCode === 'KES'} data-testid="input-collection-phone" /></Field>
+      <Field label={`Customer phone${selectedMethod?.requiresPhone ? ' (required)' : ' (optional)'}`}><input name="phone" type="tel" placeholder="+254…" required={selectedMethod?.requiresPhone} data-testid="input-collection-phone" /></Field>
       <Field label="Description"><input name="description" placeholder="Invoice or order reference" data-testid="input-collection-description" /></Field>
       <RouteHint currencyCode={currencyCode} /><ProviderNote /><ErrorLine error={error} />
-      <Button type="submit" disabled={working} className="btn-full">{working ? <><LoaderCircle className="spin" size={16} /> Starting collection</> : <>Create checkout <ArrowRight size={15} /></>}</Button>
+      <Button type="submit" disabled={working || currencyCatalog.isLoading || !currencyOption?.collectionReady || !selectedMethod} className="btn-full">{working ? <><LoaderCircle className="spin" size={16} /> Starting collection</> : <>Create checkout <ArrowRight size={15} /></>}</Button>
     </form>}
   </Modal>;
 }
@@ -464,6 +486,25 @@ function DetailRow({ label: title, value }: { label: string; value: string }) {
   return <div className="detail-row"><span>{title}</span><strong>{value}</strong></div>;
 }
 
+type PaymentLinkCurrencyTotal = { currency: string; amount: number };
+type PaymentLinkTotalsSource = {
+  currency: string;
+  totalPaid: number;
+  totalPaidByCurrency?: PaymentLinkCurrencyTotal[] | null;
+};
+
+function LinkCollectedTotals({ link, format }: {
+  link: PaymentLinkTotalsSource;
+  format: (amount: number, currencyCode: string) => string;
+}) {
+  const totals = Array.isArray(link.totalPaidByCurrency)
+    ? link.totalPaidByCurrency
+    : [{ currency: link.currency, amount: link.totalPaid }];
+  return totals.length
+    ? <>{totals.map((total) => <span key={total.currency} style={{ display: 'block' }}>{format(total.amount, total.currency)}</span>)}</>
+    : <>—</>;
+}
+
 function PaymentLinks() {
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -481,7 +522,7 @@ function PaymentLinks() {
     <div className="link-summary-strip"><div><span className="strip-icon"><Link2 size={17} /></span><div><strong>Share a checkout that just works</strong><span>Fixed pricing or let customers choose the amount.</span></div></div><div className="strip-route"><span className="route-hint-dot" /> Currency-based routing <ArrowRight size={14} /></div></div>
     {notice && <div className="inline-notice"><CheckCircle2 size={15} />{notice}<button onClick={() => setNotice('')} aria-label="Dismiss notification"><X size={14} /></button></div>}
     <div className="list-toolbar"><label className="search-box"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search links by name" data-testid="input-payment-link-search" /></label><span className="list-count">{query.data?.items?.length ?? 0} links</span></div>
-    <QueryState loading={query.isLoading} error={query.isError} retry={() => { void query.refetch(); }} empty={!query.data?.items?.length}><div className="links-grid">{(query.data?.items || []).map((item) => <article key={item.id} className="link-card" data-testid={`card-payment-link-${item.id}`}><div className="link-card-top"><span className="link-card-icon"><Link2 size={17} /></span><StatusPill value={item.status} /></div><h2>{item.name}</h2><p>{item.description || 'No description added'}</p><div className="link-price">{item.amountType === 'fixed' ? currency(item.amount, item.currency) : 'Customer chooses'}<small>{item.amountType === 'fixed' ? 'fixed amount' : item.currency}</small></div><div className="link-performance"><div><strong>{item.paidCount}</strong><span>payments</span></div><div><strong>{currency(item.totalPaid, item.currency)}</strong><span>collected</span></div><div><strong>{item.expiresAt ? dateOnly(item.expiresAt) : 'Never'}</strong><span>expires</span></div></div><div className="link-url"><span className="mono">{item.url}</span><button className="icon-button" title="Copy payment link" aria-label="Copy payment link" onClick={() => { void share(item.url); }} data-testid={`button-copy-link-${item.id}`}><Copy size={15} /></button></div><div className="link-card-actions"><Button variant="secondary" onClick={() => { void share(item.url); }}><Copy size={14} /> Share</Button><Button variant="quiet" onClick={() => setEditing(item)}><SlidersHorizontal size={14} /> Edit</Button>{item.status === 'active' ? <Button variant="quiet" disabled={update.isPending} onClick={() => update.mutate({ id: item.id, data: { status: 'paused' } }, { onSuccess: () => { setNotice('Payment link paused.'); void query.refetch(); }, onError: () => setNotice('Could not pause this payment link.') })}>Pause</Button> : item.status === 'paused' ? <Button variant="quiet" disabled={update.isPending} onClick={() => update.mutate({ id: item.id, data: { status: 'active' } }, { onSuccess: () => { setNotice('Payment link resumed.'); void query.refetch(); }, onError: () => setNotice('Could not resume this payment link.') })}>Resume</Button> : null}<Button variant="quiet" className="archive-action" disabled={remove.isPending} onClick={() => { if (window.confirm(`Archive “${item.name}”? Existing payment records will remain available.`)) remove.mutate({ id: item.id }, { onSuccess: () => { setNotice('Payment link archived.'); void query.refetch(); }, onError: () => setNotice('Could not archive this payment link.') }); }}>Archive</Button></div></article>)}</div></QueryState>
+    <QueryState loading={query.isLoading} error={query.isError} retry={() => { void query.refetch(); }} empty={!query.data?.items?.length}><div className="links-grid">{(query.data?.items || []).map((item) => <article key={item.id} className="link-card" data-testid={`card-payment-link-${item.id}`}><div className="link-card-top"><span className="link-card-icon"><Link2 size={17} /></span><StatusPill value={item.status} /></div><h2>{item.name}</h2><p>{item.description || 'No description added'}</p><div className="link-price">{item.amountType === 'fixed' ? currency(item.amount, item.currency) : 'Customer chooses'}<small>{item.amountType === 'fixed' ? 'fixed amount' : item.currency}</small></div><div className="link-performance"><div><strong>{item.paidCount}</strong><span>payments</span></div><div><strong><LinkCollectedTotals link={item} format={currency} /></strong><span>collected</span></div><div><strong>{item.expiresAt ? dateOnly(item.expiresAt) : 'Never'}</strong><span>expires</span></div></div><div className="link-url"><span className="mono">{item.url}</span><button className="icon-button" title="Copy payment link" aria-label="Copy payment link" onClick={() => { void share(item.url); }} data-testid={`button-copy-link-${item.id}`}><Copy size={15} /></button></div><div className="link-card-actions"><Button variant="secondary" onClick={() => { void share(item.url); }}><Copy size={14} /> Share</Button><Button variant="quiet" onClick={() => setEditing(item)}><SlidersHorizontal size={14} /> Edit</Button>{item.status === 'active' ? <Button variant="quiet" disabled={update.isPending} onClick={() => update.mutate({ id: item.id, data: { status: 'paused' } }, { onSuccess: () => { setNotice('Payment link paused.'); void query.refetch(); }, onError: () => setNotice('Could not pause this payment link.') })}>Pause</Button> : item.status === 'paused' ? <Button variant="quiet" disabled={update.isPending} onClick={() => update.mutate({ id: item.id, data: { status: 'active' } }, { onSuccess: () => { setNotice('Payment link resumed.'); void query.refetch(); }, onError: () => setNotice('Could not resume this payment link.') })}>Resume</Button> : null}<Button variant="quiet" className="archive-action" disabled={remove.isPending} onClick={() => { if (window.confirm(`Archive “${item.name}”? Existing payment records will remain available.`)) remove.mutate({ id: item.id }, { onSuccess: () => { setNotice('Payment link archived.'); void query.refetch(); }, onError: () => setNotice('Could not archive this payment link.') }); }}>Archive</Button></div></article>)}</div></QueryState>
     {createOpen && <PaymentLinkForm onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); void query.refetch(); }} />}
     {editing && <PaymentLinkEdit link={editing} onClose={() => setEditing(null)} onUpdated={() => { setEditing(null); void query.refetch(); }} />}
   </>;
@@ -489,11 +530,18 @@ function PaymentLinks() {
 
 function PaymentLinkForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const create = useCreatePaymentLink();
+  const currencyCatalog = useListSupportedCurrencies();
+  const supportedCurrencies = currencyCatalog.data?.items ?? [];
   const [error, setError] = useState('');
   const [currencyCode, setCurrencyCode] = useState('USD');
   const [amountType, setAmountType] = useState<'fixed' | 'customer_choice'>('fixed');
+  const selectedCurrency = supportedCurrencies.find((item) => item.code === currencyCode);
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!selectedCurrency) {
+      setError('Load the supported currency list before creating this payment link.');
+      return;
+    }
     const form = new FormData(event.currentTarget);
     const submittedAmountType = String(form.get('amountType')) as 'fixed' | 'customer_choice';
     const amount = Number(form.get('amount'));
@@ -505,18 +553,23 @@ function PaymentLinkForm({ onClose, onCreated }: { onClose: () => void; onCreate
     }
     create.mutate({ data: payload }, { onSuccess: onCreated, onError: () => setError('Could not create the payment link. Check the form and try again.') });
   }
-  return <Modal title="Create payment link" description="Give customers a focused way to pay." onClose={onClose}>
+  return <Modal title="Create payment link" description="Fixed-price links keep the currency you choose. Customer-choice links can offer the supported currencies to the payer." onClose={onClose}>
     <form className="form-stack" onSubmit={submit}>
       <Field label="Link name"><input name="name" placeholder="e.g. May studio retainer" required data-testid="input-link-name" /></Field>
       <Field label="Description"><textarea name="description" placeholder="What is this payment for?" rows={2} data-testid="input-link-description" /></Field>
       <div className="form-grid">
         <Field label="Amount type"><select name="amountType" value={amountType} onChange={(event) => setAmountType(event.target.value as 'fixed' | 'customer_choice')} data-testid="select-link-amount-type"><option value="fixed">Fixed amount</option><option value="customer_choice">Customer chooses</option></select></Field>
-        <Field label="Currency"><select name="currency" value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value)} data-testid="select-link-currency">{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></Field>
+        <Field label="Link currency"><select name="currency" value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value)} disabled={currencyCatalog.isLoading || !supportedCurrencies.length} data-testid="select-link-currency">
+          {supportedCurrencies.map((item) => <option key={item.code} value={item.code}>{item.code} · {item.name}{item.collectionReady ? '' : ' · unavailable'}</option>)}
+        </select></Field>
       </div>
+      {currencyCatalog.isLoading && <span className="sub">Loading supported currencies and payment availability…</span>}
+      {currencyCatalog.isError && <div className="provider-warning"><CircleAlert size={15} /><span>Supported currencies could not be loaded.</span><Button variant="secondary" disabled={currencyCatalog.isFetching} onClick={() => { void currencyCatalog.refetch(); }}>{currencyCatalog.isFetching ? 'Checking…' : 'Retry'}</Button></div>}
+      {selectedCurrency && !selectedCurrency.collectionReady && <div className="provider-warning"><CircleAlert size={15} /><span>Checkout in {selectedCurrency.code} is not currently available. You can create the link now; payments will be unavailable until this currency route is enabled.</span></div>}
       {amountType === 'fixed' && <Field label="Amount"><input name="amount" type="number" min={currencyMinorUnits(currencyCode) === 0 ? '1' : '0.01'} step={currencyAmountStep(currencyCode)} placeholder="0.00" required data-testid="input-link-amount" /></Field>}
       <Field label="Expires on (optional)"><input name="expiresAt" type="date" data-testid="input-link-expiry" /></Field>
       <ErrorLine error={error} />
-      <div className="form-actions"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={create.isPending}>{create.isPending ? 'Creating…' : 'Create link'} <ArrowRight size={14} /></Button></div>
+      <div className="form-actions"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={create.isPending || currencyCatalog.isLoading || !selectedCurrency}>{create.isPending ? 'Creating…' : 'Create link'} <ArrowRight size={14} /></Button></div>
     </form>
   </Modal>;
 }
@@ -659,26 +712,53 @@ function PublicCheckout() {
   const query = useGetPublicPaymentLink(slug);
   const checkout = useCheckoutPaymentLink();
   const [error, setError] = useState('');
+  const [currencySelection, setCurrencySelection] = useState('');
+  const [paymentMethodSelection, setPaymentMethodSelection] = useState('');
   const [checkoutResult, setCheckoutResult] = useState<{ url: string | null; reference: string; nextAction: 'redirect' | 'mobile_prompt' | 'check_status' } | null>(null);
   const link = query.data;
   const invoiceBalance = typeof link?.invoiceOutstandingAmount === 'number' ? link.invoiceOutstandingAmount : null;
+  const availableCurrencies = link?.availableCurrencies ?? [];
+  const canChooseCurrency = link?.amountType === 'customer_choice' && invoiceBalance === null;
+  const currencyCode = canChooseCurrency && availableCurrencies.some((item) => item.code === currencySelection)
+    ? currencySelection
+    : link?.currency ?? '';
+  const currencyOption = availableCurrencies.find((item) => item.code === currencyCode);
+  const paymentMethods = currencyOption?.paymentMethods ?? [];
+  const selectedMethod = paymentMethods.find((item) => item.id === paymentMethodSelection && item.ready)
+    ?? paymentMethods.find((item) => item.ready);
+  const selectedMethodId = selectedMethod?.id ?? '';
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
-    if (!link) return;
+    if (!link || !currencyOption?.collectionReady || !selectedMethod) {
+      setError(`Payments are not currently available in ${currencyCode || 'this currency'}. Refresh availability or contact the merchant.`);
+      return;
+    }
     const form = new FormData(event.currentTarget);
     const amount = Number(form.get('amount'));
-    if ((link.amountType === 'customer_choice' || invoiceBalance !== null) && !isCurrencyAmountValid(amount, link.currency)) {
-      setError(`Enter a positive ${link.currency} amount with at most ${currencyMinorUnits(link.currency)} decimal places.`);
+    if ((link.amountType === 'customer_choice' || invoiceBalance !== null) && !isCurrencyAmountValid(amount, currencyCode)) {
+      setError(`Enter a positive ${currencyCode} amount with at most ${currencyMinorUnits(currencyCode)} decimal places.`);
       return;
     }
     if (invoiceBalance !== null && amount > invoiceBalance) {
       setError('The payment cannot exceed the outstanding invoice balance. Refresh this page if another payment has been made.');
       return;
     }
-    checkout.mutate({ slug, data: { customerEmail: String(form.get('email')), customerName: String(form.get('name') || ''), customerPhone: String(form.get('phone') || ''), ...(link.amountType === 'customer_choice' || invoiceBalance !== null ? { amount } : {}) } }, {
+    const customerPhone = String(form.get('phone') || '').trim();
+    if (selectedMethod.requiresPhone && !customerPhone) {
+      setError('Enter a phone number to continue with this payment method.');
+      return;
+    }
+    checkout.mutate({ slug, data: {
+      currency: currencyCode,
+      paymentMethod: selectedMethod.id,
+      customerEmail: String(form.get('email')),
+      customerName: String(form.get('name') || ''),
+      customerPhone,
+      ...(link.amountType === 'customer_choice' || invoiceBalance !== null ? { amount } : {}),
+    } }, {
       onSuccess: (result) => setCheckoutResult({ url: result.checkoutUrl, reference: result.reference, nextAction: result.nextAction }),
-      onError: () => setError('We could not start checkout. Please confirm your details and try again.'),
+      onError: (failure) => setError(errMsg(failure)),
     });
   }
   return (
@@ -706,14 +786,39 @@ function PublicCheckout() {
               <span className="eyebrow">PAYMENT REQUEST</span>
               <h1>{link.name}</h1>
               <p className="checkout-description">{link.description || 'Complete your details to continue to secure payment.'}</p>
-               <div className="checkout-price">{invoiceBalance !== null ? currency(invoiceBalance, link.currency) : link.amountType === 'fixed' ? currency(link.amount, link.currency) : 'Pay what you choose'}<span>{invoiceBalance !== null ? 'Outstanding invoice balance · full or partial payment' : link.amountType === 'customer_choice' ? link.currency : `${link.currency} · one-time payment`}</span></div>
+               <div className="checkout-price">{invoiceBalance !== null ? currency(invoiceBalance, link.currency) : link.amountType === 'fixed' ? currency(link.amount, link.currency) : 'Pay what you choose'}<span>{invoiceBalance !== null ? 'Outstanding invoice balance · full or partial payment' : link.amountType === 'customer_choice' ? 'Choose your payment currency below · no currency conversion is applied' : `${link.currency} · fixed one-time payment`}</span></div>
               <form className="form-stack checkout-form" onSubmit={submit}>
-                 {(link.amountType === 'customer_choice' || invoiceBalance !== null) && <Field label={invoiceBalance !== null ? `Payment amount (${link.currency}), up to ${currency(invoiceBalance, link.currency)}` : `Amount (${link.currency})`}><input name="amount" type="number" min={currencyMinorUnits(link.currency) === 0 ? '1' : '0.01'} max={invoiceBalance ?? undefined} defaultValue={invoiceBalance ?? undefined} step={currencyAmountStep(link.currency)} placeholder="0.00" required data-testid="input-checkout-amount" /></Field>}
+                {canChooseCurrency
+                  ? <Field label="Payment currency"><select value={currencyCode} onChange={(event) => {
+                    const nextCode = event.target.value;
+                    setCurrencySelection(nextCode);
+                    setPaymentMethodSelection(availableCurrencies.find((item) => item.code === nextCode)?.paymentMethods.find((item) => item.ready)?.id ?? '');
+                    setError('');
+                  }} data-testid="select-checkout-currency">
+                    {availableCurrencies.map((item) => <option key={item.code} value={item.code}>{item.code} · {item.name}{item.collectionReady ? '' : ' · unavailable'}</option>)}
+                  </select></Field>
+                  : <Field label="Payment currency"><input value={`${link.currency} · ${invoiceBalance !== null ? 'invoice amount; currency locked' : 'fixed amount; currency locked'}`} readOnly /></Field>}
+                <Field label="Payment method"><select value={selectedMethodId} onChange={(event) => setPaymentMethodSelection(event.target.value)} disabled={!paymentMethods.some((item) => item.ready)} required data-testid="select-checkout-payment-method">
+                  {selectedMethodId === '' && <option value="">{currencyOption?.collectionReady ? 'No payment method available' : 'No payment method available right now'}</option>}
+                  {paymentMethods.map((method) => <option key={method.id} value={method.id} disabled={!method.ready}>{method.label}{method.requiresPhone ? ' · phone required' : ''}{method.ready ? '' : ' · unavailable'}</option>)}
+                </select></Field>
+                {selectedMethod && <span className="checkout-trust">{selectedMethod.nextAction === 'mobile_prompt'
+                  ? 'Approve the secure payment request on your phone to continue.'
+                  : selectedMethod.nextAction === 'redirect'
+                    ? 'You’ll continue to a secure payment page to complete checkout.'
+                    : 'Follow the payment status after continuing.'}</span>}
+                {(link.amountType === 'customer_choice' || invoiceBalance !== null) && <Field label={invoiceBalance !== null ? `Payment amount (${currencyCode}), up to ${currency(invoiceBalance, link.currency)}` : `Amount (${currencyCode})`}><input key={currencyCode} name="amount" type="number" min={currencyMinorUnits(currencyCode) === 0 ? '1' : '0.01'} max={invoiceBalance ?? undefined} defaultValue={invoiceBalance ?? undefined} step={currencyAmountStep(currencyCode)} placeholder="0.00" required data-testid="input-checkout-amount" /></Field>}
                 <Field label="Email address"><input type="email" name="email" placeholder="you@example.com" autoComplete="email" required data-testid="input-checkout-email" /></Field>
                 <Field label="Full name"><input name="name" placeholder="Name on payment" autoComplete="name" required data-testid="input-checkout-name" /></Field>
-                <Field label={link.currency === 'KES' ? 'Phone (required for mobile payment)' : 'Phone (optional)'}><input name="phone" type="tel" placeholder="+254…" autoComplete="tel" required={link.currency === 'KES'} data-testid="input-checkout-phone" /></Field>
+                <Field label={`Phone${selectedMethod?.requiresPhone ? ' (required for this method)' : ' (optional)'}`}><input name="phone" type="tel" placeholder="+254…" autoComplete="tel" required={selectedMethod?.requiresPhone} data-testid="input-checkout-phone" /></Field>
+                {currencyOption && (!currencyOption.collectionReady || !paymentMethods.some((item) => item.ready)) && <div className="provider-warning"><CircleAlert size={15} /><span>{currencyOption.collectionReady
+                  ? `No payment method is currently available for ${currencyOption.code}.`
+                  : canChooseCurrency
+                    ? `Checkout in ${currencyOption.code} is not currently available. Choose another currency or refresh availability.`
+                    : `Checkout in ${currencyOption.code} is not currently available. Refresh availability or contact the merchant.`}</span><Button variant="secondary" disabled={query.isFetching} onClick={() => { void query.refetch(); }}>{query.isFetching ? 'Checking…' : 'Refresh availability'}</Button></div>}
+                {!currencyOption && <div className="provider-warning"><CircleAlert size={15} /><span>The available payment options could not be loaded. Refresh this page before continuing.</span><Button variant="secondary" disabled={query.isFetching} onClick={() => { void query.refetch(); }}>{query.isFetching ? 'Checking…' : 'Retry'}</Button></div>}
                 <ErrorLine error={error} />
-                <Button type="submit" className="btn-full" disabled={checkout.isPending} data-testid="button-checkout-submit">{checkout.isPending ? 'Preparing secure checkout…' : <>Continue to payment <ArrowRight size={15} /></>}</Button>
+                <Button type="submit" className="btn-full" disabled={checkout.isPending || query.isFetching || !currencyOption?.collectionReady || !selectedMethod} data-testid="button-checkout-submit">{checkout.isPending ? 'Preparing secure checkout…' : <>Continue to payment <ArrowRight size={15} /></>}</Button>
               </form>
               <div className="checkout-footer"><LockKeyhole size={13} /> Secure checkout with {branding.platformName}</div>
             </>
@@ -782,8 +887,16 @@ function PageMetadata() {
   return null;
 }
 
+function AppRoutes() {
+  const [location] = useLocation();
+  // Payers do not need dashboard authentication to pay or check confirmation.
+  // Keep the auth SDK's lifecycle outside these publicly shared pages.
+  const isPayerPage = /^\/(?:pay|status|receipt)\//.test(location);
+  return clerkPubKey && !isPayerPage ? <ClerkProviderWithRoutes /> : <PublicOnlyApp />;
+}
+
 function App() {
-  return <QueryClientProvider client={queryClient}><PlatformBrandingProvider><WouterRouter base={basePath}><PageMetadata />{clerkPubKey ? <ClerkProviderWithRoutes /> : <PublicOnlyApp />}</WouterRouter></PlatformBrandingProvider></QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><PlatformBrandingProvider><WouterRouter base={basePath}><PageMetadata /><AppRoutes /></WouterRouter></PlatformBrandingProvider></QueryClientProvider>;
 }
 
 export default App;

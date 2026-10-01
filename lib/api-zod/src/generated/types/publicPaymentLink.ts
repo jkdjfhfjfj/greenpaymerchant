@@ -5,6 +5,7 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { CollectionCurrency } from './collectionCurrency';
 import type { PublicPaymentLinkAmountType } from './publicPaymentLinkAmountType';
 
 export interface PublicPaymentLink {
@@ -16,6 +17,8 @@ export interface PublicPaymentLink {
   /** @nullable */
   amount?: number | null;
   currency: string;
+  /** Customer-choice links include supported currency options. Fixed-price and invoice links include only their stored currency; amounts are not converted. */
+  availableCurrencies: CollectionCurrency[];
   /** @nullable */
   expiresAt?: Date | null;
   /**

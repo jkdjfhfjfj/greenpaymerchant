@@ -506,6 +506,17 @@ export interface TransactionList {
   perPage: number;
 }
 
+/**
+ * Optional provider-neutral payment method. It must be available for the selected currency; the server chooses the gateway from currency.
+ */
+export type TransactionInputPaymentMethod = typeof TransactionInputPaymentMethod[keyof typeof TransactionInputPaymentMethod];
+
+
+export const TransactionInputPaymentMethod = {
+  hosted_checkout: 'hosted_checkout',
+  mobile_prompt: 'mobile_prompt',
+} as const;
+
 export interface TransactionInput {
   /** @exclusiveMinimum 0 */
   amount: number;
@@ -514,6 +525,8 @@ export interface TransactionInput {
      * @maxLength 3
      */
   currency: string;
+  /** Optional provider-neutral payment method. It must be available for the selected currency; the server chooses the gateway from currency. */
+  paymentMethod?: TransactionInputPaymentMethod;
   customerEmail: string;
   customerName?: string;
   customerPhone?: string;
@@ -598,6 +611,16 @@ export const PaymentLinkStatus = {
   archived: 'archived',
 } as const;
 
+export interface PaymentLinkCurrencyTotal {
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency: string;
+  /** Sum of successful and refunded transactions in this currency. */
+  amount: number;
+}
+
 export interface PaymentLink {
   id: number;
   slug: string;
@@ -611,7 +634,10 @@ export interface PaymentLink {
   status: PaymentLinkStatus;
   url: string;
   paidCount: number;
-  totalPaid?: number;
+  /** Successful and refunded transaction amounts in the payment link's original currency only. It does not combine amounts charged in other currencies. */
+  totalPaid: number;
+  /** Successful and refunded gross transaction totals grouped by their actual transaction currency. */
+  totalPaidByCurrency: PaymentLinkCurrencyTotal[];
   /** @nullable */
   expiresAt?: string | null;
   createdAt: string;
@@ -669,6 +695,50 @@ export const PublicPaymentLinkAmountType = {
   customer_choice: 'customer_choice',
 } as const;
 
+export type CollectionPaymentMethodId = typeof CollectionPaymentMethodId[keyof typeof CollectionPaymentMethodId];
+
+
+export const CollectionPaymentMethodId = {
+  hosted_checkout: 'hosted_checkout',
+  mobile_prompt: 'mobile_prompt',
+} as const;
+
+export type CollectionPaymentMethodNextAction = typeof CollectionPaymentMethodNextAction[keyof typeof CollectionPaymentMethodNextAction];
+
+
+export const CollectionPaymentMethodNextAction = {
+  redirect: 'redirect',
+  mobile_prompt: 'mobile_prompt',
+} as const;
+
+export interface CollectionPaymentMethod {
+  id: CollectionPaymentMethodId;
+  label: string;
+  /** True only when this currency's Greenpay collection route is enabled and configured. */
+  ready: boolean;
+  requiresPhone: boolean;
+  nextAction: CollectionPaymentMethodNextAction;
+}
+
+export interface CollectionCurrency {
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  code: string;
+  name: string;
+  /**
+     * Maximum fractional digits accepted for Greenpay collections; KES is whole-unit only.
+     * @minimum 0
+     * @maximum 2
+     */
+  minorUnits: number;
+  /** True only when the active route has credentials and is enabled. */
+  collectionReady: boolean;
+  /** Provider-neutral payment actions actually supported by Greenpay for this currency. Readiness is evaluated separately. */
+  paymentMethods: CollectionPaymentMethod[];
+}
+
 export interface PublicPaymentLink {
   slug: string;
   name: string;
@@ -678,6 +748,8 @@ export interface PublicPaymentLink {
   /** @nullable */
   amount?: number | null;
   currency: string;
+  /** Customer-choice links include supported currency options. Fixed-price and invoice links include only their stored currency; amounts are not converted. */
+  availableCurrencies: CollectionCurrency[];
   /** @nullable */
   expiresAt?: string | null;
   /**
@@ -688,9 +760,28 @@ export interface PublicPaymentLink {
   invoiceOutstandingAmount?: number | null;
 }
 
+/**
+ * Optional provider-neutral method; it must be available for the selected currency.
+ */
+export type PaymentLinkCheckoutInputPaymentMethod = typeof PaymentLinkCheckoutInputPaymentMethod[keyof typeof PaymentLinkCheckoutInputPaymentMethod];
+
+
+export const PaymentLinkCheckoutInputPaymentMethod = {
+  hosted_checkout: 'hosted_checkout',
+  mobile_prompt: 'mobile_prompt',
+} as const;
+
 export interface PaymentLinkCheckoutInput {
   /** @exclusiveMinimum 0 */
   amount?: number;
+  /**
+     * Optional currency for a customer-choice link. Defaults to the link currency. A fixed-price or invoice link cannot change currency. The amount is interpreted in this currency without automatic conversion.
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency?: string;
+  /** Optional provider-neutral method; it must be available for the selected currency. */
+  paymentMethod?: PaymentLinkCheckoutInputPaymentMethod;
   customerEmail: string;
   customerName?: string;
   customerPhone?: string;
@@ -2606,23 +2697,6 @@ export interface ApiKey {
   lastUsedAt?: string | null;
   /** @nullable */
   revokedAt?: string | null;
-}
-
-export interface CollectionCurrency {
-  /**
-     * @minLength 3
-     * @maxLength 3
-     */
-  code: string;
-  name: string;
-  /**
-     * Maximum fractional digits accepted for Greenpay collections; KES is whole-unit only.
-     * @minimum 0
-     * @maximum 2
-     */
-  minorUnits: number;
-  /** True only when the active route has credentials and is enabled. */
-  collectionReady: boolean;
 }
 
 export interface CurrencyCatalog {

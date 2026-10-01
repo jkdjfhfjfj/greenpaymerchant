@@ -11,7 +11,7 @@ import {
 } from "@workspace/db";
 import {
   ApiError, assertSupportedCurrency, providerForCurrency, providerIsConfigured, startProviderPayment,
-  type ProviderName, type StartPaymentInput, type StartPaymentResult,
+  resolveCollectionPaymentMethod, type CollectionPaymentMethodId, type ProviderName, type StartPaymentInput, type StartPaymentResult,
 } from "./greenpay-provider";
 import { assertMerchantMayTransact, assertPlatformEnabled, reserveVerificationUsage } from "./platform";
 import { invoiceOutstandingAmount } from "./merchant-business-tools";
@@ -23,6 +23,7 @@ const OPEN_TRANSACTION_STATUSES = ["pending"] as const;
 export interface CreateCollectionInput {
   amount: number;
   currency: string;
+  paymentMethod?: CollectionPaymentMethodId;
   customerEmail: string;
   customerName?: string;
   customerPhone?: string;
@@ -63,14 +64,15 @@ export async function createCollection(
   assertCollectionAmountPrecision(input.amount, currency);
   const amount = normalizeCollectionAmount(input.amount, currency);
   const provider: ProviderName = providerForCurrency(currency);
+  const paymentMethod = resolveCollectionPaymentMethod(currency, input.paymentMethod);
   if (!await (dependencies.providerIsConfigured ?? providerIsConfigured)(provider)) {
-    throw new ApiError(503, `${provider} is not configured.`);
+    throw new ApiError(503, "Payments are unavailable for this currency right now.");
   }
   if (provider === "payhero" && !Number.isInteger(input.amount)) {
     throw new ApiError(400, "KES M-Pesa collections must use whole shillings.");
   }
-  if (provider === "payhero" && !input.customerPhone?.trim()) {
-    throw new ApiError(400, "A phone number is required for a KES M-Pesa prompt.");
+  if (paymentMethod.requiresPhone && !input.customerPhone?.trim()) {
+    throw new ApiError(400, "A phone number is required for the selected payment method.");
   }
 
   let feeSchedule: typeof feeSchedulesTable.$inferSelect | undefined;

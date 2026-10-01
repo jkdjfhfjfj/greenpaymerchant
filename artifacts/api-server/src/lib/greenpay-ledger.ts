@@ -23,6 +23,7 @@ import { providerCredential } from "./credential-runtime";
 import { dispatchPendingMerchantWebhooks, enqueueMerchantWebhookOutbox } from "./outbound-webhooks";
 import { CUSTOMER_REIMBURSED_REFUND_STATUSES } from "./payment-safety";
 import { paymentTransitionAllowed } from "./security-policy";
+import { paymentLinkCurrencyTotals } from "./payment-link-accounting";
 import { settleWalletRefundFunds } from "./wallet-service";
 import { persistFinancialNotificationEvent } from "./mailtrap-delivery";
 
@@ -69,7 +70,12 @@ export function transactionDto(row: TransactionRecord) {
   };
 }
 
-export function paymentLinkDto(row: PaymentLinkRecord, paidCount: number, totalPaid: number) {
+export function paymentLinkDto(
+  row: PaymentLinkRecord,
+  paidCount: number,
+  totalsByCurrency: readonly { currency: string; amount: number | string }[],
+) {
+  const { totalPaid, totalPaidByCurrency } = paymentLinkCurrencyTotals(row.currency, totalsByCurrency);
   return {
     id: row.id,
     slug: row.slug,
@@ -82,8 +88,24 @@ export function paymentLinkDto(row: PaymentLinkRecord, paidCount: number, totalP
     url: `${getPublicAppUrl()}/pay/${encodeURIComponent(row.slug)}`,
     paidCount,
     totalPaid,
+    totalPaidByCurrency,
     expiresAt: row.expiresAt,
     createdAt: row.createdAt,
+  };
+}
+
+export async function paymentLinkStats(paymentLinkId: number) {
+  const totalsByCurrency = await db.select({
+    currency: transactionsTable.currency,
+    count: sql<number>`count(*)::int`,
+    amount: sql<number>`coalesce(sum(${transactionsTable.amount}), 0)::numeric`,
+  }).from(transactionsTable).where(and(
+    eq(transactionsTable.paymentLinkId, paymentLinkId),
+    inArray(transactionsTable.status, ["success", "refunded"]),
+  )).groupBy(transactionsTable.currency);
+  return {
+    paidCount: totalsByCurrency.reduce((sum, row) => sum + Number(row.count), 0),
+    totalsByCurrency,
   };
 }
 
@@ -550,11 +572,8 @@ export async function paymentLinkRows(search?: string) {
     .orderBy(sql`${paymentLinksTable.createdAt} DESC`).limit(500);
   const results = [];
   for (const link of links) {
-    const [payments] = await db.select({
-      count: sql<number>`count(*) filter (where ${transactionsTable.status} in ('success', 'refunded'))::int`,
-      total: sql<number>`coalesce(sum(${transactionsTable.amount}) filter (where ${transactionsTable.status} in ('success', 'refunded')), 0)::numeric`,
-    }).from(transactionsTable).where(eq(transactionsTable.paymentLinkId, link.id));
-    results.push(paymentLinkDto(link, Number(payments?.count ?? 0), Number(payments?.total ?? 0)));
+    const stats = await paymentLinkStats(link.id);
+    results.push(paymentLinkDto(link, stats.paidCount, stats.totalsByCurrency));
   }
   return results;
 }

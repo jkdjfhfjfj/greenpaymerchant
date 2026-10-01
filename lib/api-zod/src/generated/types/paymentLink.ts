@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PaymentLinkAmountType } from './paymentLinkAmountType';
+import type { PaymentLinkCurrencyTotal } from './paymentLinkCurrencyTotal';
 import type { PaymentLinkStatus } from './paymentLinkStatus';
 
 export interface PaymentLink {
@@ -21,7 +22,10 @@ export interface PaymentLink {
   status: PaymentLinkStatus;
   url: string;
   paidCount: number;
-  totalPaid?: number;
+  /** Successful and refunded transaction amounts in the payment link's original currency only. It does not combine amounts charged in other currencies. */
+  totalPaid: number;
+  /** Successful and refunded gross transaction totals grouped by their actual transaction currency. */
+  totalPaidByCurrency: PaymentLinkCurrencyTotal[];
   /** @nullable */
   expiresAt?: Date | null;
   createdAt: Date;

@@ -1,3 +1,5 @@
+import { collectionCurrency } from "@workspace/api-zod";
+
 export type PublicCheckoutAmountInput = {
   amountType: "fixed" | "customer_choice";
   fixedAmount: number | null;
@@ -31,4 +33,36 @@ export function resolvePublicCheckoutAmount(
     return { error: "positive_amount_required" };
   }
   return { amount };
+}
+
+export type PublicCheckoutCurrencyInput = {
+  linkCurrency: string;
+  amountType: "fixed" | "customer_choice";
+  isInvoice: boolean;
+  requestedCurrency?: string;
+};
+
+export type PublicCheckoutCurrencyResult =
+  | { currency: string }
+  | { error: "unsupported_currency" | "fixed_currency_immutable" };
+
+export function publicCheckoutFailure(status: number, detail: string): { status: number; error: string } {
+  if (status === 409) return { status, error: detail };
+  if (status === 400 || status === 422) return { status, error: detail };
+  return {
+    status: 503,
+    error: "Payments are unavailable for the selected currency right now. Please choose another currency or try again later.",
+  };
+}
+
+export function resolvePublicCheckoutCurrency(
+  input: PublicCheckoutCurrencyInput,
+): PublicCheckoutCurrencyResult {
+  const linkCurrency = input.linkCurrency.trim().toUpperCase();
+  const currency = input.requestedCurrency?.trim().toUpperCase() || linkCurrency;
+  if (!collectionCurrency(currency)) return { error: "unsupported_currency" };
+  if ((input.amountType === "fixed" || input.isInvoice) && currency !== linkCurrency) {
+    return { error: "fixed_currency_immutable" };
+  }
+  return { currency };
 }

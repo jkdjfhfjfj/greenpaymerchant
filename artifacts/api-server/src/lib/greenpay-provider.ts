@@ -11,6 +11,14 @@ export { ApiError } from "./api-error";
 
 export type ProviderName = "paystack" | "payhero" | "payzaapi";
 export type PaymentStatus = "pending" | "success" | "failed" | "cancelled";
+export type CollectionPaymentMethodId = "hosted_checkout" | "mobile_prompt";
+export interface CollectionPaymentMethod {
+  id: CollectionPaymentMethodId;
+  label: string;
+  ready: boolean;
+  requiresPhone: boolean;
+  nextAction: "redirect" | "mobile_prompt";
+}
 type JsonObject = Record<string, unknown>;
 
 export const PAYZA_CURRENCIES = COLLECTION_CURRENCIES
@@ -23,6 +31,41 @@ export function providerForCurrency(currency: string): ProviderName {
   if (normalized === "USD") return "paystack";
   if (normalized === "KES") return "payhero";
   return "payzaapi";
+}
+
+export function collectionPaymentMethodsForCurrency(
+  currency: string,
+  ready: boolean,
+): CollectionPaymentMethod[] {
+  if (providerForCurrency(currency) === "payhero") {
+    return [{
+      id: "mobile_prompt",
+      label: "Mobile money prompt",
+      ready,
+      requiresPhone: true,
+      nextAction: "mobile_prompt",
+    }];
+  }
+  return [{
+    id: "hosted_checkout",
+    label: "Secure hosted checkout",
+    ready,
+    requiresPhone: false,
+    nextAction: "redirect",
+  }];
+}
+
+export function resolveCollectionPaymentMethod(
+  currency: string,
+  requestedMethod?: string,
+): CollectionPaymentMethod {
+  const method = collectionPaymentMethodsForCurrency(currency, true).find(
+    ({ id }) => requestedMethod === undefined || id === requestedMethod,
+  );
+  if (!method) {
+    throw new ApiError(400, "The selected payment method is not available for this currency.");
+  }
+  return method;
 }
 
 export function assertSupportedCurrency(currency: string): void {

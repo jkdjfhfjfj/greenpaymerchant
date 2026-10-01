@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { resolvePublicCheckoutAmount } from "./public-payment-policy";
+import {
+  publicCheckoutFailure,
+  resolvePublicCheckoutAmount,
+  resolvePublicCheckoutCurrency,
+} from "./public-payment-policy";
 
 test("invoice checkout defaults to the outstanding balance or allows a smaller partial amount", () => {
   assert.deepEqual(resolvePublicCheckoutAmount({
@@ -52,4 +56,60 @@ test("ordinary customer-choice links continue to use the customer amount", () =>
     fixedAmount: null,
     invoiceOutstandingAmount: null,
   }), { error: "positive_amount_required" });
+});
+
+test("customer-choice links accept supported customer-selected currencies without converting", () => {
+  assert.deepEqual(resolvePublicCheckoutCurrency({
+    linkCurrency: "USD",
+    amountType: "customer_choice",
+    isInvoice: false,
+    requestedCurrency: "ngn",
+  }), { currency: "NGN" });
+  assert.deepEqual(resolvePublicCheckoutCurrency({
+    linkCurrency: "KES",
+    amountType: "customer_choice",
+    isInvoice: false,
+  }), { currency: "KES" });
+  assert.deepEqual(resolvePublicCheckoutCurrency({
+    linkCurrency: "USD",
+    amountType: "customer_choice",
+    isInvoice: false,
+    requestedCurrency: "ZAR",
+  }), { error: "unsupported_currency" });
+});
+
+test("fixed-price and invoice links reject a currency different from their listed currency", () => {
+  assert.deepEqual(resolvePublicCheckoutCurrency({
+    linkCurrency: "USD",
+    amountType: "fixed",
+    isInvoice: false,
+    requestedCurrency: "KES",
+  }), { error: "fixed_currency_immutable" });
+  assert.deepEqual(resolvePublicCheckoutCurrency({
+    linkCurrency: "USD",
+    amountType: "customer_choice",
+    isInvoice: true,
+    requestedCurrency: "KES",
+  }), { error: "fixed_currency_immutable" });
+  assert.deepEqual(resolvePublicCheckoutCurrency({
+    linkCurrency: "USD",
+    amountType: "fixed",
+    isInvoice: false,
+    requestedCurrency: "usd",
+  }), { currency: "USD" });
+});
+
+test("public checkout distinguishes payer validation errors from hidden payment-route failures", () => {
+  assert.deepEqual(publicCheckoutFailure(400, "Enter a valid phone number."), {
+    status: 400,
+    error: "Enter a valid phone number.",
+  });
+  assert.deepEqual(publicCheckoutFailure(409, "This link is no longer current."), {
+    status: 409,
+    error: "This link is no longer current.",
+  });
+  const unavailable = publicCheckoutFailure(502, "A private adapter error.");
+  assert.equal(unavailable.status, 503);
+  assert.match(unavailable.error, /Payments are unavailable for the selected currency/);
+  assert.doesNotMatch(unavailable.error, /private|adapter/i);
 });

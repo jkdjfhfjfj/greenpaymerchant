@@ -48,12 +48,17 @@ export function DeveloperDocsPage() {
   const [confirmPhrase, setConfirmPhrase] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('10');
   const [paymentCurrency, setPaymentCurrency] = useState('USD');
+  const [paymentMethodId, setPaymentMethodId] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [idempotencyKey, setIdempotencyKey] = useState<string>(() => crypto.randomUUID());
   const [result, setResult] = useState<CallResult>(null);
   const [busy, setBusy] = useState(false);
   const [requestError, setRequestError] = useState('');
+  const paymentCurrencyOption = currencies.data?.items.find((item) => item.code === paymentCurrency);
+  const paymentMethods = paymentCurrencyOption?.paymentMethods ?? [];
+  const selectedPaymentMethod = paymentMethods.find((method) => method.id === paymentMethodId && method.ready)
+    ?? paymentMethods.find((method) => method.ready);
 
   async function send(path: string, method: 'GET' | 'POST', kind: 'read' | 'payment', body?: Record<string, unknown>, idempotency?: string) {
     const headers: Record<string, string> = { Authorization: `Bearer ${apiKey.trim()}`, Accept: 'application/json' };
@@ -105,6 +110,10 @@ export function DeveloperDocsPage() {
       setRequestError(`${paymentCurrency} amounts must use ${minorUnits === 0 ? 'whole units' : `at most ${minorUnits} fractional digits`}.`);
       return;
     }
+    if (!paymentCurrencyOption?.collectionReady || !selectedPaymentMethod) {
+      setRequestError(`No payment method is currently available for ${paymentCurrency}. Refresh the currency catalog or choose another currency.`);
+      return;
+    }
     if (!customerEmail.trim()) { setRequestError('Enter the customer email required by this payment request.'); return; }
     if (idempotencyKey.trim().length < 8 || idempotencyKey.trim().length > 128) {
       setRequestError('Idempotency-Key must be 8 to 128 characters.');
@@ -115,6 +124,7 @@ export function DeveloperDocsPage() {
       await send('/v1/transactions', 'POST', 'payment', {
         amount,
         currency: paymentCurrency,
+        paymentMethod: selectedPaymentMethod.id,
         customerEmail: customerEmail.trim(),
         ...(customerPhone.trim() ? { customerPhone: customerPhone.trim() } : {}),
       }, idempotencyKey.trim());
@@ -161,10 +171,11 @@ Environment: this Greenpay deployment; there is no separate Greenpay sandbox hos
 
     <Card title="Supported collection currencies" subtitle="Readiness is deployment-specific and never exposes route/provider names.">
       <Async q={currencies} empty={!currencies.data?.items.length} emptyTitle="Currency readiness is unavailable" emptyBody="The catalog request returned no supported collection currencies. Retry the page before selecting a currency.">
-        <div className="table-wrap"><table className="dt"><thead><tr><th>Currency</th><th>Code</th><th>Fraction digits</th><th>Collection readiness</th></tr></thead><tbody>
-          {(currencies.data?.items ?? []).map((item) => <tr key={item.code}><td>{item.name}</td><td><code>{item.code}</code>{item.code === 'SLL' && <span className="sub">Greenpay preserves the SLL API value and labels it SLL pending denomination-scale confirmation.</span>}</td><td>{item.minorUnits}</td><td>{item.collectionReady ? 'Ready on this deployment' : 'Not configured / disabled'}</td></tr>)}
+        <div className="table-wrap"><table className="dt"><thead><tr><th>Currency</th><th>Code</th><th>Fraction digits</th><th>Payment methods</th><th>Collection readiness</th></tr></thead><tbody>
+          {(currencies.data?.items ?? []).map((item) => <tr key={item.code}><td>{item.name}</td><td><code>{item.code}</code>{item.code === 'SLL' && <span className="sub">Greenpay preserves the SLL API value and labels it SLL pending denomination-scale confirmation.</span>}</td><td>{item.minorUnits}</td><td>{item.paymentMethods.length ? item.paymentMethods.map((method) => <span key={method.id}>{method.label}{method.requiresPhone ? ' · phone required' : ''}{method.ready ? '' : ' · unavailable'}</span>) : 'No method available'}</td><td>{item.collectionReady ? 'Ready on this deployment' : 'Not configured / disabled'}</td></tr>)}
         </tbody></table></div>
       </Async>
+      <p>The currency catalog includes supported payment methods, whether each method is currently ready, and whether a phone number is required. Select a payment method from this response and pass its identifier with the collection request; Greenpay selects the gateway from the currency. Readiness is deployment-specific and may change, so check it before collecting. Catalog support does not mean a payment route is enabled.</p>
       <p>Payzaapi's official currency reference lists KES, NGN, GHS, TZS, XOF, USD, RWF, UGX, ZMW, MWK, SLL, CDF, MZN, and XAF. Greenpay keeps its existing USD and KES route behavior and adds the documented codes. KES collections are whole-shilling only; XOF, RWF, UGX, and XAF accept whole units. Check live readiness before collecting—catalog support does not mean provider credentials are configured.</p>
       <p>Payzaapi's documentation says to send <code>SLL</code> in API requests and label displayed amounts <code>SLE</code>, noting the 2022 redenomination and that <code>SLE</code> is rejected as a request code. It does not specify the numeric denomination or conversion scale of API amount values (including whether an SLL-labelled value is already in modern SLE units). Greenpay therefore preserves both the amount and the explicit <code>SLL</code> label until the value scale is confirmed; no 1,000:1 conversion is applied.</p>
       <p>Payzaapi's published minima are KES 1, NGN 100, GHS 1, TZS 500, XOF 100, and USD 0.50; its reference says network-set minimums apply to RWF, UGX, ZMW, MWK, SLL, CDF, MZN, and XAF. These are Payzaapi-published values, not a promise that a particular Greenpay route is enabled or uses identical commercial limits.</p>
@@ -197,8 +208,9 @@ app.post('/webhooks/greenpay', express.raw({ type: 'application/json' }), (req, 
       </div>
     </Card>
 
-    <Card title="Examples" subtitle="Examples show request structure only; no payment is sent by opening this page.">
+    <Card title="Examples" subtitle="Run these examples from a trusted website backend or server terminal—not from browser JavaScript.">
       <div className="form-stack">
+        <Note tone="warn">For a website integration, keep <code>GREENPAY_API_KEY</code> in your server-side secret manager. The browser should call your own backend, which attaches the key when it calls Greenpay. Never put the key in browser JavaScript, HTML, a public build-time environment variable, or a mobile app. The built-in playground is a temporary, explicit same-origin tool—not a production integration pattern.</Note>
         <h3>Read the merchant and a paginated transaction list</h3>
         <pre className="code">{`curl "${window.location.origin}/api/v1/merchant" \\
   -H "Authorization: Bearer $GREENPAY_API_KEY"
@@ -216,7 +228,7 @@ curl "${window.location.origin}/api/v1/fx-quote?amount=100&from=USD&to=KES" \\
   -H "Authorization: Bearer $GREENPAY_API_KEY" \\
   -H "Idempotency-Key: order-1042-attempt-1" \\
   -H "Content-Type: application/json" \\
-  -d '{"amount":10,"currency":"USD","customerEmail":"buyer@example.com"}'`}</pre>
+  -d '{"amount":10,"currency":"USD","paymentMethod":"hosted_checkout","customerEmail":"buyer@example.com"}'`}</pre>
         <Note tone="warn">Do not use a live payment request as a connectivity test. A request can initiate a real collection when live upstream credentials are active. The API does not offer a distinct public sandbox hostname.</Note>
       </div>
     </Card>
@@ -245,13 +257,14 @@ curl "${window.location.origin}/api/v1/fx-quote?amount=100&from=USD&to=KES" \\
       <form className="form-stack" onSubmit={runPayment}>
         <label className="chip"><input type="checkbox" checked={mutationEnabled} onChange={(event) => { setMutationEnabled(event.target.checked); setConfirmPhrase(''); }} />I understand this can initiate a real payment</label>
         <Note tone="danger"><ShieldCheck size={15} /> Before enabling: the API key must have <code>payments:write</code>; currency routes may be connected to live payment credentials. This is not a sandbox/test-payment guarantee.</Note>
-        <div className="form-grid"><Field label="Amount"><input type="number" min={paymentCurrency === 'KES' || COLLECTION_CURRENCIES.find(({ code }) => code === paymentCurrency)?.minorUnits === 0 ? '1' : '0.01'} step={COLLECTION_CURRENCIES.find(({ code }) => code === paymentCurrency)?.minorUnits === 0 ? '1' : '0.01'} value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} disabled={!mutationEnabled} required /></Field><Field label="Currency"><select value={paymentCurrency} onChange={(event) => setPaymentCurrency(event.target.value)} disabled={!mutationEnabled}>{CURRENCIES.map((code) => <option key={code}>{code}</option>)}</select></Field></div>
+         <div className="form-grid"><Field label="Amount"><input type="number" min={paymentCurrency === 'KES' || COLLECTION_CURRENCIES.find(({ code }) => code === paymentCurrency)?.minorUnits === 0 ? '1' : '0.01'} step={COLLECTION_CURRENCIES.find(({ code }) => code === paymentCurrency)?.minorUnits === 0 ? '1' : '0.01'} value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} disabled={!mutationEnabled} required /></Field><Field label="Currency"><select value={paymentCurrency} onChange={(event) => { setPaymentCurrency(event.target.value); setPaymentMethodId(''); }}>{(currencies.data?.items ?? []).map((item) => <option key={item.code} value={item.code}>{item.code} · {item.name}{item.collectionReady ? '' : ' · unavailable'}</option>)}</select></Field></div>
+         <Field label="Payment method"><select value={selectedPaymentMethod?.id ?? ''} onChange={(event) => setPaymentMethodId(event.target.value)} disabled={!paymentMethods.some((method) => method.ready)}>{!selectedPaymentMethod && <option value="">{paymentCurrencyOption?.collectionReady ? 'No payment method available' : 'No payment method available right now'}</option>}{paymentMethods.map((method) => <option key={method.id} value={method.id} disabled={!method.ready}>{method.label}{method.requiresPhone ? ' · phone required' : ''}{method.ready ? '' : ' · unavailable'}</option>)}</select></Field>
         <Field label="Customer email"><input type="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} disabled={!mutationEnabled} required /></Field>
-        {paymentCurrency === 'KES' && <Field label="Customer phone (required for KES)"><input type="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} disabled={!mutationEnabled} required /></Field>}
+         {selectedPaymentMethod?.requiresPhone && <Field label="Customer phone (required for this method)"><input type="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} disabled={!mutationEnabled} required /></Field>}
         <Field label="Idempotency-Key" hint="This key stays in page memory. Do not retry the same uncertain request with a different key until you reconcile it."><input minLength={8} maxLength={128} value={idempotencyKey} onChange={(event) => setIdempotencyKey(event.target.value)} disabled={!mutationEnabled} required /></Field>
         {mutationEnabled && <Field label={`Type exactly: ${PAYMENT_CONFIRMATION}`}><input value={confirmPhrase} onChange={(event) => setConfirmPhrase(event.target.value)} autoComplete="off" /></Field>}
         {requestError && <Err error={requestError} />}
-        {mutationEnabled && <Btn variant="danger" type="submit" disabled={busy || confirmPhrase !== PAYMENT_CONFIRMATION} testId="button-playground-confirm-payment">Confirm payment request</Btn>}
+         {mutationEnabled && <Btn variant="danger" type="submit" disabled={busy || confirmPhrase !== PAYMENT_CONFIRMATION || !paymentCurrencyOption?.collectionReady || !selectedPaymentMethod} testId="button-playground-confirm-payment">Confirm payment request</Btn>}
       </form>
       {result?.kind === 'payment' && <div className="form-stack"><h3>HTTP {result.status}</h3><pre className="code" aria-live="polite">{result.body}</pre></div>}
     </Card>

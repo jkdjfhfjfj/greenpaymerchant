@@ -492,6 +492,7 @@ export const createTransactionBodyCurrencyMax = 3;
 export const CreateTransactionBody = zod.object({
   "amount": zod.number().gt(createTransactionBodyAmountExclusiveMin),
   "currency": zod.string().min(createTransactionBodyCurrencyMin).max(createTransactionBodyCurrencyMax),
+  "paymentMethod": zod.enum(['hosted_checkout', 'mobile_prompt']).optional().describe('Optional provider-neutral payment method. It must be available for the selected currency; the server chooses the gateway from currency.'),
   "customerEmail": zod.string().email(),
   "customerName": zod.string().optional(),
   "customerPhone": zod.string().optional(),
@@ -622,6 +623,11 @@ export const ListPaymentLinksQueryParams = zod.object({
   "search": zod.coerce.string().optional()
 })
 
+export const listPaymentLinksResponseItemsItemTotalPaidByCurrencyItemCurrencyMin = 3;
+export const listPaymentLinksResponseItemsItemTotalPaidByCurrencyItemCurrencyMax = 3;
+
+
+
 export const ListPaymentLinksResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().int(),
@@ -634,7 +640,11 @@ export const ListPaymentLinksResponse = zod.object({
   "status": zod.enum(['active', 'paused', 'archived']),
   "url": zod.string().url(),
   "paidCount": zod.number().int(),
-  "totalPaid": zod.number().optional(),
+  "totalPaid": zod.number().describe('Successful and refunded transaction amounts in the payment link\'s original currency only. It does not combine amounts charged in other currencies.'),
+  "totalPaidByCurrency": zod.array(zod.object({
+  "currency": zod.string().min(listPaymentLinksResponseItemsItemTotalPaidByCurrencyItemCurrencyMin).max(listPaymentLinksResponseItemsItemTotalPaidByCurrencyItemCurrencyMax),
+  "amount": zod.number().describe('Sum of successful and refunded transactions in this currency.')
+})).describe('Successful and refunded gross transaction totals grouped by their actual transaction currency.'),
   "expiresAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 }))
@@ -661,6 +671,11 @@ export const CreatePaymentLinkBody = zod.object({
   "expiresAt": zod.coerce.date().optional()
 })
 
+export const createPaymentLinkResponseTotalPaidByCurrencyItemCurrencyMin = 3;
+export const createPaymentLinkResponseTotalPaidByCurrencyItemCurrencyMax = 3;
+
+
+
 export const CreatePaymentLinkResponse = zod.object({
   "id": zod.number().int(),
   "slug": zod.string(),
@@ -672,7 +687,11 @@ export const CreatePaymentLinkResponse = zod.object({
   "status": zod.enum(['active', 'paused', 'archived']),
   "url": zod.string().url(),
   "paidCount": zod.number().int(),
-  "totalPaid": zod.number().optional(),
+  "totalPaid": zod.number().describe('Successful and refunded transaction amounts in the payment link\'s original currency only. It does not combine amounts charged in other currencies.'),
+  "totalPaidByCurrency": zod.array(zod.object({
+  "currency": zod.string().min(createPaymentLinkResponseTotalPaidByCurrencyItemCurrencyMin).max(createPaymentLinkResponseTotalPaidByCurrencyItemCurrencyMax),
+  "amount": zod.number().describe('Sum of successful and refunded transactions in this currency.')
+})).describe('Successful and refunded gross transaction totals grouped by their actual transaction currency.'),
   "expiresAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -695,6 +714,11 @@ export const UpdatePaymentLinkBody = zod.object({
   "expiresAt": zod.coerce.date().nullish()
 })
 
+export const updatePaymentLinkResponseTotalPaidByCurrencyItemCurrencyMin = 3;
+export const updatePaymentLinkResponseTotalPaidByCurrencyItemCurrencyMax = 3;
+
+
+
 export const UpdatePaymentLinkResponse = zod.object({
   "id": zod.number().int(),
   "slug": zod.string(),
@@ -706,7 +730,11 @@ export const UpdatePaymentLinkResponse = zod.object({
   "status": zod.enum(['active', 'paused', 'archived']),
   "url": zod.string().url(),
   "paidCount": zod.number().int(),
-  "totalPaid": zod.number().optional(),
+  "totalPaid": zod.number().describe('Successful and refunded transaction amounts in the payment link\'s original currency only. It does not combine amounts charged in other currencies.'),
+  "totalPaidByCurrency": zod.array(zod.object({
+  "currency": zod.string().min(updatePaymentLinkResponseTotalPaidByCurrencyItemCurrencyMin).max(updatePaymentLinkResponseTotalPaidByCurrencyItemCurrencyMax),
+  "amount": zod.number().describe('Sum of successful and refunded transactions in this currency.')
+})).describe('Successful and refunded gross transaction totals grouped by their actual transaction currency.'),
   "expiresAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -729,6 +757,12 @@ export const GetPublicPaymentLinkParams = zod.object({
   "slug": zod.coerce.string()
 })
 
+export const getPublicPaymentLinkResponseAvailableCurrenciesItemCodeMin = 3;
+export const getPublicPaymentLinkResponseAvailableCurrenciesItemCodeMax = 3;
+
+export const getPublicPaymentLinkResponseAvailableCurrenciesItemMinorUnitsMin = 0;
+export const getPublicPaymentLinkResponseAvailableCurrenciesItemMinorUnitsMax = 2;
+
 export const getPublicPaymentLinkResponseInvoiceOutstandingAmountMin = 0;
 
 
@@ -740,12 +774,26 @@ export const GetPublicPaymentLinkResponse = zod.object({
   "amountType": zod.enum(['fixed', 'customer_choice']),
   "amount": zod.number().nullish(),
   "currency": zod.string(),
+  "availableCurrencies": zod.array(zod.object({
+  "code": zod.string().min(getPublicPaymentLinkResponseAvailableCurrenciesItemCodeMin).max(getPublicPaymentLinkResponseAvailableCurrenciesItemCodeMax),
+  "name": zod.string(),
+  "minorUnits": zod.number().int().min(getPublicPaymentLinkResponseAvailableCurrenciesItemMinorUnitsMin).max(getPublicPaymentLinkResponseAvailableCurrenciesItemMinorUnitsMax).describe('Maximum fractional digits accepted for Greenpay collections; KES is whole-unit only.'),
+  "collectionReady": zod.boolean().describe('True only when the active route has credentials and is enabled.'),
+  "paymentMethods": zod.array(zod.object({
+  "id": zod.enum(['hosted_checkout', 'mobile_prompt']),
+  "label": zod.string(),
+  "ready": zod.boolean().describe('True only when this currency\'s Greenpay collection route is enabled and configured.'),
+  "requiresPhone": zod.boolean(),
+  "nextAction": zod.enum(['redirect', 'mobile_prompt'])
+})).describe('Provider-neutral payment actions actually supported by Greenpay for this currency. Readiness is evaluated separately.')
+})).describe('Customer-choice links include supported currency options. Fixed-price and invoice links include only their stored currency; amounts are not converted.'),
   "expiresAt": zod.coerce.date().nullish(),
   "invoiceOutstandingAmount": zod.number().min(getPublicPaymentLinkResponseInvoiceOutstandingAmountMin).nullish().describe('Current outstanding invoice balance for invoice-hosted checkout; absent for non-invoice payment links.')
 })
 
 
 /**
+ * Customer-choice links may use any collection currency. Fixed-price and invoice links remain in their listed currency; no automatic conversion occurs. The server routes by currency and validates any selected payment method against that currency.
  * @summary Start a checkout session for a public payment link
  */
 export const CheckoutPaymentLinkParams = zod.object({
@@ -754,10 +802,15 @@ export const CheckoutPaymentLinkParams = zod.object({
 
 export const checkoutPaymentLinkBodyAmountExclusiveMin = 0;
 
+export const checkoutPaymentLinkBodyCurrencyMin = 3;
+export const checkoutPaymentLinkBodyCurrencyMax = 3;
+
 
 
 export const CheckoutPaymentLinkBody = zod.object({
   "amount": zod.number().gt(checkoutPaymentLinkBodyAmountExclusiveMin).optional(),
+  "currency": zod.string().min(checkoutPaymentLinkBodyCurrencyMin).max(checkoutPaymentLinkBodyCurrencyMax).optional().describe('Optional currency for a customer-choice link. Defaults to the link currency. A fixed-price or invoice link cannot change currency. The amount is interpreted in this currency without automatic conversion.'),
+  "paymentMethod": zod.enum(['hosted_checkout', 'mobile_prompt']).optional().describe('Optional provider-neutral method; it must be available for the selected currency.'),
   "customerEmail": zod.string().email(),
   "customerName": zod.string().optional(),
   "customerPhone": zod.string().optional()
@@ -3473,6 +3526,11 @@ export const ListMerchantPayoutsResponse = zod.object({
 /**
  * @summary List payment links belonging to the current merchant
  */
+export const listMerchantPaymentLinksResponseItemsItemTotalPaidByCurrencyItemCurrencyMin = 3;
+export const listMerchantPaymentLinksResponseItemsItemTotalPaidByCurrencyItemCurrencyMax = 3;
+
+
+
 export const ListMerchantPaymentLinksResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().int(),
@@ -3485,7 +3543,11 @@ export const ListMerchantPaymentLinksResponse = zod.object({
   "status": zod.enum(['active', 'paused', 'archived']),
   "url": zod.string().url(),
   "paidCount": zod.number().int(),
-  "totalPaid": zod.number().optional(),
+  "totalPaid": zod.number().describe('Successful and refunded transaction amounts in the payment link\'s original currency only. It does not combine amounts charged in other currencies.'),
+  "totalPaidByCurrency": zod.array(zod.object({
+  "currency": zod.string().min(listMerchantPaymentLinksResponseItemsItemTotalPaidByCurrencyItemCurrencyMin).max(listMerchantPaymentLinksResponseItemsItemTotalPaidByCurrencyItemCurrencyMax),
+  "amount": zod.number().describe('Sum of successful and refunded transactions in this currency.')
+})).describe('Successful and refunded gross transaction totals grouped by their actual transaction currency.'),
   "expiresAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 }))
@@ -3512,6 +3574,11 @@ export const CreateMerchantPaymentLinkBody = zod.object({
   "expiresAt": zod.coerce.date().optional()
 })
 
+export const createMerchantPaymentLinkResponseTotalPaidByCurrencyItemCurrencyMin = 3;
+export const createMerchantPaymentLinkResponseTotalPaidByCurrencyItemCurrencyMax = 3;
+
+
+
 export const CreateMerchantPaymentLinkResponse = zod.object({
   "id": zod.number().int(),
   "slug": zod.string(),
@@ -3523,7 +3590,11 @@ export const CreateMerchantPaymentLinkResponse = zod.object({
   "status": zod.enum(['active', 'paused', 'archived']),
   "url": zod.string().url(),
   "paidCount": zod.number().int(),
-  "totalPaid": zod.number().optional(),
+  "totalPaid": zod.number().describe('Successful and refunded transaction amounts in the payment link\'s original currency only. It does not combine amounts charged in other currencies.'),
+  "totalPaidByCurrency": zod.array(zod.object({
+  "currency": zod.string().min(createMerchantPaymentLinkResponseTotalPaidByCurrencyItemCurrencyMin).max(createMerchantPaymentLinkResponseTotalPaidByCurrencyItemCurrencyMax),
+  "amount": zod.number().describe('Sum of successful and refunded transactions in this currency.')
+})).describe('Successful and refunded gross transaction totals grouped by their actual transaction currency.'),
   "expiresAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -3546,6 +3617,11 @@ export const UpdateMerchantPaymentLinkBody = zod.object({
   "expiresAt": zod.coerce.date().nullish()
 })
 
+export const updateMerchantPaymentLinkResponseTotalPaidByCurrencyItemCurrencyMin = 3;
+export const updateMerchantPaymentLinkResponseTotalPaidByCurrencyItemCurrencyMax = 3;
+
+
+
 export const UpdateMerchantPaymentLinkResponse = zod.object({
   "id": zod.number().int(),
   "slug": zod.string(),
@@ -3557,7 +3633,11 @@ export const UpdateMerchantPaymentLinkResponse = zod.object({
   "status": zod.enum(['active', 'paused', 'archived']),
   "url": zod.string().url(),
   "paidCount": zod.number().int(),
-  "totalPaid": zod.number().optional(),
+  "totalPaid": zod.number().describe('Successful and refunded transaction amounts in the payment link\'s original currency only. It does not combine amounts charged in other currencies.'),
+  "totalPaidByCurrency": zod.array(zod.object({
+  "currency": zod.string().min(updateMerchantPaymentLinkResponseTotalPaidByCurrencyItemCurrencyMin).max(updateMerchantPaymentLinkResponseTotalPaidByCurrencyItemCurrencyMax),
+  "amount": zod.number().describe('Sum of successful and refunded transactions in this currency.')
+})).describe('Successful and refunded gross transaction totals grouped by their actual transaction currency.'),
   "expiresAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -3860,7 +3940,14 @@ export const ListSupportedCurrenciesResponse = zod.object({
   "code": zod.string().min(listSupportedCurrenciesResponseItemsItemCodeMin).max(listSupportedCurrenciesResponseItemsItemCodeMax),
   "name": zod.string(),
   "minorUnits": zod.number().int().min(listSupportedCurrenciesResponseItemsItemMinorUnitsMin).max(listSupportedCurrenciesResponseItemsItemMinorUnitsMax).describe('Maximum fractional digits accepted for Greenpay collections; KES is whole-unit only.'),
-  "collectionReady": zod.boolean().describe('True only when the active route has credentials and is enabled.')
+  "collectionReady": zod.boolean().describe('True only when the active route has credentials and is enabled.'),
+  "paymentMethods": zod.array(zod.object({
+  "id": zod.enum(['hosted_checkout', 'mobile_prompt']),
+  "label": zod.string(),
+  "ready": zod.boolean().describe('True only when this currency\'s Greenpay collection route is enabled and configured.'),
+  "requiresPhone": zod.boolean(),
+  "nextAction": zod.enum(['redirect', 'mobile_prompt'])
+})).describe('Provider-neutral payment actions actually supported by Greenpay for this currency. Readiness is evaluated separately.')
 }))
 })
 
@@ -3889,6 +3976,11 @@ export const GetDeveloperMerchantResponse = zod.object({
 /**
  * @summary List payment links belonging to the API key's merchant
  */
+export const listDeveloperPaymentLinksResponseItemsItemTotalPaidByCurrencyItemCurrencyMin = 3;
+export const listDeveloperPaymentLinksResponseItemsItemTotalPaidByCurrencyItemCurrencyMax = 3;
+
+
+
 export const ListDeveloperPaymentLinksResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().int(),
@@ -3901,7 +3993,11 @@ export const ListDeveloperPaymentLinksResponse = zod.object({
   "status": zod.enum(['active', 'paused', 'archived']),
   "url": zod.string().url(),
   "paidCount": zod.number().int(),
-  "totalPaid": zod.number().optional(),
+  "totalPaid": zod.number().describe('Successful and refunded transaction amounts in the payment link\'s original currency only. It does not combine amounts charged in other currencies.'),
+  "totalPaidByCurrency": zod.array(zod.object({
+  "currency": zod.string().min(listDeveloperPaymentLinksResponseItemsItemTotalPaidByCurrencyItemCurrencyMin).max(listDeveloperPaymentLinksResponseItemsItemTotalPaidByCurrencyItemCurrencyMax),
+  "amount": zod.number().describe('Sum of successful and refunded transactions in this currency.')
+})).describe('Successful and refunded gross transaction totals grouped by their actual transaction currency.'),
   "expiresAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 }))
@@ -3928,6 +4024,11 @@ export const CreateDeveloperPaymentLinkBody = zod.object({
   "expiresAt": zod.coerce.date().optional()
 })
 
+export const createDeveloperPaymentLinkResponseTotalPaidByCurrencyItemCurrencyMin = 3;
+export const createDeveloperPaymentLinkResponseTotalPaidByCurrencyItemCurrencyMax = 3;
+
+
+
 export const CreateDeveloperPaymentLinkResponse = zod.object({
   "id": zod.number().int(),
   "slug": zod.string(),
@@ -3939,7 +4040,11 @@ export const CreateDeveloperPaymentLinkResponse = zod.object({
   "status": zod.enum(['active', 'paused', 'archived']),
   "url": zod.string().url(),
   "paidCount": zod.number().int(),
-  "totalPaid": zod.number().optional(),
+  "totalPaid": zod.number().describe('Successful and refunded transaction amounts in the payment link\'s original currency only. It does not combine amounts charged in other currencies.'),
+  "totalPaidByCurrency": zod.array(zod.object({
+  "currency": zod.string().min(createDeveloperPaymentLinkResponseTotalPaidByCurrencyItemCurrencyMin).max(createDeveloperPaymentLinkResponseTotalPaidByCurrencyItemCurrencyMax),
+  "amount": zod.number().describe('Sum of successful and refunded transactions in this currency.')
+})).describe('Successful and refunded gross transaction totals grouped by their actual transaction currency.'),
   "expiresAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -4011,6 +4116,7 @@ export const createDeveloperTransactionBodyCurrencyMax = 3;
 export const CreateDeveloperTransactionBody = zod.object({
   "amount": zod.number().gt(createDeveloperTransactionBodyAmountExclusiveMin),
   "currency": zod.string().min(createDeveloperTransactionBodyCurrencyMin).max(createDeveloperTransactionBodyCurrencyMax),
+  "paymentMethod": zod.enum(['hosted_checkout', 'mobile_prompt']).optional().describe('Optional provider-neutral payment method. It must be available for the selected currency; the server chooses the gateway from currency.'),
   "customerEmail": zod.string().email(),
   "customerName": zod.string().optional(),
   "customerPhone": zod.string().optional(),

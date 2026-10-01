@@ -16,6 +16,19 @@ test("public payment links omit processing partners", () => {
     amountType: "fixed",
     amount: 10,
     currency: "USD",
+    availableCurrencies: [{
+      code: "USD",
+      name: "US Dollar",
+      minorUnits: 2,
+      collectionReady: false,
+      paymentMethods: [{
+        id: "hosted_checkout",
+        label: "Secure hosted checkout",
+        ready: false,
+        requiresPhone: false,
+        nextAction: "redirect",
+      }],
+    }],
     provider: "paystack",
     providerReference: "internal-reference",
   });
@@ -23,6 +36,8 @@ test("public payment links omit processing partners", () => {
   assert.equal("providerReference" in result, false);
   assert.equal(result.amount, 10);
   assert.equal(result.currency, "USD");
+  assert.equal(result.availableCurrencies.length, 1);
+  assert.equal(result.availableCurrencies[0]?.paymentMethods[0]?.id, "hosted_checkout");
 });
 
 test("public checkout sessions contain only customer instructions", () => {

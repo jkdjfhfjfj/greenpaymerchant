@@ -5,10 +5,19 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { PaymentLinkCheckoutInputPaymentMethod } from './paymentLinkCheckoutInputPaymentMethod';
 
 export interface PaymentLinkCheckoutInput {
   /** @exclusiveMinimum 0 */
   amount?: number;
+  /**
+     * Optional currency for a customer-choice link. Defaults to the link currency. A fixed-price or invoice link cannot change currency. The amount is interpreted in this currency without automatic conversion.
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency?: string;
+  /** Optional provider-neutral method; it must be available for the selected currency. */
+  paymentMethod?: PaymentLinkCheckoutInputPaymentMethod;
   customerEmail: string;
   customerName?: string;
   customerPhone?: string;

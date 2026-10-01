@@ -4,7 +4,7 @@ import { ArrowRight, ExternalLink, LoaderCircle, Plus, Trash2, Pause, Play, Shie
 import {
   useCreateMerchantProfile, useGetMerchantFees, useGetMerchantKyc, getGetMerchantKycQueryKey, useCreateMerchantKycSession,
   useListMerchantPaymentLinks, useCreateMerchantPaymentLink, useUpdateMerchantPaymentLink, useDeleteMerchantPaymentLink,
-  useListMerchantTransactions, useListMerchantPayouts,
+  useListMerchantTransactions, useListMerchantPayouts, useListSupportedCurrencies,
 } from '@workspace/api-client-react';
 import { Async, Btn, Card, COUNTRIES, CURRENCIES, Confirm, CopyBtn, Err, Field, Gate, Heading, Modal, Note, Pager, Pill, currencyAmountStep, currencyMinorUnits, fmtDate, money, nice, useAccess, useInvalidateAll } from '@/components/kit';
 import { usePlatformBranding } from '@/components/platform-brand';
@@ -138,6 +138,21 @@ function KycInner() {
 }
 
 export function MerchantLinksPage() { return <Gate need="merchant"><LinksInner /></Gate>; }
+type MerchantLinkCurrencyTotal = { currency: string; amount: number };
+type MerchantLinkTotalsSource = {
+  currency: string;
+  totalPaid: number;
+  totalPaidByCurrency?: MerchantLinkCurrencyTotal[] | null;
+};
+function LinkCollectedTotals({ link }: { link: MerchantLinkTotalsSource }) {
+  const totals = Array.isArray(link.totalPaidByCurrency)
+    ? link.totalPaidByCurrency
+    : [{ currency: link.currency, amount: link.totalPaid }];
+  return totals.length
+    ? <>{totals.map((total) => <span key={total.currency} style={{ display: 'block' }}>{money(total.amount, total.currency)}</span>)}</>
+    : <>—</>;
+}
+
 function LinksInner() {
   const q = useListMerchantPaymentLinks();
   const update = useUpdateMerchantPaymentLink();
@@ -150,11 +165,11 @@ function LinksInner() {
     <Heading eyebrow="MERCHANT" title="Payment links" subtitle="Links you own. Customers pay through the provider routed for the currency." action={<Btn onClick={() => setOpen(true)} testId="button-new-link"><Plus size={15} />New link</Btn>} />
     <Err error={update.error} />
     <Async q={q} empty={!items.length} emptyTitle="No payment links" emptyBody="Create a fixed-price or customer-entered link." emptyAction={<Btn onClick={() => setOpen(true)}>Create link</Btn>}>
-      <div className="table-wrap"><table className="dt"><thead><tr><th>Name</th><th>Amount</th><th>Status</th><th className="num">Paid</th><th>Link</th><th /></tr></thead><tbody>
+       <div className="table-wrap"><table className="dt"><thead><tr><th>Name</th><th>Amount</th><th>Status</th><th className="num">Payments</th><th className="num">Collected</th><th>Link</th><th /></tr></thead><tbody>
         {items.map((l) => <tr key={l.id} data-testid={`row-link-${l.id}`}>
           <td><strong>{l.name}</strong><span className="sub">{l.description}</span></td>
           <td>{l.amountType === 'fixed' ? money(l.amount, l.currency) : `Customer enters (${l.currency})`}</td>
-          <td><Pill value={l.status} /></td><td className="num">{l.paidCount}</td>
+          <td><Pill value={l.status} /></td><td className="num">{l.paidCount}</td><td className="num"><LinkCollectedTotals link={l} /></td>
           <td><div className="copy-line"><code className="mono" style={{ fontSize: 11 }}>{l.url}</code><CopyBtn text={l.url} /></div></td>
           <td><div className="row-actions">
             {l.status !== 'archived' && <Btn variant="quiet" small disabled={update.isPending} onClick={() => update.mutate({ id: l.id, data: { status: l.status === 'active' ? 'paused' : 'active' } }, { onSuccess: () => { void inv(); } })}>{l.status === 'active' ? <><Pause size={13} />Pause</> : <><Play size={13} />Resume</>}</Btn>}
@@ -168,11 +183,15 @@ function LinksInner() {
 }
 function LinkModal({ onClose }: { onClose: () => void }) {
   const create = useCreateMerchantPaymentLink();
+  const currencyCatalog = useListSupportedCurrencies();
+  const supportedCurrencies = currencyCatalog.data?.items ?? [];
   const inv = useInvalidateAll();
   const [type, setType] = useState<'fixed' | 'customer_choice'>('fixed');
   const [currency, setCurrency] = useState('USD');
+  const selectedCurrency = supportedCurrencies.find((item) => item.code === currency);
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!selectedCurrency) return;
     const f = new FormData(e.currentTarget);
     const desc = String(f.get('desc') || '').trim();
     const amount = Number(f.get('amount'));
@@ -180,14 +199,18 @@ function LinkModal({ onClose }: { onClose: () => void }) {
     create.mutate({ data: { name: String(f.get('name')).trim(), amountType: type, currency: String(f.get('cur')), ...(desc ? { description: desc } : {}), ...(type === 'fixed' ? { amount } : {}), ...(exp ? { expiresAt: new Date(exp).toISOString() } : {}) } }, { onSuccess: () => { void inv(); onClose(); } });
   }
   return <Modal title="New payment link" onClose={onClose}><form className="form-stack" onSubmit={submit}>
+    <Note>Fixed-price links keep this currency. Customer-choice links let the payer choose a supported currency; the entered amount is charged in that currency without automatic conversion.</Note>
     <Field label="Name"><input name="name" required data-testid="input-link-name" /></Field>
     <Field label="Description"><input name="desc" /></Field>
     <div className="form-grid"><Field label="Pricing"><select value={type} onChange={(e) => setType(e.target.value as 'fixed')}><option value="fixed">Fixed amount</option><option value="customer_choice">Customer enters amount</option></select></Field>
-      <Field label="Currency"><select name="cur" value={currency} onChange={(e) => setCurrency(e.target.value)}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></Field></div>
+      <Field label="Link currency"><select name="cur" value={currency} onChange={(e) => setCurrency(e.target.value)} disabled={currencyCatalog.isLoading || !supportedCurrencies.length}>{supportedCurrencies.map((item) => <option key={item.code} value={item.code}>{item.code} · {item.name}{item.collectionReady ? '' : ' · unavailable'}</option>)}</select></Field></div>
+    {currencyCatalog.isLoading && <span className="sub">Loading supported currencies and payment availability…</span>}
+    {currencyCatalog.isError && <Note tone="warn">Supported currencies could not be loaded. <Btn variant="secondary" disabled={currencyCatalog.isFetching} onClick={() => { void currencyCatalog.refetch(); }}>{currencyCatalog.isFetching ? 'Checking…' : 'Retry'}</Btn></Note>}
+    {selectedCurrency && !selectedCurrency.collectionReady && <Note tone="warn">Checkout in {selectedCurrency.code} is not currently available. You can create the link now; payments will be unavailable until this currency route is enabled.</Note>}
     {type === 'fixed' && <Field label="Amount"><input name="amount" type="number" step={currencyAmountStep(currency)} min={currencyMinorUnits(currency) === 0 ? '1' : '0.01'} required data-testid="input-link-amount" /></Field>}
     <Field label="Expires" hint="Optional"><input name="exp" type="datetime-local" /></Field>
     <Err error={create.error} />
-    <Btn type="submit" disabled={create.isPending} testId="button-save-link">{create.isPending && <LoaderCircle size={14} className="spin" />}Create link</Btn>
+    <Btn type="submit" disabled={create.isPending || currencyCatalog.isLoading || !selectedCurrency} testId="button-save-link">{create.isPending && <LoaderCircle size={14} className="spin" />}Create link</Btn>
   </form></Modal>;
 }
 

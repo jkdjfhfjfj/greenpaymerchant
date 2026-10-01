@@ -5,6 +5,7 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { CollectionPaymentMethod } from './collectionPaymentMethod';
 
 export interface CollectionCurrency {
   /**
@@ -21,4 +22,6 @@ export interface CollectionCurrency {
   minorUnits: number;
   /** True only when the active route has credentials and is enabled. */
   collectionReady: boolean;
+  /** Provider-neutral payment actions actually supported by Greenpay for this currency. Readiness is evaluated separately. */
+  paymentMethods: CollectionPaymentMethod[];
 }

@@ -11,7 +11,10 @@ import {
   ListSupportedCurrenciesResponse,
 } from "@workspace/api-zod";
 import { createCollection } from "../lib/greenpay-collection";
-import { ApiError, providerForCurrency, providerIsConfigured, verifyProviderPayment } from "../lib/greenpay-provider";
+import {
+  ApiError, collectionPaymentMethodsForCurrency, providerForCurrency, providerIsConfigured,
+  resolveCollectionPaymentMethod, verifyProviderPayment,
+} from "../lib/greenpay-provider";
 import {
   findTransaction,
   getPaymentLinkBySlug,
@@ -24,10 +27,31 @@ import { and, eq, inArray } from "drizzle-orm";
 import { assertMerchantActionEnabled, getPlatformSettings } from "../lib/platform";
 import { invoiceOutstandingAmount } from "../lib/merchant-business-tools";
 import { CUSTOMER_REIMBURSED_REFUND_STATUSES } from "../lib/payment-safety";
-import { resolvePublicCheckoutAmount } from "../lib/public-payment-policy";
+import {
+  publicCheckoutFailure, resolvePublicCheckoutAmount, resolvePublicCheckoutCurrency,
+} from "../lib/public-payment-policy";
 
 const router: IRouter = Router();
 const PAID_TRANSACTION_STATUSES = ["success", "refunded"] as const;
+
+async function getCollectionCurrencyOptions() {
+  const platformReady = (await getPlatformSettings()).paymentsEnabled;
+  const routeReadiness = {
+    paystack: await providerIsConfigured("paystack"),
+    payhero: await providerIsConfigured("payhero"),
+    payzaapi: await providerIsConfigured("payzaapi"),
+  };
+  return COLLECTION_CURRENCIES.map(({ code, name, minorUnits }) => {
+    const collectionReady = platformReady && routeReadiness[providerForCurrency(code)];
+    return {
+      code,
+      name,
+      minorUnits,
+      collectionReady,
+      paymentMethods: collectionPaymentMethodsForCurrency(code, collectionReady),
+    };
+  });
+}
 
 type InvoicePaymentLinkState = {
   invoiceOutstandingAmount: number | null;
@@ -109,20 +133,8 @@ async function invoicePaymentLinkState(
 }
 
 router.get("/currencies", async (_req, res): Promise<void> => {
-  const platformReady = (await getPlatformSettings()).paymentsEnabled;
-  const routeReadiness = {
-    paystack: await providerIsConfigured("paystack"),
-    payhero: await providerIsConfigured("payhero"),
-    payzaapi: await providerIsConfigured("payzaapi"),
-  };
-  const items = await Promise.all(COLLECTION_CURRENCIES.map(async ({ code, name, minorUnits }) => ({
-    code,
-    name,
-    minorUnits,
-    collectionReady: platformReady && routeReadiness[providerForCurrency(code)],
-  })));
   res.setHeader("Cache-Control", "public, max-age=60");
-  res.json(ListSupportedCurrenciesResponse.parse({ items }));
+  res.json(ListSupportedCurrenciesResponse.parse({ items: await getCollectionCurrencyOptions() }));
 });
 
 router.get("/public/payment-links/:slug", async (req, res): Promise<void> => {
@@ -150,6 +162,10 @@ router.get("/public/payment-links/:slug", async (req, res): Promise<void> => {
       return;
     }
   }
+  const currencies = await getCollectionCurrencyOptions();
+  const availableCurrencies = link.amountType === "customer_choice" && invoiceState.invoiceOutstandingAmount === null
+    ? currencies
+    : currencies.filter(({ code }) => code === link.currency.toUpperCase());
   res.json(GetPublicPaymentLinkResponse.parse({
     slug: link.slug,
     name: link.name,
@@ -157,6 +173,7 @@ router.get("/public/payment-links/:slug", async (req, res): Promise<void> => {
     amountType: link.amountType,
     amount: link.amount === null ? null : Number(link.amount),
     currency: link.currency,
+    availableCurrencies,
     expiresAt: link.expiresAt,
     invoiceOutstandingAmount: invoiceState.invoiceOutstandingAmount,
   }));
@@ -194,6 +211,22 @@ router.post("/public/payment-links/:slug/checkout", async (req, res): Promise<vo
       return;
     }
   }
+  const currencyResult = resolvePublicCheckoutCurrency({
+    linkCurrency: link.currency,
+    amountType: link.amountType === "fixed" ? "fixed" : "customer_choice",
+    isInvoice: invoiceState.invoiceOutstandingAmount !== null,
+    requestedCurrency: body.data.currency,
+  });
+  if ("error" in currencyResult) {
+    res.status(400).json({
+      error: currencyResult.error === "fixed_currency_immutable"
+        ? "This payment link must be paid in its listed currency."
+        : "This currency is not supported for checkout.",
+    });
+    return;
+  }
+  const currency = currencyResult.currency;
+  const paymentMethod = resolveCollectionPaymentMethod(currency, body.data.paymentMethod);
   const amountResult = resolvePublicCheckoutAmount({
     amountType: link.amountType === "fixed" ? "fixed" : "customer_choice",
     fixedAmount: link.amount === null ? null : Number(link.amount),
@@ -210,13 +243,14 @@ router.post("/public/payment-links/:slug/checkout", async (req, res): Promise<vo
     return;
   }
   const amount = amountResult.amount;
-  if (link.currency === "KES" && !body.data.customerPhone?.trim()) {
-    res.status(400).json({ error: "A phone number is required for the M-Pesa prompt." });
+  if (paymentMethod.requiresPhone && !body.data.customerPhone?.trim()) {
+    res.status(400).json({ error: "A phone number is required for the selected payment method." });
     return;
   }
   const result = await createCollection({
     amount,
-    currency: link.currency,
+    currency,
+    paymentMethod: paymentMethod.id,
     customerEmail: body.data.customerEmail,
     customerName: body.data.customerName,
     customerPhone: body.data.customerPhone,
@@ -227,20 +261,18 @@ router.post("/public/payment-links/:slug/checkout", async (req, res): Promise<vo
   }).catch((error: unknown) => {
     const status = error instanceof ApiError ? error.statusCode : 500;
     req.log.warn({ statusCode: status }, "Public checkout could not be initiated");
-    if (status === 409) {
-      throw new ApiError(status, error instanceof Error ? error.message : "This payment link is no longer current.");
-    }
-    if (status === 400 || status === 422) {
-      throw new ApiError(status, "We could not start this payment. Please check your details and try again.");
-    }
-    throw new ApiError(503, "Payments are temporarily unavailable. Please try again shortly.");
+    const failure = publicCheckoutFailure(
+      status,
+      error instanceof Error ? error.message : "Please check your payment details.",
+    );
+    throw new ApiError(failure.status, failure.error);
   });
   res.status(201).json(CheckoutPaymentLinkResponse.parse({
     reference: result.transaction.reference,
     checkoutUrl: result.checkoutUrl,
     nextAction: result.checkoutUrl
-      ? "redirect"
-      : result.transaction.provider === "payhero" ? "mobile_prompt" : "check_status",
+      ? paymentMethod.nextAction
+      : paymentMethod.nextAction === "mobile_prompt" ? "mobile_prompt" : "check_status",
   }));
 });
 

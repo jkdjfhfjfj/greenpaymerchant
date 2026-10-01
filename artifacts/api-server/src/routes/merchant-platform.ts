@@ -1,6 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { createHash } from "node:crypto";
-import { and, desc, eq, ilike, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import {
   GetAdminVerificationLimitsResponse,
@@ -28,7 +27,9 @@ import {
   verificationTierLimitsTable,
 } from "@workspace/db";
 import { assertCollectionAmountPrecision, createCollection } from "../lib/greenpay-collection";
-import { assertSupportedCurrency, getPublicAppUrl, providerForCurrency, providerIsConfigured } from "../lib/greenpay-provider";
+import {
+  assertSupportedCurrency, getPublicAppUrl, providerForCurrency, providerIsConfigured, resolveCollectionPaymentMethod,
+} from "../lib/greenpay-provider";
 import { requireAdmin, requireSignedIn } from "../middlewares/requireAdmin";
 import { developerApiAuth, requireApiScope } from "../middlewares/developerApiAuth";
 import {
@@ -38,11 +39,13 @@ import {
   getMerchantActionControls,
 } from "../lib/platform";
 import { apiKeyHash, encryptSecret, validateWebhookUrl } from "../lib/secure-storage";
-import { findTransaction, markTransactionStatus, paymentLinkDto, payoutDto, transactionDto } from "../lib/greenpay-ledger";
+import {
+  findTransaction, markTransactionStatus, paymentLinkDto, paymentLinkStats, payoutDto, transactionDto,
+} from "../lib/greenpay-ledger";
 import { verifyProviderPayment } from "../lib/greenpay-provider";
 import { calculateFxQuote } from "../lib/fx-math";
 import { diditDecisionStatus, diditStatusNeedsRefresh, ownsMerchantRecord } from "../lib/security-policy";
-import { idempotencyDisposition } from "../lib/payment-safety";
+import { developerTransactionRequestFingerprint, idempotencyDisposition } from "../lib/payment-safety";
 import { verificationTierForMerchant } from "../lib/platform";
 import { getAuth } from "@clerk/express";
 import { findMerchantAccessForUser, resolveMerchantAccess } from "../lib/merchant-access";
@@ -80,20 +83,12 @@ async function ownedMerchant(res: Parameters<Parameters<IRouter["get"]>[1]>[1]) 
   return resolveMerchantAccess(res.req, res, permission);
 }
 
-async function getLinkStats(id: number) {
-  const [stats] = await db.select({
-    count: sql<number>`count(*) filter (where ${transactionsTable.status} in ('success','refunded'))::int`,
-    total: sql<number>`coalesce(sum(${transactionsTable.amount}) filter (where ${transactionsTable.status} in ('success','refunded')),0)::numeric`,
-  }).from(transactionsTable).where(eq(transactionsTable.paymentLinkId, id));
-  return { count: Number(stats?.count ?? 0), total: Number(stats?.total ?? 0) };
-}
-
 async function merchantLinks(merchantId: number) {
   const rows = await db.select().from(paymentLinksTable)
     .where(eq(paymentLinksTable.merchantId, merchantId)).orderBy(desc(paymentLinksTable.createdAt)).limit(500);
   return Promise.all(rows.map(async (row) => {
-    const stats = await getLinkStats(row.id);
-    return paymentLinkDto(row, stats.count, stats.total);
+    const stats = await paymentLinkStats(row.id);
+    return paymentLinkDto(row, stats.paidCount, stats.totalsByCurrency);
   }));
 }
 
@@ -125,7 +120,7 @@ async function createOwnedLink(merchant: typeof merchantsTable.$inferSelect, inp
     expiresAt: input.expiresAt ?? null,
     status: "active",
   }).returning();
-  return paymentLinkDto(link, 0, 0);
+  return paymentLinkDto(link, 0, []);
 }
 
 function apiKeyDto(row: typeof merchantApiKeysTable.$inferSelect) {
@@ -470,8 +465,8 @@ router.patch("/merchant/payment-links/:id", requireSignedIn, async (req, res): P
   const [link] = await db.update(paymentLinksTable).set(updates).where(and(
     eq(paymentLinksTable.id, owned.id), eq(paymentLinksTable.merchantId, merchant.id),
   )).returning();
-  const stats = await getLinkStats(link.id);
-  res.json(UpdateMerchantPaymentLinkResponse.parse(paymentLinkDto(link, stats.count, stats.total)));
+  const stats = await paymentLinkStats(link.id);
+  res.json(UpdateMerchantPaymentLinkResponse.parse(paymentLinkDto(link, stats.paidCount, stats.totalsByCurrency)));
 });
 
 router.delete("/merchant/payment-links/:id", requireSignedIn, async (req, res): Promise<void> => {
@@ -668,13 +663,14 @@ apiRouter.post("/transactions", requireApiScope("payments:write"), async (req, r
   const currency = values.currency.toUpperCase();
   assertSupportedCurrency(currency);
   assertCollectionAmountPrecision(values.amount, currency);
+  const paymentMethod = resolveCollectionPaymentMethod(currency, values.paymentMethod);
   const provider = providerForCurrency(currency);
   if (!await providerIsConfigured(provider)) {
     res.status(503).json({ error: `${provider} is not configured.` });
     return;
   }
-  if (provider === "payhero" && !values.customerPhone?.trim()) {
-    res.status(400).json({ error: "A phone number is required for a KES M-Pesa prompt." }); return;
+  if (paymentMethod.requiresPhone && !values.customerPhone?.trim()) {
+    res.status(400).json({ error: "A phone number is required for the selected payment method." }); return;
   }
   getPublicAppUrl();
   let link: typeof paymentLinksTable.$inferSelect | undefined;
@@ -693,15 +689,16 @@ apiRouter.post("/transactions", requireApiScope("payments:write"), async (req, r
       res.status(400).json({ error: "Payment amount does not match the selected fixed-price link." }); return;
     }
   }
-  const requestPayload = {
-    amount: values.amount, currency,
+  const requestHash = developerTransactionRequestFingerprint({
+    amount: values.amount,
+    currency,
+    paymentMethod: paymentMethod.id,
     customerEmail: values.customerEmail.trim().toLowerCase(),
     customerName: values.customerName?.trim() ?? null,
     customerPhone: values.customerPhone?.trim() ?? null,
     description: values.description?.trim() ?? null,
     paymentLinkId: values.paymentLinkId ?? null,
-  };
-  const requestHash = createHash("sha256").update(JSON.stringify(requestPayload)).digest("hex");
+  });
   const idempotencyKey = header.data["Idempotency-Key"];
   const [reserved] = await db.insert(developerIdempotencyTable).values({
     merchantId: merchant.id, idempotencyKey, requestHash, status: "in_flight",
@@ -734,7 +731,7 @@ apiRouter.post("/transactions", requireApiScope("payments:write"), async (req, r
   }
   try {
     const result = await createCollection({
-      ...values, merchantId: merchant.id,
+      ...values, paymentMethod: paymentMethod.id, merchantId: merchant.id,
       paymentLinkSlug: link?.slug,
     });
     const response = CreateDeveloperTransactionResponse.parse({

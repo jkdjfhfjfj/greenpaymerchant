@@ -6,7 +6,12 @@ import {
   ListSupportedCurrenciesResponse,
 } from "@workspace/api-zod";
 import { assertCollectionAmountPrecision } from "./greenpay-collection";
-import { assertSupportedCurrency, providerForCurrency } from "./greenpay-provider";
+import {
+  assertSupportedCurrency,
+  collectionPaymentMethodsForCurrency,
+  providerForCurrency,
+  resolveCollectionPaymentMethod,
+} from "./greenpay-provider";
 
 test("the collection catalog preserves documented Payzaapi codes plus existing USD and KES routes", () => {
   assert.deepEqual(COLLECTION_CURRENCIES.map(({ code }) => code), [
@@ -32,10 +37,41 @@ test("the public currency contract exposes amount precision and readiness, not r
   const response = ListSupportedCurrenciesResponse.parse({
     items: COLLECTION_CURRENCIES.map(({ code, name, minorUnits }) => ({
       code, name, minorUnits, collectionReady: false,
+      paymentMethods: collectionPaymentMethodsForCurrency(code, false),
     })),
   });
   assert.equal(response.items.length, 14);
   assert.equal(response.items.some((item) => "provider" in item || "gateway" in item), false);
+  assert.equal(response.items.every((item) =>
+    item.paymentMethods.length === 1 && item.paymentMethods[0]?.ready === item.collectionReady,
+  ), true);
+  assert.deepEqual(response.items.find((item) => item.code === "KES")?.paymentMethods[0], {
+    id: "mobile_prompt",
+    label: "Mobile money prompt",
+    ready: false,
+    requiresPhone: true,
+    nextAction: "mobile_prompt",
+  });
+  assert.deepEqual(response.items.find((item) => item.code === "USD")?.paymentMethods[0], {
+    id: "hosted_checkout",
+    label: "Secure hosted checkout",
+    ready: false,
+    requiresPhone: false,
+    nextAction: "redirect",
+  });
+});
+
+test("payment-method selection stays currency-bound and does not disclose a gateway", () => {
+  for (const { code } of COLLECTION_CURRENCIES) {
+    const method = resolveCollectionPaymentMethod(code);
+    assert.equal(method.id, code === "KES" ? "mobile_prompt" : "hosted_checkout");
+    assert.throws(
+      () => resolveCollectionPaymentMethod(code, code === "KES" ? "hosted_checkout" : "mobile_prompt"),
+      /not available for this currency/,
+    );
+  }
+  assert.throws(() => resolveCollectionPaymentMethod("KES", "payhero"), /not available/);
+  assert.throws(() => resolveCollectionPaymentMethod("USD", "paystack"), /not available/);
 });
 
 test("collection amount precision accepts only allowed digits, including whole KES", () => {

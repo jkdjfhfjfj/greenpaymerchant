@@ -168,3 +168,103 @@ pre.code{background:#203d36;color:#e9e3d0;font:12.5px/1.6 'IBM Plex Mono',monosp
 .auth-main .cl-cardBox{max-width:420px}
 .auth-main .cl-card,.auth-main .cl-card *{box-sizing:border-box}
 @media(max-width:520px){.auth-main{padding:16px 12px;place-items:start center}.auth-main .cl-card{padding-left:20px;padding-right:20px}}
+/* Greenpay responsive layer */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html,body{max-width:100%;overflow-x:hidden}
+img,svg,video{max-width:100%}
+.main-column,.page-content,.panel,.split>*,.dashboard-main-grid>*,.kv>*{min-width:0}
+.dt td,.kv strong,.sub,.fields-list code,.card-lite header strong{overflow-wrap:anywhere}
+.dt .mono,.dt td.mono{overflow-wrap:anywhere;word-break:break-all;min-width:120px}
+.table-wrap{max-width:100%;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+table.dt{min-width:640px}
+.dt .num,.metric-value,.big,.amt{font-variant-numeric:tabular-nums}
+.copy-line code{min-width:0;overflow-wrap:anywhere;word-break:break-all}
+pre.code{max-width:100%;-webkit-overflow-scrolling:touch}
+:focus-visible{outline:2px solid var(--forest);outline-offset:2px}
+.mute,.sub,.metric-detail{color:#5f706a}
+@media(max-width:900px){
+ .sidebar{width:min(300px,86vw);padding-top:max(18px,env(safe-area-inset-top));padding-bottom:max(18px,env(safe-area-inset-bottom));overscroll-behavior:contain}
+ .nav-item{min-height:44px;font-size:14.5px}.help-link{min-height:44px}
+ .topbar{padding-top:max(10px,env(safe-area-inset-top));padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right));gap:8px}
+ .breadcrumbs{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+ .topbar-right{gap:6px}
+ .icon-button{min-width:44px;min-height:44px}
+ .page-content{padding-bottom:max(24px,env(safe-area-inset-bottom))}
+ .app-footer{flex-direction:column;gap:6px;padding:14px}
+ .table-wrap{margin-inline:-2px}
+ .hero-copy h1{font-size:clamp(32px,10vw,44px)}
+ .welcome-footer{padding:18px}
+ .hp-hero-art{min-height:340px}
+}
+@media(max-width:640px){
+ body{font-size:15px}
+ input,select,textarea{font-size:16px;min-height:46px;padding:10px 12px}
+ input[type=checkbox],input[type=radio]{min-height:0;width:20px;height:20px}
+ textarea{min-height:96px}
+ .btn{min-height:46px;padding:10px 16px;font-size:14px;white-space:normal;text-align:center}
+ .btn-sm{min-height:40px;padding:8px 12px;font-size:13px}
+ .page-heading{align-items:stretch;flex-direction:column;gap:12px}
+ .page-heading>div:last-child .btn{width:100%}
+ .page-heading h1{font-size:24px;line-height:1.15}
+ .panel{padding:14px;border-radius:12px}
+ .panel-head{flex-wrap:wrap}
+ .metric-grid{grid-template-columns:1fr 1fr;gap:10px}
+ .metric-card{padding:12px}.metric-value{font-size:22px;overflow-wrap:anywhere}
+ .kv{grid-template-columns:1fr 1fr;gap:12px}
+ .cards{grid-template-columns:1fr}
+ .toolbar>*,.toolbar .grow,.search-box{width:100%;min-width:0;flex:1 1 100%}
+ .toolbar-filters{width:100%}.toolbar-filters>*{flex:1 1 140px}
+ .select-wrap{width:100%}.select-wrap select{flex:1;min-height:44px}
+ .pager{flex-wrap:wrap;justify-content:space-between}.pager>span{flex:1 1 100%}.pager .btn{flex:1}
+ .row-actions{flex-wrap:wrap}
+ .setting-row{gap:12px;min-height:56px}
+ .switch{width:52px;height:30px}.switch::after{width:24px;height:24px;top:3px;left:3px}.switch[aria-checked=true]::after{transform:translateX(22px)}
+ .chip{min-height:40px;padding:8px 14px}
+ /* modals become bottom sheets */
+ .modal-backdrop{align-items:end;padding:0;place-items:end stretch}
+ .modal,.modal-wide{width:100%;max-height:calc(100dvh - 24px);border-radius:18px 18px 0 0;padding:18px 16px max(18px,env(safe-area-inset-bottom));animation:sheet .25s ease both}
+ .modal-head h2{font-size:17px}
+ .modal .row-actions{flex-direction:column-reverse}.modal .row-actions .btn{width:100%}
+ .modal .form-grid{grid-template-columns:1fr}
+ @keyframes sheet{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+ .secret-box{padding:12px}.copy-line{flex-wrap:wrap}.copy-line .btn{width:100%}
+ .quote-hero{padding:16px}.quote-hero .big{font-size:26px;overflow-wrap:anywhere}
+ .centered-page{padding:12px;place-items:start center}
+ .centered-card{padding:20px 16px;border-radius:14px}.centered-card h1{font-size:22px}
+ .status-big .amt{font-size:28px;overflow-wrap:anywhere}
+ .checkout-page{padding:12px max(12px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+ .checkout-card{padding:18px 16px;border-radius:14px}.checkout-card h1{font-size:22px}
+ .checkout-header{flex-wrap:wrap;gap:6px}
+ .auth-main{padding:16px 12px}
+ .welcome-nav{padding:14px 16px}.welcome-nav-right{gap:10px}
+ .welcome-proof,.welcome-flow,.welcome-cta{padding-block:32px}
+ .welcome-proof h2,.welcome-flow h2,.welcome-cta h2{font-size:26px}
+ .hero-actions{flex-direction:column;align-items:stretch;gap:12px}
+ .hero-visual{min-height:0;padding:16px;border-radius:18px}
+ .currency-bar{width:56px}
+ /* landing */
+ .hp-nav-cta{gap:8px}.hp-btn{min-height:44px}
+ .hp-hero{padding:36px 16px;gap:32px}.hp-hero p{font-size:16px}
+ .hp-actions .hp-btn{flex:1 1 100%}
+ .hp-hero-art{min-height:320px;border-radius:22px}
+ .hp-card{padding:12px;border-radius:14px}.hp-card-link{width:72%}.hp-card-ledger{width:78%;bottom:16%}.hp-card strong{font-size:15px}
+ .hp-chip{left:6%;font-size:12px}
+ .hp-strip{justify-content:flex-start;gap:8px 20px;font-size:11px}
+ .hp-section,.hp-dark{padding:48px 16px}
+ .hp-feature>div{padding:20px}
+ .hp-cta{margin:0 10px 40px;border-radius:22px;padding:44px 16px}
+ .hp-footer,.hp-footer div{flex-direction:column;align-items:flex-start;gap:10px}
+}
+@media(max-width:380px){
+ .metric-grid,.kv{grid-template-columns:1fr}
+ .page-content{padding-inline:12px}
+ .brand-name{font-size:16px}
+ .btn{padding-inline:12px}
+}
+@media(min-width:641px) and (max-width:1100px){
+ .welcome-hero{gap:24px}.hero-copy h1{font-size:46px}
+ .dashboard-main-grid,.split{grid-template-columns:1fr}
+ .hp-hero{gap:28px}.hp-grid{gap:12px}
+}
+@media(max-height:500px) and (orientation:landscape){.modal-backdrop{align-items:start;overflow-y:auto}.modal{max-height:none}}
+@media(prefers-reduced-motion:reduce){.page-content,.modal,.modal-backdrop{animation:none}}

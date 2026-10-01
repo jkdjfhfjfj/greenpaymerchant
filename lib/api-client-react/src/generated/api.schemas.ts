@@ -335,6 +335,8 @@ export const PayoutProvider = {
 
 export interface Payout {
   id: number;
+  /** @nullable */
+  merchantId?: number | null;
   reference: string;
   amount: number;
   /** @nullable */
@@ -355,6 +357,13 @@ export interface PayoutList {
 }
 
 export interface PayoutInput {
+  /**
+     * @minLength 8
+     * @maxLength 128
+     */
+  idempotencyKey: string;
+  /** @minimum 1 */
+  merchantId?: number;
   /** @exclusiveMinimum 0 */
   amount: number;
   /**
@@ -497,6 +506,441 @@ export interface ProviderStatusList {
   items: ProviderStatus[];
 }
 
+export type MerchantProfileStatus = typeof MerchantProfileStatus[keyof typeof MerchantProfileStatus];
+
+
+export const MerchantProfileStatus = {
+  pending: 'pending',
+  active: 'active',
+  suspended: 'suspended',
+  closed: 'closed',
+} as const;
+
+export type MerchantProfileKycStatus = typeof MerchantProfileKycStatus[keyof typeof MerchantProfileKycStatus];
+
+
+export const MerchantProfileKycStatus = {
+  not_started: 'not_started',
+  pending: 'pending',
+  approved: 'approved',
+  declined: 'declined',
+  in_review: 'in_review',
+  expired: 'expired',
+} as const;
+
+export interface MerchantProfile {
+  id: number;
+  businessName: string;
+  country: string;
+  baseCurrency: string;
+  /** @nullable */
+  registrationNumber?: string | null;
+  status: MerchantProfileStatus;
+  kycStatus: MerchantProfileKycStatus;
+  paymentsEnabled?: boolean;
+  payoutsEnabled?: boolean;
+  refundsEnabled?: boolean;
+  apiAccessEnabled?: boolean;
+  createdAt: string;
+}
+
+export interface AccessProfile {
+  userId: string;
+  isAdmin: boolean;
+  merchant: MerchantProfile | null;
+}
+
+export interface MerchantProfileResponse {
+  merchant: MerchantProfile;
+}
+
+export interface CreateMerchantInput {
+  /**
+     * @minLength 2
+     * @maxLength 150
+     */
+  businessName: string;
+  /**
+     * @minLength 2
+     * @maxLength 2
+     */
+  country: string;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  baseCurrency: string;
+  /** @maxLength 150 */
+  registrationNumber?: string;
+}
+
+export interface KycStatus {
+  status: string;
+  configured: boolean;
+  /** @nullable */
+  sessionId: string | null;
+  /** @nullable */
+  sessionUrl: string | null;
+  /** @nullable */
+  updatedAt?: string | null;
+  requirements?: string[];
+}
+
+export type CreateKycSessionInputKind = typeof CreateKycSessionInputKind[keyof typeof CreateKycSessionInputKind];
+
+
+export const CreateKycSessionInputKind = {
+  kyc: 'kyc',
+  kyb: 'kyb',
+} as const;
+
+export interface CreateKycSessionInput {
+  kind: CreateKycSessionInputKind;
+}
+
+export interface KycSessionResponse {
+  sessionId: string;
+  url: string;
+  status: string;
+}
+
+export type ApiKeyScopesItem = typeof ApiKeyScopesItem[keyof typeof ApiKeyScopesItem];
+
+
+export const ApiKeyScopesItem = {
+  read: 'read',
+  'payment_links:write': 'payment_links:write',
+  'payments:write': 'payments:write',
+} as const;
+
+export interface ApiKey {
+  id: number;
+  name: string;
+  prefix: string;
+  scopes: ApiKeyScopesItem[];
+  createdAt: string;
+  /** @nullable */
+  lastUsedAt?: string | null;
+  /** @nullable */
+  revokedAt?: string | null;
+}
+
+export interface ApiKeyList {
+  items: ApiKey[];
+}
+
+export type CreateApiKeyInputScopesItem = typeof CreateApiKeyInputScopesItem[keyof typeof CreateApiKeyInputScopesItem];
+
+
+export const CreateApiKeyInputScopesItem = {
+  read: 'read',
+  'payment_links:write': 'payment_links:write',
+  'payments:write': 'payments:write',
+} as const;
+
+export interface CreateApiKeyInput {
+  /**
+     * @minLength 2
+     * @maxLength 100
+     */
+  name: string;
+  /** @minItems 1 */
+  scopes: CreateApiKeyInputScopesItem[];
+}
+
+export interface CreatedApiKey {
+  key: ApiKey;
+  secret: string;
+}
+
+export type WebhookEndpointEventsItem = typeof WebhookEndpointEventsItem[keyof typeof WebhookEndpointEventsItem];
+
+
+export const WebhookEndpointEventsItem = {
+  paymentsuccess: 'payment.success',
+  paymentfailed: 'payment.failed',
+  paymentrefunded: 'payment.refunded',
+} as const;
+
+export interface WebhookEndpoint {
+  id: number;
+  url: string;
+  events: WebhookEndpointEventsItem[];
+  active: boolean;
+  createdAt: string;
+}
+
+export interface WebhookEndpointList {
+  items: WebhookEndpoint[];
+}
+
+export type CreateWebhookEndpointInputEventsItem = typeof CreateWebhookEndpointInputEventsItem[keyof typeof CreateWebhookEndpointInputEventsItem];
+
+
+export const CreateWebhookEndpointInputEventsItem = {
+  paymentsuccess: 'payment.success',
+  paymentfailed: 'payment.failed',
+  paymentrefunded: 'payment.refunded',
+} as const;
+
+export interface CreateWebhookEndpointInput {
+  url: string;
+  /** @minItems 1 */
+  events: CreateWebhookEndpointInputEventsItem[];
+}
+
+export interface CreatedWebhookEndpoint {
+  endpoint: WebhookEndpoint;
+  signingSecret: string;
+}
+
+export interface FeeSchedule {
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  percentage: number;
+  /** @minimum 0 */
+  flatAmount: number;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency: string;
+  /**
+     * @minimum 0
+     * @maximum 10000
+     */
+  fxMarkupBps: number;
+}
+
+export type FeeScheduleResponseSource = typeof FeeScheduleResponseSource[keyof typeof FeeScheduleResponseSource];
+
+
+export const FeeScheduleResponseSource = {
+  default: 'default',
+  merchant: 'merchant',
+} as const;
+
+export interface FeeScheduleResponse {
+  schedule: FeeSchedule;
+  source: FeeScheduleResponseSource;
+  note: string;
+}
+
+export interface FxQuote {
+  from: string;
+  to: string;
+  amount: number;
+  rate: number;
+  effectiveRate: number;
+  convertedAmount: number;
+  platformFee: number;
+  source: string;
+  quotedAt: string;
+  expiresAt: string;
+  note?: string;
+}
+
+export interface AdminSummary {
+  totalMerchants: number;
+  activeMerchants: number;
+  pendingKyc: number;
+  suspendedMerchants: number;
+  activeApiKeys: number;
+  credentialProviders: number;
+  totalTransactions: number;
+}
+
+export type AdminMerchant = MerchantProfile & ({
+  ownerUserId: string;
+  /** @nullable */
+  riskNote?: string | null;
+  /** @nullable */
+  diditSessionId?: string | null;
+});
+
+export interface AdminMerchantList {
+  items: AdminMerchant[];
+}
+
+export type AdminMerchantUpdateStatus = typeof AdminMerchantUpdateStatus[keyof typeof AdminMerchantUpdateStatus];
+
+
+export const AdminMerchantUpdateStatus = {
+  pending: 'pending',
+  active: 'active',
+  suspended: 'suspended',
+  closed: 'closed',
+} as const;
+
+export interface AdminMerchantUpdate {
+  /**
+     * @minLength 2
+     * @maxLength 150
+     */
+  businessName?: string;
+  status?: AdminMerchantUpdateStatus;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  riskNote?: string | null;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  baseCurrency?: string;
+  paymentsEnabled?: boolean;
+  payoutsEnabled?: boolean;
+  refundsEnabled?: boolean;
+  apiAccessEnabled?: boolean;
+}
+
+export type AdminFeeSchedule = FeeSchedule & ({
+  id: number;
+  /** @nullable */
+  merchantId: number | null;
+  updatedAt: string;
+});
+
+export interface AdminFeeScheduleList {
+  items: AdminFeeSchedule[];
+}
+
+export type UpdateFeeScheduleInput = FeeSchedule & ({
+  /** @nullable */
+  merchantId: number | null;
+});
+
+export interface AdminFxRate {
+  id: number;
+  from: string;
+  to: string;
+  rate: number;
+  active: boolean;
+  source: string;
+  effectiveAt: string;
+  /** @nullable */
+  expiresAt?: string | null;
+  createdAt: string;
+}
+
+export interface AdminFxRateList {
+  items: AdminFxRate[];
+}
+
+export interface CreateFxRateInput {
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  from: string;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  to: string;
+  /** @exclusiveMinimum 0 */
+  rate: number;
+  /**
+     * @minLength 2
+     * @maxLength 150
+     */
+  source: string;
+  effectiveAt?: string;
+  /** @nullable */
+  expiresAt?: string | null;
+}
+
+export interface UpdateFxRateInput {
+  /** @exclusiveMinimum 0 */
+  rate?: number;
+  active?: boolean;
+  /** @nullable */
+  expiresAt?: string | null;
+}
+
+export type ProviderCredentialProvider = typeof ProviderCredentialProvider[keyof typeof ProviderCredentialProvider];
+
+
+export const ProviderCredentialProvider = {
+  paystack: 'paystack',
+  payhero: 'payhero',
+  payzaapi: 'payzaapi',
+  didit: 'didit',
+} as const;
+
+export type ProviderCredentialFieldsItem = {
+  name: string;
+  present: boolean;
+  masked: string;
+};
+
+export type ProviderCredentialStorage = typeof ProviderCredentialStorage[keyof typeof ProviderCredentialStorage];
+
+
+export const ProviderCredentialStorage = {
+  environment: 'environment',
+  encrypted_vault: 'encrypted_vault',
+  not_configured: 'not_configured',
+} as const;
+
+export interface ProviderCredential {
+  provider: ProviderCredentialProvider;
+  configured: boolean;
+  enabled: boolean;
+  fields: ProviderCredentialFieldsItem[];
+  /** @nullable */
+  updatedAt: string | null;
+  storage: ProviderCredentialStorage;
+}
+
+export interface ProviderCredentialList {
+  items: ProviderCredential[];
+  vaultReady: boolean;
+}
+
+export type SaveProviderCredentialsInputCredentials = {[key: string]: string};
+
+export interface SaveProviderCredentialsInput {
+  enabled: boolean;
+  credentials: SaveProviderCredentialsInputCredentials;
+}
+
+export interface PlatformSettings {
+  newMerchantSignups: boolean;
+  paymentsEnabled: boolean;
+  payoutsEnabled: boolean;
+  refundsEnabled: boolean;
+  apiAccessEnabled: boolean;
+  kycRequired: boolean;
+}
+
+export interface PlatformSettingsUpdate {
+  newMerchantSignups?: boolean;
+  paymentsEnabled?: boolean;
+  payoutsEnabled?: boolean;
+  refundsEnabled?: boolean;
+  apiAccessEnabled?: boolean;
+  kycRequired?: boolean;
+}
+
+export type AdminAuditLogItemsItem = {
+  id: number;
+  actor: string;
+  action: string;
+  target: string;
+  details?: string;
+  createdAt: string;
+};
+
+export interface AdminAuditLog {
+  page: number;
+  total: number;
+  items: AdminAuditLogItemsItem[];
+}
+
 export type ListTransactionsParams = {
 search?: string;
 status?: ListTransactionsStatus;
@@ -583,4 +1027,97 @@ export const ListWebhookEventsStatus = {
   failed: 'failed',
   ignored: 'ignored',
 } as const;
+
+export type ListMerchantTransactionsParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+perPage?: number;
+};
+
+export type GetMerchantFxQuoteParams = {
+/**
+ * @exclusiveMinimum 0
+ */
+amount: number;
+/**
+ * @minLength 3
+ * @maxLength 3
+ */
+from: string;
+/**
+ * @minLength 3
+ * @maxLength 3
+ */
+to: string;
+};
+
+export type ListDeveloperTransactionsParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+perPage?: number;
+};
+
+export type GetDeveloperFxQuoteParams = {
+/**
+ * @exclusiveMinimum 0
+ */
+amount: number;
+/**
+ * @minLength 3
+ * @maxLength 3
+ */
+from: string;
+/**
+ * @minLength 3
+ * @maxLength 3
+ */
+to: string;
+};
+
+export type ListAdminMerchantsParams = {
+search?: string;
+status?: ListAdminMerchantsStatus;
+kycStatus?: ListAdminMerchantsKycStatus;
+};
+
+export type ListAdminMerchantsStatus = typeof ListAdminMerchantsStatus[keyof typeof ListAdminMerchantsStatus];
+
+
+export const ListAdminMerchantsStatus = {
+  pending: 'pending',
+  active: 'active',
+  suspended: 'suspended',
+  closed: 'closed',
+} as const;
+
+export type ListAdminMerchantsKycStatus = typeof ListAdminMerchantsKycStatus[keyof typeof ListAdminMerchantsKycStatus];
+
+
+export const ListAdminMerchantsKycStatus = {
+  not_started: 'not_started',
+  pending: 'pending',
+  approved: 'approved',
+  declined: 'declined',
+  in_review: 'in_review',
+  expired: 'expired',
+} as const;
+
+export type ListAdminAuditLogParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+};
 

@@ -2,6 +2,7 @@ import { and, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import {
   db,
   paymentLinksTable,
+  merchantWebhookEndpointsTable,
   payoutsTable,
   refundsTable,
   settlementsTable,
@@ -14,7 +15,18 @@ import {
   type WebhookEventRecord,
 } from "@workspace/db";
 import type { PaymentStatus } from "./greenpay-provider";
-import { getPublicAppUrl } from "./greenpay-provider";
+import {
+  asObject, fetchProviderJson, getPublicAppUrl, numberValue, stringValue,
+} from "./greenpay-provider";
+import { providerCredential } from "./credential-runtime";
+import { dispatchPendingMerchantWebhooks, enqueueMerchantWebhookOutbox } from "./outbound-webhooks";
+import { CUSTOMER_REIMBURSED_REFUND_STATUSES } from "./payment-safety";
+import { paymentTransitionAllowed } from "./security-policy";
+
+const TERMINAL_REFUND_STATUSES = new Set([
+  ...CUSTOMER_REIMBURSED_REFUND_STATUSES,
+  "failed", "reversed", "rejected", "cancelled", "recorded", "manual_required",
+]);
 
 export function transactionDto(row: TransactionRecord) {
   return {
@@ -62,6 +74,7 @@ export function paymentLinkDto(row: PaymentLinkRecord, paidCount: number, totalP
 export function payoutDto(row: PayoutRecord) {
   return {
     id: row.id,
+    merchantId: row.merchantId,
     reference: row.reference,
     amount: Number(row.amount),
     fee: row.fee === null ? null : Number(row.fee),
@@ -109,40 +122,64 @@ export async function markTransactionStatus(
   reference: string,
   result: { status: PaymentStatus; fee?: number | null; netAmount?: number | null; paidAt?: Date | null },
 ): Promise<TransactionRecord | undefined> {
-  const [current] = await db.select().from(transactionsTable).where(eq(transactionsTable.reference, reference)).limit(1);
-  if (!current) return undefined;
-  if (current.status === "refunded" || current.status === "success") return current;
-
-  if (result.status === "success") {
-    const paidAt = result.paidAt ?? new Date();
-    const expectedAt = new Date(paidAt.getTime() + 3 * 24 * 60 * 60 * 1000);
-    const netAmount = result.netAmount ?? Number(current.amount);
-    await db.insert(settlementsTable).values({
-      reference: current.reference,
-      provider: current.provider,
-      amount: Number(current.amount),
-      netAmount,
-      currency: current.currency,
-      status: "pending",
-      expectedAt,
-    }).onConflictDoNothing();
-    const [updated] = await db.update(transactionsTable).set({
-      status: "success",
-      fee: result.fee ?? current.fee,
-      netAmount,
-      paidAt,
-      settlementAt: expectedAt,
-      settlementStatus: "pending",
-    }).where(eq(transactionsTable.reference, reference)).returning();
-    return updated;
-  }
-
-  if (current.status !== "pending") return current;
-  const [updated] = await db.update(transactionsTable).set({
-    status: result.status,
-    settlementStatus: "not_applicable",
-  }).where(eq(transactionsTable.reference, reference)).returning();
-  return updated;
+  const outcome = await db.transaction(async (tx) => {
+    const [current] = await tx.select().from(transactionsTable)
+      .where(eq(transactionsTable.reference, reference)).for("update").limit(1);
+    if (!current) return { transaction: undefined, event: undefined };
+    if (!paymentTransitionAllowed(current.status, result.status)) {
+      return { transaction: current, event: undefined };
+    }
+    let updated: TransactionRecord | undefined;
+    let event: string | undefined;
+    if (result.status === "success") {
+      const paidAt = result.paidAt ?? new Date();
+      const expectedAt = new Date(paidAt.getTime() + 3 * 24 * 60 * 60 * 1000);
+      const netAmount = result.netAmount ?? Number(current.amount);
+      const platformNetAmount = Math.max(0, Math.round((netAmount - Number(current.platformFee ?? 0)) * 100) / 100);
+      [updated] = await tx.update(transactionsTable).set({
+        status: "success",
+        fee: result.fee ?? current.fee,
+        netAmount,
+        platformNetAmount,
+        paidAt,
+        settlementAt: expectedAt,
+        settlementStatus: "pending",
+      }).where(and(eq(transactionsTable.id, current.id), eq(transactionsTable.status, "pending"))).returning();
+      if (!updated) return { transaction: current, event: undefined };
+      await tx.insert(settlementsTable).values({
+        reference: current.reference,
+        provider: current.provider,
+        amount: Number(current.amount),
+        netAmount: platformNetAmount,
+        currency: current.currency,
+        status: "pending",
+        expectedAt,
+      }).onConflictDoNothing();
+      event = "payment.success";
+    } else if (result.status === "failed" || result.status === "cancelled") {
+      [updated] = await tx.update(transactionsTable).set({
+        status: result.status,
+        settlementStatus: "not_applicable",
+      }).where(and(eq(transactionsTable.id, current.id), eq(transactionsTable.status, "pending"))).returning();
+      if (!updated) return { transaction: current, event: undefined };
+      if (result.status === "failed") event = "payment.failed";
+    }
+    if (updated && event) {
+      const endpoints = await tx.select({
+        id: merchantWebhookEndpointsTable.id,
+        url: merchantWebhookEndpointsTable.url,
+        encryptedSecret: merchantWebhookEndpointsTable.encryptedSecret,
+        events: merchantWebhookEndpointsTable.events,
+      }).from(merchantWebhookEndpointsTable).where(and(
+        eq(merchantWebhookEndpointsTable.merchantId, updated.merchantId ?? -1),
+        eq(merchantWebhookEndpointsTable.active, true),
+      ));
+      await enqueueMerchantWebhookOutbox(tx, updated, event, endpoints);
+    }
+    return { transaction: updated ?? current, event };
+  });
+  if (outcome.event) void dispatchPendingMerchantWebhooks().catch(() => undefined);
+  return outcome.transaction;
 }
 
 export async function listTransactions(filters: {
@@ -228,45 +265,202 @@ export async function recordWebhookEvent(input: {
 
 export async function recordRefund(input: {
   originalReference: string;
+  reservationId?: number;
+  provider?: string | null;
   providerReference?: string | null;
+  source?: "initiation" | "reconciliation";
   amount: number;
   currency: string;
   status: string;
   reason?: string | null;
 }) {
-  const [refund] = await db.insert(refundsTable).values({
-    reference: `GP-RF-${crypto.randomUUID()}`,
-    originalReference: input.originalReference,
-    providerReference: input.providerReference ?? null,
-    amount: input.amount,
-    currency: input.currency,
-    status: input.status,
-    reason: input.reason ?? null,
-  }).returning();
+  const outcome = await db.transaction(async (tx) => {
+    const [transaction] = await tx.select().from(transactionsTable)
+      .where(eq(transactionsTable.reference, input.originalReference)).for("update").limit(1);
+    let refund: typeof refundsTable.$inferSelect | undefined;
+    if (input.reservationId) {
+      const [currentRefund] = await tx.select().from(refundsTable).where(and(
+        eq(refundsTable.id, input.reservationId),
+        eq(refundsTable.originalReference, input.originalReference),
+      )).for("update").limit(1);
+      if (!currentRefund) throw new Error("Refund reservation no longer exists.");
+      const retainedTerminal = TERMINAL_REFUND_STATUSES.has(currentRefund.status) &&
+        (input.source === "initiation" || input.status === "pending");
+      if (retainedTerminal) {
+        refund = currentRefund;
+      } else {
+        [refund] = await tx.update(refundsTable).set({
+          provider: input.provider ?? currentRefund.provider,
+          providerReference: input.providerReference ?? currentRefund.providerReference,
+          amount: input.amount,
+          currency: input.currency,
+          status: input.status,
+          reason: input.reason ?? currentRefund.reason,
+        }).where(and(
+          eq(refundsTable.id, input.reservationId),
+          eq(refundsTable.originalReference, input.originalReference),
+        )).returning();
+      }
+    } else {
+      [refund] = await tx.insert(refundsTable).values({
+        reference: `GP-RF-${crypto.randomUUID()}`,
+        originalReference: input.originalReference,
+        provider: input.provider ?? null,
+        providerReference: input.providerReference ?? null,
+        amount: input.amount,
+        currency: input.currency,
+        status: input.status,
+        reason: input.reason ?? null,
+      }).returning();
+    }
+    if (!refund) throw new Error("Refund outcome could not be persisted.");
 
-  if (["success", "recorded", "completed", "processed"].includes(input.status)) {
-    const [transaction] = await db.select().from(transactionsTable)
-      .where(eq(transactionsTable.reference, input.originalReference)).limit(1);
-    if (transaction) {
-      const [sumRow] = await db.select({
+    let event: string | undefined;
+    if (transaction && transaction.status === "success" &&
+        CUSTOMER_REIMBURSED_REFUND_STATUSES.includes(refund.status as never)) {
+      const [sumRow] = await tx.select({
         total: sql<number>`coalesce(sum(${refundsTable.amount}), 0)::numeric`,
       }).from(refundsTable).where(and(
         eq(refundsTable.originalReference, input.originalReference),
-        inArray(refundsTable.status, ["success", "recorded", "completed", "processed"]),
+        inArray(refundsTable.status, CUSTOMER_REIMBURSED_REFUND_STATUSES),
       ));
-      const refundableAmount = Number(transaction.netAmount ?? transaction.amount);
-      if (Number(sumRow?.total ?? 0) + 0.001 >= refundableAmount) {
-        await db.update(transactionsTable).set({ status: "refunded" })
-          .where(eq(transactionsTable.reference, input.originalReference));
-        await db.update(settlementsTable).set({ status: "held" })
+      if (Number(sumRow?.total ?? 0) + 0.001 >= Number(transaction.amount)) {
+        const [refunded] = await tx.update(transactionsTable).set({ status: "refunded" })
+          .where(and(
+            eq(transactionsTable.id, transaction.id),
+            eq(transactionsTable.status, "success"),
+          )).returning();
+        await tx.update(settlementsTable).set({ status: "held" })
           .where(and(
             eq(settlementsTable.reference, input.originalReference),
             inArray(settlementsTable.status, ["pending", "due"]),
           ));
+        if (refunded) {
+          event = "payment.refunded";
+          const endpoints = await tx.select({
+            id: merchantWebhookEndpointsTable.id,
+            url: merchantWebhookEndpointsTable.url,
+            encryptedSecret: merchantWebhookEndpointsTable.encryptedSecret,
+            events: merchantWebhookEndpointsTable.events,
+          }).from(merchantWebhookEndpointsTable).where(and(
+            eq(merchantWebhookEndpointsTable.merchantId, refunded.merchantId ?? -1),
+            eq(merchantWebhookEndpointsTable.active, true),
+          ));
+          await enqueueMerchantWebhookOutbox(tx, refunded, event, endpoints);
+        }
       }
     }
+    return { refund, event };
+  });
+  if (outcome.event) void dispatchPendingMerchantWebhooks().catch(() => undefined);
+  return outcome.refund;
+}
+
+export async function reconcilePaystackRefund(
+  providerRefundId: string,
+  callbackData?: Record<string, unknown>,
+): Promise<"processed" | "pending" | "failed" | "unmatched" | "ignored"> {
+  const callback = callbackData ?? {};
+  const callbackId = callback.id === undefined ? undefined : String(callback.id);
+  if (callbackId && callbackId !== providerRefundId) return "ignored";
+
+  let [refund] = await db.select().from(refundsTable).where(and(
+    eq(refundsTable.provider, "paystack"),
+    eq(refundsTable.providerReference, providerRefundId),
+  )).limit(1);
+  if (!refund) {
+    const clientReference = stringValue(callback.merchant_note)?.split(":")[0]?.trim();
+    if (!clientReference) return "unmatched";
+    [refund] = await db.select().from(refundsTable).where(and(
+      eq(refundsTable.reference, clientReference),
+      eq(refundsTable.provider, "paystack"),
+      eq(refundsTable.status, "pending"),
+    )).limit(1);
+    if (!refund) return "unmatched";
   }
-  return refund;
+  const [transaction] = await db.select().from(transactionsTable).where(eq(
+    transactionsTable.reference, refund.originalReference,
+  )).limit(1);
+  if (!transaction || transaction.provider !== "paystack") return "ignored";
+
+  const secret = await providerCredential("paystack", "PAYSTACK_SECRET_KEY");
+  if (!secret) throw new Error("Paystack credentials are unavailable for refund reconciliation.");
+  const refundResponse = await fetchProviderJson(
+    "Paystack",
+    `https://api.paystack.co/refund/${encodeURIComponent(providerRefundId)}`,
+    { headers: { Authorization: `Bearer ${secret}` } },
+  );
+  if (refundResponse.status !== true) throw new Error("Paystack could not confirm the refund.");
+  const canonicalRefund = asObject(refundResponse.data);
+  const canonicalId = canonicalRefund.id === undefined ? undefined : String(canonicalRefund.id);
+  const amount = numberValue(canonicalRefund.amount);
+  const currency = stringValue(canonicalRefund.currency)?.toUpperCase();
+  if (canonicalId !== providerRefundId || amount === undefined || currency !== transaction.currency.toUpperCase() ||
+      Math.abs(amount / 100 - Number(refund.amount)) > 0.011) {
+    return "ignored";
+  }
+
+  const original = asObject(canonicalRefund.transaction);
+  const remoteTransactionId = numberValue(original.id) ?? numberValue(canonicalRefund.transaction);
+  const originalReference = stringValue(original.reference) ??
+    stringValue(canonicalRefund.transaction_reference) ??
+    stringValue(canonicalRefund.original_reference);
+  if (originalReference && originalReference !== (transaction.providerReference ?? transaction.reference)) return "ignored";
+  const verifiedTransaction = await fetchProviderJson(
+    "Paystack",
+    `https://api.paystack.co/transaction/verify/${encodeURIComponent(transaction.providerReference ?? transaction.reference)}`,
+    { headers: { Authorization: `Bearer ${secret}` } },
+  );
+  const verifiedData = asObject(verifiedTransaction.data);
+  const verifiedReference = stringValue(verifiedData.reference);
+  const verifiedTransactionId = numberValue(verifiedData.id);
+  if (verifiedTransaction.status !== true ||
+      verifiedReference !== (transaction.providerReference ?? transaction.reference) ||
+      numberValue(verifiedData.amount) === undefined ||
+      Math.abs(Number(verifiedData.amount) / 100 - Number(transaction.amount)) > 0.011 ||
+      stringValue(verifiedData.currency)?.toUpperCase() !== transaction.currency.toUpperCase() ||
+      (remoteTransactionId !== undefined && verifiedTransactionId !== remoteTransactionId) ||
+      (!originalReference && remoteTransactionId === undefined)) {
+    return "ignored";
+  }
+
+  const callbackAmount = numberValue(callback.amount);
+  const callbackCurrency = stringValue(callback.currency)?.toUpperCase();
+  if ((callbackAmount !== undefined && Math.abs(callbackAmount - amount) > 0.001) ||
+      (callbackCurrency && callbackCurrency !== currency)) return "ignored";
+  const callbackTransaction = asObject(callback.transaction);
+  const callbackTransactionId = numberValue(callbackTransaction.id) ?? numberValue(callback.transaction);
+  const callbackReference = stringValue(callbackTransaction.reference) ??
+    stringValue(callback.transaction_reference) ?? stringValue(callback.original_reference);
+  if ((callbackReference && callbackReference !== verifiedReference) ||
+      (callbackTransactionId !== undefined && callbackTransactionId !== verifiedTransactionId)) return "ignored";
+
+  const canonicalStatus = stringValue(canonicalRefund.status)?.toLowerCase();
+  const status = canonicalStatus === "processed" ? "success"
+    : ["failed", "reversed"].includes(canonicalStatus ?? "") ? "failed" : "pending";
+  await recordRefund({
+    originalReference: transaction.reference,
+    reservationId: refund.id,
+    provider: "paystack",
+    providerReference: providerRefundId,
+    source: "reconciliation",
+    amount: Number(refund.amount),
+    currency: transaction.currency,
+    status,
+    reason: refund.reason,
+  });
+  return status === "success" ? "processed" : status;
+}
+
+export async function reconcilePendingPaystackRefunds(originalReference: string): Promise<void> {
+  const pending = await db.select().from(refundsTable).where(and(
+    eq(refundsTable.originalReference, originalReference),
+    eq(refundsTable.provider, "paystack"),
+    eq(refundsTable.status, "pending"),
+  ));
+  for (const refund of pending) {
+    if (refund.providerReference) await reconcilePaystackRefund(refund.providerReference);
+  }
 }
 
 export async function dashboardSummary() {
@@ -401,12 +595,18 @@ export async function insertPendingTransaction(input: {
   reference: string;
   provider: string;
   amount: number;
+  platformFee?: number;
+  platformFeePercent?: number;
+  platformFlatFee?: number;
+  platformFeeCurrency?: string;
+  platformFeeScheduleId?: number | null;
   currency: string;
   customerEmail: string;
   customerName?: string | null;
   customerPhone?: string | null;
   description?: string | null;
   paymentLinkId?: number | null;
+  merchantId?: number | null;
 }) {
   const [row] = await db.insert(transactionsTable).values({
     ...input,

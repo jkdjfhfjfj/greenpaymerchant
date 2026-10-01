@@ -446,6 +446,7 @@ export const ListPayoutsQueryParams = zod.object({
 export const ListPayoutsResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().int(),
+  "merchantId": zod.number().int().nullish(),
   "reference": zod.string(),
   "amount": zod.number(),
   "fee": zod.number().nullish(),
@@ -464,6 +465,10 @@ export const ListPayoutsResponse = zod.object({
 /**
  * @summary Send a payout through an available Payzaapi payout method
  */
+export const createPayoutBodyIdempotencyKeyMin = 8;
+export const createPayoutBodyIdempotencyKeyMax = 128;
+
+
 export const createPayoutBodyAmountExclusiveMin = 0;
 
 export const createPayoutBodyCurrencyMin = 3;
@@ -475,6 +480,8 @@ export const createPayoutBodyAccountNumberMin = 3;
 
 
 export const CreatePayoutBody = zod.object({
+  "idempotencyKey": zod.string().min(createPayoutBodyIdempotencyKeyMin).max(createPayoutBodyIdempotencyKeyMax),
+  "merchantId": zod.number().int().min(1).optional(),
   "amount": zod.number().gt(createPayoutBodyAmountExclusiveMin),
   "currency": zod.string().min(createPayoutBodyCurrencyMin).max(createPayoutBodyCurrencyMax),
   "method": zod.string(),
@@ -486,6 +493,7 @@ export const CreatePayoutBody = zod.object({
 
 export const CreatePayoutResponse = zod.object({
   "id": zod.number().int(),
+  "merchantId": zod.number().int().nullish(),
   "reference": zod.string(),
   "amount": zod.number(),
   "fee": zod.number().nullish(),
@@ -640,6 +648,1129 @@ export const GetProviderStatusResponse = zod.object({
   "collectionsEnabled": zod.boolean(),
   "payoutsEnabled": zod.boolean(),
   "note": zod.string().optional()
+}))
+})
+
+
+/**
+ * @summary Resolve the signed-in user and their merchant or admin access
+ */
+export const GetAccessProfileResponse = zod.object({
+  "userId": zod.string(),
+  "isAdmin": zod.boolean(),
+  "merchant": zod.union([zod.object({
+  "id": zod.number().int(),
+  "businessName": zod.string(),
+  "country": zod.string(),
+  "baseCurrency": zod.string(),
+  "registrationNumber": zod.string().nullish(),
+  "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "paymentsEnabled": zod.boolean().optional(),
+  "payoutsEnabled": zod.boolean().optional(),
+  "refundsEnabled": zod.boolean().optional(),
+  "apiAccessEnabled": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Read the current user's merchant profile
+ */
+export const GetMerchantProfileResponse = zod.object({
+  "merchant": zod.object({
+  "id": zod.number().int(),
+  "businessName": zod.string(),
+  "country": zod.string(),
+  "baseCurrency": zod.string(),
+  "registrationNumber": zod.string().nullish(),
+  "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "paymentsEnabled": zod.boolean().optional(),
+  "payoutsEnabled": zod.boolean().optional(),
+  "refundsEnabled": zod.boolean().optional(),
+  "apiAccessEnabled": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+})
+})
+
+
+/**
+ * @summary Create a merchant workspace for the signed-in user
+ */
+export const createMerchantProfileBodyBusinessNameMin = 2;
+export const createMerchantProfileBodyBusinessNameMax = 150;
+
+export const createMerchantProfileBodyCountryMin = 2;
+export const createMerchantProfileBodyCountryMax = 2;
+
+export const createMerchantProfileBodyBaseCurrencyMin = 3;
+export const createMerchantProfileBodyBaseCurrencyMax = 3;
+
+export const createMerchantProfileBodyRegistrationNumberMax = 150;
+
+
+
+export const CreateMerchantProfileBody = zod.object({
+  "businessName": zod.string().min(createMerchantProfileBodyBusinessNameMin).max(createMerchantProfileBodyBusinessNameMax),
+  "country": zod.string().min(createMerchantProfileBodyCountryMin).max(createMerchantProfileBodyCountryMax),
+  "baseCurrency": zod.string().min(createMerchantProfileBodyBaseCurrencyMin).max(createMerchantProfileBodyBaseCurrencyMax),
+  "registrationNumber": zod.string().max(createMerchantProfileBodyRegistrationNumberMax).optional()
+})
+
+export const CreateMerchantProfileResponse = zod.object({
+  "merchant": zod.object({
+  "id": zod.number().int(),
+  "businessName": zod.string(),
+  "country": zod.string(),
+  "baseCurrency": zod.string(),
+  "registrationNumber": zod.string().nullish(),
+  "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "paymentsEnabled": zod.boolean().optional(),
+  "payoutsEnabled": zod.boolean().optional(),
+  "refundsEnabled": zod.boolean().optional(),
+  "apiAccessEnabled": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+})
+})
+
+
+/**
+ * @summary Read the merchant's verification status
+ */
+export const GetMerchantKycResponse = zod.object({
+  "status": zod.string(),
+  "configured": zod.boolean(),
+  "sessionId": zod.string().nullable(),
+  "sessionUrl": zod.string().nullable(),
+  "updatedAt": zod.coerce.date().nullish(),
+  "requirements": zod.array(zod.string()).optional()
+})
+
+
+/**
+ * @summary Create a hosted Didit identity or business verification session
+ */
+export const CreateMerchantKycSessionBody = zod.object({
+  "kind": zod.enum(['kyc', 'kyb'])
+})
+
+export const CreateMerchantKycSessionResponse = zod.object({
+  "sessionId": zod.string(),
+  "url": zod.string().url(),
+  "status": zod.string()
+})
+
+
+/**
+ * @summary List transactions belonging to the current merchant only
+ */
+export const listMerchantTransactionsQueryPageDefault = 1;
+
+export const listMerchantTransactionsQueryPerPageDefault = 25;
+export const listMerchantTransactionsQueryPerPageMax = 100;
+
+
+
+export const ListMerchantTransactionsQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).default(listMerchantTransactionsQueryPageDefault),
+  "perPage": zod.coerce.number().int().min(1).max(listMerchantTransactionsQueryPerPageMax).default(listMerchantTransactionsQueryPerPageDefault)
+})
+
+export const ListMerchantTransactionsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "reference": zod.string(),
+  "amount": zod.number(),
+  "fee": zod.number().nullish(),
+  "netAmount": zod.number().nullish(),
+  "currency": zod.string(),
+  "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
+  "paymentMethod": zod.string().nullish(),
+  "customerEmail": zod.string(),
+  "customerName": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "providerReference": zod.string().nullish(),
+  "paymentUrl": zod.string().nullish(),
+  "paymentLinkId": zod.number().int().nullish(),
+  "createdAt": zod.coerce.date(),
+  "paidAt": zod.coerce.date().nullish(),
+  "settlementAt": zod.coerce.date().nullish(),
+  "settlementStatus": zod.enum(['pending', 'due', 'settled', 'held', 'not_applicable'])
+})),
+  "total": zod.number().int(),
+  "page": zod.number().int(),
+  "perPage": zod.number().int()
+})
+
+
+/**
+ * @summary Read administrator-operated payouts attributed to the current merchant
+ */
+export const ListMerchantPayoutsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "merchantId": zod.number().int().nullish(),
+  "reference": zod.string(),
+  "amount": zod.number(),
+  "fee": zod.number().nullish(),
+  "netAmount": zod.number().nullish(),
+  "currency": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string(),
+  "maskedAccount": zod.string().optional(),
+  "status": zod.enum(['pending', 'processing', 'approved', 'completed', 'rejected', 'failed']),
+  "provider": zod.enum(['payzaapi', 'paystack']),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary List payment links belonging to the current merchant
+ */
+export const ListMerchantPaymentLinksResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "amountType": zod.enum(['fixed', 'customer_choice']),
+  "amount": zod.number().nullish(),
+  "currency": zod.string(),
+  "status": zod.enum(['active', 'paused', 'archived']),
+  "url": zod.string().url(),
+  "paidCount": zod.number().int(),
+  "totalPaid": zod.number().optional(),
+  "expiresAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Create a payment link for the current merchant
+ */
+
+export const createMerchantPaymentLinkBodyAmountExclusiveMin = 0;
+
+export const createMerchantPaymentLinkBodyCurrencyMin = 3;
+export const createMerchantPaymentLinkBodyCurrencyMax = 3;
+
+
+
+export const CreateMerchantPaymentLinkBody = zod.object({
+  "name": zod.string().min(1),
+  "description": zod.string().optional(),
+  "amountType": zod.enum(['fixed', 'customer_choice']),
+  "amount": zod.number().gt(createMerchantPaymentLinkBodyAmountExclusiveMin).optional(),
+  "currency": zod.string().min(createMerchantPaymentLinkBodyCurrencyMin).max(createMerchantPaymentLinkBodyCurrencyMax),
+  "expiresAt": zod.coerce.date().optional()
+})
+
+export const CreateMerchantPaymentLinkResponse = zod.object({
+  "id": zod.number().int(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "amountType": zod.enum(['fixed', 'customer_choice']),
+  "amount": zod.number().nullish(),
+  "currency": zod.string(),
+  "status": zod.enum(['active', 'paused', 'archived']),
+  "url": zod.string().url(),
+  "paidCount": zod.number().int(),
+  "totalPaid": zod.number().optional(),
+  "expiresAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a payment link owned by the current merchant
+ */
+export const UpdateMerchantPaymentLinkParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+
+export const UpdateMerchantPaymentLinkBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "description": zod.string().optional(),
+  "status": zod.enum(['active', 'paused']).optional(),
+  "expiresAt": zod.coerce.date().nullish()
+})
+
+export const UpdateMerchantPaymentLinkResponse = zod.object({
+  "id": zod.number().int(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "amountType": zod.enum(['fixed', 'customer_choice']),
+  "amount": zod.number().nullish(),
+  "currency": zod.string(),
+  "status": zod.enum(['active', 'paused', 'archived']),
+  "url": zod.string().url(),
+  "paidCount": zod.number().int(),
+  "totalPaid": zod.number().optional(),
+  "expiresAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Archive a payment link owned by the current merchant
+ */
+export const DeleteMerchantPaymentLinkParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteMerchantPaymentLinkResponse = zod.void()
+
+
+/**
+ * @summary List masked developer API keys for the current merchant
+ */
+export const ListMerchantApiKeysResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "prefix": zod.string(),
+  "scopes": zod.array(zod.enum(['read', 'payment_links:write', 'payments:write'])),
+  "createdAt": zod.coerce.date(),
+  "lastUsedAt": zod.coerce.date().nullish(),
+  "revokedAt": zod.coerce.date().nullish()
+}))
+})
+
+
+/**
+ * @summary Create a scoped developer API key (secret returned only once)
+ */
+export const createMerchantApiKeyBodyNameMin = 2;
+export const createMerchantApiKeyBodyNameMax = 100;
+
+
+
+
+export const CreateMerchantApiKeyBody = zod.object({
+  "name": zod.string().min(createMerchantApiKeyBodyNameMin).max(createMerchantApiKeyBodyNameMax),
+  "scopes": zod.array(zod.enum(['read', 'payment_links:write', 'payments:write'])).min(1)
+})
+
+export const CreateMerchantApiKeyResponse = zod.object({
+  "key": zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "prefix": zod.string(),
+  "scopes": zod.array(zod.enum(['read', 'payment_links:write', 'payments:write'])),
+  "createdAt": zod.coerce.date(),
+  "lastUsedAt": zod.coerce.date().nullish(),
+  "revokedAt": zod.coerce.date().nullish()
+}),
+  "secret": zod.string()
+})
+
+
+/**
+ * @summary Revoke an API key belonging to the current merchant
+ */
+export const RevokeMerchantApiKeyParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const RevokeMerchantApiKeyResponse = zod.void()
+
+
+/**
+ * @summary List the current merchant's outbound webhook endpoints
+ */
+export const ListMerchantWebhookEndpointsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "url": zod.string().url(),
+  "events": zod.array(zod.enum(['payment.success', 'payment.failed', 'payment.refunded'])),
+  "active": zod.boolean(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Add a signed outbound webhook destination
+ */
+
+
+
+export const CreateMerchantWebhookEndpointBody = zod.object({
+  "url": zod.string().url(),
+  "events": zod.array(zod.enum(['payment.success', 'payment.failed', 'payment.refunded'])).min(1)
+})
+
+export const CreateMerchantWebhookEndpointResponse = zod.object({
+  "endpoint": zod.object({
+  "id": zod.number().int(),
+  "url": zod.string().url(),
+  "events": zod.array(zod.enum(['payment.success', 'payment.failed', 'payment.refunded'])),
+  "active": zod.boolean(),
+  "createdAt": zod.coerce.date()
+}),
+  "signingSecret": zod.string()
+})
+
+
+/**
+ * @summary Disable an outbound webhook destination owned by the current merchant
+ */
+export const DeleteMerchantWebhookEndpointParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteMerchantWebhookEndpointResponse = zod.void()
+
+
+/**
+ * @summary Read the active merchant fee schedule
+ */
+export const getMerchantFeesResponseSchedulePercentageMin = 0;
+export const getMerchantFeesResponseSchedulePercentageMax = 100;
+
+export const getMerchantFeesResponseScheduleFlatAmountMin = 0;
+
+export const getMerchantFeesResponseScheduleCurrencyMin = 3;
+export const getMerchantFeesResponseScheduleCurrencyMax = 3;
+
+export const getMerchantFeesResponseScheduleFxMarkupBpsMin = 0;
+export const getMerchantFeesResponseScheduleFxMarkupBpsMax = 10000;
+
+
+
+export const GetMerchantFeesResponse = zod.object({
+  "schedule": zod.object({
+  "percentage": zod.number().min(getMerchantFeesResponseSchedulePercentageMin).max(getMerchantFeesResponseSchedulePercentageMax),
+  "flatAmount": zod.number().min(getMerchantFeesResponseScheduleFlatAmountMin),
+  "currency": zod.string().min(getMerchantFeesResponseScheduleCurrencyMin).max(getMerchantFeesResponseScheduleCurrencyMax),
+  "fxMarkupBps": zod.number().int().min(getMerchantFeesResponseScheduleFxMarkupBpsMin).max(getMerchantFeesResponseScheduleFxMarkupBpsMax)
+}),
+  "source": zod.enum(['default', 'merchant']),
+  "note": zod.string()
+})
+
+
+/**
+ * @summary Convert a payment amount using an active administrator-managed FX rate
+ */
+export const getMerchantFxQuoteQueryAmountExclusiveMin = 0;
+
+export const getMerchantFxQuoteQueryFromMin = 3;
+export const getMerchantFxQuoteQueryFromMax = 3;
+
+export const getMerchantFxQuoteQueryToMin = 3;
+export const getMerchantFxQuoteQueryToMax = 3;
+
+
+
+export const GetMerchantFxQuoteQueryParams = zod.object({
+  "amount": zod.coerce.number().gt(getMerchantFxQuoteQueryAmountExclusiveMin),
+  "from": zod.coerce.string().min(getMerchantFxQuoteQueryFromMin).max(getMerchantFxQuoteQueryFromMax),
+  "to": zod.coerce.string().min(getMerchantFxQuoteQueryToMin).max(getMerchantFxQuoteQueryToMax)
+})
+
+export const GetMerchantFxQuoteResponse = zod.object({
+  "from": zod.string(),
+  "to": zod.string(),
+  "amount": zod.number(),
+  "rate": zod.number(),
+  "effectiveRate": zod.number(),
+  "convertedAmount": zod.number(),
+  "platformFee": zod.number(),
+  "source": zod.string(),
+  "quotedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date(),
+  "note": zod.string().optional()
+})
+
+
+/**
+ * @summary Read the merchant tied to the supplied developer API key
+ */
+export const GetDeveloperMerchantResponse = zod.object({
+  "merchant": zod.object({
+  "id": zod.number().int(),
+  "businessName": zod.string(),
+  "country": zod.string(),
+  "baseCurrency": zod.string(),
+  "registrationNumber": zod.string().nullish(),
+  "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "paymentsEnabled": zod.boolean().optional(),
+  "payoutsEnabled": zod.boolean().optional(),
+  "refundsEnabled": zod.boolean().optional(),
+  "apiAccessEnabled": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+})
+})
+
+
+/**
+ * @summary List payment links belonging to the API key's merchant
+ */
+export const ListDeveloperPaymentLinksResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "amountType": zod.enum(['fixed', 'customer_choice']),
+  "amount": zod.number().nullish(),
+  "currency": zod.string(),
+  "status": zod.enum(['active', 'paused', 'archived']),
+  "url": zod.string().url(),
+  "paidCount": zod.number().int(),
+  "totalPaid": zod.number().optional(),
+  "expiresAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Create a payment link for the API key's merchant
+ */
+
+export const createDeveloperPaymentLinkBodyAmountExclusiveMin = 0;
+
+export const createDeveloperPaymentLinkBodyCurrencyMin = 3;
+export const createDeveloperPaymentLinkBodyCurrencyMax = 3;
+
+
+
+export const CreateDeveloperPaymentLinkBody = zod.object({
+  "name": zod.string().min(1),
+  "description": zod.string().optional(),
+  "amountType": zod.enum(['fixed', 'customer_choice']),
+  "amount": zod.number().gt(createDeveloperPaymentLinkBodyAmountExclusiveMin).optional(),
+  "currency": zod.string().min(createDeveloperPaymentLinkBodyCurrencyMin).max(createDeveloperPaymentLinkBodyCurrencyMax),
+  "expiresAt": zod.coerce.date().optional()
+})
+
+export const CreateDeveloperPaymentLinkResponse = zod.object({
+  "id": zod.number().int(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "amountType": zod.enum(['fixed', 'customer_choice']),
+  "amount": zod.number().nullish(),
+  "currency": zod.string(),
+  "status": zod.enum(['active', 'paused', 'archived']),
+  "url": zod.string().url(),
+  "paidCount": zod.number().int(),
+  "totalPaid": zod.number().optional(),
+  "expiresAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List transactions belonging to the API key's merchant
+ */
+export const listDeveloperTransactionsQueryPageDefault = 1;
+
+export const listDeveloperTransactionsQueryPerPageDefault = 25;
+export const listDeveloperTransactionsQueryPerPageMax = 100;
+
+
+
+export const ListDeveloperTransactionsQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).default(listDeveloperTransactionsQueryPageDefault),
+  "perPage": zod.coerce.number().int().min(1).max(listDeveloperTransactionsQueryPerPageMax).default(listDeveloperTransactionsQueryPerPageDefault)
+})
+
+export const ListDeveloperTransactionsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "reference": zod.string(),
+  "amount": zod.number(),
+  "fee": zod.number().nullish(),
+  "netAmount": zod.number().nullish(),
+  "currency": zod.string(),
+  "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
+  "paymentMethod": zod.string().nullish(),
+  "customerEmail": zod.string(),
+  "customerName": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "providerReference": zod.string().nullish(),
+  "paymentUrl": zod.string().nullish(),
+  "paymentLinkId": zod.number().int().nullish(),
+  "createdAt": zod.coerce.date(),
+  "paidAt": zod.coerce.date().nullish(),
+  "settlementAt": zod.coerce.date().nullish(),
+  "settlementStatus": zod.enum(['pending', 'due', 'settled', 'held', 'not_applicable'])
+})),
+  "total": zod.number().int(),
+  "page": zod.number().int(),
+  "perPage": zod.number().int()
+})
+
+
+/**
+ * @summary Start a merchant payment with a scoped key and idempotency key
+ */
+export const createDeveloperTransactionHeaderIdempotencyKeyMin = 8;
+export const createDeveloperTransactionHeaderIdempotencyKeyMax = 128;
+
+
+
+export const CreateDeveloperTransactionHeader = zod.object({
+  "Idempotency-Key": zod.string().min(createDeveloperTransactionHeaderIdempotencyKeyMin).max(createDeveloperTransactionHeaderIdempotencyKeyMax)
+})
+
+export const createDeveloperTransactionBodyAmountExclusiveMin = 0;
+
+export const createDeveloperTransactionBodyCurrencyMin = 3;
+export const createDeveloperTransactionBodyCurrencyMax = 3;
+
+
+
+export const CreateDeveloperTransactionBody = zod.object({
+  "amount": zod.number().gt(createDeveloperTransactionBodyAmountExclusiveMin),
+  "currency": zod.string().min(createDeveloperTransactionBodyCurrencyMin).max(createDeveloperTransactionBodyCurrencyMax),
+  "customerEmail": zod.string().email(),
+  "customerName": zod.string().optional(),
+  "customerPhone": zod.string().optional(),
+  "description": zod.string().optional(),
+  "paymentLinkId": zod.number().int().optional()
+})
+
+export const CreateDeveloperTransactionResponse = zod.object({
+  "transaction": zod.object({
+  "id": zod.number().int(),
+  "reference": zod.string(),
+  "amount": zod.number(),
+  "fee": zod.number().nullish(),
+  "netAmount": zod.number().nullish(),
+  "currency": zod.string(),
+  "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
+  "paymentMethod": zod.string().nullish(),
+  "customerEmail": zod.string(),
+  "customerName": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "providerReference": zod.string().nullish(),
+  "paymentUrl": zod.string().nullish(),
+  "paymentLinkId": zod.number().int().nullish(),
+  "createdAt": zod.coerce.date(),
+  "paidAt": zod.coerce.date().nullish(),
+  "settlementAt": zod.coerce.date().nullish(),
+  "settlementStatus": zod.enum(['pending', 'due', 'settled', 'held', 'not_applicable'])
+}),
+  "checkoutUrl": zod.string().url().nullable()
+})
+
+
+/**
+ * @summary Read a transaction owned by the API key's merchant
+ */
+export const GetDeveloperTransactionParams = zod.object({
+  "reference": zod.coerce.string()
+})
+
+export const GetDeveloperTransactionResponse = zod.object({
+  "id": zod.number().int(),
+  "reference": zod.string(),
+  "amount": zod.number(),
+  "fee": zod.number().nullish(),
+  "netAmount": zod.number().nullish(),
+  "currency": zod.string(),
+  "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
+  "paymentMethod": zod.string().nullish(),
+  "customerEmail": zod.string(),
+  "customerName": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "providerReference": zod.string().nullish(),
+  "paymentUrl": zod.string().nullish(),
+  "paymentLinkId": zod.number().int().nullish(),
+  "createdAt": zod.coerce.date(),
+  "paidAt": zod.coerce.date().nullish(),
+  "settlementAt": zod.coerce.date().nullish(),
+  "settlementStatus": zod.enum(['pending', 'due', 'settled', 'held', 'not_applicable'])
+})
+
+
+/**
+ * @summary Refresh a merchant transaction's status from its payment provider
+ */
+export const VerifyDeveloperTransactionParams = zod.object({
+  "reference": zod.coerce.string()
+})
+
+export const VerifyDeveloperTransactionResponse = zod.object({
+  "id": zod.number().int(),
+  "reference": zod.string(),
+  "amount": zod.number(),
+  "fee": zod.number().nullish(),
+  "netAmount": zod.number().nullish(),
+  "currency": zod.string(),
+  "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
+  "paymentMethod": zod.string().nullish(),
+  "customerEmail": zod.string(),
+  "customerName": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "providerReference": zod.string().nullish(),
+  "paymentUrl": zod.string().nullish(),
+  "paymentLinkId": zod.number().int().nullish(),
+  "createdAt": zod.coerce.date(),
+  "paidAt": zod.coerce.date().nullish(),
+  "settlementAt": zod.coerce.date().nullish(),
+  "settlementStatus": zod.enum(['pending', 'due', 'settled', 'held', 'not_applicable'])
+})
+
+
+/**
+ * @summary Calculate an FX quote using the key's merchant pricing
+ */
+export const getDeveloperFxQuoteQueryAmountExclusiveMin = 0;
+
+export const getDeveloperFxQuoteQueryFromMin = 3;
+export const getDeveloperFxQuoteQueryFromMax = 3;
+
+export const getDeveloperFxQuoteQueryToMin = 3;
+export const getDeveloperFxQuoteQueryToMax = 3;
+
+
+
+export const GetDeveloperFxQuoteQueryParams = zod.object({
+  "amount": zod.coerce.number().gt(getDeveloperFxQuoteQueryAmountExclusiveMin),
+  "from": zod.coerce.string().min(getDeveloperFxQuoteQueryFromMin).max(getDeveloperFxQuoteQueryFromMax),
+  "to": zod.coerce.string().min(getDeveloperFxQuoteQueryToMin).max(getDeveloperFxQuoteQueryToMax)
+})
+
+export const GetDeveloperFxQuoteResponse = zod.object({
+  "from": zod.string(),
+  "to": zod.string(),
+  "amount": zod.number(),
+  "rate": zod.number(),
+  "effectiveRate": zod.number(),
+  "convertedAmount": zod.number(),
+  "platformFee": zod.number(),
+  "source": zod.string(),
+  "quotedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date(),
+  "note": zod.string().optional()
+})
+
+
+/**
+ * @summary Read the current merchant's platform pricing
+ */
+export const getDeveloperFeesResponseSchedulePercentageMin = 0;
+export const getDeveloperFeesResponseSchedulePercentageMax = 100;
+
+export const getDeveloperFeesResponseScheduleFlatAmountMin = 0;
+
+export const getDeveloperFeesResponseScheduleCurrencyMin = 3;
+export const getDeveloperFeesResponseScheduleCurrencyMax = 3;
+
+export const getDeveloperFeesResponseScheduleFxMarkupBpsMin = 0;
+export const getDeveloperFeesResponseScheduleFxMarkupBpsMax = 10000;
+
+
+
+export const GetDeveloperFeesResponse = zod.object({
+  "schedule": zod.object({
+  "percentage": zod.number().min(getDeveloperFeesResponseSchedulePercentageMin).max(getDeveloperFeesResponseSchedulePercentageMax),
+  "flatAmount": zod.number().min(getDeveloperFeesResponseScheduleFlatAmountMin),
+  "currency": zod.string().min(getDeveloperFeesResponseScheduleCurrencyMin).max(getDeveloperFeesResponseScheduleCurrencyMax),
+  "fxMarkupBps": zod.number().int().min(getDeveloperFeesResponseScheduleFxMarkupBpsMin).max(getDeveloperFeesResponseScheduleFxMarkupBpsMax)
+}),
+  "source": zod.enum(['default', 'merchant']),
+  "note": zod.string()
+})
+
+
+/**
+ * @summary Read platform-wide merchant, transaction, KYC, and provider counts
+ */
+export const GetAdminSummaryResponse = zod.object({
+  "totalMerchants": zod.number().int(),
+  "activeMerchants": zod.number().int(),
+  "pendingKyc": zod.number().int(),
+  "suspendedMerchants": zod.number().int(),
+  "activeApiKeys": zod.number().int(),
+  "credentialProviders": zod.number().int(),
+  "totalTransactions": zod.number().int()
+})
+
+
+/**
+ * @summary Search and filter all merchant accounts
+ */
+export const ListAdminMerchantsQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "status": zod.enum(['pending', 'active', 'suspended', 'closed']).optional(),
+  "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']).optional()
+})
+
+export const ListAdminMerchantsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "businessName": zod.string(),
+  "country": zod.string(),
+  "baseCurrency": zod.string(),
+  "registrationNumber": zod.string().nullish(),
+  "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "paymentsEnabled": zod.boolean().optional(),
+  "payoutsEnabled": zod.boolean().optional(),
+  "refundsEnabled": zod.boolean().optional(),
+  "apiAccessEnabled": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "ownerUserId": zod.string(),
+  "riskNote": zod.string().nullish(),
+  "diditSessionId": zod.string().nullish()
+})))
+})
+
+
+/**
+ * @summary Activate, suspend, close, or update a merchant account
+ */
+export const UpdateAdminMerchantParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const updateAdminMerchantBodyBusinessNameMin = 2;
+export const updateAdminMerchantBodyBusinessNameMax = 150;
+
+export const updateAdminMerchantBodyRiskNoteMax = 1000;
+
+export const updateAdminMerchantBodyBaseCurrencyMin = 3;
+export const updateAdminMerchantBodyBaseCurrencyMax = 3;
+
+
+
+export const UpdateAdminMerchantBody = zod.object({
+  "businessName": zod.string().min(updateAdminMerchantBodyBusinessNameMin).max(updateAdminMerchantBodyBusinessNameMax).optional(),
+  "status": zod.enum(['pending', 'active', 'suspended', 'closed']).optional(),
+  "riskNote": zod.string().max(updateAdminMerchantBodyRiskNoteMax).nullish(),
+  "baseCurrency": zod.string().min(updateAdminMerchantBodyBaseCurrencyMin).max(updateAdminMerchantBodyBaseCurrencyMax).optional(),
+  "paymentsEnabled": zod.boolean().optional(),
+  "payoutsEnabled": zod.boolean().optional(),
+  "refundsEnabled": zod.boolean().optional(),
+  "apiAccessEnabled": zod.boolean().optional()
+})
+
+export const UpdateAdminMerchantResponse = zod.object({
+  "id": zod.number().int(),
+  "businessName": zod.string(),
+  "country": zod.string(),
+  "baseCurrency": zod.string(),
+  "registrationNumber": zod.string().nullish(),
+  "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "paymentsEnabled": zod.boolean().optional(),
+  "payoutsEnabled": zod.boolean().optional(),
+  "refundsEnabled": zod.boolean().optional(),
+  "apiAccessEnabled": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "ownerUserId": zod.string(),
+  "riskNote": zod.string().nullish(),
+  "diditSessionId": zod.string().nullish()
+}))
+
+
+/**
+ * @summary Read global and merchant-specific platform fee schedules
+ */
+export const listAdminFeeSchedulesResponseItemsItemOnePercentageMin = 0;
+export const listAdminFeeSchedulesResponseItemsItemOnePercentageMax = 100;
+
+export const listAdminFeeSchedulesResponseItemsItemOneFlatAmountMin = 0;
+
+export const listAdminFeeSchedulesResponseItemsItemOneCurrencyMin = 3;
+export const listAdminFeeSchedulesResponseItemsItemOneCurrencyMax = 3;
+
+export const listAdminFeeSchedulesResponseItemsItemOneFxMarkupBpsMin = 0;
+export const listAdminFeeSchedulesResponseItemsItemOneFxMarkupBpsMax = 10000;
+
+
+
+export const ListAdminFeeSchedulesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "percentage": zod.number().min(listAdminFeeSchedulesResponseItemsItemOnePercentageMin).max(listAdminFeeSchedulesResponseItemsItemOnePercentageMax),
+  "flatAmount": zod.number().min(listAdminFeeSchedulesResponseItemsItemOneFlatAmountMin),
+  "currency": zod.string().min(listAdminFeeSchedulesResponseItemsItemOneCurrencyMin).max(listAdminFeeSchedulesResponseItemsItemOneCurrencyMax),
+  "fxMarkupBps": zod.number().int().min(listAdminFeeSchedulesResponseItemsItemOneFxMarkupBpsMin).max(listAdminFeeSchedulesResponseItemsItemOneFxMarkupBpsMax)
+}).and(zod.object({
+  "id": zod.number().int(),
+  "merchantId": zod.number().int().nullable(),
+  "updatedAt": zod.coerce.date()
+})))
+})
+
+
+/**
+ * @summary Set a global default or merchant-specific fee schedule
+ */
+export const updateAdminFeeScheduleBodyOnePercentageMin = 0;
+export const updateAdminFeeScheduleBodyOnePercentageMax = 100;
+
+export const updateAdminFeeScheduleBodyOneFlatAmountMin = 0;
+
+export const updateAdminFeeScheduleBodyOneCurrencyMin = 3;
+export const updateAdminFeeScheduleBodyOneCurrencyMax = 3;
+
+export const updateAdminFeeScheduleBodyOneFxMarkupBpsMin = 0;
+export const updateAdminFeeScheduleBodyOneFxMarkupBpsMax = 10000;
+
+
+
+export const UpdateAdminFeeScheduleBody = zod.object({
+  "percentage": zod.number().min(updateAdminFeeScheduleBodyOnePercentageMin).max(updateAdminFeeScheduleBodyOnePercentageMax),
+  "flatAmount": zod.number().min(updateAdminFeeScheduleBodyOneFlatAmountMin),
+  "currency": zod.string().min(updateAdminFeeScheduleBodyOneCurrencyMin).max(updateAdminFeeScheduleBodyOneCurrencyMax),
+  "fxMarkupBps": zod.number().int().min(updateAdminFeeScheduleBodyOneFxMarkupBpsMin).max(updateAdminFeeScheduleBodyOneFxMarkupBpsMax)
+}).and(zod.object({
+  "merchantId": zod.number().int().nullable()
+}))
+
+export const updateAdminFeeScheduleResponseOnePercentageMin = 0;
+export const updateAdminFeeScheduleResponseOnePercentageMax = 100;
+
+export const updateAdminFeeScheduleResponseOneFlatAmountMin = 0;
+
+export const updateAdminFeeScheduleResponseOneCurrencyMin = 3;
+export const updateAdminFeeScheduleResponseOneCurrencyMax = 3;
+
+export const updateAdminFeeScheduleResponseOneFxMarkupBpsMin = 0;
+export const updateAdminFeeScheduleResponseOneFxMarkupBpsMax = 10000;
+
+
+
+export const UpdateAdminFeeScheduleResponse = zod.object({
+  "percentage": zod.number().min(updateAdminFeeScheduleResponseOnePercentageMin).max(updateAdminFeeScheduleResponseOnePercentageMax),
+  "flatAmount": zod.number().min(updateAdminFeeScheduleResponseOneFlatAmountMin),
+  "currency": zod.string().min(updateAdminFeeScheduleResponseOneCurrencyMin).max(updateAdminFeeScheduleResponseOneCurrencyMax),
+  "fxMarkupBps": zod.number().int().min(updateAdminFeeScheduleResponseOneFxMarkupBpsMin).max(updateAdminFeeScheduleResponseOneFxMarkupBpsMax)
+}).and(zod.object({
+  "id": zod.number().int(),
+  "merchantId": zod.number().int().nullable(),
+  "updatedAt": zod.coerce.date()
+}))
+
+
+/**
+ * @summary Read active and historical administrator-managed exchange rates
+ */
+export const ListAdminFxRatesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "from": zod.string(),
+  "to": zod.string(),
+  "rate": zod.number(),
+  "active": zod.boolean(),
+  "source": zod.string(),
+  "effectiveAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Add an exchange rate with an effective timestamp and optional expiry
+ */
+export const createAdminFxRateBodyFromMin = 3;
+export const createAdminFxRateBodyFromMax = 3;
+
+export const createAdminFxRateBodyToMin = 3;
+export const createAdminFxRateBodyToMax = 3;
+
+export const createAdminFxRateBodyRateExclusiveMin = 0;
+
+export const createAdminFxRateBodySourceMin = 2;
+export const createAdminFxRateBodySourceMax = 150;
+
+
+
+export const CreateAdminFxRateBody = zod.object({
+  "from": zod.string().min(createAdminFxRateBodyFromMin).max(createAdminFxRateBodyFromMax),
+  "to": zod.string().min(createAdminFxRateBodyToMin).max(createAdminFxRateBodyToMax),
+  "rate": zod.number().gt(createAdminFxRateBodyRateExclusiveMin),
+  "source": zod.string().min(createAdminFxRateBodySourceMin).max(createAdminFxRateBodySourceMax),
+  "effectiveAt": zod.coerce.date().optional(),
+  "expiresAt": zod.coerce.date().nullish()
+})
+
+export const CreateAdminFxRateResponse = zod.object({
+  "id": zod.number().int(),
+  "from": zod.string(),
+  "to": zod.string(),
+  "rate": zod.number(),
+  "active": zod.boolean(),
+  "source": zod.string(),
+  "effectiveAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Change or deactivate an exchange rate
+ */
+export const UpdateAdminFxRateParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const updateAdminFxRateBodyRateExclusiveMin = 0;
+
+
+
+export const UpdateAdminFxRateBody = zod.object({
+  "rate": zod.number().gt(updateAdminFxRateBodyRateExclusiveMin).optional(),
+  "active": zod.boolean().optional(),
+  "expiresAt": zod.coerce.date().nullish()
+})
+
+export const UpdateAdminFxRateResponse = zod.object({
+  "id": zod.number().int(),
+  "from": zod.string(),
+  "to": zod.string(),
+  "rate": zod.number(),
+  "active": zod.boolean(),
+  "source": zod.string(),
+  "effectiveAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Read credential readiness and masked keys for all providers
+ */
+export const ListAdminProviderCredentialsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit']),
+  "configured": zod.boolean(),
+  "enabled": zod.boolean(),
+  "fields": zod.array(zod.object({
+  "name": zod.string(),
+  "present": zod.boolean(),
+  "masked": zod.string()
+})),
+  "updatedAt": zod.coerce.date().nullable(),
+  "storage": zod.enum(['environment', 'encrypted_vault', 'not_configured'])
+})),
+  "vaultReady": zod.boolean()
+})
+
+
+/**
+ * @summary Encrypt and save or replace a provider's credentials
+ */
+export const SaveAdminProviderCredentialsParams = zod.object({
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit'])
+})
+
+export const SaveAdminProviderCredentialsBody = zod.object({
+  "enabled": zod.boolean(),
+  "credentials": zod.record(zod.string(), zod.string())
+})
+
+export const SaveAdminProviderCredentialsResponse = zod.object({
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit']),
+  "configured": zod.boolean(),
+  "enabled": zod.boolean(),
+  "fields": zod.array(zod.object({
+  "name": zod.string(),
+  "present": zod.boolean(),
+  "masked": zod.string()
+})),
+  "updatedAt": zod.coerce.date().nullable(),
+  "storage": zod.enum(['environment', 'encrypted_vault', 'not_configured'])
+})
+
+
+/**
+ * @summary Delete stored credentials and disable the selected provider
+ */
+export const DeleteAdminProviderCredentialsParams = zod.object({
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit'])
+})
+
+export const DeleteAdminProviderCredentialsResponse = zod.void()
+
+
+/**
+ * @summary Read platform-wide feature controls
+ */
+export const GetAdminPlatformSettingsResponse = zod.object({
+  "newMerchantSignups": zod.boolean(),
+  "paymentsEnabled": zod.boolean(),
+  "payoutsEnabled": zod.boolean(),
+  "refundsEnabled": zod.boolean(),
+  "apiAccessEnabled": zod.boolean(),
+  "kycRequired": zod.boolean()
+})
+
+
+/**
+ * @summary Enable or disable platform capabilities and onboarding
+ */
+export const UpdateAdminPlatformSettingsBody = zod.object({
+  "newMerchantSignups": zod.boolean().optional(),
+  "paymentsEnabled": zod.boolean().optional(),
+  "payoutsEnabled": zod.boolean().optional(),
+  "refundsEnabled": zod.boolean().optional(),
+  "apiAccessEnabled": zod.boolean().optional(),
+  "kycRequired": zod.boolean().optional()
+})
+
+export const UpdateAdminPlatformSettingsResponse = zod.object({
+  "newMerchantSignups": zod.boolean(),
+  "paymentsEnabled": zod.boolean(),
+  "payoutsEnabled": zod.boolean(),
+  "refundsEnabled": zod.boolean(),
+  "apiAccessEnabled": zod.boolean(),
+  "kycRequired": zod.boolean()
+})
+
+
+/**
+ * @summary Review privileged account, fee, FX, settings, and credential changes
+ */
+export const listAdminAuditLogQueryPageDefault = 1;
+
+
+
+export const ListAdminAuditLogQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).default(listAdminAuditLogQueryPageDefault)
+})
+
+export const ListAdminAuditLogResponse = zod.object({
+  "page": zod.number().int(),
+  "total": zod.number().int(),
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "actor": zod.string(),
+  "action": zod.string(),
+  "target": zod.string(),
+  "details": zod.string().optional(),
+  "createdAt": zod.coerce.date()
 }))
 })
 

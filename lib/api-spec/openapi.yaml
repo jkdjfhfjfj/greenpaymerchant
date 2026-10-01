@@ -520,6 +520,17 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TransactionList" }
+  /merchant/payouts:
+    get:
+      operationId: listMerchantPayouts
+      tags: [merchant]
+      summary: Read administrator-operated payouts attributed to the current merchant
+      responses:
+        "200":
+          description: Owned payout history, not a withdrawable wallet balance
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutList" }
   /merchant/payment-links:
     get:
       operationId: listMerchantPaymentLinks
@@ -750,6 +761,100 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TransactionList" }
+    post:
+      operationId: createDeveloperTransaction
+      tags: [developer-api]
+      summary: Start a merchant payment with a scoped key and idempotency key
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TransactionInput" }
+      responses:
+        "201":
+          description: Payment initiated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TransactionCreated" }
+        "409": { description: Idempotency key is in progress or was used with different input }
+  /v1/transactions/{reference}:
+    get:
+      operationId: getDeveloperTransaction
+      tags: [developer-api]
+      summary: Read a transaction owned by the API key's merchant
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: reference
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Merchant transaction
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Transaction" }
+        "404": { description: Transaction not found for this merchant }
+  /v1/transactions/{reference}/verify:
+    post:
+      operationId: verifyDeveloperTransaction
+      tags: [developer-api]
+      summary: Refresh a merchant transaction's status from its payment provider
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: reference
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Verified merchant transaction
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Transaction" }
+  /v1/fx-quote:
+    get:
+      operationId: getDeveloperFxQuote
+      tags: [developer-api]
+      summary: Calculate an FX quote using the key's merchant pricing
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: amount
+          in: query
+          required: true
+          schema: { type: number, exclusiveMinimum: 0 }
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, minLength: 3, maxLength: 3 }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, minLength: 3, maxLength: 3 }
+      responses:
+        "200":
+          description: Merchant FX quote
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FxQuote" }
+  /v1/fees:
+    get:
+      operationId: getDeveloperFees
+      tags: [developer-api]
+      summary: Read the current merchant's platform pricing
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Merchant fee schedule
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FeeScheduleResponse" }
   /admin/summary:
     get:
       operationId: getAdminSummary
@@ -1146,6 +1251,7 @@ components:
       required: [id, reference, amount, currency, method, accountName, status, provider, createdAt]
       properties:
         id: { type: integer }
+        merchantId: { type: ["integer", "null"] }
         reference: { type: string }
         amount: { type: number }
         fee: { type: ["number", "null"] }
@@ -1168,8 +1274,10 @@ components:
           items: { $ref: "#/components/schemas/Payout" }
     PayoutInput:
       type: object
-      required: [amount, currency, method, accountNumber, accountName]
+      required: [amount, currency, method, accountNumber, accountName, idempotencyKey]
       properties:
+        idempotencyKey: { type: string, minLength: 8, maxLength: 128 }
+        merchantId: { type: integer, minimum: 1 }
         amount: { type: number, exclusiveMinimum: 0 }
         currency: { type: string, minLength: 3, maxLength: 3 }
         method: { type: string }
@@ -1294,3 +1402,334 @@ components:
         items:
           type: array
           items: { $ref: "#/components/schemas/ProviderStatus" }
+    AccessProfile:
+      type: object
+      required: [userId, isAdmin, merchant]
+      properties:
+        userId: { type: string }
+        isAdmin: { type: boolean }
+        merchant:
+          anyOf:
+            - { $ref: "#/components/schemas/MerchantProfile" }
+            - { type: "null" }
+    MerchantProfile:
+      type: object
+      required: [id, businessName, country, baseCurrency, status, kycStatus, createdAt]
+      properties:
+        id: { type: integer }
+        businessName: { type: string }
+        country: { type: string }
+        baseCurrency: { type: string }
+        registrationNumber: { type: ["string", "null"] }
+        status: { type: string, enum: [pending, active, suspended, closed] }
+        kycStatus: { type: string, enum: [not_started, pending, approved, declined, in_review, expired] }
+        paymentsEnabled: { type: boolean }
+        payoutsEnabled: { type: boolean }
+        refundsEnabled: { type: boolean }
+        apiAccessEnabled: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    MerchantProfileResponse:
+      type: object
+      required: [merchant]
+      properties:
+        merchant: { $ref: "#/components/schemas/MerchantProfile" }
+    CreateMerchantInput:
+      type: object
+      required: [businessName, country, baseCurrency]
+      properties:
+        businessName: { type: string, minLength: 2, maxLength: 150 }
+        country: { type: string, minLength: 2, maxLength: 2 }
+        baseCurrency: { type: string, minLength: 3, maxLength: 3 }
+        registrationNumber: { type: string, maxLength: 150 }
+    KycStatus:
+      type: object
+      required: [status, configured, sessionId, sessionUrl]
+      properties:
+        status: { type: string }
+        configured: { type: boolean }
+        sessionId: { type: ["string", "null"] }
+        sessionUrl: { type: ["string", "null"] }
+        updatedAt: { type: ["string", "null"], format: date-time }
+        requirements:
+          type: array
+          items: { type: string }
+    CreateKycSessionInput:
+      type: object
+      required: [kind]
+      properties:
+        kind: { type: string, enum: [kyc, kyb] }
+    KycSessionResponse:
+      type: object
+      required: [sessionId, url, status]
+      properties:
+        sessionId: { type: string }
+        url: { type: string, format: uri }
+        status: { type: string }
+    ApiKey:
+      type: object
+      required: [id, name, prefix, scopes, createdAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        prefix: { type: string }
+        scopes:
+          type: array
+          items: { type: string, enum: [read, payment_links:write, payments:write] }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt: { type: ["string", "null"], format: date-time }
+        revokedAt: { type: ["string", "null"], format: date-time }
+    ApiKeyList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ApiKey" }
+    CreateApiKeyInput:
+      type: object
+      required: [name, scopes]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 100 }
+        scopes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, enum: [read, payment_links:write, payments:write] }
+    CreatedApiKey:
+      type: object
+      required: [key, secret]
+      properties:
+        key: { $ref: "#/components/schemas/ApiKey" }
+        secret: { type: string }
+    WebhookEndpoint:
+      type: object
+      required: [id, url, events, active, createdAt]
+      properties:
+        id: { type: integer }
+        url: { type: string, format: uri }
+        events:
+          type: array
+          items: { type: string, enum: [payment.success, payment.failed, payment.refunded] }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    WebhookEndpointList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/WebhookEndpoint" }
+    CreateWebhookEndpointInput:
+      type: object
+      required: [url, events]
+      properties:
+        url: { type: string, format: uri }
+        events:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, enum: [payment.success, payment.failed, payment.refunded] }
+    CreatedWebhookEndpoint:
+      type: object
+      required: [endpoint, signingSecret]
+      properties:
+        endpoint: { $ref: "#/components/schemas/WebhookEndpoint" }
+        signingSecret: { type: string }
+    FeeSchedule:
+      type: object
+      required: [percentage, flatAmount, currency, fxMarkupBps]
+      properties:
+        percentage: { type: number, minimum: 0, maximum: 100 }
+        flatAmount: { type: number, minimum: 0 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        fxMarkupBps: { type: integer, minimum: 0, maximum: 10000 }
+    FeeScheduleResponse:
+      type: object
+      required: [schedule, source, note]
+      properties:
+        schedule: { $ref: "#/components/schemas/FeeSchedule" }
+        source: { type: string, enum: [default, merchant] }
+        note: { type: string }
+    FxQuote:
+      type: object
+      required: [from, to, amount, rate, effectiveRate, convertedAmount, platformFee, source, quotedAt, expiresAt]
+      properties:
+        from: { type: string }
+        to: { type: string }
+        amount: { type: number }
+        rate: { type: number }
+        effectiveRate: { type: number }
+        convertedAmount: { type: number }
+        platformFee: { type: number }
+        source: { type: string }
+        quotedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        note: { type: string }
+    AdminSummary:
+      type: object
+      required: [totalMerchants, activeMerchants, pendingKyc, suspendedMerchants, activeApiKeys, credentialProviders, totalTransactions]
+      properties:
+        totalMerchants: { type: integer }
+        activeMerchants: { type: integer }
+        pendingKyc: { type: integer }
+        suspendedMerchants: { type: integer }
+        activeApiKeys: { type: integer }
+        credentialProviders: { type: integer }
+        totalTransactions: { type: integer }
+    AdminMerchant:
+      allOf:
+        - { $ref: "#/components/schemas/MerchantProfile" }
+        - type: object
+          required: [ownerUserId]
+          properties:
+            ownerUserId: { type: string }
+            riskNote: { type: ["string", "null"] }
+            diditSessionId: { type: ["string", "null"] }
+    AdminMerchantList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AdminMerchant" }
+    AdminMerchantUpdate:
+      type: object
+      properties:
+        businessName: { type: string, minLength: 2, maxLength: 150 }
+        status: { type: string, enum: [pending, active, suspended, closed] }
+        riskNote: { type: ["string", "null"], maxLength: 1000 }
+        baseCurrency: { type: string, minLength: 3, maxLength: 3 }
+        paymentsEnabled: { type: boolean }
+        payoutsEnabled: { type: boolean }
+        refundsEnabled: { type: boolean }
+        apiAccessEnabled: { type: boolean }
+    AdminFeeSchedule:
+      allOf:
+        - { $ref: "#/components/schemas/FeeSchedule" }
+        - type: object
+          required: [id, merchantId, updatedAt]
+          properties:
+            id: { type: integer }
+            merchantId: { type: ["integer", "null"] }
+            updatedAt: { type: string, format: date-time }
+    AdminFeeScheduleList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AdminFeeSchedule" }
+    UpdateFeeScheduleInput:
+      allOf:
+        - { $ref: "#/components/schemas/FeeSchedule" }
+        - type: object
+          required: [merchantId]
+          properties:
+            merchantId: { type: ["integer", "null"] }
+    AdminFxRate:
+      type: object
+      required: [id, from, to, rate, active, source, effectiveAt, createdAt]
+      properties:
+        id: { type: integer }
+        from: { type: string }
+        to: { type: string }
+        rate: { type: number }
+        active: { type: boolean }
+        source: { type: string }
+        effectiveAt: { type: string, format: date-time }
+        expiresAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+    AdminFxRateList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AdminFxRate" }
+    CreateFxRateInput:
+      type: object
+      required: [from, to, rate, source]
+      properties:
+        from: { type: string, minLength: 3, maxLength: 3 }
+        to: { type: string, minLength: 3, maxLength: 3 }
+        rate: { type: number, exclusiveMinimum: 0 }
+        source: { type: string, minLength: 2, maxLength: 150 }
+        effectiveAt: { type: string, format: date-time }
+        expiresAt: { type: ["string", "null"], format: date-time }
+    UpdateFxRateInput:
+      type: object
+      properties:
+        rate: { type: number, exclusiveMinimum: 0 }
+        active: { type: boolean }
+        expiresAt: { type: ["string", "null"], format: date-time }
+    ProviderCredential:
+      type: object
+      required: [provider, configured, enabled, fields, updatedAt, storage]
+      properties:
+        provider: { type: string, enum: [paystack, payhero, payzaapi, didit] }
+        configured: { type: boolean }
+        enabled: { type: boolean }
+        fields:
+          type: array
+          items:
+            type: object
+            required: [name, present, masked]
+            properties:
+              name: { type: string }
+              present: { type: boolean }
+              masked: { type: string }
+        updatedAt: { type: ["string", "null"], format: date-time }
+        storage: { type: string, enum: [environment, encrypted_vault, not_configured] }
+    ProviderCredentialList:
+      type: object
+      required: [items, vaultReady]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ProviderCredential" }
+        vaultReady: { type: boolean }
+    SaveProviderCredentialsInput:
+      type: object
+      required: [enabled, credentials]
+      properties:
+        enabled: { type: boolean }
+        credentials:
+          type: object
+          additionalProperties: { type: string }
+    PlatformSettings:
+      type: object
+      required: [newMerchantSignups, paymentsEnabled, payoutsEnabled, refundsEnabled, apiAccessEnabled, kycRequired]
+      properties:
+        newMerchantSignups: { type: boolean }
+        paymentsEnabled: { type: boolean }
+        payoutsEnabled: { type: boolean }
+        refundsEnabled: { type: boolean }
+        apiAccessEnabled: { type: boolean }
+        kycRequired: { type: boolean }
+    PlatformSettingsUpdate:
+      type: object
+      properties:
+        newMerchantSignups: { type: boolean }
+        paymentsEnabled: { type: boolean }
+        payoutsEnabled: { type: boolean }
+        refundsEnabled: { type: boolean }
+        apiAccessEnabled: { type: boolean }
+        kycRequired: { type: boolean }
+    AdminAuditLog:
+      type: object
+      required: [items, page, total]
+      properties:
+        page: { type: integer }
+        total: { type: integer }
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, actor, action, target, createdAt]
+            properties:
+              id: { type: integer }
+              actor: { type: string }
+              action: { type: string }
+              target: { type: string }
+              details: { type: string }
+              createdAt: { type: string, format: date-time }

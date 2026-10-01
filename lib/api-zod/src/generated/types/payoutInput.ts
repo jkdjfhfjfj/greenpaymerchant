@@ -7,6 +7,13 @@
  */
 
 export interface PayoutInput {
+  /**
+     * @minLength 8
+     * @maxLength 128
+     */
+  idempotencyKey: string;
+  /** @minimum 1 */
+  merchantId?: number;
   /** @exclusiveMinimum 0 */
   amount: number;
   /**

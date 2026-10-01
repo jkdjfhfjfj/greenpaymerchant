@@ -16,6 +16,8 @@ import {
   markTransactionStatus,
   transactionDto,
 } from "../lib/greenpay-ledger";
+import { db, merchantsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -29,6 +31,14 @@ router.get("/public/payment-links/:slug", async (req, res): Promise<void> => {
   if (!link || (link.expiresAt && link.expiresAt.getTime() <= Date.now())) {
     res.status(404).json({ error: "This payment link is no longer available." });
     return;
+  }
+  if (link.merchantId !== null) {
+    const [merchant] = await db.select({ status: merchantsTable.status }).from(merchantsTable)
+      .where(eq(merchantsTable.id, link.merchantId)).limit(1);
+    if (!merchant || merchant.status !== "active") {
+      res.status(404).json({ error: "This payment link is no longer available." });
+      return;
+    }
   }
   res.json(GetPublicPaymentLinkResponse.parse({
     slug: link.slug,
@@ -46,13 +56,21 @@ router.post("/public/payment-links/:slug/checkout", async (req, res): Promise<vo
   const params = CheckoutPaymentLinkParams.safeParse(req.params);
   const body = CheckoutPaymentLinkBody.safeParse(req.body);
   if (!params.success || !body.success) {
-    res.status(400).json({ error: !params.success ? params.error.message : body.error.message });
+    res.status(400).json({ error: !params.success ? params.error.message : body.error?.message ?? "Invalid checkout request." });
     return;
   }
   const link = await getPaymentLinkBySlug(params.data.slug);
   if (!link || (link.expiresAt && link.expiresAt.getTime() <= Date.now())) {
     res.status(404).json({ error: "This payment link is no longer available." });
     return;
+  }
+  if (link.merchantId !== null) {
+    const [merchant] = await db.select({ status: merchantsTable.status }).from(merchantsTable)
+      .where(eq(merchantsTable.id, link.merchantId)).limit(1);
+    if (!merchant || merchant.status !== "active") {
+      res.status(404).json({ error: "This payment link is no longer available." });
+      return;
+    }
   }
   const amount = link.amountType === "fixed" ? Number(link.amount) : body.data.amount;
   if (!(amount && amount > 0)) {
@@ -72,6 +90,7 @@ router.post("/public/payment-links/:slug/checkout", async (req, res): Promise<vo
     description: link.description ?? link.name,
     paymentLinkId: link.id,
     paymentLinkSlug: link.slug,
+    merchantId: link.merchantId ?? undefined,
   });
   res.status(201).json(CheckoutPaymentLinkResponse.parse({
     transaction: transactionDto(result.transaction),

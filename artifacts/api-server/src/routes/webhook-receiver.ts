@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
-import { db, payoutsTable, refundsTable } from "@workspace/db";
+import { db, payoutsTable, refundsTable, merchantsTable, webhookEventsTable } from "@workspace/db";
 import {
   asObject,
   numberValue,
@@ -10,9 +10,102 @@ import {
   verifyWebhookSignature,
   type PaymentStatus,
 } from "../lib/greenpay-provider";
-import { findTransaction, markTransactionStatus, recordWebhookEvent } from "../lib/greenpay-ledger";
+import {
+  findTransaction, markTransactionStatus, reconcilePaystackRefund, recordWebhookEvent,
+} from "../lib/greenpay-ledger";
+import { providerCredential } from "../lib/credential-runtime";
+import { equalSignature } from "../lib/secure-storage";
+import { diditCanonicalStatus, timestampIsFresh } from "../lib/security-policy";
 
 const router: IRouter = Router();
+
+router.post("/didit", async (req, res): Promise<void> => {
+  const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+  const timestamp = req.get("x-timestamp") ?? undefined;
+  const received = req.get("x-signature") ?? undefined;
+  const secret = await providerCredential("didit", "DIDIT_WEBHOOK_SECRET");
+  if (!secret || !timestampIsFresh(timestamp) || !received) {
+    res.status(401).json({ error: "Invalid or expired Didit webhook signature." });
+    return;
+  }
+  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
+  if (!equalSignature(expected, received)) {
+    res.status(401).json({ error: "Invalid or expired Didit webhook signature." });
+    return;
+  }
+  let payload: Record<string, unknown>;
+  try { payload = asObject(JSON.parse(rawBody.toString("utf8"))); }
+  catch { res.status(400).json({ error: "Webhook body must be valid JSON." }); return; }
+
+  const sessionId = stringValue(payload.session_id);
+  const event = stringValue(payload.webhook_type) ?? "status.updated";
+  const bodyHash = createHash("sha256").update(rawBody).digest("hex");
+  const deliveryKey = `didit:${bodyHash}`;
+  const [duplicate] = await db.select({ id: webhookEventsTable.id }).from(webhookEventsTable)
+    .where(eq(webhookEventsTable.deliveryKey, deliveryKey)).limit(1);
+  if (duplicate) {
+    res.json({ received: true, status: "duplicate" });
+    return;
+  }
+  if (!sessionId || event !== "status.updated") {
+    await recordWebhookEvent({
+      deliveryKey, provider: "didit", event,
+      reference: sessionId, status: "ignored", httpStatus: 200,
+    });
+    res.json({ received: true, status: "ignored" });
+    return;
+  }
+  const apiKey = await providerCredential("didit", "DIDIT_API_KEY");
+  if (!apiKey) { res.status(503).json({ error: "Didit API credentials are not configured for authoritative decision verification." }); return; }
+  let outcome: { status: string };
+  try {
+    outcome = await db.transaction(async (tx) => {
+      const [lockedMerchant] = await tx.select().from(merchantsTable)
+        .where(eq(merchantsTable.diditSessionId, sessionId)).for("update").limit(1);
+      if (!lockedMerchant) {
+        await tx.insert(webhookEventsTable).values({
+          deliveryKey, provider: "didit", event, reference: sessionId,
+          status: "ignored", httpStatus: 200,
+        }).onConflictDoNothing();
+        return { status: "ignored" };
+      }
+      const [existingEvent] = await tx.select({ id: webhookEventsTable.id }).from(webhookEventsTable)
+        .where(eq(webhookEventsTable.deliveryKey, deliveryKey)).limit(1);
+      if (existingEvent) return { status: "duplicate" };
+
+      const decisionResponse = await fetch(`https://verification.didit.me/v3/session/${encodeURIComponent(sessionId)}/decision/`, {
+        headers: { "x-api-key": apiKey },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!decisionResponse.ok) throw new Error("Didit decision service could not confirm the session.");
+      const decision = asObject(await decisionResponse.json());
+      const decisionBody = asObject(decision.decision);
+      const authoritativeStatus = stringValue(decision.status) ?? stringValue(decisionBody.status);
+      const mapped = diditCanonicalStatus(authoritativeStatus);
+      if (!mapped) {
+        await tx.insert(webhookEventsTable).values({
+          deliveryKey, provider: "didit", event, reference: sessionId,
+          status: "ignored", httpStatus: 200,
+        }).onConflictDoNothing();
+        return { status: "ignored" };
+      }
+      if (lockedMerchant.kycStatus !== mapped) {
+        await tx.update(merchantsTable).set({
+          kycStatus: mapped, verificationUpdatedAt: new Date(), updatedAt: new Date(),
+        }).where(and(eq(merchantsTable.id, lockedMerchant.id), eq(merchantsTable.diditSessionId, sessionId)));
+      }
+      await tx.insert(webhookEventsTable).values({
+        deliveryKey, provider: "didit", event, reference: sessionId,
+        status: "processed", httpStatus: 200,
+      }).onConflictDoNothing();
+      return { status: mapped };
+    });
+  } catch {
+    res.status(503).json({ error: "Didit decision could not be verified; verification state was not changed." });
+    return;
+  }
+  res.json({ received: true, status: outcome.status });
+});
 
 function mapPaymentStatus(value: unknown): PaymentStatus {
   const status = typeof value === "string" ? value.toLowerCase() : "";
@@ -51,11 +144,11 @@ router.post("/:provider", async (req, res): Promise<void> => {
     return;
   }
 
-  if (provider === "paystack" && !verifyWebhookSignature("paystack", rawBody, req.get("x-paystack-signature"))) {
+  if (provider === "paystack" && !await verifyWebhookSignature("paystack", rawBody, req.get("x-paystack-signature"))) {
     res.status(401).json({ error: "Invalid Paystack signature." });
     return;
   }
-  if (provider === "payzaapi" && !verifyWebhookSignature("payzaapi", rawBody, req.get("x-payza-signature"))) {
+  if (provider === "payzaapi" && !await verifyWebhookSignature("payzaapi", rawBody, req.get("x-payza-signature"))) {
     res.status(401).json({ error: "Invalid Payzaapi signature." });
     return;
   }
@@ -83,11 +176,29 @@ router.post("/:provider", async (req, res): Promise<void> => {
   let lastError: string | null = null;
 
   try {
-    if (provider === "payzaapi" && event === "payment.refunded") {
+    if (provider === "paystack" && event.startsWith("refund.")) {
+      const refundId = paystackData.id === undefined ? undefined : String(paystackData.id);
+      if (!refundId) {
+        eventStatus = "ignored";
+      } else {
+        const result = await reconcilePaystackRefund(refundId, paystackData);
+        if (result === "unmatched") {
+          eventStatus = "failed";
+          httpStatus = 503;
+          lastError = "Paystack refund does not match a pending Greenpay refund reservation.";
+        } else if (result === "ignored") {
+          eventStatus = "ignored";
+        }
+      }
+    } else if (provider === "payzaapi" && event === "payment.refunded") {
       const originalReference = stringValue(payzaMetadata.original_reference);
       if (originalReference && reference) {
         await db.update(refundsTable).set({ status: "recorded" })
-          .where(eq(refundsTable.providerReference, reference));
+          .where(and(
+            eq(refundsTable.provider, "payzaapi"),
+            eq(refundsTable.providerReference, reference),
+            eq(refundsTable.originalReference, originalReference),
+          ));
       }
     } else if (provider === "payzaapi" && event.startsWith("payout.")) {
       if (!reference) {

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import {
@@ -14,14 +15,13 @@ import {
   VerifyTransactionParams,
   VerifyTransactionResponse,
 } from "@workspace/api-zod";
-import { db, refundsTable, transactionsTable } from "@workspace/db";
+import { db, merchantsTable, refundsTable, transactionsTable } from "@workspace/db";
 import { createCollection } from "../lib/greenpay-collection";
 import {
   asObject,
   fetchProviderJson,
   getProviderStatuses,
   numberValue,
-  payzaApiRequest,
   stringValue,
   verifyProviderPayment,
 } from "../lib/greenpay-provider";
@@ -30,19 +30,28 @@ import {
   findTransaction,
   listTransactions,
   markTransactionStatus,
+  reconcilePendingPaystackRefunds,
   recordRefund,
   transactionDto,
 } from "../lib/greenpay-ledger";
+import { providerCredential } from "../lib/credential-runtime";
+import { assertMerchantCapability } from "../lib/platform";
+import {
+  CUSTOMER_REIMBURSED_REFUND_STATUSES,
+  OPEN_REFUND_RESERVATION_STATUSES,
+  paystackRefundOutcome,
+  remainingRefundableAmount,
+} from "../lib/payment-safety";
 
 const router: IRouter = Router();
 
 router.get("/dashboard", async (_req, res): Promise<void> => {
   const summary = await dashboardSummary();
-  res.json(GetDashboardResponse.parse({ ...summary, providerStatus: getProviderStatuses() }));
+  res.json(GetDashboardResponse.parse({ ...summary, providerStatus: await getProviderStatuses() }));
 });
 
-router.get("/providers/status", (_req, res): void => {
-  res.json({ items: getProviderStatuses() });
+router.get("/providers/status", async (_req, res): Promise<void> => {
+  res.json({ items: await getProviderStatuses() });
 });
 
 router.get("/transactions", async (req, res): Promise<void> => {
@@ -109,10 +118,12 @@ router.post("/transactions/:reference/verify", async (req, res): Promise<void> =
 });
 
 router.post("/transactions/:reference/refund", async (req, res): Promise<void> => {
+  const { assertPlatformEnabled } = await import("../lib/platform");
+  await assertPlatformEnabled("refundsEnabled");
   const params = RefundTransactionParams.safeParse(req.params);
   const body = RefundTransactionBody.safeParse(req.body);
   if (!params.success || !body.success) {
-    res.status(400).json({ error: !params.success ? params.error.message : body.error.message });
+    res.status(400).json({ error: !params.success ? params.error.message : body.error?.message ?? "Invalid refund request." });
     return;
   }
   const transaction = await findTransaction(params.data.reference);
@@ -124,21 +135,67 @@ router.post("/transactions/:reference/refund", async (req, res): Promise<void> =
     res.status(409).json({ error: "Only confirmed payments can be refunded." });
     return;
   }
-
-  const [refundTotal] = await db.select({
-    total: sql<number>`coalesce(sum(${refundsTable.amount}), 0)::numeric`,
-  }).from(refundsTable).where(and(
-    eq(refundsTable.originalReference, transaction.reference),
-    inArray(refundsTable.status, ["success", "recorded", "completed", "processed"]),
-  ));
-  const refundableLimit = Number(transaction.netAmount ?? transaction.amount);
-  const remaining = Math.max(0, refundableLimit - Number(refundTotal?.total ?? 0));
-  const requestedAmount = body.data.amount ?? remaining;
-  if (!(requestedAmount > 0) || requestedAmount - remaining > 0.001) {
-    res.status(400).json({ error: `The remaining refundable amount is ${remaining} ${transaction.currency}.` });
+  if (transaction.merchantId !== null) {
+    const [merchant] = await db.select().from(merchantsTable)
+      .where(eq(merchantsTable.id, transaction.merchantId)).limit(1);
+    if (!merchant) { res.status(409).json({ error: "The transaction's merchant account no longer exists." }); return; }
+    await assertMerchantCapability(merchant, "refundsEnabled");
+  }
+  if (transaction.provider === "paystack") {
+    try {
+      await reconcilePendingPaystackRefunds(transaction.reference);
+    } catch {
+      res.status(503).json({ error: "Pending Paystack refunds could not be reconciled; no new refund was submitted." });
+      return;
+    }
+  }
+  if (transaction.provider === "payzaapi") {
+    res.status(501).json({ error: "Payzaapi's refund endpoint adjusts the provider wallet and does not reimburse the customer. Customer refunds require a supported provider flow or manual handling." });
     return;
   }
+
   const reason = body.data.reason?.slice(0, 400) ?? null;
+  const amountRequest = await db.transaction(async (tx) => {
+    await tx.select({ id: transactionsTable.id }).from(transactionsTable)
+      .where(eq(transactionsTable.reference, transaction.reference)).for("update");
+    const [current] = await tx.select().from(transactionsTable)
+      .where(eq(transactionsTable.reference, transaction.reference)).limit(1);
+    if (!current || current.status !== "success") return { error: "Only confirmed payments can be refunded." } as const;
+    const [inFlight] = await tx.select({ id: refundsTable.id }).from(refundsTable).where(and(
+      eq(refundsTable.originalReference, current.reference),
+      inArray(refundsTable.status, OPEN_REFUND_RESERVATION_STATUSES),
+    )).limit(1);
+    if (inFlight) return { error: "A refund for this payment is already pending or requires manual reconciliation." } as const;
+    const [refundTotal] = await tx.select({
+      total: sql<number>`coalesce(sum(${refundsTable.amount}), 0)::numeric`,
+    }).from(refundsTable).where(and(
+      eq(refundsTable.originalReference, current.reference),
+      inArray(refundsTable.status, CUSTOMER_REIMBURSED_REFUND_STATUSES),
+    ));
+    const refundableLimit = Number(current.amount);
+    const remaining = remainingRefundableAmount(refundableLimit, Number(refundTotal?.total ?? 0));
+    const requestedAmount = Math.round((body.data.amount ?? remaining) * 100) / 100;
+    if (!(requestedAmount > 0) || requestedAmount - remaining > 0.001) {
+      return { error: `The remaining refundable amount is ${remaining} ${current.currency}.` } as const;
+    }
+    const [reservation] = await tx.insert(refundsTable).values({
+      reference: `GP-RF-${randomUUID()}`,
+      originalReference: current.reference,
+      provider: current.provider,
+      amount: requestedAmount,
+      currency: current.currency,
+      status: "pending",
+      reason,
+    }).returning();
+    return { reservation, requestedAmount } as const;
+  });
+  if ("error" in amountRequest) {
+    const message = amountRequest.error ?? "Refund could not be reserved safely.";
+    res.status(message.startsWith("The remaining") ? 400 : 409).json({ error: message });
+    return;
+  }
+  const { reservation, requestedAmount } = amountRequest;
+
   let refund: {
     reference: string;
     originalReference: string;
@@ -152,62 +209,64 @@ router.post("/transactions/:reference/refund", async (req, res): Promise<void> =
   if (transaction.provider === "payhero") {
     refund = await recordRefund({
       originalReference: transaction.reference,
+      reservationId: reservation.id,
+      provider: transaction.provider,
+      source: "initiation",
       amount: requestedAmount,
       currency: transaction.currency,
       status: "manual_required",
       reason: reason ?? "PayHero does not provide a documented refund endpoint; return funds manually.",
     });
-  } else if (transaction.provider === "payzaapi") {
-    const response = await payzaApiRequest("/refund", {
-      method: "POST",
-      body: JSON.stringify({
-        reference: transaction.reference,
-        ...(body.data.amount === undefined ? {} : { amount: body.data.amount }),
-        ...(reason ? { reason } : {}),
-      }),
-    });
-    const data = asObject(response.refund);
-    if (response.success !== true) {
-      res.status(502).json({ error: stringValue(response.message) ?? "Payzaapi did not record the refund." });
+  } else {
+    let response: Record<string, unknown>;
+    try {
+      response = await fetchProviderJson("Paystack", "https://api.paystack.co/refund", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${await providerCredential("paystack", "PAYSTACK_SECRET_KEY")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          transaction: transaction.providerReference ?? transaction.reference,
+          amount: Math.round(requestedAmount * 100),
+          ...(reason ? { customer_note: reason } : {}),
+          merchant_note: `${reservation.reference}${reason ? `: ${reason}` : ""}`,
+        }),
+      });
+    } catch {
+      res.status(503).json({ error: `Paystack refund outcome is uncertain; refund ${reservation.reference} remains reserved for reconciliation.` });
       return;
     }
-    refund = await recordRefund({
-      originalReference: transaction.reference,
-      providerReference: stringValue(data.reference) ?? null,
-      amount: numberValue(data.amount) ?? requestedAmount,
-      currency: stringValue(data.currency) ?? transaction.currency,
-      status: "recorded",
-      reason,
-    });
-  } else {
-    const response = await fetchProviderJson("Paystack", "https://api.paystack.co/refund", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        transaction: transaction.providerReference ?? transaction.reference,
-        ...(body.data.amount === undefined ? {} : { amount: Math.round(body.data.amount * 100) }),
-        ...(reason ? { customer_note: reason, merchant_note: reason } : {}),
-      }),
-    });
     const data = asObject(response.data);
     if (response.status !== true) {
-      res.status(502).json({ error: stringValue(response.message) ?? "Paystack did not accept the refund request." });
+      await recordRefund({
+        originalReference: transaction.reference,
+        reservationId: reservation.id,
+        provider: "paystack",
+        source: "initiation",
+        amount: requestedAmount,
+        currency: transaction.currency,
+        status: "failed",
+        reason,
+      });
+      res.status(502).json({ error: "Paystack did not accept the refund request." });
       return;
     }
     const providerStatus = stringValue(data.status)?.toLowerCase();
-    const status = ["processed", "success", "completed"].includes(providerStatus ?? "")
-      ? "success"
-      : ["failed", "reversed"].includes(providerStatus ?? "")
-        ? "failed"
-        : "pending";
+    const reportedAmount = numberValue(data.amount);
+    const reportedCurrency = stringValue(data.currency)?.toUpperCase();
+    const status = paystackRefundOutcome({
+      status: providerStatus, reportedAmount, requestedAmount,
+      reportedCurrency, expectedCurrency: transaction.currency,
+    });
     refund = await recordRefund({
       originalReference: transaction.reference,
+      reservationId: reservation.id,
+      provider: "paystack",
       providerReference: data.id === undefined ? null : String(data.id),
-      amount: numberValue(data.amount) === undefined ? requestedAmount : Number(data.amount) / 100,
-      currency: stringValue(data.currency) ?? transaction.currency,
+      source: "initiation",
+      amount: requestedAmount,
+      currency: transaction.currency,
       status,
       reason,
     });

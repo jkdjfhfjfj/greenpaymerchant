@@ -7,6 +7,7 @@ export const refundsTable = pgTable("greenpay_refunds", {
   reference: varchar("reference", { length: 100 }).notNull().unique(),
   originalReference: varchar("original_reference", { length: 100 }).notNull(),
   providerReference: varchar("provider_reference", { length: 200 }),
+  provider: varchar("provider", { length: 24 }),
   amount: numeric("amount", { precision: 18, scale: 2, mode: "number" }).notNull(),
   currency: varchar("currency", { length: 3 }).notNull(),
   status: varchar("status", { length: 24 }).notNull(),

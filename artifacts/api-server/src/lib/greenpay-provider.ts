@@ -1,16 +1,13 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { TransactionRecord } from "@workspace/db";
+import { providerCredential, providerEnabled } from "./credential-runtime";
+import { ApiError } from "./api-error";
+import { providerPaymentEvidenceMatches } from "./payment-safety";
+export { ApiError } from "./api-error";
 
 export type ProviderName = "paystack" | "payhero" | "payzaapi";
 export type PaymentStatus = "pending" | "success" | "failed" | "cancelled";
 type JsonObject = Record<string, unknown>;
-
-export class ApiError extends Error {
-  constructor(public readonly statusCode: number, message: string) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
 
 export const PAYZA_CURRENCIES = [
   "NGN", "GHS", "TZS", "XOF", "RWF", "UGX",
@@ -69,22 +66,26 @@ export function getPublicAppUrl(): string {
   }
 }
 
-export function providerConfigured(provider: ProviderName): boolean {
-  if (provider === "paystack") return Boolean(process.env.PAYSTACK_SECRET_KEY?.trim());
+export async function providerIsConfigured(provider: ProviderName): Promise<boolean> {
+  if (!await providerEnabled(provider)) return false;
+  if (provider === "paystack") return Boolean(await providerCredential(provider, "PAYSTACK_SECRET_KEY"));
   if (provider === "payhero") {
-    return Boolean(process.env.PAYHERO_AUTH_TOKEN?.trim()) &&
-      Number.isInteger(Number(process.env.PAYHERO_CHANNEL_ID)) &&
-      Number(process.env.PAYHERO_CHANNEL_ID) > 0;
+    const auth = await providerCredential(provider, "PAYHERO_BASIC_AUTH");
+    const channel = await providerCredential(provider, "PAYHERO_CHANNEL_ID");
+    return Boolean(auth && Number.isInteger(Number(channel)) && Number(channel) > 0);
   }
-  return Boolean(process.env.PAYZA_PUBLIC_KEY?.trim() && process.env.PAYZA_SECRET_KEY?.trim());
+  const publicKey = await providerCredential(provider, "PAYZA_PUBLIC_KEY");
+  const secretKey = await providerCredential(provider, "PAYZA_SECRET_KEY");
+  return Boolean(publicKey && secretKey);
 }
 
-export function getProviderStatuses() {
-  const paystackKey = process.env.PAYSTACK_SECRET_KEY?.trim() ?? "";
-  const payzaKey = process.env.PAYZA_PUBLIC_KEY?.trim() ?? "";
-  const payheroReady = providerConfigured("payhero");
-  const payzaReady = providerConfigured("payzaapi");
-  const paystackReady = providerConfigured("paystack");
+export async function getProviderStatuses() {
+  const paystackKey = await providerCredential("paystack", "PAYSTACK_SECRET_KEY") ?? "";
+  const payzaKey = await providerCredential("payzaapi", "PAYZA_PUBLIC_KEY") ?? "";
+  const payheroReady = await providerIsConfigured("payhero");
+  const payzaReady = await providerIsConfigured("payzaapi");
+  const paystackReady = await providerIsConfigured("paystack");
+  const payzaWebhookReady = Boolean(await providerCredential("payzaapi", "PAYZA_WEBHOOK_SECRET"));
   return [
     {
       provider: "paystack" as const,
@@ -112,10 +113,10 @@ export function getProviderStatuses() {
       collectionsEnabled: payzaReady,
       payoutsEnabled: payzaReady,
       note: payzaReady
-        ? process.env.PAYZA_WEBHOOK_SECRET?.trim()
+        ? payzaWebhookReady
           ? "Other supported currencies and payouts use Payzaapi. Refunds adjust the Payza wallet; they do not return money to the customer."
           : "Add PAYZA_WEBHOOK_SECRET to verify callbacks. Other currencies and payouts use Payzaapi."
-        : "Add PAYZA_PUBLIC_KEY and PAYZA_SECRET_KEY to enable other currencies and payouts.",
+        : "Add Payzaapi API credentials to enable other currencies and payouts.",
     },
   ];
 }
@@ -139,22 +140,24 @@ export async function fetchProviderJson(
     throw new ApiError(502, `${provider} returned an unreadable response.`);
   }
   if (!response.ok) {
-    const message = stringValue(asObject(payload).message);
-    throw new ApiError(502, message ? `${provider}: ${message}` : `${provider} rejected the request.`);
+    throw new ApiError(502, `${provider} rejected the request.`);
   }
   return asObject(payload);
 }
 
-function payzaHeaders(): HeadersInit {
-  const publicKey = process.env.PAYZA_PUBLIC_KEY?.trim();
-  const secretKey = process.env.PAYZA_SECRET_KEY?.trim();
-  if (!publicKey || !secretKey) throw new ApiError(503, "Payzaapi is not configured.");
-  return { "X-Public-Key": publicKey, "X-Secret-Key": secretKey, "Content-Type": "application/json" };
+async function payzaHeaders(): Promise<NonNullable<RequestInit["headers"]>> {
+  const publicKey = await providerCredential("payzaapi", "PAYZA_PUBLIC_KEY");
+  const secretKey = await providerCredential("payzaapi", "PAYZA_SECRET_KEY");
+  if (publicKey && secretKey) {
+    return { "X-Public-Key": publicKey, "X-Secret-Key": secretKey, "Content-Type": "application/json" };
+  }
+  throw new ApiError(503, "Payzaapi is not configured.");
 }
 
-function payheroHeaders(): HeadersInit {
-  const token = process.env.PAYHERO_AUTH_TOKEN?.trim();
-  if (!token || !providerConfigured("payhero")) throw new ApiError(503, "PayHero is not configured.");
+async function payheroHeaders(): Promise<NonNullable<RequestInit["headers"]>> {
+  const token = await providerCredential("payhero", "PAYHERO_BASIC_AUTH");
+  const channel = await providerCredential("payhero", "PAYHERO_CHANNEL_ID");
+  if (!token || !Number.isInteger(Number(channel)) || Number(channel) <= 0) throw new ApiError(503, "PayHero is not configured.");
   return { Authorization: token.toLowerCase().startsWith("basic ") ? token : `Basic ${token}`, "Content-Type": "application/json" };
 }
 
@@ -185,7 +188,7 @@ function normalizeKenyanPhone(phone: string | null): string {
 }
 
 export async function startProviderPayment(input: StartPaymentInput): Promise<StartPaymentResult> {
-  if (!providerConfigured(input.provider)) throw new ApiError(503, `${input.provider} is not configured.`);
+  if (!await providerIsConfigured(input.provider)) throw new ApiError(503, `${input.provider} is not configured.`);
   const appUrl = getPublicAppUrl();
   const statusUrl = input.paymentLinkSlug
     ? `${appUrl}/pay/${encodeURIComponent(input.paymentLinkSlug)}`
@@ -195,7 +198,7 @@ export async function startProviderPayment(input: StartPaymentInput): Promise<St
     const response = await fetchProviderJson("Paystack", "https://api.paystack.co/transaction/initialize", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+        Authorization: `Bearer ${await providerCredential("paystack", "PAYSTACK_SECRET_KEY")}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -209,7 +212,7 @@ export async function startProviderPayment(input: StartPaymentInput): Promise<St
     });
     const data = asObject(response.data);
     if (response.status !== true || !stringValue(data.authorization_url)) {
-      throw new ApiError(502, stringValue(response.message) ?? "Paystack did not return a checkout URL.");
+      throw new ApiError(502, "Paystack did not return a usable checkout URL.");
     }
     return {
       providerReference: stringValue(data.reference) ?? input.reference,
@@ -223,11 +226,11 @@ export async function startProviderPayment(input: StartPaymentInput): Promise<St
     }
     const response = await fetchProviderJson("PayHero", "https://backend.payhero.co.ke/api/v2/payments", {
       method: "POST",
-      headers: payheroHeaders(),
+      headers: await payheroHeaders(),
       body: JSON.stringify({
         amount: input.amount,
         phone_number: normalizeKenyanPhone(input.customerPhone),
-        channel_id: Number(process.env.PAYHERO_CHANNEL_ID),
+        channel_id: Number(await providerCredential("payhero", "PAYHERO_CHANNEL_ID")),
         provider: "m-pesa",
         external_reference: input.reference,
         customer_name: input.customerName ?? undefined,
@@ -235,14 +238,14 @@ export async function startProviderPayment(input: StartPaymentInput): Promise<St
       }),
     });
     if (response.success !== true) {
-      throw new ApiError(502, stringValue(response.message) ?? "PayHero did not accept the M-Pesa request.");
+      throw new ApiError(502, "PayHero did not accept the M-Pesa request.");
     }
     return { providerReference: stringValue(response.reference) ?? null, paymentUrl: null };
   }
 
   const response = await fetchProviderJson("Payzaapi", "https://payzaapi.co.ke/api/v1/pay", {
     method: "POST",
-    headers: payzaHeaders(),
+    headers: await payzaHeaders(),
     body: JSON.stringify({
       amount: input.amount,
       currency: input.currency,
@@ -260,7 +263,7 @@ export async function startProviderPayment(input: StartPaymentInput): Promise<St
   const data = asObject(response.data);
   const paymentUrl = stringValue(data.payment_url) ?? stringValue(response.payment_url);
   if (response.success !== true || !paymentUrl) {
-    throw new ApiError(502, stringValue(response.message) ?? "Payzaapi did not return a hosted checkout URL.");
+    throw new ApiError(502, "Payzaapi did not return a hosted checkout URL.");
   }
   return { providerReference: input.reference, paymentUrl };
 }
@@ -284,9 +287,13 @@ function verifyAmountCurrency(
   data: JsonObject,
   transaction: TransactionRecord,
   amountDivisor: number,
+  requireEvidence: boolean,
 ): void {
   const providerAmount = numberValue(data.amount);
   const providerCurrency = stringValue(data.currency)?.toUpperCase();
+  if (requireEvidence && (providerAmount === undefined || !providerCurrency)) {
+    throw new ApiError(502, "The provider verification response is missing required amount or currency evidence.");
+  }
   if (providerAmount !== undefined && Math.abs(providerAmount / amountDivisor - transaction.amount) > 0.011) {
     throw new ApiError(502, "The provider verification amount does not match the Greenpay transaction.");
   }
@@ -301,42 +308,59 @@ export async function verifyProviderPayment(transaction: TransactionRecord): Pro
   }
   let data: JsonObject;
   let amountDivisor = 1;
+  let expectedProviderReference: string;
 
   if (transaction.provider === "paystack") {
-    if (!providerConfigured("paystack")) throw new ApiError(503, "Paystack is not configured.");
+    if (!await providerIsConfigured("paystack")) throw new ApiError(503, "Paystack is not configured.");
     const response = await fetchProviderJson(
       "Paystack",
       `https://api.paystack.co/transaction/verify/${encodeURIComponent(transaction.providerReference ?? transaction.reference)}`,
-      { headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` } },
+      { headers: { Authorization: `Bearer ${await providerCredential("paystack", "PAYSTACK_SECRET_KEY")}` } },
     );
     data = asObject(response.data);
     if (response.status !== true) throw new ApiError(502, "Paystack could not verify this transaction.");
     amountDivisor = 100;
+    expectedProviderReference = transaction.providerReference ?? transaction.reference;
   } else if (transaction.provider === "payhero") {
     const response = await fetchProviderJson(
       "PayHero",
       `https://backend.payhero.co.ke/api/v2/transaction-status?reference=${encodeURIComponent(transaction.providerReference ?? "")}`,
-      { headers: payheroHeaders() },
+      { headers: await payheroHeaders() },
     );
-    const providerReference = stringValue(response.reference);
-    if (providerReference && providerReference !== transaction.providerReference) {
-      throw new ApiError(502, "PayHero returned a different transaction reference.");
-    }
     data = response;
+    expectedProviderReference = transaction.providerReference!;
   } else {
     const response = await fetchProviderJson(
       "Payzaapi",
       `https://payzaapi.co.ke/api/v1/verify/${encodeURIComponent(transaction.reference)}`,
-      { headers: payzaHeaders() },
+      { headers: await payzaHeaders() },
     );
     data = asObject(response.data);
     if (response.success !== true) throw new ApiError(502, "Payzaapi could not verify this transaction.");
+    expectedProviderReference = transaction.reference;
   }
 
-  verifyAmountCurrency(data, transaction, amountDivisor);
+  const status = normalizeStatus(data.status);
+  const reportedReference = stringValue(data.reference) ??
+    stringValue(data.transaction_reference) ??
+    stringValue(data.external_reference);
+  if (status === "success" && !providerPaymentEvidenceMatches({
+    expectedReference: expectedProviderReference,
+    reportedReference,
+    expectedAmount: Number(transaction.amount),
+    reportedAmount: numberValue(data.amount),
+    amountDivisor,
+    expectedCurrency: transaction.currency,
+    reportedCurrency: stringValue(data.currency),
+  })) {
+    throw new ApiError(502, "The provider verification response is missing or has mismatched transaction reference, amount, or currency evidence.");
+  }
+  if (reportedReference && reportedReference !== expectedProviderReference) {
+    throw new ApiError(502, "The provider verification reference does not match the Greenpay transaction.");
+  }
+  verifyAmountCurrency(data, transaction, amountDivisor, status === "success");
   const feeValue = numberValue(data.fees) ?? numberValue(data.fee);
   const fee = feeValue === undefined ? null : feeValue / amountDivisor;
-  const status = normalizeStatus(data.status);
   const dateString = stringValue(data.paid_at) ?? stringValue(data.transaction_date);
   const paidAt = dateString ? new Date(dateString) : null;
   return {
@@ -347,15 +371,15 @@ export async function verifyProviderPayment(transaction: TransactionRecord): Pro
   };
 }
 
-export function verifyWebhookSignature(
+export async function verifyWebhookSignature(
   provider: "paystack" | "payzaapi",
   rawBody: Buffer,
   received: string | undefined,
-): boolean {
+): Promise<boolean> {
   if (!received) return false;
   const secret = provider === "paystack"
-    ? process.env.PAYSTACK_SECRET_KEY
-    : process.env.PAYZA_WEBHOOK_SECRET;
+    ? await providerCredential("paystack", "PAYSTACK_SECRET_KEY")
+    : await providerCredential("payzaapi", "PAYZA_WEBHOOK_SECRET");
   if (!secret) return false;
   const expected = createHmac("sha" + (provider === "paystack" ? "512" : "256"), secret)
     .update(rawBody)
@@ -367,7 +391,7 @@ export function verifyWebhookSignature(
 export async function payzaApiRequest(path: string, init: RequestInit = {}): Promise<JsonObject> {
   return fetchProviderJson("Payzaapi", `https://payzaapi.co.ke/api/v1${path}`, {
     ...init,
-    headers: { ...payzaHeaders(), ...init.headers },
+    headers: { ...await payzaHeaders(), ...init.headers },
   });
 }
 

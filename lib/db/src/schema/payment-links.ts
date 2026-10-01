@@ -1,5 +1,5 @@
 import { createInsertSchema } from "drizzle-zod";
-import { index, numeric, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { index, integer, numeric, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 
 export const paymentLinksTable = pgTable("greenpay_payment_links", {
@@ -11,11 +11,13 @@ export const paymentLinksTable = pgTable("greenpay_payment_links", {
   amount: numeric("amount", { precision: 18, scale: 2, mode: "number" }),
   currency: varchar("currency", { length: 3 }).notNull(),
   status: varchar("status", { length: 24 }).notNull().default("active"),
+  merchantId: integer("merchant_id"),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("greenpay_payment_links_status_idx").on(table.status),
   index("greenpay_payment_links_created_at_idx").on(table.createdAt),
+  index("greenpay_payment_links_merchant_id_idx").on(table.merchantId),
 ]);
 
 export const insertPaymentLinkSchema = createInsertSchema(paymentLinksTable).omit({ id: true, slug: true, createdAt: true });

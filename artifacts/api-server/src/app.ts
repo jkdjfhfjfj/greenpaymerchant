@@ -12,6 +12,8 @@ import {
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
 import { ApiError } from "./lib/greenpay-provider";
+import { requireSameOriginForCookieMutations, trustedBrowserOrigins } from "./middlewares/csrf";
+import { originIsAllowed } from "./lib/origin-policy";
 
 const app: Express = express();
 
@@ -36,7 +38,12 @@ app.use(
 );
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
-app.use(cors({ credentials: true, origin: true }));
+app.use(cors({
+  credentials: true,
+  origin(origin, callback) {
+    callback(null, originIsAllowed(origin, trustedBrowserOrigins()));
+  },
+}));
 app.use("/api/webhooks", express.raw({ type: "application/json", limit: "1mb" }), webhookReceiverRouter);
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
@@ -50,6 +57,7 @@ app.use(
   })),
 );
 
+app.use("/api", requireSameOriginForCookieMutations);
 app.use("/api", router);
 
 app.use((error: unknown, req: express.Request, res: express.Response, _next: express.NextFunction): void => {

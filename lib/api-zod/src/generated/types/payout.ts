@@ -10,6 +10,8 @@ import type { PayoutStatus } from './payoutStatus';
 
 export interface Payout {
   id: number;
+  /** @nullable */
+  merchantId?: number | null;
   reference: string;
   amount: number;
   /** @nullable */

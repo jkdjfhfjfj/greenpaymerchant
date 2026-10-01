@@ -1,0 +1,171 @@
+import { useState, type FormEvent } from 'react';
+import { Link } from 'wouter';
+import { ArrowRight, ExternalLink, LoaderCircle, Plus, Trash2, Pause, Play, ShieldCheck } from 'lucide-react';
+import {
+  useCreateMerchantProfile, useGetMerchantFees, useGetMerchantKyc, useCreateMerchantKycSession,
+  useListMerchantPaymentLinks, useCreateMerchantPaymentLink, useUpdateMerchantPaymentLink, useDeleteMerchantPaymentLink,
+  useListMerchantTransactions, useListMerchantPayouts,
+} from '@workspace/api-client-react';
+import { Async, Btn, Card, COUNTRIES, CURRENCIES, Confirm, CopyBtn, Err, Field, Gate, Heading, Modal, Note, Pager, Pill, fmtDate, money, nice, useAccess, useInvalidateAll } from '@/components/kit';
+
+export function MerchantPage() {
+  const access = useAccess();
+  const create = useCreateMerchantProfile();
+  const inv = useInvalidateAll();
+  const fees = useGetMerchantFees({ query: { enabled: !!access.merchant } as never });
+  function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const reg = String(f.get('reg') || '').trim();
+    create.mutate({ data: { businessName: String(f.get('name')).trim(), country: String(f.get('country')), baseCurrency: String(f.get('cur')), ...(reg ? { registrationNumber: reg } : {}) } }, { onSuccess: () => { void inv(); } });
+  }
+  const m = access.merchant;
+  return <>
+    <Heading eyebrow="MERCHANT" title={m ? m.businessName : 'Merchant onboarding'} subtitle="Your business profile, verification state and the fees that apply to you." />
+    <Async q={access}>
+      {!m ? <Card title="Register your business" subtitle="Takes a minute. Verification is a separate step.">
+        <form className="form-stack" onSubmit={submit}>
+          <Field label="Business name"><input name="name" required minLength={2} maxLength={150} data-testid="input-business-name" /></Field>
+          <div className="form-grid">
+            <Field label="Country"><select name="country" defaultValue="KE" data-testid="select-country">{COUNTRIES.map(([c, n]) => <option key={c} value={c}>{n}</option>)}</select></Field>
+            <Field label="Base currency"><select name="cur" defaultValue="USD" data-testid="select-base-currency">{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></Field>
+          </div>
+          <Field label="Registration number" hint="Optional"><input name="reg" maxLength={150} data-testid="input-registration" /></Field>
+          <Err error={create.error} />
+          <Btn type="submit" disabled={create.isPending} testId="button-create-merchant">{create.isPending ? <LoaderCircle size={15} className="spin" /> : <Plus size={15} />}Create merchant profile</Btn>
+        </form>
+      </Card> : <div className="split">
+        <div>
+          <Card title="Profile">
+            <div className="kv">
+              <div><span>Status</span><Pill value={m.status} /></div>
+              <div><span>Verification</span><Pill value={m.kycStatus} /></div>
+              <div><span>Country</span><strong>{m.country}</strong></div>
+              <div><span>Base currency</span><strong>{m.baseCurrency}</strong></div>
+              <div><span>Registration</span><strong>{m.registrationNumber || '-'}</strong></div>
+              {([['paymentsEnabled', 'Payments'], ['payoutsEnabled', 'Payouts'], ['refundsEnabled', 'Refunds'], ['apiAccessEnabled', 'API access']] as const).map(([k, t]) => <div key={k}><span>{t}</span><Pill value={m[k] === false ? 'disabled' : 'active'} /></div>)}
+              <div><span>Created</span><strong>{fmtDate(m.createdAt)}</strong></div>
+            </div>
+          </Card>
+          {m.kycStatus !== 'approved' && <Note tone="warn">Verification is {nice(m.kycStatus).toLowerCase()}. <Link href="/merchant/kyc" className="text-link">Open verification <ArrowRight size={13} /></Link></Note>}
+        </div>
+        <Card title="Your fee schedule" subtitle="Applied to calculations and quotes">
+          <Async q={fees}>{fees.data && <div className="form-stack">
+            <div className="kv"><div><span>Percentage</span><strong>{fees.data.schedule.percentage}%</strong></div><div><span>Flat</span><strong>{money(fees.data.schedule.flatAmount, fees.data.schedule.currency)}</strong></div><div><span>FX markup</span><strong>{fees.data.schedule.fxMarkupBps} bps</strong></div></div>
+            <div><Pill value={fees.data.source} /></div><span className="sub">{fees.data.note}</span></div>}</Async>
+        </Card>
+      </div>}
+    </Async>
+  </>;
+}
+
+export function KycPage() {
+  return <Gate need="merchant"><KycInner /></Gate>;
+}
+function KycInner() {
+  const q = useGetMerchantKyc();
+  const start = useCreateMerchantKycSession();
+  const inv = useInvalidateAll();
+  const run = (kind: 'kyc' | 'kyb') => start.mutate({ data: { kind } }, { onSuccess: (r) => { void inv(); window.open(r.url, '_blank', 'noopener'); } });
+  return <>
+    <Heading eyebrow="MERCHANT / VERIFICATION" title="Identity and business verification" subtitle="Hosted verification runs on Didit. Your status updates when Didit reports back." />
+    <Async q={q}>{q.data && <div className="split">
+      <Card title="Current status" action={<Btn variant="secondary" small onClick={() => { void q.refetch(); }}>Refresh</Btn>}>
+        <div className="kv"><div><span>Status</span><Pill value={q.data.status} /></div><div><span>Session</span><strong className="mono" style={{ fontSize: 12 }}>{q.data.sessionId || 'None'}</strong></div><div><span>Updated</span><strong>{fmtDate(q.data.updatedAt)}</strong></div></div>
+        {!!q.data.requirements?.length && <ul style={{ margin: '14px 0 0', paddingLeft: 18, fontSize: 13 }}>{q.data.requirements.map((r) => <li key={r}>{r}</li>)}</ul>}
+        {q.data.sessionUrl && <p style={{ marginTop: 14 }}><a className="text-link" href={q.data.sessionUrl} target="_blank" rel="noreferrer">Resume hosted session <ExternalLink size={13} /></a></p>}
+      </Card>
+      <Card title="Start verification">
+        {!q.data.configured && <Note tone="warn">Verification is not configured on this platform yet. An administrator must save Didit credentials and workflow IDs. Starting a session will fail until then.</Note>}
+        <div className="form-stack" style={{ marginTop: 12 }}>
+          <Err error={start.error} />
+          <Btn disabled={start.isPending} onClick={() => run('kyc')} testId="button-start-kyc"><ShieldCheck size={15} />Verify identity (KYC)</Btn>
+          <Btn variant="secondary" disabled={start.isPending} onClick={() => run('kyb')} testId="button-start-kyb">Verify business (KYB)</Btn>
+        </div>
+      </Card>
+    </div>}</Async>
+  </>;
+}
+
+export function MerchantLinksPage() { return <Gate need="merchant"><LinksInner /></Gate>; }
+function LinksInner() {
+  const q = useListMerchantPaymentLinks();
+  const update = useUpdateMerchantPaymentLink();
+  const del = useDeleteMerchantPaymentLink();
+  const inv = useInvalidateAll();
+  const [open, setOpen] = useState(false);
+  const [rm, setRm] = useState<number | null>(null);
+  const items = q.data?.items ?? [];
+  return <>
+    <Heading eyebrow="MERCHANT" title="Payment links" subtitle="Links you own. Customers pay through the provider routed for the currency." action={<Btn onClick={() => setOpen(true)} testId="button-new-link"><Plus size={15} />New link</Btn>} />
+    <Err error={update.error} />
+    <Async q={q} empty={!items.length} emptyTitle="No payment links" emptyBody="Create a fixed-price or customer-entered link." emptyAction={<Btn onClick={() => setOpen(true)}>Create link</Btn>}>
+      <div className="table-wrap"><table className="dt"><thead><tr><th>Name</th><th>Amount</th><th>Status</th><th className="num">Paid</th><th>Link</th><th /></tr></thead><tbody>
+        {items.map((l) => <tr key={l.id} data-testid={`row-link-${l.id}`}>
+          <td><strong>{l.name}</strong><span className="sub">{l.description}</span></td>
+          <td>{l.amountType === 'fixed' ? money(l.amount, l.currency) : `Customer enters (${l.currency})`}</td>
+          <td><Pill value={l.status} /></td><td className="num">{l.paidCount}</td>
+          <td><div className="copy-line"><code className="mono" style={{ fontSize: 11 }}>{l.url}</code><CopyBtn text={l.url} /></div></td>
+          <td><div className="row-actions">
+            {l.status !== 'archived' && <Btn variant="quiet" small disabled={update.isPending} onClick={() => update.mutate({ id: l.id, data: { status: l.status === 'active' ? 'paused' : 'active' } }, { onSuccess: () => { void inv(); } })}>{l.status === 'active' ? <><Pause size={13} />Pause</> : <><Play size={13} />Resume</>}</Btn>}
+            <Btn variant="danger" small onClick={() => setRm(l.id)}><Trash2 size={13} />Delete</Btn></div></td>
+        </tr>)}
+      </tbody></table></div>
+    </Async>
+    {open && <LinkModal onClose={() => setOpen(false)} />}
+    {rm !== null && <Confirm title="Delete payment link" body="The link stops accepting payments immediately." confirmLabel="Delete link" pending={del.isPending} error={del.error} onClose={() => { setRm(null); del.reset(); }} onConfirm={() => del.mutate({ id: rm }, { onSuccess: () => { void inv(); setRm(null); } })} />}
+  </>;
+}
+function LinkModal({ onClose }: { onClose: () => void }) {
+  const create = useCreateMerchantPaymentLink();
+  const inv = useInvalidateAll();
+  const [type, setType] = useState<'fixed' | 'customer_choice'>('fixed');
+  function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const desc = String(f.get('desc') || '').trim();
+    const amount = Number(f.get('amount'));
+    const exp = String(f.get('exp') || '');
+    create.mutate({ data: { name: String(f.get('name')).trim(), amountType: type, currency: String(f.get('cur')), ...(desc ? { description: desc } : {}), ...(type === 'fixed' ? { amount } : {}), ...(exp ? { expiresAt: new Date(exp).toISOString() } : {}) } }, { onSuccess: () => { void inv(); onClose(); } });
+  }
+  return <Modal title="New payment link" onClose={onClose}><form className="form-stack" onSubmit={submit}>
+    <Field label="Name"><input name="name" required data-testid="input-link-name" /></Field>
+    <Field label="Description"><input name="desc" /></Field>
+    <div className="form-grid"><Field label="Pricing"><select value={type} onChange={(e) => setType(e.target.value as 'fixed')}><option value="fixed">Fixed amount</option><option value="customer_choice">Customer enters amount</option></select></Field>
+      <Field label="Currency"><select name="cur" defaultValue="USD">{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></Field></div>
+    {type === 'fixed' && <Field label="Amount"><input name="amount" type="number" step="0.01" min="0.01" required data-testid="input-link-amount" /></Field>}
+    <Field label="Expires" hint="Optional"><input name="exp" type="datetime-local" /></Field>
+    <Err error={create.error} />
+    <Btn type="submit" disabled={create.isPending} testId="button-save-link">{create.isPending && <LoaderCircle size={14} className="spin" />}Create link</Btn>
+  </form></Modal>;
+}
+
+export function MerchantTransactionsPage() { return <Gate need="merchant"><TxInner /></Gate>; }
+function TxInner() {
+  const [page, setPage] = useState(1);
+  const q = useListMerchantTransactions({ page, perPage: 20 });
+  const items = q.data?.items ?? [];
+  return <>
+    <Heading eyebrow="MERCHANT" title="Transactions" subtitle="Payments belonging to your merchant account." />
+    <Async q={q} empty={!items.length} emptyTitle="No transactions yet" emptyBody="Payments made through your links or API appear here.">
+      <div className="table-wrap"><table className="dt"><thead><tr><th>Reference</th><th>Customer</th><th className="num">Amount</th><th className="num">Fee</th><th>Status</th><th>Provider</th><th>Created</th></tr></thead><tbody>
+        {items.map((t) => <tr key={t.id} data-testid={`row-tx-${t.id}`}><td className="mono" style={{ fontSize: 12 }}>{t.reference}</td><td>{t.customerEmail}<span className="sub">{t.customerName}</span></td><td className="num">{money(t.amount, t.currency)}</td><td className="num">{t.fee != null ? money(t.fee, t.currency) : '-'}</td><td><Pill value={t.status} /></td><td>{nice(t.provider)}</td><td>{fmtDate(t.createdAt)}</td></tr>)}
+      </tbody></table></div>
+      {q.data && <Pager page={page} total={q.data.total} perPage={q.data.perPage || 20} onPage={setPage} />}
+    </Async>
+  </>;
+}
+
+export function MerchantPayoutsPage() { return <Gate need="merchant"><PayoutsInner /></Gate>; }
+function PayoutsInner() {
+  const q = useListMerchantPayouts();
+  const items = q.data?.items ?? [];
+  return <>
+    <Heading eyebrow="MERCHANT" title="Admin-operated payouts" subtitle="Payouts the platform team has sent on your behalf. This is a read-only record; there is no balance shown and no automatic withdrawal." />
+    <Async q={q} empty={!items.length} emptyTitle="No payouts attributed to you" emptyBody="Payouts operated by an administrator for your account appear here.">
+      <div className="table-wrap"><table className="dt"><thead><tr><th>Reference</th><th>Recipient</th><th className="num">Amount</th><th className="num">Fee</th><th>Status</th><th>Method</th><th>Created</th></tr></thead><tbody>
+        {items.map((p) => <tr key={p.id} data-testid={`row-payout-${p.id}`}><td className="mono" style={{ fontSize: 12 }}>{p.reference}</td><td>{p.accountName}<span className="sub">{p.maskedAccount}</span></td><td className="num">{money(p.amount, p.currency)}</td><td className="num">{p.fee != null ? money(p.fee, p.currency) : '-'}</td><td><Pill value={p.status} /></td><td>{nice(p.method)}</td><td>{fmtDate(p.createdAt)}</td></tr>)}
+      </tbody></table></div>
+    </Async>
+  </>;
+}

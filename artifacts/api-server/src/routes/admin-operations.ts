@@ -1,5 +1,6 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
+import { getAuth } from "@clerk/express";
 import { Router, type IRouter } from "express";
 import {
   CreatePaymentLinkBody,
@@ -29,7 +30,10 @@ import {
   UpdatePaymentLinkParams,
   UpdatePaymentLinkResponse,
 } from "@workspace/api-zod";
-import { db, paymentLinksTable, payoutsTable, transactionsTable, webhookEventsTable } from "@workspace/db";
+import {
+  adminAuditLogTable, db, merchantsTable, paymentLinksTable, payoutIdempotencyTable,
+  payoutsTable, transactionsTable, webhookEventsTable,
+} from "@workspace/db";
 import {
   ApiError,
   assertSupportedCurrency,
@@ -39,7 +43,7 @@ import {
   numberValue,
   payzaApiRequest,
   payzaPayoutMethods,
-  providerConfigured,
+  providerIsConfigured,
   stringValue,
   verifyProviderPayment,
 } from "../lib/greenpay-provider";
@@ -56,6 +60,8 @@ import {
   webhookEventDto,
 } from "../lib/greenpay-ledger";
 import { markTransactionStatus } from "../lib/greenpay-ledger";
+import { idempotencyDisposition } from "../lib/payment-safety";
+import { assertMerchantMayPayout } from "../lib/platform";
 
 const router: IRouter = Router();
 
@@ -104,7 +110,7 @@ router.patch("/payment-links/:id", async (req, res): Promise<void> => {
   const params = UpdatePaymentLinkParams.safeParse(req.params);
   const body = UpdatePaymentLinkBody.safeParse(req.body);
   if (!params.success || !body.success) {
-    res.status(400).json({ error: !params.success ? params.error.message : body.error.message });
+    res.status(400).json({ error: !params.success ? params.error.message : body.error?.message ?? "Invalid payout request." });
     return;
   }
   const updates: Partial<typeof paymentLinksTable.$inferInsert> = {};
@@ -160,7 +166,7 @@ router.get("/payouts", async (req, res): Promise<void> => {
 });
 
 router.get("/payout-methods", async (req, res): Promise<void> => {
-  if (!providerConfigured("payzaapi")) throw new ApiError(503, "Payzaapi is not configured.");
+  if (!await providerIsConfigured("payzaapi")) throw new ApiError(503, "Payzaapi is not configured.");
   const parsed = ListPayoutMethodsQueryParams.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -171,7 +177,7 @@ router.get("/payout-methods", async (req, res): Promise<void> => {
 });
 
 router.get("/banks", async (req, res): Promise<void> => {
-  if (!providerConfigured("payzaapi")) throw new ApiError(503, "Payzaapi is not configured.");
+  if (!await providerIsConfigured("payzaapi")) throw new ApiError(503, "Payzaapi is not configured.");
   const parsed = ListBanksQueryParams.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -189,16 +195,25 @@ router.get("/banks", async (req, res): Promise<void> => {
 });
 
 router.post("/payouts", async (req, res): Promise<void> => {
+  const { assertPlatformEnabled } = await import("../lib/platform");
+  await assertPlatformEnabled("payoutsEnabled");
   const parsed = CreatePayoutBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  if (!providerConfigured("payzaapi")) throw new ApiError(503, "Payzaapi payouts are not configured.");
+  if (!await providerIsConfigured("payzaapi")) throw new ApiError(503, "Payzaapi payouts are not configured.");
 
   const input = parsed.data;
   const accountNumber = input.accountNumber.trim();
   const currency = input.currency.toUpperCase();
+  const payoutMerchantId = input.merchantId ?? null;
+  if (payoutMerchantId !== null) {
+    const [merchant] = await db.select().from(merchantsTable)
+      .where(eq(merchantsTable.id, payoutMerchantId)).limit(1);
+    if (!merchant) { res.status(404).json({ error: "Merchant not found." }); return; }
+    await assertMerchantMayPayout(merchant);
+  }
   const methods = await payzaPayoutMethods(currency);
   if (!methods.available) throw new ApiError(422, `Payouts are unavailable in ${currency}.`);
   const method = methods.methods.find((candidate) => candidate.value === input.method);
@@ -211,6 +226,77 @@ router.post("/payouts", async (req, res): Promise<void> => {
   }
 
   const reference = `GP-PO-${randomUUID()}`;
+  const requestPayload = {
+    amount: input.amount, currency, method: input.method,
+    accountNumber, accountName: input.accountName.trim(),
+    bankCode: input.bankCode?.trim() ?? null, bankName: input.bankName?.trim() ?? null,
+    merchantId: payoutMerchantId,
+  };
+  const requestHash = createHash("sha256").update(JSON.stringify(requestPayload)).digest("hex");
+  const [reservation] = await db.insert(payoutIdempotencyTable).values({
+    idempotencyKey: input.idempotencyKey,
+    requestHash,
+    status: "in_flight",
+  }).onConflictDoNothing().returning();
+  if (!reservation) {
+    const [existing] = await db.select().from(payoutIdempotencyTable)
+      .where(eq(payoutIdempotencyTable.idempotencyKey, input.idempotencyKey)).limit(1);
+    if (!existing) { res.status(503).json({ error: "Unable to reserve the payout idempotency key safely." }); return; }
+    const disposition = idempotencyDisposition({
+      status: existing.status,
+      requestHashMatches: existing.requestHash === requestHash,
+      hasResponse: Boolean(existing.response),
+      replayableStatuses: ["completed", "unresolved"],
+    });
+    if (disposition === "mismatch") {
+      res.status(409).json({ error: "This payout idempotency key was already used with different payout details." }); return;
+    }
+    if (disposition === "replay" && existing.response) {
+      res.setHeader("Idempotent-Replayed", "true");
+      res.status(201).json(CreatePayoutResponse.parse(existing.response));
+      return;
+    }
+    res.status(409).json({
+      error: disposition === "in_flight"
+        ? "This payout request is still being processed."
+        : "The previous payout outcome is uncertain; reconcile the saved payout before using a new idempotency key.",
+    });
+    return;
+  }
+
+  const feeAmount = methods.fee.type === "flat"
+    ? methods.fee.amount
+    : Math.max(
+      input.amount * (methods.fee.percent ?? 0) / 100,
+      methods.fee.floor ?? 0,
+    );
+  const rawAccountDigits = accountNumber.replace(/\D/g, "");
+  const maskedAccount = `${"•".repeat(Math.max(0, Math.min(8, rawAccountDigits.length - 4)))}${rawAccountDigits.slice(-4)}`;
+  const [intent] = await db.insert(payoutsTable).values({
+    merchantId: payoutMerchantId,
+    reference,
+    provider: "payzaapi",
+    amount: input.amount,
+    fee: feeAmount,
+    netAmount: input.amount,
+    currency,
+    method: method.label,
+    accountName: input.accountName.trim(),
+    maskedAccount: maskedAccount || "••••",
+    status: "processing",
+  }).returning();
+  await db.update(payoutIdempotencyTable).set({
+    payoutId: intent.id, updatedAt: new Date(),
+  }).where(eq(payoutIdempotencyTable.id, reservation.id));
+  await db.insert(adminAuditLogTable).values({
+    actor: getAuth(req).userId ?? "unknown-admin",
+    action: "payout.created",
+    target: `payout:${intent.reference}`,
+    details: payoutMerchantId === null
+      ? "Payout intent created without merchant attribution."
+      : `Payout intent attributed to merchant:${payoutMerchantId}.`,
+  });
+
   const payload: Record<string, unknown> = {
     amount: input.amount,
     currency,
@@ -221,39 +307,42 @@ router.post("/payouts", async (req, res): Promise<void> => {
   if (input.bankCode) payload.bank_code = input.bankCode;
   if (input.bankName) payload.bank_name = input.bankName;
 
-  const response = await payzaApiRequest("/payout", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-  const payout = asObject(response.payout);
-  if (response.success !== true || Object.keys(payout).length === 0) {
-    throw new ApiError(502, stringValue(response.message) ?? "Payzaapi did not accept the payout.");
+  let response: Record<string, unknown>;
+  try {
+    response = await payzaApiRequest("/payout", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    await db.update(payoutIdempotencyTable).set({
+      status: "uncertain", updatedAt: new Date(),
+    }).where(eq(payoutIdempotencyTable.id, reservation.id));
+    res.status(503).json({
+      error: `Payzaapi payout outcome is uncertain. Reconcile payout ${reference}; this idempotency key will not submit again.`,
+    });
+    return;
   }
+
+  const payout = asObject(response.payout);
+  const providerReference = stringValue(payout.reference) ?? stringValue(payout.id);
   const rawStatus = stringValue(payout.status)?.toLowerCase();
   const allowedStatuses = ["pending", "processing", "approved", "completed", "rejected", "failed"];
-  const status = allowedStatuses.includes(rawStatus ?? "") ? rawStatus! : "pending";
-  const feeAmount = methods.fee.type === "flat"
-    ? methods.fee.amount
-    : Math.max(
-      input.amount * (methods.fee.percent ?? 0) / 100,
-      methods.fee.floor ?? 0,
-    );
-  const rawAccountDigits = accountNumber.replace(/\D/g, "");
-  const maskedAccount = `${"•".repeat(Math.max(0, Math.min(8, rawAccountDigits.length - 4)))}${rawAccountDigits.slice(-4)}`;
-  const [row] = await db.insert(payoutsTable).values({
-    reference,
-    provider: "payzaapi",
-    providerReference: stringValue(payout.reference) ?? null,
-    amount: input.amount,
-    fee: feeAmount,
+  const providerStatus = allowedStatuses.includes(rawStatus ?? "") ? rawStatus! : "processing";
+  const status = response.success !== true
+    ? "failed"
+    : providerReference ? providerStatus : "processing";
+  const [row] = await db.update(payoutsTable).set({
+    providerReference: providerReference ?? null,
     netAmount: numberValue(payout.net_amount) ?? input.amount,
-    currency,
-    method: method.label,
-    accountName: input.accountName.trim(),
-    maskedAccount: maskedAccount || "••••",
     status,
-  }).returning();
-  res.status(201).json(CreatePayoutResponse.parse(payoutDto(row)));
+  }).where(eq(payoutsTable.id, intent.id)).returning();
+  const result = CreatePayoutResponse.parse(payoutDto(row));
+  await db.update(payoutIdempotencyTable).set({
+    status: providerReference || response.success !== true ? "completed" : "unresolved",
+    response: result,
+    updatedAt: new Date(),
+  }).where(eq(payoutIdempotencyTable.id, reservation.id));
+  res.status(201).json(result);
 });
 
 router.get("/settlements", async (req, res): Promise<void> => {

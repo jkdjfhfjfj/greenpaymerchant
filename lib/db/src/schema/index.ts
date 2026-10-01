@@ -23,3 +23,4 @@ export * from "./payouts";
 export * from "./settlements";
 export * from "./refunds";
 export * from "./webhook-events";
+export * from "./merchant-platform";

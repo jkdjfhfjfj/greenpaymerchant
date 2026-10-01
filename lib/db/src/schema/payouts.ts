@@ -1,9 +1,10 @@
 import { createInsertSchema } from "drizzle-zod";
-import { index, numeric, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { index, integer, numeric, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 
 export const payoutsTable = pgTable("greenpay_payouts", {
   id: serial("id").primaryKey(),
+  merchantId: integer("merchant_id"),
   reference: varchar("reference", { length: 100 }).notNull().unique(),
   provider: varchar("provider", { length: 24 }).notNull(),
   providerReference: varchar("provider_reference", { length: 200 }),
@@ -18,6 +19,7 @@ export const payoutsTable = pgTable("greenpay_payouts", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("greenpay_payouts_status_idx").on(table.status),
+  index("greenpay_payouts_merchant_id_idx").on(table.merchantId),
   index("greenpay_payouts_currency_idx").on(table.currency),
   index("greenpay_payouts_created_at_idx").on(table.createdAt),
 ]);

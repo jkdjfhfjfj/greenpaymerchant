@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CaseMessage } from './caseMessage';
+import type { CaseRefundEvidence } from './caseRefundEvidence';
 import type { SupportCaseFinancialMovement } from './supportCaseFinancialMovement';
 import type { SupportCaseKind } from './supportCaseKind';
 import type { SupportCaseStatus } from './supportCaseStatus';
@@ -15,8 +16,11 @@ export interface SupportCase {
   kind: SupportCaseKind;
   transactionReference: string;
   status: SupportCaseStatus;
+  /** recorded means refund evidence is recorded but customer reimbursement is not yet confirmed; confirmed requires case-linked confirmed refund evidence. */
   financialMovement: SupportCaseFinancialMovement;
   messages: CaseMessage[];
+  /** Case-linked refund source records exposing their specific provider and evidence references. */
+  refundEvidence: CaseRefundEvidence[];
   createdAt: Date;
   updatedAt: Date;
 }

@@ -5,12 +5,19 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { StatementRefundCashDateBasis } from './statementRefundCashDateBasis';
+import type { StatementRefundStatus } from './statementRefundStatus';
 
 export interface StatementRefund {
   reference: string;
   originalReference: string;
   amount: number;
   currency: string;
-  status: string;
+  /** Only customer-reimbursed confirmed refund source rows are included. */
+  status: StatementRefundStatus;
   createdAt: Date;
+  /** Cash-flow date; uses an explicit confirmation timestamp or the stated legacy-created-at fallback. */
+  cashDate: Date;
+  /** Distinguishes the source confirmation timestamp from a legacy record with no confirmation timestamp. */
+  cashDateBasis: StatementRefundCashDateBasis;
 }

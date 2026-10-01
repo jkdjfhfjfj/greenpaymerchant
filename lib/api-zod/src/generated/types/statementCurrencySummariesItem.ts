@@ -13,5 +13,7 @@ export type StatementCurrencySummariesItem = {
   fees: number;
   refundsTotal: number;
   payoutsTotal: number;
+  /** Confirmed wallet settlement funding total. */
+  settlementsTotal: number;
   forecast: StatementCurrencySummariesItemForecast;
 };

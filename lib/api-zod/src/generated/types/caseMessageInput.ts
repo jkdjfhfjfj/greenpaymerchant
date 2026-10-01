@@ -14,4 +14,10 @@ export interface CaseMessageInput {
   message: string;
   /** @maxLength 2000 */
   evidenceUrl?: string;
+  /**
+     * @maxItems 5
+     * @items.minLength 1
+     * @items.maxLength 128
+     */
+  attachmentUploadTokens?: string[];
 }

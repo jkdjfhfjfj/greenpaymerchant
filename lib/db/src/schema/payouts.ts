@@ -16,12 +16,14 @@ export const payoutsTable = pgTable("greenpay_payouts", {
   accountName: text("account_name").notNull(),
   maskedAccount: varchar("masked_account", { length: 80 }).notNull(),
   status: varchar("status", { length: 24 }).notNull().default("pending"),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("greenpay_payouts_status_idx").on(table.status),
   index("greenpay_payouts_merchant_id_idx").on(table.merchantId),
   index("greenpay_payouts_currency_idx").on(table.currency),
   index("greenpay_payouts_created_at_idx").on(table.createdAt),
+  index("greenpay_payouts_confirmed_at_idx").on(table.confirmedAt),
 ]);
 
 export const insertPayoutSchema = createInsertSchema(payoutsTable).omit({ id: true, reference: true, createdAt: true });

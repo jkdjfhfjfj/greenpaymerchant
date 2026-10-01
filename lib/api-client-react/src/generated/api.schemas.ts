@@ -62,16 +62,36 @@ export interface SupportTicketInput {
   category?: SupportTicketInputCategory;
 }
 
-export type ContactTicketReceiptDelivery = typeof ContactTicketReceiptDelivery[keyof typeof ContactTicketReceiptDelivery];
+export type EmailDeliveryState = typeof EmailDeliveryState[keyof typeof EmailDeliveryState];
 
 
-export const ContactTicketReceiptDelivery = {
-  in_app_recorded_email_unconfigured: 'in_app_recorded_email_unconfigured',
+export const EmailDeliveryState = {
+  queued: 'queued',
+  sending: 'sending',
+  sent: 'sent',
+  failed: 'failed',
+  uncertain: 'uncertain',
+  unconfigured: 'unconfigured',
+} as const;
+
+export type TransactionalEmailPurpose = typeof TransactionalEmailPurpose[keyof typeof TransactionalEmailPurpose];
+
+
+export const TransactionalEmailPurpose = {
+  payment_receipt: 'payment_receipt',
+  payment_success: 'payment_success',
+  payment_failure: 'payment_failure',
+  payout_update: 'payout_update',
+  invoice_reminder: 'invoice_reminder',
+  support_reply: 'support_reply',
+  support_receipt: 'support_receipt',
+  team_invitation: 'team_invitation',
+  admin_test: 'admin_test',
 } as const;
 
 export interface ContactTicketReceipt {
   reference: string;
-  delivery: ContactTicketReceiptDelivery;
+  delivery: EmailDeliveryState;
 }
 
 export type SupportTicketStatus = typeof SupportTicketStatus[keyof typeof SupportTicketStatus];
@@ -85,13 +105,6 @@ export const SupportTicketStatus = {
   closed: 'closed',
 } as const;
 
-export type SupportTicketDelivery = typeof SupportTicketDelivery[keyof typeof SupportTicketDelivery];
-
-
-export const SupportTicketDelivery = {
-  in_app_recorded_email_unconfigured: 'in_app_recorded_email_unconfigured',
-} as const;
-
 export interface SupportTicket {
   id: number;
   reference: string;
@@ -103,7 +116,7 @@ export interface SupportTicket {
   createdAt: string;
   updatedAt: string;
   messageCount: number;
-  delivery: SupportTicketDelivery;
+  delivery: EmailDeliveryState;
 }
 
 export type SupportMessageAuthorRole = typeof SupportMessageAuthorRole[keyof typeof SupportMessageAuthorRole];
@@ -114,13 +127,6 @@ export const SupportMessageAuthorRole = {
   admin: 'admin',
 } as const;
 
-export type SupportMessageDelivery = typeof SupportMessageDelivery[keyof typeof SupportMessageDelivery];
-
-
-export const SupportMessageDelivery = {
-  in_app_recorded_email_unconfigured: 'in_app_recorded_email_unconfigured',
-} as const;
-
 export interface SupportMessage {
   id: number;
   ticketId: number;
@@ -128,7 +134,7 @@ export interface SupportMessage {
   authorName: string;
   body: string;
   createdAt: string;
-  delivery: SupportMessageDelivery;
+  delivery: EmailDeliveryState;
 }
 
 export interface SupportTicketDetail {
@@ -170,6 +176,7 @@ export const NotificationType = {
   support_reply: 'support_reply',
   kyc_update: 'kyc_update',
   payment_confirmed: 'payment_confirmed',
+  payment_failed: 'payment_failed',
   payout_update: 'payout_update',
 } as const;
 
@@ -192,6 +199,132 @@ export interface NotificationList {
 export interface UnreadCount {
   unreadCount: number;
 }
+
+export type AdminEmailDeliverySettingsProvider = typeof AdminEmailDeliverySettingsProvider[keyof typeof AdminEmailDeliverySettingsProvider];
+
+
+export const AdminEmailDeliverySettingsProvider = {
+  mailtrap: 'mailtrap',
+} as const;
+
+export type AdminEmailDeliverySettingsWorker = typeof AdminEmailDeliverySettingsWorker[keyof typeof AdminEmailDeliverySettingsWorker];
+
+
+export const AdminEmailDeliverySettingsWorker = {
+  running: 'running',
+  stopped: 'stopped',
+  degraded: 'degraded',
+} as const;
+
+export type AdminEmailDeliverySettingsCounts = {
+  /** @minimum 0 */
+  queued: number;
+  /** @minimum 0 */
+  sending: number;
+  /** @minimum 0 */
+  sent: number;
+  /** @minimum 0 */
+  failed: number;
+  /** @minimum 0 */
+  uncertain: number;
+  /** @minimum 0 */
+  heldForReview: number;
+};
+
+export interface AdminEmailDeliverySettings {
+  provider: AdminEmailDeliverySettingsProvider;
+  enabled: boolean;
+  ready: boolean;
+  /** @nullable */
+  fromEmail: string | null;
+  /** Administrator-confirmed verification status for the configured sender. */
+  senderVerified: boolean;
+  /** Boolean only; never the provider token. */
+  tokenConfigured: boolean;
+  worker: AdminEmailDeliverySettingsWorker;
+  counts: AdminEmailDeliverySettingsCounts;
+}
+
+/**
+ * senderVerified must be true when configuring a new sender address.
+ */
+export interface AdminEmailDeliverySettingsUpdate {
+  enabled?: boolean;
+  fromEmail?: string;
+  senderVerified?: true;
+}
+
+export interface AdminEmailDeliveryTestInput {
+  recipientEmail: string;
+}
+
+export type AdminEmailDeliveryTestResultDeliveryState = typeof AdminEmailDeliveryTestResultDeliveryState[keyof typeof AdminEmailDeliveryTestResultDeliveryState];
+
+
+export const AdminEmailDeliveryTestResultDeliveryState = {
+  sent: 'sent',
+  failed: 'failed',
+  uncertain: 'uncertain',
+} as const;
+
+export interface AdminEmailDeliveryTestResult {
+  accepted: boolean;
+  deliveryState: AdminEmailDeliveryTestResultDeliveryState;
+  detail: string;
+}
+
+export interface AdminEmailDeliveryOutboxItem {
+  id: number;
+  eventKey: string;
+  purpose: TransactionalEmailPurpose;
+  recipientEmail: string;
+  deliveryState: EmailDeliveryState;
+  /** @minimum 0 */
+  attempts: number;
+  createdAt: string;
+  updatedAt: string;
+  /** @nullable */
+  nextAttemptAt: string | null;
+  /** @nullable */
+  lastError: string | null;
+  heldForReview: boolean;
+}
+
+export type LegacySupportEmailOutboxItemDeliveryState = typeof LegacySupportEmailOutboxItemDeliveryState[keyof typeof LegacySupportEmailOutboxItemDeliveryState];
+
+
+export const LegacySupportEmailOutboxItemDeliveryState = {
+  unconfigured: 'unconfigured',
+} as const;
+
+export interface LegacySupportEmailOutboxItem {
+  id: number;
+  eventKey: string;
+  purpose: TransactionalEmailPurpose;
+  recipientEmail: string;
+  deliveryState: LegacySupportEmailOutboxItemDeliveryState;
+  createdAt: string;
+  heldForReview: true;
+}
+
+export interface AdminEmailDeliveryOutboxList {
+  items: AdminEmailDeliveryOutboxItem[];
+  legacyHeld: LegacySupportEmailOutboxItem[];
+  /** @minimum 0 */
+  total: number;
+  /** @minimum 1 */
+  page: number;
+  /**
+     * @minimum 1
+     * @maximum 100
+     */
+  perPage: number;
+}
+
+export const LegacySupportEmailOutboxReviewInputValue = {
+  reviewed: true,
+} as const;
+export type LegacySupportEmailOutboxReviewInput = typeof LegacySupportEmailOutboxReviewInputValue;
 
 export interface BusinessContact {
   businessName: string;
@@ -547,6 +680,12 @@ export interface PublicPaymentLink {
   currency: string;
   /** @nullable */
   expiresAt?: string | null;
+  /**
+     * Current outstanding invoice balance for invoice-hosted checkout; absent for non-invoice payment links.
+     * @minimum 0
+     * @nullable
+     */
+  invoiceOutstandingAmount?: number | null;
 }
 
 export interface PaymentLinkCheckoutInput {
@@ -666,7 +805,139 @@ export interface PayoutRequestInput {
      * @maxLength 3
      */
   currency: string;
-  /** @minLength 1 */
+  /** @minimum 1 */
+  destinationId: number;
+  /**
+     * Optional consistency check; the approved destination's method remains authoritative.
+     * @minLength 1
+     */
+  method?: string;
+}
+
+export type PayoutRequestStatus = typeof PayoutRequestStatus[keyof typeof PayoutRequestStatus];
+
+
+export const PayoutRequestStatus = {
+  requested: 'requested',
+  awaiting_second_approval: 'awaiting_second_approval',
+  approved: 'approved',
+  processing: 'processing',
+  completed: 'completed',
+  rejected: 'rejected',
+  failed: 'failed',
+  uncertain: 'uncertain',
+} as const;
+
+export type PayoutReviewHistoryItemStage = typeof PayoutReviewHistoryItemStage[keyof typeof PayoutReviewHistoryItemStage];
+
+
+export const PayoutReviewHistoryItemStage = {
+  requested: 'requested',
+  first: 'first',
+  second: 'second',
+  reject: 'reject',
+  provider: 'provider',
+} as const;
+
+export interface PayoutDestinationSnapshot {
+  /** @nullable */
+  id: number | null;
+  /** @nullable */
+  label?: string | null;
+  currency: string;
+  method: string;
+  /** Masked destination account holder name only. */
+  accountName: string;
+  maskedAccount: string;
+  /** @nullable */
+  versionId?: number | null;
+  /**
+     * Opaque immutable version identifier.
+     * @nullable
+     */
+  fingerprint: string | null;
+}
+
+export interface PayoutReviewHistoryItem {
+  stage: PayoutReviewHistoryItemStage;
+  actor: string;
+  occurredAt: string;
+  outcome: string;
+  destination: PayoutDestinationSnapshot;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  fee: number | null;
+}
+
+export interface PayoutRequest {
+  id: number;
+  reference: string;
+  merchantId: number;
+  amount: number;
+  fee: number;
+  netAmount: number;
+  currency: string;
+  method: string;
+  /** Masked destination account holder name only; no plaintext destination details are returned. */
+  accountName: string;
+  maskedAccount: string;
+  /** @nullable */
+  destinationId: number | null;
+  /** @nullable */
+  destinationVersion: number | null;
+  /**
+     * Opaque immutable version identifier; never raw or encrypted account data.
+     * @nullable
+     */
+  destinationFingerprint: string | null;
+  requiresSecondApproval: boolean;
+  /** @nullable */
+  largePayoutThreshold: number | null;
+  /** False means no per-currency threshold is configured; the payout is held for manual two-person review. */
+  thresholdConfigured: boolean;
+  /** @nullable */
+  requestedBy: string | null;
+  /** @nullable */
+  firstApprovedBy: string | null;
+  /** @nullable */
+  firstApprovedAt: string | null;
+  /** @nullable */
+  secondApprovedBy: string | null;
+  /** @nullable */
+  secondApprovedAt: string | null;
+  /** @nullable */
+  rejectedBy: string | null;
+  /** @nullable */
+  rejectedAt: string | null;
+  reviewHistory: PayoutReviewHistoryItem[];
+  status: PayoutRequestStatus;
+  /** @nullable */
+  providerReference?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PayoutRequestList {
+  items: PayoutRequest[];
+}
+
+export interface PayoutDestinationInput {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  label: string;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
   method: string;
   /**
      * @minLength 1
@@ -684,39 +955,100 @@ export interface PayoutRequestInput {
   bankName?: string;
 }
 
-export type PayoutRequestStatus = typeof PayoutRequestStatus[keyof typeof PayoutRequestStatus];
+export type DestinationChangeRequestInput = PayoutDestinationInput & {
+  /**
+     * Existing approved destination being changed; omitted to request a new destination.
+     * @minimum 1
+     */
+  destinationId?: number;
+};
+
+export type PayoutDestinationStatus = typeof PayoutDestinationStatus[keyof typeof PayoutDestinationStatus];
 
 
-export const PayoutRequestStatus = {
-  requested: 'requested',
-  approved: 'approved',
-  processing: 'processing',
-  completed: 'completed',
-  rejected: 'rejected',
-  failed: 'failed',
-  uncertain: 'uncertain',
+export const PayoutDestinationStatus = {
+  active: 'active',
 } as const;
 
-export interface PayoutRequest {
+export interface PayoutDestination {
   id: number;
-  reference: string;
-  merchantId: number;
-  amount: number;
-  fee: number;
-  netAmount: number;
+  /** @minimum 1 */
+  version: number;
   currency: string;
+  label: string;
   method: string;
+  /** Masked destination account holder name only. */
   accountName: string;
   maskedAccount: string;
-  status: PayoutRequestStatus;
-  /** @nullable */
-  providerReference?: string | null;
+  /** Opaque immutable version identifier. */
+  fingerprint: string;
+  status: PayoutDestinationStatus;
+  approvedBy: string;
+  approvedAt: string;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface PayoutRequestList {
-  items: PayoutRequest[];
+export interface PayoutDestinationList {
+  items: PayoutDestination[];
+}
+
+export type PayoutDestinationChangeStatus = typeof PayoutDestinationChangeStatus[keyof typeof PayoutDestinationChangeStatus];
+
+
+export const PayoutDestinationChangeStatus = {
+  requested: 'requested',
+  first_approved: 'first_approved',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface PayoutDestinationChangeRequest {
+  id: number;
+  /** @nullable */
+  destinationId: number | null;
+  destination: PayoutDestinationSnapshot;
+  /** Opaque immutable version identifier; never raw or encrypted account data. */
+  destinationFingerprint: string;
+  status: PayoutDestinationChangeStatus;
+  requestedBy: string;
+  /** @nullable */
+  firstApprovedBy: string | null;
+  /** @nullable */
+  firstApprovedAt: string | null;
+  /** @nullable */
+  secondApprovedBy: string | null;
+  /** @nullable */
+  secondApprovedAt: string | null;
+  /** @nullable */
+  rejectedBy: string | null;
+  /** @nullable */
+  rejectedAt: string | null;
+  /** @nullable */
+  decisionReason: string | null;
+  reviewHistory: PayoutReviewHistoryItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PayoutDestinationChangeRequestList {
+  items: PayoutDestinationChangeRequest[];
+}
+
+export interface PayoutDestinationChangeRejectInput {
+  /**
+     * @minLength 1
+     * @maxLength 400
+     */
+  reason: string;
+}
+
+export interface SecondApprovalInput {
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  destinationFingerprint: string;
 }
 
 export interface PayoutRequestDecisionInput {
@@ -1004,7 +1336,19 @@ export interface Invoice {
   lines: InvoiceLine[];
   subtotal: number;
   total: number;
+  /** Net confirmed collected value only. */
   paidAmount: number;
+  /**
+     * Current unpaid invoice balance.
+     * @minimum 0
+     */
+  outstandingAmount: number;
+  /**
+     * Current active fixed-amount invoice link balance
+     * @minimum 0
+     * @nullable
+     */
+  paymentLinkAmount: number | null;
   payments: InvoicePayment[];
   status: InvoiceStatus;
   /** @nullable */
@@ -1021,12 +1365,19 @@ export interface InvoiceList {
 export interface ReminderInput {
   /** @maxLength 500 */
   note?: string;
+  /** Optional future send time; scheduled messages are revalidated before delivery. */
+  scheduleAt?: string;
 }
 
 export type ReminderDeliveryStatus = typeof ReminderDeliveryStatus[keyof typeof ReminderDeliveryStatus];
 
 
 export const ReminderDeliveryStatus = {
+  queued: 'queued',
+  sending: 'sending',
+  sent: 'sent',
+  failed: 'failed',
+  uncertain: 'uncertain',
   unconfigured: 'unconfigured',
 } as const;
 
@@ -1035,6 +1386,8 @@ export interface Reminder {
   invoiceId: number;
   deliveryStatus: ReminderDeliveryStatus;
   createdAt: string;
+  /** @nullable */
+  scheduledAt: string | null;
   /** @nullable */
   attemptedAt?: string | null;
   message: string;
@@ -1052,22 +1405,78 @@ export interface StatementTransaction {
   paidAt: string;
 }
 
+/**
+ * Only customer-reimbursed confirmed refund source rows are included.
+ */
+export type StatementRefundStatus = typeof StatementRefundStatus[keyof typeof StatementRefundStatus];
+
+
+export const StatementRefundStatus = {
+  success: 'success',
+  completed: 'completed',
+  processed: 'processed',
+} as const;
+
+/**
+ * Distinguishes the source confirmation timestamp from a legacy record with no confirmation timestamp.
+ */
+export type StatementRefundCashDateBasis = typeof StatementRefundCashDateBasis[keyof typeof StatementRefundCashDateBasis];
+
+
+export const StatementRefundCashDateBasis = {
+  confirmed_at: 'confirmed_at',
+  legacy_created_at: 'legacy_created_at',
+} as const;
+
 export interface StatementRefund {
   reference: string;
   originalReference: string;
   amount: number;
   currency: string;
-  status: string;
+  /** Only customer-reimbursed confirmed refund source rows are included. */
+  status: StatementRefundStatus;
   createdAt: string;
+  /** Cash-flow date; uses an explicit confirmation timestamp or the stated legacy-created-at fallback. */
+  cashDate: string;
+  /** Distinguishes the source confirmation timestamp from a legacy record with no confirmation timestamp. */
+  cashDateBasis: StatementRefundCashDateBasis;
 }
+
+/**
+ * Only confirmed payout source rows are included.
+ */
+export type StatementPayoutStatus = typeof StatementPayoutStatus[keyof typeof StatementPayoutStatus];
+
+
+export const StatementPayoutStatus = {
+  success: 'success',
+  completed: 'completed',
+  processed: 'processed',
+} as const;
+
+/**
+ * Distinguishes the source confirmation timestamp from a legacy record with no confirmation timestamp.
+ */
+export type StatementPayoutCashDateBasis = typeof StatementPayoutCashDateBasis[keyof typeof StatementPayoutCashDateBasis];
+
+
+export const StatementPayoutCashDateBasis = {
+  confirmed_at: 'confirmed_at',
+  legacy_created_at: 'legacy_created_at',
+} as const;
 
 export interface StatementPayout {
   reference: string;
   amount: number;
   fee: number;
   currency: string;
-  status: string;
+  /** Only confirmed payout source rows are included. */
+  status: StatementPayoutStatus;
   createdAt: string;
+  /** Cash-flow date; uses an explicit confirmation timestamp or the stated legacy-created-at fallback. */
+  cashDate: string;
+  /** Distinguishes the source confirmation timestamp from a legacy record with no confirmation timestamp. */
+  cashDateBasis: StatementPayoutCashDateBasis;
 }
 
 export type StatementCurrencySummariesItemForecastLabel = typeof StatementCurrencySummariesItemForecastLabel[keyof typeof StatementCurrencySummariesItemForecastLabel];
@@ -1090,14 +1499,85 @@ export type StatementCurrencySummariesItem = {
   fees: number;
   refundsTotal: number;
   payoutsTotal: number;
+  /** Confirmed wallet settlement funding total. */
+  settlementsTotal: number;
   forecast: StatementCurrencySummariesItemForecast;
 };
+
+export type StatementSettlementStatus = typeof StatementSettlementStatus[keyof typeof StatementSettlementStatus];
+
+
+export const StatementSettlementStatus = {
+  confirmed: 'confirmed',
+} as const;
+
+export interface StatementSettlement {
+  /** Stable wallet settlement confirmation reference. */
+  reference: string;
+  /** @minimum 0 */
+  amount: number;
+  /**
+     * Confirmed settlement fee when supplied by the source record.
+     * @minimum 0
+     * @nullable
+     */
+  fee?: number | null;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency: string;
+  status: StatementSettlementStatus;
+  /** Timestamp at which the confirmed settlement evidence was recorded. */
+  createdAt: string;
+}
+
+export type StatementWalletPayoutRequestStatus = typeof StatementWalletPayoutRequestStatus[keyof typeof StatementWalletPayoutRequestStatus];
+
+
+export const StatementWalletPayoutRequestStatus = {
+  requested: 'requested',
+  awaiting_second_approval: 'awaiting_second_approval',
+  approved: 'approved',
+  submitted: 'submitted',
+  processing: 'processing',
+  completed: 'completed',
+  rejected: 'rejected',
+  failed: 'failed',
+  uncertain: 'uncertain',
+} as const;
+
+/**
+ * Operational wallet payout request history, not a confirmed cash-movement fact until the provider outcome is confirmed.
+ */
+export interface StatementWalletPayoutRequest {
+  /** Stable wallet payout request reference. */
+  reference: string;
+  /** @minimum 0 */
+  amount: number;
+  /** @minimum 0 */
+  fee: number;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency: string;
+  status: StatementWalletPayoutRequestStatus;
+  createdAt: string;
+  updatedAt: string;
+  /** @nullable */
+  completedAt: string | null;
+}
 
 export interface Statement {
   month: string;
   transactions: StatementTransaction[];
   refunds: StatementRefund[];
   payouts: StatementPayout[];
+  /** Confirmed wallet settlement funding confirmations only. */
+  settlements: StatementSettlement[];
+  /** Wallet payout request history, kept separate from confirmed payout facts and never counted twice with legacy payouts. */
+  walletPayoutRequests: StatementWalletPayoutRequest[];
   currencySummaries: StatementCurrencySummariesItem[];
 }
 
@@ -1109,6 +1589,12 @@ export interface CaseMessageInput {
   message: string;
   /** @maxLength 2000 */
   evidenceUrl?: string;
+  /**
+     * @maxItems 5
+     * @items.minLength 1
+     * @items.maxLength 128
+     */
+  attachmentUploadTokens?: string[];
 }
 
 export type CaseMessageAuthorRole = typeof CaseMessageAuthorRole[keyof typeof CaseMessageAuthorRole];
@@ -1119,12 +1605,44 @@ export const CaseMessageAuthorRole = {
   admin: 'admin',
 } as const;
 
+export type MerchantCaseAttachmentContentType = typeof MerchantCaseAttachmentContentType[keyof typeof MerchantCaseAttachmentContentType];
+
+
+export const MerchantCaseAttachmentContentType = {
+  'application/pdf': 'application/pdf',
+  'image/png': 'image/png',
+  'image/jpeg': 'image/jpeg',
+} as const;
+
+export interface MerchantCaseAttachment {
+  id: number;
+  /**
+     * @minLength 1
+     * @maxLength 180
+     */
+  name: string;
+  /**
+     * @minimum 1
+     * @maximum 10485760
+     */
+  size: number;
+  contentType: MerchantCaseAttachmentContentType;
+  createdAt: string;
+  /** Authenticated API path; never a public storage URL. */
+  downloadPath: string;
+}
+
 export interface CaseMessage {
   id: string;
   authorRole: CaseMessageAuthorRole;
   message: string;
   /** @nullable */
   evidenceUrl: string | null;
+  /**
+     * Private evidence metadata only; attachment bytes are available through authenticated download routes.
+     * @nullable
+     */
+  attachments?: MerchantCaseAttachment[] | null;
   createdAt: string;
 }
 
@@ -1154,6 +1672,9 @@ export const CaseReviewInputStatus = {
   declined: 'declined',
 } as const;
 
+/**
+ * recorded means evidence is recorded but customer reimbursement is not yet confirmed; administrative status changes alone cannot confirm money movement.
+ */
 export type CaseReviewInputFinancialMovement = typeof CaseReviewInputFinancialMovement[keyof typeof CaseReviewInputFinancialMovement];
 
 
@@ -1166,6 +1687,7 @@ export const CaseReviewInputFinancialMovement = {
 
 export interface CaseReviewInput {
   status: CaseReviewInputStatus;
+  /** recorded means evidence is recorded but customer reimbursement is not yet confirmed; administrative status changes alone cannot confirm money movement. */
   financialMovement?: CaseReviewInputFinancialMovement;
   /**
      * @minLength 1
@@ -1194,6 +1716,9 @@ export const SupportCaseStatus = {
   declined: 'declined',
 } as const;
 
+/**
+ * recorded means refund evidence is recorded but customer reimbursement is not yet confirmed; confirmed requires case-linked confirmed refund evidence.
+ */
 export type SupportCaseFinancialMovement = typeof SupportCaseFinancialMovement[keyof typeof SupportCaseFinancialMovement];
 
 
@@ -1204,15 +1729,121 @@ export const SupportCaseFinancialMovement = {
   confirmed: 'confirmed',
 } as const;
 
+export interface CaseRefundEvidence {
+  reference: string;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency: string;
+  /** Source refund row status; a case movement of recorded remains distinct from confirmed customer reimbursement. */
+  status: string;
+  providerReference: string;
+  evidenceReference: string;
+  createdAt: string;
+  /** @nullable */
+  downloadPath: string | null;
+}
+
 export interface SupportCase {
   id: number;
   kind: SupportCaseKind;
   transactionReference: string;
   status: SupportCaseStatus;
+  /** recorded means refund evidence is recorded but customer reimbursement is not yet confirmed; confirmed requires case-linked confirmed refund evidence. */
   financialMovement: SupportCaseFinancialMovement;
   messages: CaseMessage[];
+  /** Case-linked refund source records exposing their specific provider and evidence references. */
+  refundEvidence: CaseRefundEvidence[];
   createdAt: string;
   updatedAt: string;
+}
+
+export type MerchantCaseAttachmentUploadIntentInputContentType = typeof MerchantCaseAttachmentUploadIntentInputContentType[keyof typeof MerchantCaseAttachmentUploadIntentInputContentType];
+
+
+export const MerchantCaseAttachmentUploadIntentInputContentType = {
+  'application/pdf': 'application/pdf',
+  'image/png': 'image/png',
+  'image/jpeg': 'image/jpeg',
+} as const;
+
+export interface MerchantCaseAttachmentUploadIntentInput {
+  /**
+     * @minLength 1
+     * @maxLength 180
+     */
+  name: string;
+  /**
+     * @minimum 1
+     * @maximum 10485760
+     */
+  size: number;
+  contentType: MerchantCaseAttachmentUploadIntentInputContentType;
+}
+
+export interface MerchantCaseAttachmentUploadIntent {
+  /** Short-lived signed upload URL. */
+  uploadURL: string;
+  /** Private opaque App Storage path; never a public URL. */
+  objectPath: string;
+  uploadToken: string;
+  expiresAt: string;
+}
+
+export interface AdminCaseRefundRecordInput {
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  providerReference: string;
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  idempotencyKey: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  evidenceReference: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  note: string;
+}
+
+/**
+ * Source refund row status; here processed is recorded only after an administrator manually verifies completed customer reimbursement.
+ */
+export type AdminCaseRefundRecordStatus = typeof AdminCaseRefundRecordStatus[keyof typeof AdminCaseRefundRecordStatus];
+
+
+export const AdminCaseRefundRecordStatus = {
+  processed: 'processed',
+} as const;
+
+export interface AdminCaseRefundRecord {
+  case: SupportCase;
+  refundReference: string;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency: string;
+  /** Source refund row status; here processed is recorded only after an administrator manually verifies completed customer reimbursement. */
+  status: AdminCaseRefundRecordStatus;
+  providerReference: string;
+  evidenceReference: string;
+  createdAt: string;
+  idempotentReplay?: boolean;
 }
 
 export interface CaseList {
@@ -1234,6 +1865,141 @@ export interface PublicReceipt {
   currency: string;
   paidAt: string;
   status: PublicReceiptStatus;
+}
+
+export type ContentKind = typeof ContentKind[keyof typeof ContentKind];
+
+
+export const ContentKind = {
+  guide: 'guide',
+  article: 'article',
+  faq: 'faq',
+} as const;
+
+export type ContentStatus = typeof ContentStatus[keyof typeof ContentStatus];
+
+
+export const ContentStatus = {
+  draft: 'draft',
+  published: 'published',
+} as const;
+
+export interface PublicContentSummary {
+  id: number;
+  kind: ContentKind;
+  title: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     * @pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$
+     */
+  slug: string;
+  summary: string;
+  updatedAt: string;
+}
+
+export type PublicContent = PublicContentSummary & {
+  body: string;
+  publishedAt: string;
+};
+
+export interface PublicContentList {
+  items: PublicContentSummary[];
+}
+
+export type AdminContent = PublicContentSummary & ({
+  body: string;
+  status: ContentStatus;
+  createdAt: string;
+  /** @nullable */
+  publishedAt: string | null;
+  /** @minimum 1 */
+  version: number;
+  /** @nullable */
+  updatedBy: string | null;
+});
+
+export interface AdminContentList {
+  items: AdminContent[];
+}
+
+export interface ContentInput {
+  kind: ContentKind;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  title: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     * @pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$
+     */
+  slug: string;
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  summary: string;
+  /**
+     * @minLength 1
+     * @maxLength 30000
+     */
+  body: string;
+  status?: ContentStatus;
+}
+
+export type ContentUpdateStatus = typeof ContentUpdateStatus[keyof typeof ContentUpdateStatus];
+
+
+export const ContentUpdateStatus = {
+  draft: 'draft',
+} as const;
+
+export interface ContentUpdate {
+  kind?: ContentKind;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  title?: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     * @pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$
+     */
+  slug?: string;
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  summary?: string;
+  /**
+     * @minLength 1
+     * @maxLength 30000
+     */
+  body?: string;
+  status?: ContentUpdateStatus;
+}
+
+export interface ContentVersion {
+  id: number;
+  contentId: number;
+  /** @minimum 1 */
+  version: number;
+  kind: ContentKind;
+  title: string;
+  slug: string;
+  summary: string;
+  body: string;
+  status: ContentStatus;
+  createdAt: string;
+  /** @nullable */
+  createdBy: string | null;
+}
+
+export interface ContentVersionList {
+  items: ContentVersion[];
 }
 
 export interface Customer {
@@ -1434,12 +2200,17 @@ export type MerchantTeamInvitationCreatedDelivery = typeof MerchantTeamInvitatio
 
 
 export const MerchantTeamInvitationCreatedDelivery = {
+  queued: 'queued',
   copy_link_required: 'copy_link_required',
 } as const;
 
 export interface MerchantTeamInvitationCreated {
   invitation: MerchantTeamInvitation;
-  invitationUrl: string;
+  /**
+     * Present only when the invitation must be copied manually; omitted or null when the invitation was queued for email delivery.
+     * @nullable
+     */
+  invitationUrl?: string | null;
   delivery: MerchantTeamInvitationCreatedDelivery;
 }
 
@@ -1465,24 +2236,123 @@ export interface MerchantProfileResponse {
   merchant: MerchantProfile;
 }
 
-export interface CreateMerchantInput {
-  /**
-     * @minLength 2
-     * @maxLength 150
-     */
-  businessName: string;
-  /**
-     * @minLength 2
-     * @maxLength 2
-     */
-  country: string;
+export type MerchantActionKey = typeof MerchantActionKey[keyof typeof MerchantActionKey];
+
+
+export const MerchantActionKey = {
+  collect: 'collect',
+  createLinks: 'createLinks',
+  refundRequests: 'refundRequests',
+  disputeRequests: 'disputeRequests',
+  invoices: 'invoices',
+  reminders: 'reminders',
+  payoutRequests: 'payoutRequests',
+  destinationChanges: 'destinationChanges',
+  walletConversion: 'walletConversion',
+  teamManagement: 'teamManagement',
+  apiAccess: 'apiAccess',
+} as const;
+
+export interface MerchantActionControls {
+  collect: boolean;
+  createLinks: boolean;
+  refundRequests: boolean;
+  disputeRequests: boolean;
+  invoices: boolean;
+  reminders: boolean;
+  payoutRequests: boolean;
+  destinationChanges: boolean;
+  walletConversion: boolean;
+  teamManagement: boolean;
+  apiAccess: boolean;
+}
+
+export interface MerchantActionControlUpdates {
+  collect?: boolean;
+  createLinks?: boolean;
+  refundRequests?: boolean;
+  disputeRequests?: boolean;
+  invoices?: boolean;
+  reminders?: boolean;
+  payoutRequests?: boolean;
+  destinationChanges?: boolean;
+  walletConversion?: boolean;
+  teamManagement?: boolean;
+  apiAccess?: boolean;
+}
+
+export type MerchantActionRole = typeof MerchantActionRole[keyof typeof MerchantActionRole];
+
+
+export const MerchantActionRole = {
+  owner: 'owner',
+  finance: 'finance',
+  viewer: 'viewer',
+} as const;
+
+export interface MerchantActionControlsResponse {
+  merchantId: number;
+  controls: MerchantActionControls;
+  role: MerchantActionRole;
+}
+
+/**
+ * Explicit positive thresholds keyed by ISO currency code. A missing currency threshold requires manual review; no default is implied.
+ */
+export type PayoutSafetySettingsLargePayoutThresholds = {[key: string]: number};
+
+export interface PayoutSafetySettings {
+  /** Explicit positive thresholds keyed by ISO currency code. A missing currency threshold requires manual review; no default is implied. */
+  largePayoutThresholds: PayoutSafetySettingsLargePayoutThresholds;
+  destinationChangeRequiresDualApproval: true;
+  dualApprovalEnabled: boolean;
+}
+
+export type MerchantUsageItemTier = typeof MerchantUsageItemTier[keyof typeof MerchantUsageItemTier];
+
+
+export const MerchantUsageItemTier = {
+  unverified: 'unverified',
+  kyc: 'kyc',
+  kyb: 'kyb',
+} as const;
+
+export interface MerchantUsageItem {
+  tier: MerchantUsageItemTier;
   /**
      * @minLength 3
      * @maxLength 3
      */
-  baseCurrency: string;
-  /** @maxLength 150 */
-  registrationNumber?: string;
+  currency: string;
+  /**
+     * Confirmed or committed collection usage only; pending and uncertain amounts are excluded.
+     * @minimum 0
+     */
+  confirmedCollectionPerTransaction: number;
+  /**
+     * Confirmed or committed collection usage only; pending and uncertain amounts are excluded.
+     * @minimum 0
+     */
+  confirmedCollectionDaily: number;
+  /**
+     * Confirmed or committed collection usage only; pending and uncertain amounts are excluded.
+     * @minimum 0
+     */
+  confirmedCollectionMonthly: number;
+  /**
+     * Confirmed or committed payout usage only; pending and uncertain amounts are excluded.
+     * @minimum 0
+     */
+  committedPayout: number;
+  /**
+     * Confirmed or committed conversion usage only; pending and uncertain amounts are excluded.
+     * @minimum 0
+     */
+  committedConversion: number;
+}
+
+export interface MerchantUsageSummary {
+  items: MerchantUsageItem[];
 }
 
 export type VerificationTierLimitTier = typeof VerificationTierLimitTier[keyof typeof VerificationTierLimitTier];
@@ -1527,6 +2397,93 @@ export interface VerificationTierLimit {
      */
   conversionLimit: number | null;
   updatedAt: string;
+}
+
+export interface MerchantLimitsSummary {
+  items: VerificationTierLimit[];
+}
+
+export type AdminMerchantControlsResponseStatus = typeof AdminMerchantControlsResponseStatus[keyof typeof AdminMerchantControlsResponseStatus];
+
+
+export const AdminMerchantControlsResponseStatus = {
+  pending: 'pending',
+  active: 'active',
+  suspended: 'suspended',
+  closed: 'closed',
+} as const;
+
+export interface AdminMerchantControlsResponse {
+  merchantId: number;
+  businessName: string;
+  status: AdminMerchantControlsResponseStatus;
+  controls: MerchantActionControls;
+  payoutSafety: PayoutSafetySettings;
+  usage: MerchantUsageSummary;
+  limits: MerchantLimitsSummary;
+  updatedAt: string;
+}
+
+export interface UpdateAdminMerchantControlsRequest {
+  controls?: MerchantActionControlUpdates;
+  payoutSafety?: PayoutSafetySettings;
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  reason: string;
+}
+
+export type SetAdminMerchantStatusRequestStatus = typeof SetAdminMerchantStatusRequestStatus[keyof typeof SetAdminMerchantStatusRequestStatus];
+
+
+export const SetAdminMerchantStatusRequestStatus = {
+  active: 'active',
+  suspended: 'suspended',
+} as const;
+
+export interface SetAdminMerchantStatusRequest {
+  status: SetAdminMerchantStatusRequestStatus;
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  reason: string;
+}
+
+export type AdminMerchantStatusResponseStatus = typeof AdminMerchantStatusResponseStatus[keyof typeof AdminMerchantStatusResponseStatus];
+
+
+export const AdminMerchantStatusResponseStatus = {
+  active: 'active',
+  suspended: 'suspended',
+} as const;
+
+export interface AdminMerchantStatusResponse {
+  merchantId: number;
+  status: AdminMerchantStatusResponseStatus;
+  reason: string;
+  updatedAt: string;
+}
+
+export interface CreateMerchantInput {
+  /**
+     * @minLength 2
+     * @maxLength 150
+     */
+  businessName: string;
+  /**
+     * @minLength 2
+     * @maxLength 2
+     */
+  country: string;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  baseCurrency: string;
+  /** @maxLength 150 */
+  registrationNumber?: string;
 }
 
 export interface VerificationLimitsResponse {
@@ -2109,6 +3066,10 @@ export type ListAdminPayoutRequestsParams = {
 status?: string;
 };
 
+export type ListAdminWalletPayoutDestinationChangesParams = {
+status?: PayoutDestinationChangeStatus;
+};
+
 export type ListPayoutsParams = {
 status?: ListPayoutsStatus;
 currency?: string;
@@ -2148,6 +3109,19 @@ export const ListSettlementsStatus = {
   due: 'due',
   settled: 'settled',
   held: 'held',
+} as const;
+
+export type ListPublicContentParams = {
+kind?: ListPublicContentKind;
+};
+
+export type ListPublicContentKind = typeof ListPublicContentKind[keyof typeof ListPublicContentKind];
+
+
+export const ListPublicContentKind = {
+  guide: 'guide',
+  article: 'article',
+  faq: 'faq',
 } as const;
 
 export type ListCustomersParams = {
@@ -2225,6 +3199,28 @@ from: string;
 to: string;
 };
 
+export type ListAdminContentParams = {
+kind?: ListAdminContentKind;
+status?: ListAdminContentStatus;
+};
+
+export type ListAdminContentKind = typeof ListAdminContentKind[keyof typeof ListAdminContentKind];
+
+
+export const ListAdminContentKind = {
+  guide: 'guide',
+  article: 'article',
+  faq: 'faq',
+} as const;
+
+export type ListAdminContentStatus = typeof ListAdminContentStatus[keyof typeof ListAdminContentStatus];
+
+
+export const ListAdminContentStatus = {
+  draft: 'draft',
+  published: 'published',
+} as const;
+
 export type ListAdminMerchantsParams = {
 search?: string;
 status?: ListAdminMerchantsStatus;
@@ -2252,6 +3248,24 @@ export const ListAdminMerchantsKycStatus = {
   in_review: 'in_review',
   expired: 'expired',
 } as const;
+
+export type ListAdminEmailDeliveryOutboxParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+perPage?: number;
+deliveryState?: EmailDeliveryState;
+purpose?: TransactionalEmailPurpose;
+/**
+ * @maxLength 200
+ */
+search?: string;
+};
 
 export type ListAdminAuditLogParams = {
 /**

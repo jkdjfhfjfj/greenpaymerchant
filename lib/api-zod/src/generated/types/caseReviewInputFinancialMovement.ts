@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * recorded means evidence is recorded but customer reimbursement is not yet confirmed; administrative status changes alone cannot confirm money movement.
+ */
 export type CaseReviewInputFinancialMovement = typeof CaseReviewInputFinancialMovement[keyof typeof CaseReviewInputFinancialMovement];
 
 

@@ -597,6 +597,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WalletConversion" }
+        "403": { description: Wallet conversion capability is disabled for this merchant }
         "409":
           description: Insufficient available funds or idempotency conflict
   /wallets/payout-methods:
@@ -617,6 +618,52 @@ paths:
               schema: { $ref: "#/components/schemas/PayoutMethodsResponse" }
         "503":
           description: Provider payout methods are not configured
+  /wallets/payout-destinations:
+    get:
+      operationId: listMerchantWalletPayoutDestinations
+      tags: [payout-requests]
+      summary: List approved payout destinations and masked pending destination changes
+      responses:
+        "200":
+          description: Merchant-approved destinations and their pending changes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutDestinationList" }
+        "403": { description: Merchant membership required }
+    post:
+      operationId: createMerchantWalletPayoutDestination
+      tags: [payout-requests]
+      summary: Request a saved payout destination change for two-person administrator review
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DestinationChangeRequestInput" }
+      responses:
+        "201":
+          description: Immutable destination change request awaiting administrator review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutDestinationChangeRequest" }
+        "403": { description: Owner or finance role and destination-change capability required }
+        "409": { description: Idempotency conflict or another destination change is already pending }
+  /wallets/payout-destination-changes:
+    get:
+      operationId: listMerchantWalletPayoutDestinationChanges
+      tags: [payout-requests]
+      summary: List destination change history for the current merchant
+      responses:
+        "200":
+          description: Destination change requests with masked proposed account data
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutDestinationChangeRequestList" }
+        "403": { description: Merchant membership required }
   /wallets/payout-requests:
     get:
       operationId: listMerchantPayoutRequests
@@ -648,6 +695,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PayoutRequest" }
+        "403": { description: Payout request capability is disabled or caller lacks finance permission }
         "409":
           description: Insufficient available funds or idempotency conflict
   /admin/wallets:
@@ -694,19 +742,88 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PayoutRequestList" }
-  /admin/payout-requests/{id}/approve:
-    post:
-      operationId: approvePayoutRequest
+  /admin/payout-destination-changes:
+    get:
+      operationId: listAdminWalletPayoutDestinationChanges
       tags: [payout-requests, admin]
-      summary: Approve and submit a reserved merchant payout exactly once
+      summary: Review merchant payout destination change requests
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/PayoutDestinationChangeStatus" }
+      responses:
+        "200":
+          description: Pending and historical destination changes, with sensitive account data masked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutDestinationChangeRequestList" }
+        "403": { description: Administrator access required }
+  /admin/payout-destination-changes/{id}/approve:
+    post:
+      operationId: approvePayoutDestinationChange
+      tags: [payout-requests, admin]
+      summary: Record the first review or approve an immutable destination change with a second distinct administrator
       parameters:
         - name: id
           in: path
           required: true
           schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SecondApprovalInput" }
       responses:
         "200":
-          description: Approved payout; uncertain outcomes retain funds on hold
+          description: Destination change reviewed; the approved destination changes only after the distinct second approval
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutDestinationChangeRequest" }
+        "403": { description: Administrator access required }
+        "404": { description: Destination change request not found }
+        "409": { description: "Self-approval, replay, stale status, fingerprint mismatch, or concurrent approval" }
+  /admin/payout-destination-changes/{id}/reject:
+    post:
+      operationId: rejectPayoutDestinationChange
+      tags: [payout-requests, admin]
+      summary: Reject a pending immutable destination change without changing the approved destination
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PayoutDestinationChangeRejectInput" }
+      responses:
+        "200":
+          description: Destination change rejected
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutDestinationChangeRequest" }
+        "403": { description: Administrator access required }
+        "404": { description: Destination change request not found }
+        "409": { description: Destination change request is no longer pending }
+  /admin/payout-requests/{id}/approve:
+    post:
+      operationId: approvePayoutRequest
+      tags: [payout-requests, admin]
+      summary: Record the first review or submit a reserved payout after required distinct approvals
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SecondApprovalInput" }
+      responses:
+        "200":
+          description: First review or submitted payout; uncertain outcomes retain funds on hold
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PayoutRequest" }
@@ -1034,6 +1151,45 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SupportCase" }
+  /merchant/cases/{id}/attachments/upload-intent:
+    post:
+      operationId: createMerchantCaseAttachmentUploadIntent
+      tags: [merchant]
+      summary: Create a short-lived private App Storage upload intent for case evidence
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MerchantCaseAttachmentUploadIntentInput" }
+      responses:
+        "201":
+          description: Short-lived upload URL and opaque private object token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantCaseAttachmentUploadIntent" }
+        "403": { description: Merchant finance permission required }
+        "404": { description: Case not found for this merchant }
+        "413": { description: Upload exceeds the maximum supported size }
+  /merchant/cases/{id}/attachments/{attachmentId}/download:
+    get:
+      operationId: downloadMerchantCaseAttachment
+      tags: [merchant]
+      summary: Download private case evidence after ownership verification
+      description: Authenticated case-owner download only. Returns PDF, PNG, or JPEG attachment bytes with attachment disposition and nosniff headers; never exposes a public object URL.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: attachmentId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200":
+          description: Private evidence file
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+        "403": { description: Case ownership required }
+        "404": { description: Case attachment not found }
   /admin/cases:
     get:
       operationId: listAdminCases
@@ -1063,6 +1219,52 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SupportCase" }
+  /admin/cases/{id}/attachments/{attachmentId}/download:
+    get:
+      operationId: downloadAdminCaseAttachment
+      tags: [admin]
+      summary: Download private case evidence for administrator review
+      description: Authenticated administrator download only. Returns PDF, PNG, or JPEG attachment bytes with attachment disposition and nosniff headers; never exposes a public object URL.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: attachmentId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200":
+          description: Private evidence file
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+        "403": { description: Administrator access required }
+        "404": { description: Case attachment not found }
+  /admin/cases/{id}/refund-record:
+    post:
+      operationId: recordAdminCaseRefund
+      tags: [admin]
+      summary: Record manually verified customer refund evidence without calling a provider
+      description: Financial movement is confirmed only after a matching confirmed customer-reimbursed refund is linked to this specific case.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminCaseRefundRecordInput" }
+      responses:
+        "200":
+          description: Previously recorded refund evidence returned for an idempotent replay
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminCaseRefundRecord" }
+        "201":
+          description: Manually verified refund evidence recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminCaseRefundRecord" }
+        "400": { description: Invalid or unmatched provider/evidence reference }
+        "403": { description: Administrator access required }
+        "404": { description: Case or transaction not found }
+        "409": { description: "Duplicate, conflicting, raced, or over-limit refund evidence" }
   /public/receipts/{reference}:
     get:
       operationId: getPublicReceipt
@@ -1076,6 +1278,38 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PublicReceipt" }
+  /public/content:
+    get:
+      operationId: listPublicContent
+      tags: [content]
+      summary: List published public guides, articles, and FAQs
+      parameters:
+        - name: kind
+          in: query
+          schema: { type: string, enum: [guide, article, faq] }
+      responses:
+        "200":
+          description: Published content summaries only
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicContentList" }
+  /public/content/{slug}:
+    get:
+      operationId: getPublicContent
+      tags: [content]
+      summary: Read one published public content item
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 120, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+      responses:
+        "200":
+          description: Published content only, without draft or administrative metadata
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicContent" }
+        "404": { description: Content not found or not published }
   /customers:
     get:
       operationId: listCustomers
@@ -1189,6 +1423,19 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/MerchantProfileResponse" }
         "409": { description: Merchant already exists }
+  /merchant/action-controls:
+    get:
+      operationId: getMerchantActionControls
+      tags: [merchant]
+      summary: Read the current merchant's action capabilities and signed-in member role
+      description: The merchant is resolved from the signed-in session. Disabled actions do not restrict read or history access.
+      responses:
+        "200":
+          description: Action controls for the current merchant
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantActionControlsResponse" }
+        "403": { description: Merchant membership required }
   /admin/verification-limits:
     get:
       operationId: getAdminVerificationLimits
@@ -1712,6 +1959,121 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AdminSummary" }
+  /admin/content:
+    get:
+      operationId: listAdminContent
+      tags: [admin, content]
+      summary: List public content drafts and published items for administrators
+      parameters:
+        - name: kind
+          in: query
+          schema: { type: string, enum: [guide, article, faq] }
+        - name: status
+          in: query
+          schema: { type: string, enum: [draft, published] }
+      responses:
+        "200":
+          description: Administrative content list
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminContentList" }
+        "403": { description: Administrator access required }
+    post:
+      operationId: createAdminContent
+      tags: [admin, content]
+      summary: Create a public content draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ContentInput" }
+      responses:
+        "201":
+          description: Content created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminContent" }
+        "400": { description: Invalid content input }
+        "403": { description: Administrator access required }
+        "409": { description: Slug is already in use }
+  /admin/content/{id}:
+    patch:
+      operationId: updateAdminContent
+      tags: [admin, content]
+      summary: Update content and save published copy changes as a draft
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ContentUpdate" }
+      responses:
+        "200":
+          description: Updated administrative content
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminContent" }
+        "403": { description: Administrator access required }
+        "404": { description: Content not found }
+        "409": { description: Slug is already in use }
+  /admin/content/{id}/publish:
+    post:
+      operationId: publishAdminContent
+      tags: [admin, content]
+      summary: Publish the current saved content revision
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Published administrative content
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminContent" }
+        "403": { description: Administrator access required }
+        "404": { description: Content not found }
+  /admin/content/{id}/unpublish:
+    post:
+      operationId: unpublishAdminContent
+      tags: [admin, content]
+      summary: Unpublish content from public reads and crawlable pages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Unpublished administrative content
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminContent" }
+        "403": { description: Administrator access required }
+        "404": { description: Content not found }
+  /admin/content/{id}/versions:
+    get:
+      operationId: listAdminContentVersions
+      tags: [admin, content]
+      summary: List the immutable version history of one content record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Administrative content versions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContentVersionList" }
+        "403": { description: Administrator access required }
+        "404": { description: Content not found }
   /admin/merchants:
     get:
       operationId: listAdminMerchants
@@ -1754,6 +2116,71 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AdminMerchant" }
+  /admin/merchants/{merchantId}/controls:
+    get:
+      operationId: getAdminMerchantActionControls
+      tags: [admin]
+      summary: Read a merchant's action controls, payout safety settings, usage, and limits
+      parameters:
+        - name: merchantId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Merchant controls and current configuration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminMerchantControlsResponse" }
+        "403": { description: Administrator access required }
+        "404": { description: Merchant not found }
+    put:
+      operationId: updateAdminMerchantActionControls
+      tags: [admin]
+      summary: Update reversible per-merchant action and payout safety controls
+      parameters:
+        - name: merchantId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateAdminMerchantControlsRequest" }
+      responses:
+        "200":
+          description: Updated controls with current usage and limits
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminMerchantControlsResponse" }
+        "400": { description: Invalid controls or reason }
+        "403": { description: Administrator access required }
+        "404": { description: Merchant not found }
+  /admin/merchants/{merchantId}/status:
+    post:
+      operationId: setAdminMerchantStatus
+      tags: [admin]
+      summary: Activate or suspend a merchant with an audited reason
+      parameters:
+        - name: merchantId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetAdminMerchantStatusRequest" }
+      responses:
+        "200":
+          description: Updated merchant status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminMerchantStatusResponse" }
+        "400": { description: Invalid status or reason }
+        "403": { description: Administrator access required }
+        "404": { description: Merchant not found }
   /admin/fee-schedules:
     get:
       operationId: listAdminFeeSchedules
@@ -1896,6 +2323,127 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PlatformSettings" }
+  /admin/email-delivery/settings:
+    get:
+      operationId: getAdminEmailDeliverySettings
+      tags: [admin]
+      summary: Read transactional email readiness and durable delivery backlog
+      description: Never returns provider credentials or token values.
+      responses:
+        "200":
+          description: Email delivery settings and worker summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminEmailDeliverySettings" }
+        "403": { description: Administrator access required }
+    patch:
+      operationId: updateAdminEmailDeliverySettings
+      tags: [admin]
+      summary: Update verified email sender and delivery enablement
+      description: A new sender requires an explicit verification confirmation. Credentials remain in server-side secret configuration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminEmailDeliverySettingsUpdate" }
+      responses:
+        "200":
+          description: Updated email delivery settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminEmailDeliverySettings" }
+        "400": { description: Invalid or unverified sender address }
+        "403": { description: Email delivery administrator permission required }
+  /admin/email-delivery/test:
+    post:
+      operationId: sendAdminEmailDeliveryTest
+      tags: [admin]
+      summary: Explicitly send a test email to a chosen recipient
+      description: Sending occurs only after this explicit signed-in administrator request, never on page load.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminEmailDeliveryTestInput" }
+      responses:
+        "200":
+          description: Test delivery attempt result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminEmailDeliveryTestResult" }
+        "403": { description: Email delivery administrator permission required }
+  /admin/email-delivery/outbox:
+    get:
+      operationId: listAdminEmailDeliveryOutbox
+      tags: [admin]
+      summary: Review transactional email queue and held legacy support receipts
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: perPage
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - name: deliveryState
+          in: query
+          schema: { $ref: "#/components/schemas/EmailDeliveryState" }
+        - name: purpose
+          in: query
+          schema: { $ref: "#/components/schemas/TransactionalEmailPurpose" }
+        - name: search
+          in: query
+          schema: { type: string, maxLength: 200 }
+      responses:
+        "200":
+          description: Paginated delivery records with sensitive payloads omitted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminEmailDeliveryOutboxList" }
+        "403": { description: Administrator access required }
+  /admin/email-delivery/outbox/{id}/retry:
+    post:
+      operationId: retryAdminEmailDeliveryOutboxItem
+      tags: [admin]
+      summary: Explicitly retry one safely retryable failed transactional message
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Updated outbox item
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminEmailDeliveryOutboxItem" }
+        "403": { description: Email delivery administrator permission required }
+        "404": { description: Outbox item not found }
+        "409": { description: "Item is sending, sent, uncertain, or held for legacy review" }
+  /admin/email-delivery/outbox/legacy/{id}/review-requeue:
+    post:
+      operationId: reviewAndRequeueLegacySupportEmailOutboxItem
+      tags: [admin]
+      summary: Explicitly review and requeue one held legacy support receipt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID from the legacy support outbox
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LegacySupportEmailOutboxReviewInput" }
+      responses:
+        "200":
+          description: Updated legacy delivery item
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminEmailDeliveryOutboxItem" }
+        "403": { description: Email delivery administrator permission required }
+        "404": { description: Legacy support item not found }
+        "409": { description: Item is not held for explicit legacy review }
   /admin/audit-log:
     get:
       operationId: listAdminAuditLog
@@ -1943,12 +2491,18 @@ components:
         subject: { type: string, minLength: 3, maxLength: 180 }
         message: { type: string, minLength: 10, maxLength: 8000 }
         category: { type: string, enum: [payments, account, verification, technical, other] }
+    EmailDeliveryState:
+      type: string
+      enum: [queued, sending, sent, failed, uncertain, unconfigured]
+    TransactionalEmailPurpose:
+      type: string
+      enum: [payment_receipt, payment_success, payment_failure, payout_update, invoice_reminder, support_reply, support_receipt, team_invitation, admin_test]
     ContactTicketReceipt:
       type: object
       required: [reference, delivery]
       properties:
         reference: { type: string }
-        delivery: { type: string, enum: [in_app_recorded_email_unconfigured] }
+        delivery: { $ref: "#/components/schemas/EmailDeliveryState" }
     SupportTicket:
       type: object
       required: [id, reference, subject, category, status, requesterName, requesterEmail, createdAt, updatedAt, messageCount, delivery]
@@ -1963,7 +2517,7 @@ components:
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         messageCount: { type: integer }
-        delivery: { type: string, enum: [in_app_recorded_email_unconfigured] }
+        delivery: { $ref: "#/components/schemas/EmailDeliveryState" }
     SupportMessage:
       type: object
       required: [id, ticketId, authorRole, authorName, body, createdAt, delivery]
@@ -1974,7 +2528,7 @@ components:
         authorName: { type: string }
         body: { type: string }
         createdAt: { type: string, format: date-time }
-        delivery: { type: string, enum: [in_app_recorded_email_unconfigured] }
+        delivery: { $ref: "#/components/schemas/EmailDeliveryState" }
     SupportTicketDetail:
       type: object
       required: [ticket, messages]
@@ -2005,7 +2559,7 @@ components:
       required: [id, type, title, body, href, createdAt, readAt]
       properties:
         id: { type: integer }
-        type: { type: string, enum: [support_reply, kyc_update, payment_confirmed, payout_update] }
+        type: { type: string, enum: [support_reply, kyc_update, payment_confirmed, payment_failed, payout_update] }
         title: { type: string }
         body: { type: string }
         href: { type: string }
@@ -2024,6 +2578,93 @@ components:
       required: [unreadCount]
       properties:
         unreadCount: { type: integer }
+    AdminEmailDeliverySettings:
+      type: object
+      required: [provider, enabled, ready, fromEmail, senderVerified, tokenConfigured, worker, counts]
+      properties:
+        provider: { type: string, enum: [mailtrap] }
+        enabled: { type: boolean }
+        ready: { type: boolean }
+        fromEmail: { type: ["string", "null"], format: email }
+        senderVerified: { type: boolean, description: Administrator-confirmed verification status for the configured sender. }
+        tokenConfigured: { type: boolean, description: Boolean only; never the provider token. }
+        worker: { type: string, enum: [running, stopped, degraded] }
+        counts:
+          type: object
+          required: [queued, sending, sent, failed, uncertain, heldForReview]
+          properties:
+            queued: { type: integer, minimum: 0 }
+            sending: { type: integer, minimum: 0 }
+            sent: { type: integer, minimum: 0 }
+            failed: { type: integer, minimum: 0 }
+            uncertain: { type: integer, minimum: 0 }
+            heldForReview: { type: integer, minimum: 0 }
+    AdminEmailDeliverySettingsUpdate:
+      type: object
+      description: senderVerified must be true when configuring a new sender address.
+      properties:
+        enabled: { type: boolean }
+        fromEmail: { type: string, format: email }
+        senderVerified: { type: boolean, const: true }
+      additionalProperties: false
+    AdminEmailDeliveryTestInput:
+      type: object
+      required: [recipientEmail]
+      properties:
+        recipientEmail: { type: string, format: email }
+      additionalProperties: false
+    AdminEmailDeliveryTestResult:
+      type: object
+      required: [accepted, deliveryState, detail]
+      properties:
+        accepted: { type: boolean }
+        deliveryState: { type: string, enum: [sent, failed, uncertain] }
+        detail: { type: string }
+    AdminEmailDeliveryOutboxItem:
+      type: object
+      required: [id, eventKey, purpose, recipientEmail, deliveryState, attempts, createdAt, updatedAt, nextAttemptAt, lastError, heldForReview]
+      properties:
+        id: { type: integer }
+        eventKey: { type: string }
+        purpose: { $ref: "#/components/schemas/TransactionalEmailPurpose" }
+        recipientEmail: { type: string, format: email }
+        deliveryState: { $ref: "#/components/schemas/EmailDeliveryState" }
+        attempts: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        nextAttemptAt: { type: ["string", "null"], format: date-time }
+        lastError: { type: ["string", "null"] }
+        heldForReview: { type: boolean }
+    LegacySupportEmailOutboxItem:
+      type: object
+      required: [id, eventKey, purpose, recipientEmail, deliveryState, createdAt, heldForReview]
+      properties:
+        id: { type: integer }
+        eventKey: { type: string }
+        purpose: { $ref: "#/components/schemas/TransactionalEmailPurpose" }
+        recipientEmail: { type: string, format: email }
+        deliveryState: { type: string, enum: [unconfigured] }
+        createdAt: { type: string, format: date-time }
+        heldForReview: { type: boolean, const: true }
+    AdminEmailDeliveryOutboxList:
+      type: object
+      required: [items, legacyHeld, total, page, perPage]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AdminEmailDeliveryOutboxItem" }
+        legacyHeld:
+          type: array
+          items: { $ref: "#/components/schemas/LegacySupportEmailOutboxItem" }
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        perPage: { type: integer, minimum: 1, maximum: 100 }
+    LegacySupportEmailOutboxReviewInput:
+      type: object
+      required: [reviewed]
+      properties:
+        reviewed: { type: boolean, const: true }
+      additionalProperties: false
     BusinessContact:
       type: object
       required: [businessName, contactName, email, phone, merchantStatus, kycStatus]
@@ -2229,6 +2870,7 @@ components:
         amount: { type: ["number", "null"] }
         currency: { type: string }
         expiresAt: { type: ["string", "null"], format: date-time }
+        invoiceOutstandingAmount: { type: ["number", "null"], minimum: 0, description: Current outstanding invoice balance for invoice-hosted checkout; absent for non-invoice payment links. }
     PaymentLinkCheckoutInput:
       type: object
       required: [customerEmail]
@@ -2322,18 +2964,15 @@ components:
             allocationType: { type: string, enum: [internal_wallet_allocation] }
     PayoutRequestInput:
       type: object
-      required: [amount, currency, method, accountName, accountNumber]
+      required: [amount, currency, destinationId]
       properties:
         amount: { type: number, exclusiveMinimum: 0 }
         currency: { type: string, minLength: 3, maxLength: 3 }
-        method: { type: string, minLength: 1 }
-        accountName: { type: string, minLength: 1, maxLength: 200 }
-        accountNumber: { type: string, minLength: 3, maxLength: 100 }
-        bankCode: { type: string, maxLength: 100 }
-        bankName: { type: string, maxLength: 200 }
+        destinationId: { type: integer, minimum: 1 }
+        method: { type: string, minLength: 1, description: Optional consistency check; the approved destination's method remains authoritative. }
     PayoutRequest:
       type: object
-      required: [id, reference, merchantId, amount, fee, netAmount, currency, method, accountName, maskedAccount, status, createdAt, updatedAt]
+      required: [id, reference, merchantId, amount, fee, netAmount, currency, method, accountName, maskedAccount, destinationId, destinationVersion, destinationFingerprint, requiresSecondApproval, largePayoutThreshold, thresholdConfigured, requestedBy, firstApprovedBy, firstApprovedAt, secondApprovedBy, secondApprovedAt, rejectedBy, rejectedAt, reviewHistory, status, createdAt, updatedAt]
       properties:
         id: { type: integer }
         reference: { type: string }
@@ -2343,12 +2982,51 @@ components:
         netAmount: { type: number }
         currency: { type: string }
         method: { type: string }
-        accountName: { type: string }
+        accountName: { type: string, description: Masked destination account holder name only; no plaintext destination details are returned. }
         maskedAccount: { type: string }
-        status: { type: string, enum: [requested, approved, processing, completed, rejected, failed, uncertain] }
+        destinationId: { type: ["integer", "null"] }
+        destinationVersion: { type: ["integer", "null"] }
+        destinationFingerprint: { type: ["string", "null"], description: Opaque immutable version identifier; never raw or encrypted account data. }
+        requiresSecondApproval: { type: boolean }
+        largePayoutThreshold: { type: ["number", "null"] }
+        thresholdConfigured: { type: boolean, description: False means no per-currency threshold is configured; the payout is held for manual two-person review. }
+        requestedBy: { type: ["string", "null"] }
+        firstApprovedBy: { type: ["string", "null"] }
+        firstApprovedAt: { type: ["string", "null"], format: date-time }
+        secondApprovedBy: { type: ["string", "null"] }
+        secondApprovedAt: { type: ["string", "null"], format: date-time }
+        rejectedBy: { type: ["string", "null"] }
+        rejectedAt: { type: ["string", "null"], format: date-time }
+        reviewHistory:
+          type: array
+          items: { $ref: "#/components/schemas/PayoutReviewHistoryItem" }
+        status: { type: string, enum: [requested, awaiting_second_approval, approved, processing, completed, rejected, failed, uncertain] }
         providerReference: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    PayoutReviewHistoryItem:
+      type: object
+      required: [stage, actor, occurredAt, outcome, destination, fee]
+      properties:
+        stage: { type: string, enum: [requested, first, second, reject, provider] }
+        actor: { type: string }
+        occurredAt: { type: string, format: date-time }
+        outcome: { type: string }
+        destination: { $ref: "#/components/schemas/PayoutDestinationSnapshot" }
+        fee: { type: ["number", "null"], minimum: 0 }
+    PayoutDestinationSnapshot:
+      type: object
+      required: [id, currency, method, accountName, maskedAccount, fingerprint]
+      properties:
+        id: { type: ["integer", "null"] }
+        label: { type: ["string", "null"] }
+        currency: { type: string }
+        method: { type: string }
+        accountName: { type: string, description: Masked destination account holder name only. }
+        maskedAccount: { type: string }
+        versionId: { type: ["integer", "null"] }
+        fingerprint: { type: ["string", "null"], description: Opaque immutable version identifier. }
+      additionalProperties: false
     PayoutRequestList:
       type: object
       required: [items]
@@ -2356,6 +3034,93 @@ components:
         items:
           type: array
           items: { $ref: "#/components/schemas/PayoutRequest" }
+    PayoutDestinationInput:
+      type: object
+      required: [label, currency, method, accountName, accountNumber]
+      properties:
+        label: { type: string, minLength: 1, maxLength: 120 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        method: { type: string, minLength: 1, maxLength: 120 }
+        accountName: { type: string, minLength: 1, maxLength: 200 }
+        accountNumber: { type: string, minLength: 3, maxLength: 100 }
+        bankCode: { type: string, maxLength: 100 }
+        bankName: { type: string, maxLength: 200 }
+    DestinationChangeRequestInput:
+      allOf:
+        - $ref: "#/components/schemas/PayoutDestinationInput"
+        - type: object
+          properties:
+            destinationId: { type: integer, minimum: 1, description: Existing approved destination being changed; omitted to request a new destination. }
+    PayoutDestination:
+      type: object
+      required: [id, version, currency, label, method, accountName, maskedAccount, fingerprint, status, approvedBy, approvedAt, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        version: { type: integer, minimum: 1 }
+        currency: { type: string }
+        label: { type: string }
+        method: { type: string }
+        accountName: { type: string, description: Masked destination account holder name only. }
+        maskedAccount: { type: string }
+        fingerprint: { type: string, description: Opaque immutable version identifier. }
+        status: { type: string, enum: [active] }
+        approvedBy: { type: string }
+        approvedAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      additionalProperties: false
+    PayoutDestinationList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/PayoutDestination" }
+    PayoutDestinationChangeStatus:
+      type: string
+      enum: [requested, first_approved, approved, rejected]
+    PayoutDestinationChangeRequest:
+      type: object
+      required: [id, destinationId, destination, destinationFingerprint, status, requestedBy, firstApprovedBy, firstApprovedAt, secondApprovedBy, secondApprovedAt, rejectedBy, rejectedAt, decisionReason, reviewHistory, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        destinationId: { type: ["integer", "null"] }
+        destination: { $ref: "#/components/schemas/PayoutDestinationSnapshot" }
+        destinationFingerprint: { type: string, description: Opaque immutable version identifier; never raw or encrypted account data. }
+        status: { $ref: "#/components/schemas/PayoutDestinationChangeStatus" }
+        requestedBy: { type: string }
+        firstApprovedBy: { type: ["string", "null"] }
+        firstApprovedAt: { type: ["string", "null"], format: date-time }
+        secondApprovedBy: { type: ["string", "null"] }
+        secondApprovedAt: { type: ["string", "null"], format: date-time }
+        rejectedBy: { type: ["string", "null"] }
+        rejectedAt: { type: ["string", "null"], format: date-time }
+        decisionReason: { type: ["string", "null"] }
+        reviewHistory:
+          type: array
+          items: { $ref: "#/components/schemas/PayoutReviewHistoryItem" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      additionalProperties: false
+    PayoutDestinationChangeRequestList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/PayoutDestinationChangeRequest" }
+    PayoutDestinationChangeRejectInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 400 }
+      additionalProperties: false
+    SecondApprovalInput:
+      type: object
+      required: [destinationFingerprint]
+      properties:
+        destinationFingerprint: { type: string, minLength: 1, maxLength: 128 }
+      additionalProperties: false
     PayoutRequestDecisionInput:
       type: object
       required: [reason]
@@ -2520,7 +3285,7 @@ components:
         note: { type: string, maxLength: 2000 }
     Invoice:
       type: object
-      required: [id, reference, customerName, customerEmail, currency, dueDate, lines, subtotal, total, paidAmount, payments, status, createdAt, paymentUrl]
+      required: [id, reference, customerName, customerEmail, currency, dueDate, lines, subtotal, total, paidAmount, outstandingAmount, paymentLinkAmount, payments, status, createdAt, paymentUrl]
       properties:
         id: { type: integer }
         reference: { type: string }
@@ -2533,7 +3298,9 @@ components:
           items: { $ref: "#/components/schemas/InvoiceLine" }
         subtotal: { type: number }
         total: { type: number }
-        paidAmount: { type: number }
+        paidAmount: { type: number, description: Net confirmed collected value only. }
+        outstandingAmount: { type: number, minimum: 0, description: Current unpaid invoice balance. }
+        paymentLinkAmount: { type: ["number", "null"], minimum: 0, description: Current active fixed-amount invoice link balance, or null when no active link exists. }
         payments:
           type: array
           items: { $ref: "#/components/schemas/InvoicePayment" }
@@ -2560,14 +3327,19 @@ components:
       type: object
       properties:
         note: { type: string, maxLength: 500 }
+        scheduleAt: { type: string, format: date-time, description: Optional future send time; scheduled messages are revalidated before delivery. }
+    ReminderDeliveryStatus:
+      type: string
+      enum: [queued, sending, sent, failed, uncertain, unconfigured]
     Reminder:
       type: object
-      required: [id, invoiceId, deliveryStatus, createdAt, message]
+      required: [id, invoiceId, deliveryStatus, createdAt, scheduledAt, message]
       properties:
         id: { type: integer }
         invoiceId: { type: integer }
-        deliveryStatus: { type: string, enum: [unconfigured] }
+        deliveryStatus: { $ref: "#/components/schemas/ReminderDeliveryStatus" }
         createdAt: { type: string, format: date-time }
+        scheduledAt: { type: ["string", "null"], format: date-time }
         attemptedAt: { type: ["string", "null"], format: date-time }
         message: { type: string }
     ReminderList:
@@ -2588,27 +3360,31 @@ components:
         paidAt: { type: string, format: date-time }
     StatementRefund:
       type: object
-      required: [reference, originalReference, amount, currency, status, createdAt]
+      required: [reference, originalReference, amount, currency, status, createdAt, cashDate, cashDateBasis]
       properties:
         reference: { type: string }
         originalReference: { type: string }
         amount: { type: number }
         currency: { type: string }
-        status: { type: string }
+        status: { type: string, enum: [success, completed, processed], description: Only customer-reimbursed confirmed refund source rows are included. }
         createdAt: { type: string, format: date-time }
+        cashDate: { type: string, format: date-time, description: Cash-flow date; uses an explicit confirmation timestamp or the stated legacy-created-at fallback. }
+        cashDateBasis: { type: string, enum: [confirmed_at, legacy_created_at], description: Distinguishes the source confirmation timestamp from a legacy record with no confirmation timestamp. }
     StatementPayout:
       type: object
-      required: [reference, amount, fee, currency, status, createdAt]
+      required: [reference, amount, fee, currency, status, createdAt, cashDate, cashDateBasis]
       properties:
         reference: { type: string }
         amount: { type: number }
         fee: { type: number }
         currency: { type: string }
-        status: { type: string }
+        status: { type: string, enum: [success, completed, processed], description: Only confirmed payout source rows are included. }
         createdAt: { type: string, format: date-time }
+        cashDate: { type: string, format: date-time, description: Cash-flow date; uses an explicit confirmation timestamp or the stated legacy-created-at fallback. }
+        cashDateBasis: { type: string, enum: [confirmed_at, legacy_created_at], description: Distinguishes the source confirmation timestamp from a legacy record with no confirmation timestamp. }
     Statement:
       type: object
-      required: [month, transactions, refunds, payouts, currencySummaries]
+      required: [month, transactions, refunds, payouts, settlements, walletPayoutRequests, currencySummaries]
       properties:
         month: { type: string }
         transactions:
@@ -2620,17 +3396,26 @@ components:
         payouts:
           type: array
           items: { $ref: "#/components/schemas/StatementPayout" }
+        settlements:
+          type: array
+          description: Confirmed wallet settlement funding confirmations only.
+          items: { $ref: "#/components/schemas/StatementSettlement" }
+        walletPayoutRequests:
+          type: array
+          description: Wallet payout request history, kept separate from confirmed payout facts and never counted twice with legacy payouts.
+          items: { $ref: "#/components/schemas/StatementWalletPayoutRequest" }
         currencySummaries:
           type: array
           items:
             type: object
-            required: [currency, grossConfirmed, fees, refundsTotal, payoutsTotal, forecast]
+            required: [currency, grossConfirmed, fees, refundsTotal, payoutsTotal, settlementsTotal, forecast]
             properties:
               currency: { type: string }
               grossConfirmed: { type: number }
               fees: { type: number }
               refundsTotal: { type: number }
               payoutsTotal: { type: number }
+              settlementsTotal: { type: number, description: Confirmed wallet settlement funding total. }
               forecast:
                 type: object
                 required: [label, amount, basisMonths]
@@ -2638,12 +3423,39 @@ components:
                   label: { type: string, enum: [historical_average_estimate] }
                   amount: { type: ["number", "null"] }
                   basisMonths: { type: integer }
+    StatementSettlement:
+      type: object
+      required: [reference, amount, currency, status, createdAt]
+      properties:
+        reference: { type: string, description: Stable wallet settlement confirmation reference. }
+        amount: { type: number, minimum: 0 }
+        fee: { type: ["number", "null"], minimum: 0, description: Confirmed settlement fee when supplied by the source record. }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        status: { type: string, enum: [confirmed] }
+        createdAt: { type: string, format: date-time, description: Timestamp at which the confirmed settlement evidence was recorded. }
+    StatementWalletPayoutRequest:
+      type: object
+      description: Operational wallet payout request history, not a confirmed cash-movement fact until the provider outcome is confirmed.
+      required: [reference, amount, fee, currency, status, createdAt, updatedAt, completedAt]
+      properties:
+        reference: { type: string, description: Stable wallet payout request reference. }
+        amount: { type: number, minimum: 0 }
+        fee: { type: number, minimum: 0 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        status: { type: string, enum: [requested, awaiting_second_approval, approved, submitted, processing, completed, rejected, failed, uncertain] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        completedAt: { type: ["string", "null"], format: date-time }
     CaseMessageInput:
       type: object
       required: [message]
       properties:
         message: { type: string, minLength: 1, maxLength: 4000 }
         evidenceUrl: { type: string, format: uri, maxLength: 2000 }
+        attachmentUploadTokens:
+          type: array
+          maxItems: 5
+          items: { type: string, minLength: 1, maxLength: 128 }
     CaseMessage:
       type: object
       required: [id, authorRole, message, createdAt, evidenceUrl]
@@ -2652,6 +3464,10 @@ components:
         authorRole: { type: string, enum: [merchant, admin] }
         message: { type: string }
         evidenceUrl: { type: ["string", "null"] }
+        attachments:
+          type: ["array", "null"]
+          description: Private evidence metadata only; attachment bytes are available through authenticated download routes.
+          items: { $ref: "#/components/schemas/MerchantCaseAttachment" }
         createdAt: { type: string, format: date-time }
     CaseInput:
       allOf:
@@ -2666,23 +3482,88 @@ components:
       required: [status, message]
       properties:
         status: { type: string, enum: [in_review, resolved, declined] }
-        financialMovement: { type: string, enum: [none, requested, recorded, confirmed] }
+        financialMovement: { type: string, enum: [none, requested, recorded, confirmed], description: recorded means evidence is recorded but customer reimbursement is not yet confirmed; administrative status changes alone cannot confirm money movement. }
         message: { type: string, minLength: 1, maxLength: 4000 }
         evidenceUrl: { type: string, format: uri, maxLength: 2000 }
     SupportCase:
       type: object
-      required: [id, kind, transactionReference, status, financialMovement, messages, createdAt, updatedAt]
+      required: [id, kind, transactionReference, status, financialMovement, messages, refundEvidence, createdAt, updatedAt]
       properties:
         id: { type: integer }
         kind: { type: string, enum: [refund, dispute] }
         transactionReference: { type: string }
         status: { type: string, enum: [requested, in_review, resolved, declined] }
-        financialMovement: { type: string, enum: [none, requested, recorded, confirmed] }
+        financialMovement: { type: string, enum: [none, requested, recorded, confirmed], description: recorded means refund evidence is recorded but customer reimbursement is not yet confirmed; confirmed requires case-linked confirmed refund evidence. }
         messages:
           type: array
           items: { $ref: "#/components/schemas/CaseMessage" }
+        refundEvidence:
+          type: array
+          description: Case-linked refund source records exposing their specific provider and evidence references.
+          items: { $ref: "#/components/schemas/CaseRefundEvidence" }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    CaseRefundEvidence:
+      type: object
+      required: [reference, amount, currency, status, providerReference, evidenceReference, createdAt, downloadPath]
+      properties:
+        reference: { type: string }
+        amount: { type: number, exclusiveMinimum: 0 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        status: { type: string, description: Source refund row status; a case movement of recorded remains distinct from confirmed customer reimbursement. }
+        providerReference: { type: string }
+        evidenceReference: { type: string }
+        createdAt: { type: string, format: date-time }
+        downloadPath: { type: ["string", "null"] }
+    MerchantCaseAttachment:
+      type: object
+      required: [id, name, size, contentType, createdAt, downloadPath]
+      properties:
+        id: { type: integer }
+        name: { type: string, minLength: 1, maxLength: 180 }
+        size: { type: integer, minimum: 1, maximum: 10485760 }
+        contentType: { type: string, enum: [application/pdf, image/png, image/jpeg] }
+        createdAt: { type: string, format: date-time }
+        downloadPath: { type: string, description: Authenticated API path; never a public storage URL. }
+    MerchantCaseAttachmentUploadIntentInput:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 180 }
+        size: { type: integer, minimum: 1, maximum: 10485760 }
+        contentType: { type: string, enum: [application/pdf, image/png, image/jpeg] }
+      additionalProperties: false
+    MerchantCaseAttachmentUploadIntent:
+      type: object
+      required: [uploadURL, objectPath, uploadToken, expiresAt]
+      properties:
+        uploadURL: { type: string, format: uri, description: Short-lived signed upload URL. }
+        objectPath: { type: string, description: Private opaque App Storage path; never a public URL. }
+        uploadToken: { type: string }
+        expiresAt: { type: string, format: date-time }
+    AdminCaseRefundRecordInput:
+      type: object
+      required: [amount, providerReference, idempotencyKey, evidenceReference, note]
+      properties:
+        amount: { type: number, exclusiveMinimum: 0 }
+        providerReference: { type: string, minLength: 1, maxLength: 200 }
+        idempotencyKey: { type: string, minLength: 1, maxLength: 128 }
+        evidenceReference: { type: string, minLength: 1, maxLength: 200 }
+        note: { type: string, minLength: 1, maxLength: 4000 }
+      additionalProperties: false
+    AdminCaseRefundRecord:
+      type: object
+      required: [case, refundReference, amount, currency, status, providerReference, evidenceReference, createdAt]
+      properties:
+        case: { $ref: "#/components/schemas/SupportCase" }
+        refundReference: { type: string }
+        amount: { type: number, exclusiveMinimum: 0 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        status: { type: string, enum: [processed], description: Source refund row status; here processed is recorded only after an administrator manually verifies completed customer reimbursement. }
+        providerReference: { type: string }
+        evidenceReference: { type: string }
+        createdAt: { type: string, format: date-time }
+        idempotentReplay: { type: boolean }
     CaseList:
       type: object
       required: [items]
@@ -2700,6 +3581,99 @@ components:
         currency: { type: string }
         paidAt: { type: string, format: date-time }
         status: { type: string, enum: [confirmed, refunded] }
+    ContentKind:
+      type: string
+      enum: [guide, article, faq]
+    ContentStatus:
+      type: string
+      enum: [draft, published]
+    PublicContentSummary:
+      type: object
+      required: [id, kind, title, slug, summary, updatedAt]
+      properties:
+        id: { type: integer }
+        kind: { $ref: "#/components/schemas/ContentKind" }
+        title: { type: string }
+        slug: { type: string, minLength: 1, maxLength: 120, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+        summary: { type: string }
+        updatedAt: { type: string, format: date-time }
+    PublicContent:
+      allOf:
+        - $ref: "#/components/schemas/PublicContentSummary"
+        - type: object
+          required: [body, publishedAt]
+          properties:
+            body: { type: string }
+            publishedAt: { type: string, format: date-time }
+    PublicContentList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/PublicContentSummary" }
+    AdminContent:
+      allOf:
+        - $ref: "#/components/schemas/PublicContentSummary"
+        - type: object
+          required: [body, status, createdAt, publishedAt, version, updatedBy]
+          properties:
+            body: { type: string }
+            status: { $ref: "#/components/schemas/ContentStatus" }
+            createdAt: { type: string, format: date-time }
+            publishedAt: { type: ["string", "null"], format: date-time }
+            version: { type: integer, minimum: 1 }
+            updatedBy: { type: ["string", "null"] }
+    AdminContentList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AdminContent" }
+    ContentInput:
+      type: object
+      required: [kind, title, slug, summary, body]
+      properties:
+        kind: { $ref: "#/components/schemas/ContentKind" }
+        title: { type: string, minLength: 1, maxLength: 160 }
+        slug: { type: string, minLength: 1, maxLength: 120, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+        summary: { type: string, minLength: 1, maxLength: 300 }
+        body: { type: string, minLength: 1, maxLength: 30000 }
+        status: { $ref: "#/components/schemas/ContentStatus", default: draft }
+    ContentUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        kind: { $ref: "#/components/schemas/ContentKind" }
+        title: { type: string, minLength: 1, maxLength: 160 }
+        slug: { type: string, minLength: 1, maxLength: 120, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+        summary: { type: string, minLength: 1, maxLength: 300 }
+        body: { type: string, minLength: 1, maxLength: 30000 }
+        status: { type: string, enum: [draft] }
+      additionalProperties: false
+    ContentVersion:
+      type: object
+      required: [id, contentId, version, kind, title, slug, summary, body, status, createdAt, createdBy]
+      properties:
+        id: { type: integer }
+        contentId: { type: integer }
+        version: { type: integer, minimum: 1 }
+        kind: { $ref: "#/components/schemas/ContentKind" }
+        title: { type: string }
+        slug: { type: string }
+        summary: { type: string }
+        body: { type: string }
+        status: { $ref: "#/components/schemas/ContentStatus" }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: ["string", "null"] }
+    ContentVersionList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ContentVersion" }
     Customer:
       type: object
       required: [id, name, email, orderCount, currencySummary]
@@ -2837,11 +3811,11 @@ components:
         role: { $ref: "#/components/schemas/MerchantTeamInvitationRole" }
     MerchantTeamInvitationCreated:
       type: object
-      required: [invitation, invitationUrl, delivery]
+      required: [invitation, delivery]
       properties:
         invitation: { $ref: "#/components/schemas/MerchantTeamInvitation" }
-        invitationUrl: { type: string, format: uri }
-        delivery: { type: string, enum: [copy_link_required] }
+        invitationUrl: { type: ["string", "null"], format: uri, description: Present only when the invitation must be copied manually; omitted or null when the invitation was queued for email delivery. }
+        delivery: { type: string, enum: [queued, copy_link_required] }
     MerchantTeamRoleUpdate:
       type: object
       required: [role]
@@ -2880,6 +3854,121 @@ components:
       required: [merchant]
       properties:
         merchant: { $ref: "#/components/schemas/MerchantProfile" }
+    MerchantActionKey:
+      type: string
+      enum: [collect, createLinks, refundRequests, disputeRequests, invoices, reminders, payoutRequests, destinationChanges, walletConversion, teamManagement, apiAccess]
+    MerchantActionControls:
+      type: object
+      required: [collect, createLinks, refundRequests, disputeRequests, invoices, reminders, payoutRequests, destinationChanges, walletConversion, teamManagement, apiAccess]
+      properties:
+        collect: { type: boolean }
+        createLinks: { type: boolean }
+        refundRequests: { type: boolean }
+        disputeRequests: { type: boolean }
+        invoices: { type: boolean }
+        reminders: { type: boolean }
+        payoutRequests: { type: boolean }
+        destinationChanges: { type: boolean }
+        walletConversion: { type: boolean }
+        teamManagement: { type: boolean }
+        apiAccess: { type: boolean }
+    MerchantActionControlUpdates:
+      type: object
+      minProperties: 1
+      properties:
+        collect: { type: boolean }
+        createLinks: { type: boolean }
+        refundRequests: { type: boolean }
+        disputeRequests: { type: boolean }
+        invoices: { type: boolean }
+        reminders: { type: boolean }
+        payoutRequests: { type: boolean }
+        destinationChanges: { type: boolean }
+        walletConversion: { type: boolean }
+        teamManagement: { type: boolean }
+        apiAccess: { type: boolean }
+      additionalProperties: false
+    MerchantActionRole:
+      type: string
+      enum: [owner, finance, viewer]
+    MerchantActionControlsResponse:
+      type: object
+      required: [merchantId, controls, role]
+      properties:
+        merchantId: { type: integer }
+        controls: { $ref: "#/components/schemas/MerchantActionControls" }
+        role: { $ref: "#/components/schemas/MerchantActionRole" }
+    PayoutSafetySettings:
+      type: object
+      required: [largePayoutThresholds, destinationChangeRequiresDualApproval, dualApprovalEnabled]
+      properties:
+        largePayoutThresholds:
+          type: object
+          description: Explicit positive thresholds keyed by ISO currency code. A missing currency threshold requires manual review; no default is implied.
+          additionalProperties: { type: number, exclusiveMinimum: 0 }
+        destinationChangeRequiresDualApproval: { type: boolean, const: true }
+        dualApprovalEnabled: { type: boolean }
+      additionalProperties: false
+    MerchantUsageItem:
+      type: object
+      required: [tier, currency, confirmedCollectionPerTransaction, confirmedCollectionDaily, confirmedCollectionMonthly, committedPayout, committedConversion]
+      properties:
+        tier: { type: string, enum: [unverified, kyc, kyb] }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        confirmedCollectionPerTransaction: { type: number, minimum: 0, description: Confirmed or committed collection usage only; pending and uncertain amounts are excluded. }
+        confirmedCollectionDaily: { type: number, minimum: 0, description: Confirmed or committed collection usage only; pending and uncertain amounts are excluded. }
+        confirmedCollectionMonthly: { type: number, minimum: 0, description: Confirmed or committed collection usage only; pending and uncertain amounts are excluded. }
+        committedPayout: { type: number, minimum: 0, description: Confirmed or committed payout usage only; pending and uncertain amounts are excluded. }
+        committedConversion: { type: number, minimum: 0, description: Confirmed or committed conversion usage only; pending and uncertain amounts are excluded. }
+    MerchantUsageSummary:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/MerchantUsageItem" }
+    MerchantLimitsSummary:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/VerificationTierLimit" }
+    AdminMerchantControlsResponse:
+      type: object
+      required: [merchantId, businessName, status, controls, payoutSafety, usage, limits, updatedAt]
+      properties:
+        merchantId: { type: integer }
+        businessName: { type: string }
+        status: { type: string, enum: [pending, active, suspended, closed] }
+        controls: { $ref: "#/components/schemas/MerchantActionControls" }
+        payoutSafety: { $ref: "#/components/schemas/PayoutSafetySettings" }
+        usage: { $ref: "#/components/schemas/MerchantUsageSummary" }
+        limits: { $ref: "#/components/schemas/MerchantLimitsSummary" }
+        updatedAt: { type: string, format: date-time }
+    UpdateAdminMerchantControlsRequest:
+      type: object
+      required: [reason]
+      properties:
+        controls: { $ref: "#/components/schemas/MerchantActionControlUpdates" }
+        payoutSafety: { $ref: "#/components/schemas/PayoutSafetySettings" }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+      additionalProperties: false
+    SetAdminMerchantStatusRequest:
+      type: object
+      required: [status, reason]
+      properties:
+        status: { type: string, enum: [active, suspended] }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+      additionalProperties: false
+    AdminMerchantStatusResponse:
+      type: object
+      required: [merchantId, status, reason, updatedAt]
+      properties:
+        merchantId: { type: integer }
+        status: { type: string, enum: [active, suspended] }
+        reason: { type: string }
+        updatedAt: { type: string, format: date-time }
     CreateMerchantInput:
       type: object
       required: [businessName, country, baseCurrency]

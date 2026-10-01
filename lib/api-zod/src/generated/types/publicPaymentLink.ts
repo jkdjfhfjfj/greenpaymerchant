@@ -18,4 +18,10 @@ export interface PublicPaymentLink {
   currency: string;
   /** @nullable */
   expiresAt?: Date | null;
+  /**
+     * Current outstanding invoice balance for invoice-hosted checkout; absent for non-invoice payment links.
+     * @minimum 0
+     * @nullable
+     */
+  invoiceOutstandingAmount?: number | null;
 }

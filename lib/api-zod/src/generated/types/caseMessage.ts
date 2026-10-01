@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CaseMessageAuthorRole } from './caseMessageAuthorRole';
+import type { MerchantCaseAttachment } from './merchantCaseAttachment';
 
 export interface CaseMessage {
   id: string;
@@ -13,5 +14,10 @@ export interface CaseMessage {
   message: string;
   /** @nullable */
   evidenceUrl: string | null;
+  /**
+     * Private evidence metadata only; attachment bytes are available through authenticated download routes.
+     * @nullable
+     */
+  attachments?: MerchantCaseAttachment[] | null;
   createdAt: Date;
 }

@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
-  bigint, index, integer, jsonb, numeric, pgTable, serial, text, timestamp, uniqueIndex, varchar,
+  bigint, boolean, index, integer, jsonb, numeric, pgTable, serial, text, timestamp, uniqueIndex, varchar,
 } from "drizzle-orm/pg-core";
 
 export const merchantWalletsTable = pgTable("greenpay_merchant_wallets", {
@@ -95,6 +95,20 @@ export const walletPayoutRequestsTable = pgTable("greenpay_wallet_payout_request
   amountMinor: bigint("amount_minor", { mode: "bigint" }).notNull(),
   feeMinor: bigint("fee_minor", { mode: "bigint" }).notNull(),
   holdMinor: bigint("hold_minor", { mode: "bigint" }).notNull(),
+  destinationId: integer("destination_id"),
+  destinationVersionId: integer("destination_version_id"),
+  destinationVersion: integer("destination_version"),
+  destinationFingerprint: varchar("destination_fingerprint", { length: 64 }),
+  requestedBy: varchar("requested_by", { length: 128 }),
+  requiresSecondApproval: boolean("requires_second_approval").notNull().default(false),
+  thresholdMinor: bigint("threshold_minor", { mode: "bigint" }),
+  thresholdConfigured: boolean("threshold_configured").notNull().default(false),
+  firstApprovedBy: varchar("first_approved_by", { length: 128 }),
+  firstApprovedAt: timestamp("first_approved_at", { withTimezone: true }),
+  secondApprovedBy: varchar("second_approved_by", { length: 128 }),
+  secondApprovedAt: timestamp("second_approved_at", { withTimezone: true }),
+  rejectedBy: varchar("rejected_by", { length: 128 }),
+  rejectedAt: timestamp("rejected_at", { withTimezone: true }),
   currency: varchar("currency", { length: 3 }).notNull(),
   method: varchar("method", { length: 120 }).notNull(),
   accountName: varchar("account_name", { length: 200 }).notNull(),
@@ -115,6 +129,71 @@ export const walletPayoutRequestsTable = pgTable("greenpay_wallet_payout_request
   index("greenpay_wallet_payout_status_created_idx").on(table.status, table.createdAt),
   index("greenpay_wallet_payout_merchant_created_idx").on(table.merchantId, table.createdAt),
   index("greenpay_wallet_payout_provider_ref_idx").on(table.provider, table.providerReference),
+  index("greenpay_wallet_payout_destination_version_idx").on(table.destinationVersionId),
+]);
+
+export const walletPayoutDestinationsTable = pgTable("greenpay_wallet_payout_destinations", {
+  id: serial("id").primaryKey(),
+  merchantId: integer("merchant_id").notNull(),
+  status: varchar("status", { length: 16 }).notNull().default("pending"),
+  currentVersionId: integer("current_version_id"),
+  createdBy: varchar("created_by", { length: 128 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("greenpay_wallet_payout_destinations_merchant_idx").on(table.merchantId, table.status),
+]);
+
+export const walletPayoutDestinationVersionsTable = pgTable("greenpay_wallet_payout_destination_versions", {
+  id: serial("id").primaryKey(),
+  destinationId: integer("destination_id").notNull().references(() => walletPayoutDestinationsTable.id),
+  version: integer("version").notNull(),
+  label: varchar("label", { length: 120 }).notNull(),
+  currency: varchar("currency", { length: 3 }).notNull(),
+  method: varchar("method", { length: 120 }).notNull(),
+  accountName: varchar("account_name", { length: 200 }).notNull(),
+  maskedAccount: varchar("masked_account", { length: 80 }).notNull(),
+  encryptedDestination: text("encrypted_destination").notNull(),
+  fingerprint: varchar("fingerprint", { length: 64 }).notNull(),
+  approvedBy: varchar("approved_by", { length: 128 }).notNull(),
+  approvedAt: timestamp("approved_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("greenpay_wallet_payout_destination_version_unique_idx").on(table.destinationId, table.version),
+  index("greenpay_wallet_payout_destination_versions_approved_idx").on(table.approvedAt),
+]);
+
+export const walletPayoutDestinationChangeRequestsTable = pgTable("greenpay_wallet_payout_destination_change_requests", {
+  id: serial("id").primaryKey(),
+  merchantId: integer("merchant_id").notNull(),
+  destinationId: integer("destination_id").references(() => walletPayoutDestinationsTable.id),
+  expectedVersionId: integer("expected_version_id"),
+  idempotencyKey: varchar("idempotency_key", { length: 128 }).notNull(),
+  requestHash: varchar("request_hash", { length: 64 }).notNull(),
+  proposedLabel: varchar("proposed_label", { length: 120 }).notNull(),
+  currency: varchar("currency", { length: 3 }).notNull(),
+  method: varchar("method", { length: 120 }).notNull(),
+  accountName: varchar("account_name", { length: 200 }).notNull(),
+  maskedAccount: varchar("masked_account", { length: 80 }).notNull(),
+  encryptedDestination: text("encrypted_destination").notNull(),
+  destinationFingerprint: varchar("destination_fingerprint", { length: 64 }).notNull(),
+  requestedBy: varchar("requested_by", { length: 128 }).notNull(),
+  status: varchar("status", { length: 24 }).notNull().default("requested"),
+  firstApprovedBy: varchar("first_approved_by", { length: 128 }),
+  firstApprovedAt: timestamp("first_approved_at", { withTimezone: true }),
+  secondApprovedBy: varchar("second_approved_by", { length: 128 }),
+  secondApprovedAt: timestamp("second_approved_at", { withTimezone: true }),
+  rejectedBy: varchar("rejected_by", { length: 128 }),
+  rejectedAt: timestamp("rejected_at", { withTimezone: true }),
+  approvedVersionId: integer("approved_version_id").references(() => walletPayoutDestinationVersionsTable.id),
+  decisionReason: varchar("decision_reason", { length: 400 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("greenpay_wallet_destination_change_merchant_key_unique_idx").on(table.merchantId, table.idempotencyKey),
+  index("greenpay_wallet_destination_change_status_created_idx").on(table.status, table.createdAt),
+  index("greenpay_wallet_destination_change_merchant_created_idx").on(table.merchantId, table.createdAt),
+  index("greenpay_wallet_destination_change_fingerprint_idx").on(table.destinationFingerprint),
 ]);
 
 export const walletSettlementConfirmationsTable = pgTable("greenpay_wallet_settlement_confirmations", {
@@ -150,3 +229,6 @@ export const walletRefundAdjustmentsTable = pgTable("greenpay_wallet_refund_adju
 export type MerchantWalletRecord = typeof merchantWalletsTable.$inferSelect;
 export type WalletJournalRecord = typeof walletJournalsTable.$inferSelect;
 export type WalletPayoutRequestRecord = typeof walletPayoutRequestsTable.$inferSelect;
+export type WalletPayoutDestinationRecord = typeof walletPayoutDestinationsTable.$inferSelect;
+export type WalletPayoutDestinationVersionRecord = typeof walletPayoutDestinationVersionsTable.$inferSelect;
+export type WalletPayoutDestinationChangeRequestRecord = typeof walletPayoutDestinationChangeRequestsTable.$inferSelect;

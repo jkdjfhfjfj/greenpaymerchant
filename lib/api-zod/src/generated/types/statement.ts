@@ -8,12 +8,18 @@
 import type { StatementCurrencySummariesItem } from './statementCurrencySummariesItem';
 import type { StatementPayout } from './statementPayout';
 import type { StatementRefund } from './statementRefund';
+import type { StatementSettlement } from './statementSettlement';
 import type { StatementTransaction } from './statementTransaction';
+import type { StatementWalletPayoutRequest } from './statementWalletPayoutRequest';
 
 export interface Statement {
   month: string;
   transactions: StatementTransaction[];
   refunds: StatementRefund[];
   payouts: StatementPayout[];
+  /** Confirmed wallet settlement funding confirmations only. */
+  settlements: StatementSettlement[];
+  /** Wallet payout request history, kept separate from confirmed payout facts and never counted twice with legacy payouts. */
+  walletPayoutRequests: StatementWalletPayoutRequest[];
   currencySummaries: StatementCurrencySummariesItem[];
 }

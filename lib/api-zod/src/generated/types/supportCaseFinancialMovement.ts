@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * recorded means refund evidence is recorded but customer reimbursement is not yet confirmed; confirmed requires case-linked confirmed refund evidence.
+ */
 export type SupportCaseFinancialMovement = typeof SupportCaseFinancialMovement[keyof typeof SupportCaseFinancialMovement];
 
 

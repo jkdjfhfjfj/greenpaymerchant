@@ -9,4 +9,6 @@
 export interface ReminderInput {
   /** @maxLength 500 */
   note?: string;
+  /** Optional future send time; scheduled messages are revalidated before delivery. */
+  scheduleAt?: Date;
 }

@@ -29,3 +29,4 @@ export * from "./business-tools";
 export * from "./verification-limits";
 export * from "./support";
 export * from "./merchant-team";
+export * from "./content";

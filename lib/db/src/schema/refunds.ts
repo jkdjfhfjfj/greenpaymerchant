@@ -12,10 +12,12 @@ export const refundsTable = pgTable("greenpay_refunds", {
   currency: varchar("currency", { length: 3 }).notNull(),
   status: varchar("status", { length: 24 }).notNull(),
   reason: text("reason"),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("greenpay_refunds_original_reference_idx").on(table.originalReference),
   index("greenpay_refunds_created_at_idx").on(table.createdAt),
+  index("greenpay_refunds_confirmed_at_idx").on(table.confirmedAt),
 ]);
 
 export const insertRefundSchema = createInsertSchema(refundsTable).omit({ id: true, reference: true, createdAt: true });

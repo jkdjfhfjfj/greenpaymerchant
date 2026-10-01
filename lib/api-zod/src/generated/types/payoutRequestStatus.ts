@@ -11,6 +11,7 @@ export type PayoutRequestStatus = typeof PayoutRequestStatus[keyof typeof Payout
 
 export const PayoutRequestStatus = {
   requested: 'requested',
+  awaiting_second_approval: 'awaiting_second_approval',
   approved: 'approved',
   processing: 'processing',
   completed: 'completed',

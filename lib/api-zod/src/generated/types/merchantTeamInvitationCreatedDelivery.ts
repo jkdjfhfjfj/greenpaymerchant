@@ -10,5 +10,6 @@ export type MerchantTeamInvitationCreatedDelivery = typeof MerchantTeamInvitatio
 
 
 export const MerchantTeamInvitationCreatedDelivery = {
+  queued: 'queued',
   copy_link_required: 'copy_link_required',
 } as const;

@@ -5,8 +5,8 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { EmailDeliveryState } from './emailDeliveryState';
 import type { SupportMessageAuthorRole } from './supportMessageAuthorRole';
-import type { SupportMessageDelivery } from './supportMessageDelivery';
 
 export interface SupportMessage {
   id: number;
@@ -15,5 +15,5 @@ export interface SupportMessage {
   authorName: string;
   body: string;
   createdAt: Date;
-  delivery: SupportMessageDelivery;
+  delivery: EmailDeliveryState;
 }

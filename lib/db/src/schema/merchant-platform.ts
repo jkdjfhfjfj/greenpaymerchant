@@ -12,6 +12,12 @@ export const merchantsTable = pgTable("greenpay_merchants", {
   apiAccessEnabled: boolean("api_access_enabled").notNull().default(true),
   payoutsEnabled: boolean("payouts_enabled").notNull().default(true),
   refundsEnabled: boolean("refunds_enabled").notNull().default(true),
+  merchantActionControls: jsonb("merchant_action_controls").$type<Record<string, boolean> | null>(),
+  payoutSafetySettings: jsonb("payout_safety_settings").$type<{
+    largePayoutThresholds?: Record<string, number>;
+    dualApprovalEnabled?: boolean;
+    destinationChangeRequiresDualApproval?: boolean;
+  } | null>(),
   kycStatus: varchar("kyc_status", { length: 24 }).notNull().default("not_started"),
   diditSessionId: varchar("didit_session_id", { length: 200 }),
   diditSessionUrl: text("didit_session_url"),

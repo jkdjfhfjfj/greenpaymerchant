@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PayoutRequestStatus } from './payoutRequestStatus';
+import type { PayoutReviewHistoryItem } from './payoutReviewHistoryItem';
 
 export interface PayoutRequest {
   id: number;
@@ -16,8 +17,38 @@ export interface PayoutRequest {
   netAmount: number;
   currency: string;
   method: string;
+  /** Masked destination account holder name only; no plaintext destination details are returned. */
   accountName: string;
   maskedAccount: string;
+  /** @nullable */
+  destinationId: number | null;
+  /** @nullable */
+  destinationVersion: number | null;
+  /**
+     * Opaque immutable version identifier; never raw or encrypted account data.
+     * @nullable
+     */
+  destinationFingerprint: string | null;
+  requiresSecondApproval: boolean;
+  /** @nullable */
+  largePayoutThreshold: number | null;
+  /** False means no per-currency threshold is configured; the payout is held for manual two-person review. */
+  thresholdConfigured: boolean;
+  /** @nullable */
+  requestedBy: string | null;
+  /** @nullable */
+  firstApprovedBy: string | null;
+  /** @nullable */
+  firstApprovedAt: Date | null;
+  /** @nullable */
+  secondApprovedBy: string | null;
+  /** @nullable */
+  secondApprovedAt: Date | null;
+  /** @nullable */
+  rejectedBy: string | null;
+  /** @nullable */
+  rejectedAt: Date | null;
+  reviewHistory: PayoutReviewHistoryItem[];
   status: PayoutRequestStatus;
   /** @nullable */
   providerReference?: string | null;

@@ -33,7 +33,7 @@ export const CreateContactTicketBody = zod.object({
 
 export const CreateContactTicketResponse = zod.object({
   "reference": zod.string(),
-  "delivery": zod.enum(['in_app_recorded_email_unconfigured'])
+  "delivery": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured'])
 })
 
 
@@ -52,7 +52,7 @@ export const ListSupportTicketsResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "messageCount": zod.number().int(),
-  "delivery": zod.enum(['in_app_recorded_email_unconfigured'])
+  "delivery": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured'])
 }))
 })
 
@@ -85,7 +85,7 @@ export const CreateSupportTicketResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "messageCount": zod.number().int(),
-  "delivery": zod.enum(['in_app_recorded_email_unconfigured'])
+  "delivery": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured'])
 })
 
 
@@ -111,7 +111,7 @@ export const GetSupportTicketResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "messageCount": zod.number().int(),
-  "delivery": zod.enum(['in_app_recorded_email_unconfigured'])
+  "delivery": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured'])
 }),
   "messages": zod.array(zod.object({
   "id": zod.number().int(),
@@ -120,7 +120,7 @@ export const GetSupportTicketResponse = zod.object({
   "authorName": zod.string(),
   "body": zod.string(),
   "createdAt": zod.coerce.date(),
-  "delivery": zod.enum(['in_app_recorded_email_unconfigured'])
+  "delivery": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured'])
 }))
 })
 
@@ -150,7 +150,7 @@ export const ReplySupportTicketResponse = zod.object({
   "authorName": zod.string(),
   "body": zod.string(),
   "createdAt": zod.coerce.date(),
-  "delivery": zod.enum(['in_app_recorded_email_unconfigured'])
+  "delivery": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured'])
 })
 
 
@@ -178,7 +178,7 @@ export const AdminListSupportTicketsResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "messageCount": zod.number().int(),
-  "delivery": zod.enum(['in_app_recorded_email_unconfigured'])
+  "delivery": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured'])
 }))
 })
 
@@ -205,7 +205,7 @@ export const AdminGetSupportTicketResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "messageCount": zod.number().int(),
-  "delivery": zod.enum(['in_app_recorded_email_unconfigured'])
+  "delivery": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured'])
 }),
   "messages": zod.array(zod.object({
   "id": zod.number().int(),
@@ -214,7 +214,7 @@ export const AdminGetSupportTicketResponse = zod.object({
   "authorName": zod.string(),
   "body": zod.string(),
   "createdAt": zod.coerce.date(),
-  "delivery": zod.enum(['in_app_recorded_email_unconfigured'])
+  "delivery": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured'])
 }))
 })
 
@@ -244,7 +244,7 @@ export const AdminUpdateSupportTicketResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date(),
   "messageCount": zod.number().int(),
-  "delivery": zod.enum(['in_app_recorded_email_unconfigured'])
+  "delivery": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured'])
 })
 
 
@@ -273,7 +273,7 @@ export const AdminReplySupportTicketResponse = zod.object({
   "authorName": zod.string(),
   "body": zod.string(),
   "createdAt": zod.coerce.date(),
-  "delivery": zod.enum(['in_app_recorded_email_unconfigured'])
+  "delivery": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured'])
 })
 
 
@@ -283,7 +283,7 @@ export const AdminReplySupportTicketResponse = zod.object({
 export const ListNotificationsResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().int(),
-  "type": zod.enum(['support_reply', 'kyc_update', 'payment_confirmed', 'payout_update']),
+  "type": zod.enum(['support_reply', 'kyc_update', 'payment_confirmed', 'payment_failed', 'payout_update']),
   "title": zod.string(),
   "body": zod.string(),
   "href": zod.string(),
@@ -306,7 +306,7 @@ export const MarkNotificationReadParams = zod.object({
 
 export const MarkNotificationReadResponse = zod.object({
   "id": zod.number().int(),
-  "type": zod.enum(['support_reply', 'kyc_update', 'payment_confirmed', 'payout_update']),
+  "type": zod.enum(['support_reply', 'kyc_update', 'payment_confirmed', 'payment_failed', 'payout_update']),
   "title": zod.string(),
   "body": zod.string(),
   "href": zod.string(),
@@ -729,6 +729,10 @@ export const GetPublicPaymentLinkParams = zod.object({
   "slug": zod.coerce.string()
 })
 
+export const getPublicPaymentLinkResponseInvoiceOutstandingAmountMin = 0;
+
+
+
 export const GetPublicPaymentLinkResponse = zod.object({
   "slug": zod.string(),
   "name": zod.string(),
@@ -736,7 +740,8 @@ export const GetPublicPaymentLinkResponse = zod.object({
   "amountType": zod.enum(['fixed', 'customer_choice']),
   "amount": zod.number().nullish(),
   "currency": zod.string(),
-  "expiresAt": zod.coerce.date().nullish()
+  "expiresAt": zod.coerce.date().nullish(),
+  "invoiceOutstandingAmount": zod.number().min(getPublicPaymentLinkResponseInvoiceOutstandingAmountMin).nullish().describe('Current outstanding invoice balance for invoice-hosted checkout; absent for non-invoice payment links.')
 })
 
 
@@ -939,8 +944,183 @@ export const ListMerchantWalletPayoutMethodsResponse = zod.object({
 
 
 /**
+ * @summary List approved payout destinations and masked pending destination changes
+ */
+
+
+
+export const ListMerchantWalletPayoutDestinationsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "version": zod.number().int().min(1),
+  "currency": zod.string(),
+  "label": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only.'),
+  "maskedAccount": zod.string(),
+  "fingerprint": zod.string().describe('Opaque immutable version identifier.'),
+  "status": zod.enum(['active']),
+  "approvedBy": zod.string(),
+  "approvedAt": zod.coerce.date(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Request a saved payout destination change for two-person administrator review
+ */
+export const createMerchantWalletPayoutDestinationHeaderIdempotencyKeyMin = 8;
+export const createMerchantWalletPayoutDestinationHeaderIdempotencyKeyMax = 128;
+
+
+
+export const CreateMerchantWalletPayoutDestinationHeader = zod.object({
+  "Idempotency-Key": zod.string().min(createMerchantWalletPayoutDestinationHeaderIdempotencyKeyMin).max(createMerchantWalletPayoutDestinationHeaderIdempotencyKeyMax)
+})
+
+export const createMerchantWalletPayoutDestinationBodyOneLabelMax = 120;
+
+export const createMerchantWalletPayoutDestinationBodyOneCurrencyMin = 3;
+export const createMerchantWalletPayoutDestinationBodyOneCurrencyMax = 3;
+
+export const createMerchantWalletPayoutDestinationBodyOneMethodMax = 120;
+
+export const createMerchantWalletPayoutDestinationBodyOneAccountNameMax = 200;
+
+export const createMerchantWalletPayoutDestinationBodyOneAccountNumberMin = 3;
+export const createMerchantWalletPayoutDestinationBodyOneAccountNumberMax = 100;
+
+export const createMerchantWalletPayoutDestinationBodyOneBankCodeMax = 100;
+
+export const createMerchantWalletPayoutDestinationBodyOneBankNameMax = 200;
+
+
+
+
+export const CreateMerchantWalletPayoutDestinationBody = zod.object({
+  "label": zod.string().min(1).max(createMerchantWalletPayoutDestinationBodyOneLabelMax),
+  "currency": zod.string().min(createMerchantWalletPayoutDestinationBodyOneCurrencyMin).max(createMerchantWalletPayoutDestinationBodyOneCurrencyMax),
+  "method": zod.string().min(1).max(createMerchantWalletPayoutDestinationBodyOneMethodMax),
+  "accountName": zod.string().min(1).max(createMerchantWalletPayoutDestinationBodyOneAccountNameMax),
+  "accountNumber": zod.string().min(createMerchantWalletPayoutDestinationBodyOneAccountNumberMin).max(createMerchantWalletPayoutDestinationBodyOneAccountNumberMax),
+  "bankCode": zod.string().max(createMerchantWalletPayoutDestinationBodyOneBankCodeMax).optional(),
+  "bankName": zod.string().max(createMerchantWalletPayoutDestinationBodyOneBankNameMax).optional()
+}).and(zod.object({
+  "destinationId": zod.number().int().min(1).optional().describe('Existing approved destination being changed; omitted to request a new destination.')
+}))
+
+export const createMerchantWalletPayoutDestinationResponseReviewHistoryItemFeeMin = 0;
+
+
+
+export const CreateMerchantWalletPayoutDestinationResponse = zod.object({
+  "id": zod.number().int(),
+  "destinationId": zod.number().int().nullable(),
+  "destination": zod.object({
+  "id": zod.number().int().nullable(),
+  "label": zod.string().nullish(),
+  "currency": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only.'),
+  "maskedAccount": zod.string(),
+  "versionId": zod.number().int().nullish(),
+  "fingerprint": zod.string().nullable().describe('Opaque immutable version identifier.')
+}),
+  "destinationFingerprint": zod.string().describe('Opaque immutable version identifier; never raw or encrypted account data.'),
+  "status": zod.enum(['requested', 'first_approved', 'approved', 'rejected']),
+  "requestedBy": zod.string(),
+  "firstApprovedBy": zod.string().nullable(),
+  "firstApprovedAt": zod.coerce.date().nullable(),
+  "secondApprovedBy": zod.string().nullable(),
+  "secondApprovedAt": zod.coerce.date().nullable(),
+  "rejectedBy": zod.string().nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "decisionReason": zod.string().nullable(),
+  "reviewHistory": zod.array(zod.object({
+  "stage": zod.enum(['requested', 'first', 'second', 'reject', 'provider']),
+  "actor": zod.string(),
+  "occurredAt": zod.coerce.date(),
+  "outcome": zod.string(),
+  "destination": zod.object({
+  "id": zod.number().int().nullable(),
+  "label": zod.string().nullish(),
+  "currency": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only.'),
+  "maskedAccount": zod.string(),
+  "versionId": zod.number().int().nullish(),
+  "fingerprint": zod.string().nullable().describe('Opaque immutable version identifier.')
+}),
+  "fee": zod.number().min(createMerchantWalletPayoutDestinationResponseReviewHistoryItemFeeMin).nullable()
+})),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List destination change history for the current merchant
+ */
+export const listMerchantWalletPayoutDestinationChangesResponseItemsItemReviewHistoryItemFeeMin = 0;
+
+
+
+export const ListMerchantWalletPayoutDestinationChangesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "destinationId": zod.number().int().nullable(),
+  "destination": zod.object({
+  "id": zod.number().int().nullable(),
+  "label": zod.string().nullish(),
+  "currency": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only.'),
+  "maskedAccount": zod.string(),
+  "versionId": zod.number().int().nullish(),
+  "fingerprint": zod.string().nullable().describe('Opaque immutable version identifier.')
+}),
+  "destinationFingerprint": zod.string().describe('Opaque immutable version identifier; never raw or encrypted account data.'),
+  "status": zod.enum(['requested', 'first_approved', 'approved', 'rejected']),
+  "requestedBy": zod.string(),
+  "firstApprovedBy": zod.string().nullable(),
+  "firstApprovedAt": zod.coerce.date().nullable(),
+  "secondApprovedBy": zod.string().nullable(),
+  "secondApprovedAt": zod.coerce.date().nullable(),
+  "rejectedBy": zod.string().nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "decisionReason": zod.string().nullable(),
+  "reviewHistory": zod.array(zod.object({
+  "stage": zod.enum(['requested', 'first', 'second', 'reject', 'provider']),
+  "actor": zod.string(),
+  "occurredAt": zod.coerce.date(),
+  "outcome": zod.string(),
+  "destination": zod.object({
+  "id": zod.number().int().nullable(),
+  "label": zod.string().nullish(),
+  "currency": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only.'),
+  "maskedAccount": zod.string(),
+  "versionId": zod.number().int().nullish(),
+  "fingerprint": zod.string().nullable().describe('Opaque immutable version identifier.')
+}),
+  "fee": zod.number().min(listMerchantWalletPayoutDestinationChangesResponseItemsItemReviewHistoryItemFeeMin).nullable()
+})),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
  * @summary List merchant payout requests
  */
+export const listMerchantPayoutRequestsResponseItemsItemReviewHistoryItemFeeMin = 0;
+
+
+
 export const ListMerchantPayoutRequestsResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().int(),
@@ -951,9 +1131,39 @@ export const ListMerchantPayoutRequestsResponse = zod.object({
   "netAmount": zod.number(),
   "currency": zod.string(),
   "method": zod.string(),
-  "accountName": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only; no plaintext destination details are returned.'),
   "maskedAccount": zod.string(),
-  "status": zod.enum(['requested', 'approved', 'processing', 'completed', 'rejected', 'failed', 'uncertain']),
+  "destinationId": zod.number().int().nullable(),
+  "destinationVersion": zod.number().int().nullable(),
+  "destinationFingerprint": zod.string().nullable().describe('Opaque immutable version identifier; never raw or encrypted account data.'),
+  "requiresSecondApproval": zod.boolean(),
+  "largePayoutThreshold": zod.number().nullable(),
+  "thresholdConfigured": zod.boolean().describe('False means no per-currency threshold is configured; the payout is held for manual two-person review.'),
+  "requestedBy": zod.string().nullable(),
+  "firstApprovedBy": zod.string().nullable(),
+  "firstApprovedAt": zod.coerce.date().nullable(),
+  "secondApprovedBy": zod.string().nullable(),
+  "secondApprovedAt": zod.coerce.date().nullable(),
+  "rejectedBy": zod.string().nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "reviewHistory": zod.array(zod.object({
+  "stage": zod.enum(['requested', 'first', 'second', 'reject', 'provider']),
+  "actor": zod.string(),
+  "occurredAt": zod.coerce.date(),
+  "outcome": zod.string(),
+  "destination": zod.object({
+  "id": zod.number().int().nullable(),
+  "label": zod.string().nullish(),
+  "currency": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only.'),
+  "maskedAccount": zod.string(),
+  "versionId": zod.number().int().nullish(),
+  "fingerprint": zod.string().nullable().describe('Opaque immutable version identifier.')
+}),
+  "fee": zod.number().min(listMerchantPayoutRequestsResponseItemsItemReviewHistoryItemFeeMin).nullable()
+})),
+  "status": zod.enum(['requested', 'awaiting_second_approval', 'approved', 'processing', 'completed', 'rejected', 'failed', 'uncertain']),
   "providerReference": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -979,26 +1189,19 @@ export const createMerchantPayoutRequestBodyCurrencyMin = 3;
 export const createMerchantPayoutRequestBodyCurrencyMax = 3;
 
 
-export const createMerchantPayoutRequestBodyAccountNameMax = 200;
-
-export const createMerchantPayoutRequestBodyAccountNumberMin = 3;
-export const createMerchantPayoutRequestBodyAccountNumberMax = 100;
-
-export const createMerchantPayoutRequestBodyBankCodeMax = 100;
-
-export const createMerchantPayoutRequestBodyBankNameMax = 200;
 
 
 
 export const CreateMerchantPayoutRequestBody = zod.object({
   "amount": zod.number().gt(createMerchantPayoutRequestBodyAmountExclusiveMin),
   "currency": zod.string().min(createMerchantPayoutRequestBodyCurrencyMin).max(createMerchantPayoutRequestBodyCurrencyMax),
-  "method": zod.string().min(1),
-  "accountName": zod.string().min(1).max(createMerchantPayoutRequestBodyAccountNameMax),
-  "accountNumber": zod.string().min(createMerchantPayoutRequestBodyAccountNumberMin).max(createMerchantPayoutRequestBodyAccountNumberMax),
-  "bankCode": zod.string().max(createMerchantPayoutRequestBodyBankCodeMax).optional(),
-  "bankName": zod.string().max(createMerchantPayoutRequestBodyBankNameMax).optional()
+  "destinationId": zod.number().int().min(1),
+  "method": zod.string().min(1).optional().describe('Optional consistency check; the approved destination\'s method remains authoritative.')
 })
+
+export const createMerchantPayoutRequestResponseReviewHistoryItemFeeMin = 0;
+
+
 
 export const CreateMerchantPayoutRequestResponse = zod.object({
   "id": zod.number().int(),
@@ -1009,9 +1212,39 @@ export const CreateMerchantPayoutRequestResponse = zod.object({
   "netAmount": zod.number(),
   "currency": zod.string(),
   "method": zod.string(),
-  "accountName": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only; no plaintext destination details are returned.'),
   "maskedAccount": zod.string(),
-  "status": zod.enum(['requested', 'approved', 'processing', 'completed', 'rejected', 'failed', 'uncertain']),
+  "destinationId": zod.number().int().nullable(),
+  "destinationVersion": zod.number().int().nullable(),
+  "destinationFingerprint": zod.string().nullable().describe('Opaque immutable version identifier; never raw or encrypted account data.'),
+  "requiresSecondApproval": zod.boolean(),
+  "largePayoutThreshold": zod.number().nullable(),
+  "thresholdConfigured": zod.boolean().describe('False means no per-currency threshold is configured; the payout is held for manual two-person review.'),
+  "requestedBy": zod.string().nullable(),
+  "firstApprovedBy": zod.string().nullable(),
+  "firstApprovedAt": zod.coerce.date().nullable(),
+  "secondApprovedBy": zod.string().nullable(),
+  "secondApprovedAt": zod.coerce.date().nullable(),
+  "rejectedBy": zod.string().nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "reviewHistory": zod.array(zod.object({
+  "stage": zod.enum(['requested', 'first', 'second', 'reject', 'provider']),
+  "actor": zod.string(),
+  "occurredAt": zod.coerce.date(),
+  "outcome": zod.string(),
+  "destination": zod.object({
+  "id": zod.number().int().nullable(),
+  "label": zod.string().nullish(),
+  "currency": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only.'),
+  "maskedAccount": zod.string(),
+  "versionId": zod.number().int().nullish(),
+  "fingerprint": zod.string().nullable().describe('Opaque immutable version identifier.')
+}),
+  "fee": zod.number().min(createMerchantPayoutRequestResponseReviewHistoryItemFeeMin).nullable()
+})),
+  "status": zod.enum(['requested', 'awaiting_second_approval', 'approved', 'processing', 'completed', 'rejected', 'failed', 'uncertain']),
   "providerReference": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1066,6 +1299,10 @@ export const ListAdminPayoutRequestsQueryParams = zod.object({
   "status": zod.coerce.string().optional()
 })
 
+export const listAdminPayoutRequestsResponseItemsItemReviewHistoryItemFeeMin = 0;
+
+
+
 export const ListAdminPayoutRequestsResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().int(),
@@ -1076,9 +1313,39 @@ export const ListAdminPayoutRequestsResponse = zod.object({
   "netAmount": zod.number(),
   "currency": zod.string(),
   "method": zod.string(),
-  "accountName": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only; no plaintext destination details are returned.'),
   "maskedAccount": zod.string(),
-  "status": zod.enum(['requested', 'approved', 'processing', 'completed', 'rejected', 'failed', 'uncertain']),
+  "destinationId": zod.number().int().nullable(),
+  "destinationVersion": zod.number().int().nullable(),
+  "destinationFingerprint": zod.string().nullable().describe('Opaque immutable version identifier; never raw or encrypted account data.'),
+  "requiresSecondApproval": zod.boolean(),
+  "largePayoutThreshold": zod.number().nullable(),
+  "thresholdConfigured": zod.boolean().describe('False means no per-currency threshold is configured; the payout is held for manual two-person review.'),
+  "requestedBy": zod.string().nullable(),
+  "firstApprovedBy": zod.string().nullable(),
+  "firstApprovedAt": zod.coerce.date().nullable(),
+  "secondApprovedBy": zod.string().nullable(),
+  "secondApprovedAt": zod.coerce.date().nullable(),
+  "rejectedBy": zod.string().nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "reviewHistory": zod.array(zod.object({
+  "stage": zod.enum(['requested', 'first', 'second', 'reject', 'provider']),
+  "actor": zod.string(),
+  "occurredAt": zod.coerce.date(),
+  "outcome": zod.string(),
+  "destination": zod.object({
+  "id": zod.number().int().nullable(),
+  "label": zod.string().nullish(),
+  "currency": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only.'),
+  "maskedAccount": zod.string(),
+  "versionId": zod.number().int().nullish(),
+  "fingerprint": zod.string().nullable().describe('Opaque immutable version identifier.')
+}),
+  "fee": zod.number().min(listAdminPayoutRequestsResponseItemsItemReviewHistoryItemFeeMin).nullable()
+})),
+  "status": zod.enum(['requested', 'awaiting_second_approval', 'approved', 'processing', 'completed', 'rejected', 'failed', 'uncertain']),
   "providerReference": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1087,7 +1354,199 @@ export const ListAdminPayoutRequestsResponse = zod.object({
 
 
 /**
- * @summary Approve and submit a reserved merchant payout exactly once
+ * @summary Review merchant payout destination change requests
+ */
+export const ListAdminWalletPayoutDestinationChangesQueryParams = zod.object({
+  "status": zod.enum(['requested', 'first_approved', 'approved', 'rejected']).optional()
+})
+
+export const listAdminWalletPayoutDestinationChangesResponseItemsItemReviewHistoryItemFeeMin = 0;
+
+
+
+export const ListAdminWalletPayoutDestinationChangesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "destinationId": zod.number().int().nullable(),
+  "destination": zod.object({
+  "id": zod.number().int().nullable(),
+  "label": zod.string().nullish(),
+  "currency": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only.'),
+  "maskedAccount": zod.string(),
+  "versionId": zod.number().int().nullish(),
+  "fingerprint": zod.string().nullable().describe('Opaque immutable version identifier.')
+}),
+  "destinationFingerprint": zod.string().describe('Opaque immutable version identifier; never raw or encrypted account data.'),
+  "status": zod.enum(['requested', 'first_approved', 'approved', 'rejected']),
+  "requestedBy": zod.string(),
+  "firstApprovedBy": zod.string().nullable(),
+  "firstApprovedAt": zod.coerce.date().nullable(),
+  "secondApprovedBy": zod.string().nullable(),
+  "secondApprovedAt": zod.coerce.date().nullable(),
+  "rejectedBy": zod.string().nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "decisionReason": zod.string().nullable(),
+  "reviewHistory": zod.array(zod.object({
+  "stage": zod.enum(['requested', 'first', 'second', 'reject', 'provider']),
+  "actor": zod.string(),
+  "occurredAt": zod.coerce.date(),
+  "outcome": zod.string(),
+  "destination": zod.object({
+  "id": zod.number().int().nullable(),
+  "label": zod.string().nullish(),
+  "currency": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only.'),
+  "maskedAccount": zod.string(),
+  "versionId": zod.number().int().nullish(),
+  "fingerprint": zod.string().nullable().describe('Opaque immutable version identifier.')
+}),
+  "fee": zod.number().min(listAdminWalletPayoutDestinationChangesResponseItemsItemReviewHistoryItemFeeMin).nullable()
+})),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Record the first review or approve an immutable destination change with a second distinct administrator
+ */
+
+
+
+export const ApprovePayoutDestinationChangeParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const approvePayoutDestinationChangeBodyDestinationFingerprintMax = 128;
+
+
+
+export const ApprovePayoutDestinationChangeBody = zod.object({
+  "destinationFingerprint": zod.string().min(1).max(approvePayoutDestinationChangeBodyDestinationFingerprintMax)
+})
+
+export const approvePayoutDestinationChangeResponseReviewHistoryItemFeeMin = 0;
+
+
+
+export const ApprovePayoutDestinationChangeResponse = zod.object({
+  "id": zod.number().int(),
+  "destinationId": zod.number().int().nullable(),
+  "destination": zod.object({
+  "id": zod.number().int().nullable(),
+  "label": zod.string().nullish(),
+  "currency": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only.'),
+  "maskedAccount": zod.string(),
+  "versionId": zod.number().int().nullish(),
+  "fingerprint": zod.string().nullable().describe('Opaque immutable version identifier.')
+}),
+  "destinationFingerprint": zod.string().describe('Opaque immutable version identifier; never raw or encrypted account data.'),
+  "status": zod.enum(['requested', 'first_approved', 'approved', 'rejected']),
+  "requestedBy": zod.string(),
+  "firstApprovedBy": zod.string().nullable(),
+  "firstApprovedAt": zod.coerce.date().nullable(),
+  "secondApprovedBy": zod.string().nullable(),
+  "secondApprovedAt": zod.coerce.date().nullable(),
+  "rejectedBy": zod.string().nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "decisionReason": zod.string().nullable(),
+  "reviewHistory": zod.array(zod.object({
+  "stage": zod.enum(['requested', 'first', 'second', 'reject', 'provider']),
+  "actor": zod.string(),
+  "occurredAt": zod.coerce.date(),
+  "outcome": zod.string(),
+  "destination": zod.object({
+  "id": zod.number().int().nullable(),
+  "label": zod.string().nullish(),
+  "currency": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only.'),
+  "maskedAccount": zod.string(),
+  "versionId": zod.number().int().nullish(),
+  "fingerprint": zod.string().nullable().describe('Opaque immutable version identifier.')
+}),
+  "fee": zod.number().min(approvePayoutDestinationChangeResponseReviewHistoryItemFeeMin).nullable()
+})),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reject a pending immutable destination change without changing the approved destination
+ */
+
+
+
+export const RejectPayoutDestinationChangeParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const rejectPayoutDestinationChangeBodyReasonMax = 400;
+
+
+
+export const RejectPayoutDestinationChangeBody = zod.object({
+  "reason": zod.string().min(1).max(rejectPayoutDestinationChangeBodyReasonMax)
+})
+
+export const rejectPayoutDestinationChangeResponseReviewHistoryItemFeeMin = 0;
+
+
+
+export const RejectPayoutDestinationChangeResponse = zod.object({
+  "id": zod.number().int(),
+  "destinationId": zod.number().int().nullable(),
+  "destination": zod.object({
+  "id": zod.number().int().nullable(),
+  "label": zod.string().nullish(),
+  "currency": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only.'),
+  "maskedAccount": zod.string(),
+  "versionId": zod.number().int().nullish(),
+  "fingerprint": zod.string().nullable().describe('Opaque immutable version identifier.')
+}),
+  "destinationFingerprint": zod.string().describe('Opaque immutable version identifier; never raw or encrypted account data.'),
+  "status": zod.enum(['requested', 'first_approved', 'approved', 'rejected']),
+  "requestedBy": zod.string(),
+  "firstApprovedBy": zod.string().nullable(),
+  "firstApprovedAt": zod.coerce.date().nullable(),
+  "secondApprovedBy": zod.string().nullable(),
+  "secondApprovedAt": zod.coerce.date().nullable(),
+  "rejectedBy": zod.string().nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "decisionReason": zod.string().nullable(),
+  "reviewHistory": zod.array(zod.object({
+  "stage": zod.enum(['requested', 'first', 'second', 'reject', 'provider']),
+  "actor": zod.string(),
+  "occurredAt": zod.coerce.date(),
+  "outcome": zod.string(),
+  "destination": zod.object({
+  "id": zod.number().int().nullable(),
+  "label": zod.string().nullish(),
+  "currency": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only.'),
+  "maskedAccount": zod.string(),
+  "versionId": zod.number().int().nullish(),
+  "fingerprint": zod.string().nullable().describe('Opaque immutable version identifier.')
+}),
+  "fee": zod.number().min(rejectPayoutDestinationChangeResponseReviewHistoryItemFeeMin).nullable()
+})),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Record the first review or submit a reserved payout after required distinct approvals
  */
 
 
@@ -1095,6 +1554,18 @@ export const ListAdminPayoutRequestsResponse = zod.object({
 export const ApprovePayoutRequestParams = zod.object({
   "id": zod.coerce.number().int().min(1)
 })
+
+export const approvePayoutRequestBodyDestinationFingerprintMax = 128;
+
+
+
+export const ApprovePayoutRequestBody = zod.object({
+  "destinationFingerprint": zod.string().min(1).max(approvePayoutRequestBodyDestinationFingerprintMax)
+})
+
+export const approvePayoutRequestResponseReviewHistoryItemFeeMin = 0;
+
+
 
 export const ApprovePayoutRequestResponse = zod.object({
   "id": zod.number().int(),
@@ -1105,9 +1576,39 @@ export const ApprovePayoutRequestResponse = zod.object({
   "netAmount": zod.number(),
   "currency": zod.string(),
   "method": zod.string(),
-  "accountName": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only; no plaintext destination details are returned.'),
   "maskedAccount": zod.string(),
-  "status": zod.enum(['requested', 'approved', 'processing', 'completed', 'rejected', 'failed', 'uncertain']),
+  "destinationId": zod.number().int().nullable(),
+  "destinationVersion": zod.number().int().nullable(),
+  "destinationFingerprint": zod.string().nullable().describe('Opaque immutable version identifier; never raw or encrypted account data.'),
+  "requiresSecondApproval": zod.boolean(),
+  "largePayoutThreshold": zod.number().nullable(),
+  "thresholdConfigured": zod.boolean().describe('False means no per-currency threshold is configured; the payout is held for manual two-person review.'),
+  "requestedBy": zod.string().nullable(),
+  "firstApprovedBy": zod.string().nullable(),
+  "firstApprovedAt": zod.coerce.date().nullable(),
+  "secondApprovedBy": zod.string().nullable(),
+  "secondApprovedAt": zod.coerce.date().nullable(),
+  "rejectedBy": zod.string().nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "reviewHistory": zod.array(zod.object({
+  "stage": zod.enum(['requested', 'first', 'second', 'reject', 'provider']),
+  "actor": zod.string(),
+  "occurredAt": zod.coerce.date(),
+  "outcome": zod.string(),
+  "destination": zod.object({
+  "id": zod.number().int().nullable(),
+  "label": zod.string().nullish(),
+  "currency": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only.'),
+  "maskedAccount": zod.string(),
+  "versionId": zod.number().int().nullish(),
+  "fingerprint": zod.string().nullable().describe('Opaque immutable version identifier.')
+}),
+  "fee": zod.number().min(approvePayoutRequestResponseReviewHistoryItemFeeMin).nullable()
+})),
+  "status": zod.enum(['requested', 'awaiting_second_approval', 'approved', 'processing', 'completed', 'rejected', 'failed', 'uncertain']),
   "providerReference": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1132,6 +1633,10 @@ export const RejectPayoutRequestBody = zod.object({
   "reason": zod.string().min(1).max(rejectPayoutRequestBodyReasonMax)
 })
 
+export const rejectPayoutRequestResponseReviewHistoryItemFeeMin = 0;
+
+
+
 export const RejectPayoutRequestResponse = zod.object({
   "id": zod.number().int(),
   "reference": zod.string(),
@@ -1141,9 +1646,39 @@ export const RejectPayoutRequestResponse = zod.object({
   "netAmount": zod.number(),
   "currency": zod.string(),
   "method": zod.string(),
-  "accountName": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only; no plaintext destination details are returned.'),
   "maskedAccount": zod.string(),
-  "status": zod.enum(['requested', 'approved', 'processing', 'completed', 'rejected', 'failed', 'uncertain']),
+  "destinationId": zod.number().int().nullable(),
+  "destinationVersion": zod.number().int().nullable(),
+  "destinationFingerprint": zod.string().nullable().describe('Opaque immutable version identifier; never raw or encrypted account data.'),
+  "requiresSecondApproval": zod.boolean(),
+  "largePayoutThreshold": zod.number().nullable(),
+  "thresholdConfigured": zod.boolean().describe('False means no per-currency threshold is configured; the payout is held for manual two-person review.'),
+  "requestedBy": zod.string().nullable(),
+  "firstApprovedBy": zod.string().nullable(),
+  "firstApprovedAt": zod.coerce.date().nullable(),
+  "secondApprovedBy": zod.string().nullable(),
+  "secondApprovedAt": zod.coerce.date().nullable(),
+  "rejectedBy": zod.string().nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "reviewHistory": zod.array(zod.object({
+  "stage": zod.enum(['requested', 'first', 'second', 'reject', 'provider']),
+  "actor": zod.string(),
+  "occurredAt": zod.coerce.date(),
+  "outcome": zod.string(),
+  "destination": zod.object({
+  "id": zod.number().int().nullable(),
+  "label": zod.string().nullish(),
+  "currency": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only.'),
+  "maskedAccount": zod.string(),
+  "versionId": zod.number().int().nullish(),
+  "fingerprint": zod.string().nullable().describe('Opaque immutable version identifier.')
+}),
+  "fee": zod.number().min(rejectPayoutRequestResponseReviewHistoryItemFeeMin).nullable()
+})),
+  "status": zod.enum(['requested', 'awaiting_second_approval', 'approved', 'processing', 'completed', 'rejected', 'failed', 'uncertain']),
   "providerReference": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1160,6 +1695,10 @@ export const ReconcilePayoutRequestParams = zod.object({
   "id": zod.coerce.number().int().min(1)
 })
 
+export const reconcilePayoutRequestResponseReviewHistoryItemFeeMin = 0;
+
+
+
 export const ReconcilePayoutRequestResponse = zod.object({
   "id": zod.number().int(),
   "reference": zod.string(),
@@ -1169,9 +1708,39 @@ export const ReconcilePayoutRequestResponse = zod.object({
   "netAmount": zod.number(),
   "currency": zod.string(),
   "method": zod.string(),
-  "accountName": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only; no plaintext destination details are returned.'),
   "maskedAccount": zod.string(),
-  "status": zod.enum(['requested', 'approved', 'processing', 'completed', 'rejected', 'failed', 'uncertain']),
+  "destinationId": zod.number().int().nullable(),
+  "destinationVersion": zod.number().int().nullable(),
+  "destinationFingerprint": zod.string().nullable().describe('Opaque immutable version identifier; never raw or encrypted account data.'),
+  "requiresSecondApproval": zod.boolean(),
+  "largePayoutThreshold": zod.number().nullable(),
+  "thresholdConfigured": zod.boolean().describe('False means no per-currency threshold is configured; the payout is held for manual two-person review.'),
+  "requestedBy": zod.string().nullable(),
+  "firstApprovedBy": zod.string().nullable(),
+  "firstApprovedAt": zod.coerce.date().nullable(),
+  "secondApprovedBy": zod.string().nullable(),
+  "secondApprovedAt": zod.coerce.date().nullable(),
+  "rejectedBy": zod.string().nullable(),
+  "rejectedAt": zod.coerce.date().nullable(),
+  "reviewHistory": zod.array(zod.object({
+  "stage": zod.enum(['requested', 'first', 'second', 'reject', 'provider']),
+  "actor": zod.string(),
+  "occurredAt": zod.coerce.date(),
+  "outcome": zod.string(),
+  "destination": zod.object({
+  "id": zod.number().int().nullable(),
+  "label": zod.string().nullish(),
+  "currency": zod.string(),
+  "method": zod.string(),
+  "accountName": zod.string().describe('Masked destination account holder name only.'),
+  "maskedAccount": zod.string(),
+  "versionId": zod.number().int().nullish(),
+  "fingerprint": zod.string().nullable().describe('Opaque immutable version identifier.')
+}),
+  "fee": zod.number().min(reconcilePayoutRequestResponseReviewHistoryItemFeeMin).nullable()
+})),
+  "status": zod.enum(['requested', 'awaiting_second_approval', 'approved', 'processing', 'completed', 'rejected', 'failed', 'uncertain']),
   "providerReference": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1329,6 +1898,10 @@ export const listMerchantInvoicesResponseItemsItemLinesItemOneQuantityMax = 1000
 export const listMerchantInvoicesResponseItemsItemLinesItemOneUnitAmountMin = 0;
 export const listMerchantInvoicesResponseItemsItemLinesItemOneUnitAmountMax = 100000000;
 
+export const listMerchantInvoicesResponseItemsItemOutstandingAmountMin = 0;
+
+export const listMerchantInvoicesResponseItemsItemPaymentLinkAmountMin = 0;
+
 
 
 export const ListMerchantInvoicesResponse = zod.object({
@@ -1348,7 +1921,9 @@ export const ListMerchantInvoicesResponse = zod.object({
 }))),
   "subtotal": zod.number(),
   "total": zod.number(),
-  "paidAmount": zod.number(),
+  "paidAmount": zod.number().describe('Net confirmed collected value only.'),
+  "outstandingAmount": zod.number().min(listMerchantInvoicesResponseItemsItemOutstandingAmountMin).describe('Current unpaid invoice balance.'),
+  "paymentLinkAmount": zod.number().min(listMerchantInvoicesResponseItemsItemPaymentLinkAmountMin).nullable().describe('Current active fixed-amount invoice link balance'),
   "payments": zod.array(zod.object({
   "reference": zod.string(),
   "amount": zod.number(),
@@ -1408,6 +1983,10 @@ export const createMerchantInvoiceResponseLinesItemOneQuantityMax = 100000;
 export const createMerchantInvoiceResponseLinesItemOneUnitAmountMin = 0;
 export const createMerchantInvoiceResponseLinesItemOneUnitAmountMax = 100000000;
 
+export const createMerchantInvoiceResponseOutstandingAmountMin = 0;
+
+export const createMerchantInvoiceResponsePaymentLinkAmountMin = 0;
+
 
 
 export const CreateMerchantInvoiceResponse = zod.object({
@@ -1426,7 +2005,9 @@ export const CreateMerchantInvoiceResponse = zod.object({
 }))),
   "subtotal": zod.number(),
   "total": zod.number(),
-  "paidAmount": zod.number(),
+  "paidAmount": zod.number().describe('Net confirmed collected value only.'),
+  "outstandingAmount": zod.number().min(createMerchantInvoiceResponseOutstandingAmountMin).describe('Current unpaid invoice balance.'),
+  "paymentLinkAmount": zod.number().min(createMerchantInvoiceResponsePaymentLinkAmountMin).nullable().describe('Current active fixed-amount invoice link balance'),
   "payments": zod.array(zod.object({
   "reference": zod.string(),
   "amount": zod.number(),
@@ -1455,6 +2036,10 @@ export const getMerchantInvoiceResponseLinesItemOneQuantityMax = 100000;
 export const getMerchantInvoiceResponseLinesItemOneUnitAmountMin = 0;
 export const getMerchantInvoiceResponseLinesItemOneUnitAmountMax = 100000000;
 
+export const getMerchantInvoiceResponseOutstandingAmountMin = 0;
+
+export const getMerchantInvoiceResponsePaymentLinkAmountMin = 0;
+
 
 
 export const GetMerchantInvoiceResponse = zod.object({
@@ -1473,7 +2058,9 @@ export const GetMerchantInvoiceResponse = zod.object({
 }))),
   "subtotal": zod.number(),
   "total": zod.number(),
-  "paidAmount": zod.number(),
+  "paidAmount": zod.number().describe('Net confirmed collected value only.'),
+  "outstandingAmount": zod.number().min(getMerchantInvoiceResponseOutstandingAmountMin).describe('Current unpaid invoice balance.'),
+  "paymentLinkAmount": zod.number().min(getMerchantInvoiceResponsePaymentLinkAmountMin).nullable().describe('Current active fixed-amount invoice link balance'),
   "payments": zod.array(zod.object({
   "reference": zod.string(),
   "amount": zod.number(),
@@ -1532,6 +2119,10 @@ export const updateMerchantInvoiceResponseLinesItemOneQuantityMax = 100000;
 export const updateMerchantInvoiceResponseLinesItemOneUnitAmountMin = 0;
 export const updateMerchantInvoiceResponseLinesItemOneUnitAmountMax = 100000000;
 
+export const updateMerchantInvoiceResponseOutstandingAmountMin = 0;
+
+export const updateMerchantInvoiceResponsePaymentLinkAmountMin = 0;
+
 
 
 export const UpdateMerchantInvoiceResponse = zod.object({
@@ -1550,7 +2141,9 @@ export const UpdateMerchantInvoiceResponse = zod.object({
 }))),
   "subtotal": zod.number(),
   "total": zod.number(),
-  "paidAmount": zod.number(),
+  "paidAmount": zod.number().describe('Net confirmed collected value only.'),
+  "outstandingAmount": zod.number().min(updateMerchantInvoiceResponseOutstandingAmountMin).describe('Current unpaid invoice balance.'),
+  "paymentLinkAmount": zod.number().min(updateMerchantInvoiceResponsePaymentLinkAmountMin).nullable().describe('Current active fixed-amount invoice link balance'),
   "payments": zod.array(zod.object({
   "reference": zod.string(),
   "amount": zod.number(),
@@ -1579,6 +2172,10 @@ export const sendMerchantInvoiceResponseLinesItemOneQuantityMax = 100000;
 export const sendMerchantInvoiceResponseLinesItemOneUnitAmountMin = 0;
 export const sendMerchantInvoiceResponseLinesItemOneUnitAmountMax = 100000000;
 
+export const sendMerchantInvoiceResponseOutstandingAmountMin = 0;
+
+export const sendMerchantInvoiceResponsePaymentLinkAmountMin = 0;
+
 
 
 export const SendMerchantInvoiceResponse = zod.object({
@@ -1597,7 +2194,9 @@ export const SendMerchantInvoiceResponse = zod.object({
 }))),
   "subtotal": zod.number(),
   "total": zod.number(),
-  "paidAmount": zod.number(),
+  "paidAmount": zod.number().describe('Net confirmed collected value only.'),
+  "outstandingAmount": zod.number().min(sendMerchantInvoiceResponseOutstandingAmountMin).describe('Current unpaid invoice balance.'),
+  "paymentLinkAmount": zod.number().min(sendMerchantInvoiceResponsePaymentLinkAmountMin).nullable().describe('Current active fixed-amount invoice link balance'),
   "payments": zod.array(zod.object({
   "reference": zod.string(),
   "amount": zod.number(),
@@ -1626,6 +2225,10 @@ export const voidMerchantInvoiceResponseLinesItemOneQuantityMax = 100000;
 export const voidMerchantInvoiceResponseLinesItemOneUnitAmountMin = 0;
 export const voidMerchantInvoiceResponseLinesItemOneUnitAmountMax = 100000000;
 
+export const voidMerchantInvoiceResponseOutstandingAmountMin = 0;
+
+export const voidMerchantInvoiceResponsePaymentLinkAmountMin = 0;
+
 
 
 export const VoidMerchantInvoiceResponse = zod.object({
@@ -1644,7 +2247,9 @@ export const VoidMerchantInvoiceResponse = zod.object({
 }))),
   "subtotal": zod.number(),
   "total": zod.number(),
-  "paidAmount": zod.number(),
+  "paidAmount": zod.number().describe('Net confirmed collected value only.'),
+  "outstandingAmount": zod.number().min(voidMerchantInvoiceResponseOutstandingAmountMin).describe('Current unpaid invoice balance.'),
+  "paymentLinkAmount": zod.number().min(voidMerchantInvoiceResponsePaymentLinkAmountMin).nullable().describe('Current active fixed-amount invoice link balance'),
   "payments": zod.array(zod.object({
   "reference": zod.string(),
   "amount": zod.number(),
@@ -1673,6 +2278,10 @@ export const createInvoicePaymentLinkResponseLinesItemOneQuantityMax = 100000;
 export const createInvoicePaymentLinkResponseLinesItemOneUnitAmountMin = 0;
 export const createInvoicePaymentLinkResponseLinesItemOneUnitAmountMax = 100000000;
 
+export const createInvoicePaymentLinkResponseOutstandingAmountMin = 0;
+
+export const createInvoicePaymentLinkResponsePaymentLinkAmountMin = 0;
+
 
 
 export const CreateInvoicePaymentLinkResponse = zod.object({
@@ -1691,7 +2300,9 @@ export const CreateInvoicePaymentLinkResponse = zod.object({
 }))),
   "subtotal": zod.number(),
   "total": zod.number(),
-  "paidAmount": zod.number(),
+  "paidAmount": zod.number().describe('Net confirmed collected value only.'),
+  "outstandingAmount": zod.number().min(createInvoicePaymentLinkResponseOutstandingAmountMin).describe('Current unpaid invoice balance.'),
+  "paymentLinkAmount": zod.number().min(createInvoicePaymentLinkResponsePaymentLinkAmountMin).nullable().describe('Current active fixed-amount invoice link balance'),
   "payments": zod.array(zod.object({
   "reference": zod.string(),
   "amount": zod.number(),
@@ -1716,8 +2327,9 @@ export const ListInvoiceRemindersResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().int(),
   "invoiceId": zod.number().int(),
-  "deliveryStatus": zod.enum(['unconfigured']),
+  "deliveryStatus": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured']),
   "createdAt": zod.coerce.date(),
+  "scheduledAt": zod.coerce.date().nullable(),
   "attemptedAt": zod.coerce.date().nullish(),
   "message": zod.string()
 }))
@@ -1736,14 +2348,16 @@ export const createInvoiceReminderBodyNoteMax = 500;
 
 
 export const CreateInvoiceReminderBody = zod.object({
-  "note": zod.string().max(createInvoiceReminderBodyNoteMax).optional()
+  "note": zod.string().max(createInvoiceReminderBodyNoteMax).optional(),
+  "scheduleAt": zod.coerce.date().optional().describe('Optional future send time; scheduled messages are revalidated before delivery.')
 })
 
 export const CreateInvoiceReminderResponse = zod.object({
   "id": zod.number().int(),
   "invoiceId": zod.number().int(),
-  "deliveryStatus": zod.enum(['unconfigured']),
+  "deliveryStatus": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured']),
   "createdAt": zod.coerce.date(),
+  "scheduledAt": zod.coerce.date().nullable(),
   "attemptedAt": zod.coerce.date().nullish(),
   "message": zod.string()
 })
@@ -1759,6 +2373,22 @@ export const GetMerchantStatementParams = zod.object({
   "month": zod.coerce.string().regex(getMerchantStatementPathMonthRegExp)
 })
 
+export const getMerchantStatementResponseSettlementsItemAmountMin = 0;
+
+export const getMerchantStatementResponseSettlementsItemFeeMin = 0;
+
+export const getMerchantStatementResponseSettlementsItemCurrencyMin = 3;
+export const getMerchantStatementResponseSettlementsItemCurrencyMax = 3;
+
+export const getMerchantStatementResponseWalletPayoutRequestsItemAmountMin = 0;
+
+export const getMerchantStatementResponseWalletPayoutRequestsItemFeeMin = 0;
+
+export const getMerchantStatementResponseWalletPayoutRequestsItemCurrencyMin = 3;
+export const getMerchantStatementResponseWalletPayoutRequestsItemCurrencyMax = 3;
+
+
+
 export const GetMerchantStatementResponse = zod.object({
   "month": zod.string(),
   "transactions": zod.array(zod.object({
@@ -1773,23 +2403,46 @@ export const GetMerchantStatementResponse = zod.object({
   "originalReference": zod.string(),
   "amount": zod.number(),
   "currency": zod.string(),
-  "status": zod.string(),
-  "createdAt": zod.coerce.date()
+  "status": zod.enum(['success', 'completed', 'processed']).describe('Only customer-reimbursed confirmed refund source rows are included.'),
+  "createdAt": zod.coerce.date(),
+  "cashDate": zod.coerce.date().describe('Cash-flow date; uses an explicit confirmation timestamp or the stated legacy-created-at fallback.'),
+  "cashDateBasis": zod.enum(['confirmed_at', 'legacy_created_at']).describe('Distinguishes the source confirmation timestamp from a legacy record with no confirmation timestamp.')
 })),
   "payouts": zod.array(zod.object({
   "reference": zod.string(),
   "amount": zod.number(),
   "fee": zod.number(),
   "currency": zod.string(),
-  "status": zod.string(),
-  "createdAt": zod.coerce.date()
+  "status": zod.enum(['success', 'completed', 'processed']).describe('Only confirmed payout source rows are included.'),
+  "createdAt": zod.coerce.date(),
+  "cashDate": zod.coerce.date().describe('Cash-flow date; uses an explicit confirmation timestamp or the stated legacy-created-at fallback.'),
+  "cashDateBasis": zod.enum(['confirmed_at', 'legacy_created_at']).describe('Distinguishes the source confirmation timestamp from a legacy record with no confirmation timestamp.')
 })),
+  "settlements": zod.array(zod.object({
+  "reference": zod.string().describe('Stable wallet settlement confirmation reference.'),
+  "amount": zod.number().min(getMerchantStatementResponseSettlementsItemAmountMin),
+  "fee": zod.number().min(getMerchantStatementResponseSettlementsItemFeeMin).nullish().describe('Confirmed settlement fee when supplied by the source record.'),
+  "currency": zod.string().min(getMerchantStatementResponseSettlementsItemCurrencyMin).max(getMerchantStatementResponseSettlementsItemCurrencyMax),
+  "status": zod.enum(['confirmed']),
+  "createdAt": zod.coerce.date().describe('Timestamp at which the confirmed settlement evidence was recorded.')
+})).describe('Confirmed wallet settlement funding confirmations only.'),
+  "walletPayoutRequests": zod.array(zod.object({
+  "reference": zod.string().describe('Stable wallet payout request reference.'),
+  "amount": zod.number().min(getMerchantStatementResponseWalletPayoutRequestsItemAmountMin),
+  "fee": zod.number().min(getMerchantStatementResponseWalletPayoutRequestsItemFeeMin),
+  "currency": zod.string().min(getMerchantStatementResponseWalletPayoutRequestsItemCurrencyMin).max(getMerchantStatementResponseWalletPayoutRequestsItemCurrencyMax),
+  "status": zod.enum(['requested', 'awaiting_second_approval', 'approved', 'submitted', 'processing', 'completed', 'rejected', 'failed', 'uncertain']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "completedAt": zod.coerce.date().nullable()
+}).describe('Operational wallet payout request history, not a confirmed cash-movement fact until the provider outcome is confirmed.')).describe('Wallet payout request history, kept separate from confirmed payout facts and never counted twice with legacy payouts.'),
   "currencySummaries": zod.array(zod.object({
   "currency": zod.string(),
   "grossConfirmed": zod.number(),
   "fees": zod.number(),
   "refundsTotal": zod.number(),
   "payoutsTotal": zod.number(),
+  "settlementsTotal": zod.number().describe('Confirmed wallet settlement funding total.'),
   "forecast": zod.object({
   "label": zod.enum(['historical_average_estimate']),
   "amount": zod.number().nullable(),
@@ -1802,20 +2455,49 @@ export const GetMerchantStatementResponse = zod.object({
 /**
  * @summary List merchant refund and dispute requests
  */
+export const listMerchantCasesResponseItemsItemMessagesItemAttachmentsItemNameMax = 180;
+
+export const listMerchantCasesResponseItemsItemMessagesItemAttachmentsItemSizeMax = 10485760;
+
+export const listMerchantCasesResponseItemsItemRefundEvidenceItemAmountExclusiveMin = 0;
+
+export const listMerchantCasesResponseItemsItemRefundEvidenceItemCurrencyMin = 3;
+export const listMerchantCasesResponseItemsItemRefundEvidenceItemCurrencyMax = 3;
+
+
+
 export const ListMerchantCasesResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().int(),
   "kind": zod.enum(['refund', 'dispute']),
   "transactionReference": zod.string(),
   "status": zod.enum(['requested', 'in_review', 'resolved', 'declined']),
-  "financialMovement": zod.enum(['none', 'requested', 'recorded', 'confirmed']),
+  "financialMovement": zod.enum(['none', 'requested', 'recorded', 'confirmed']).describe('recorded means refund evidence is recorded but customer reimbursement is not yet confirmed; confirmed requires case-linked confirmed refund evidence.'),
   "messages": zod.array(zod.object({
   "id": zod.string(),
   "authorRole": zod.enum(['merchant', 'admin']),
   "message": zod.string(),
   "evidenceUrl": zod.string().nullable(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string().min(1).max(listMerchantCasesResponseItemsItemMessagesItemAttachmentsItemNameMax),
+  "size": zod.number().int().min(1).max(listMerchantCasesResponseItemsItemMessagesItemAttachmentsItemSizeMax),
+  "contentType": zod.enum(['application/pdf', 'image/png', 'image/jpeg']),
+  "createdAt": zod.coerce.date(),
+  "downloadPath": zod.string().describe('Authenticated API path; never a public storage URL.')
+})).nullish().describe('Private evidence metadata only; attachment bytes are available through authenticated download routes.'),
   "createdAt": zod.coerce.date()
 })),
+  "refundEvidence": zod.array(zod.object({
+  "reference": zod.string(),
+  "amount": zod.number().gt(listMerchantCasesResponseItemsItemRefundEvidenceItemAmountExclusiveMin),
+  "currency": zod.string().min(listMerchantCasesResponseItemsItemRefundEvidenceItemCurrencyMin).max(listMerchantCasesResponseItemsItemRefundEvidenceItemCurrencyMax),
+  "status": zod.string().describe('Source refund row status; a case movement of recorded remains distinct from confirmed customer reimbursement.'),
+  "providerReference": zod.string(),
+  "evidenceReference": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "downloadPath": zod.string().nullable()
+})).describe('Case-linked refund source records exposing their specific provider and evidence references.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }))
@@ -1829,31 +2511,65 @@ export const createMerchantCaseBodyOneMessageMax = 4000;
 
 export const createMerchantCaseBodyOneEvidenceUrlMax = 2000;
 
+export const createMerchantCaseBodyOneAttachmentUploadTokensItemMax = 128;
+
+export const createMerchantCaseBodyOneAttachmentUploadTokensMax = 5;
+
 export const createMerchantCaseBodyTwoTransactionReferenceMax = 100;
 
 
 
 export const CreateMerchantCaseBody = zod.object({
   "message": zod.string().min(1).max(createMerchantCaseBodyOneMessageMax),
-  "evidenceUrl": zod.string().url().max(createMerchantCaseBodyOneEvidenceUrlMax).optional()
+  "evidenceUrl": zod.string().url().max(createMerchantCaseBodyOneEvidenceUrlMax).optional(),
+  "attachmentUploadTokens": zod.array(zod.string().min(1).max(createMerchantCaseBodyOneAttachmentUploadTokensItemMax)).max(createMerchantCaseBodyOneAttachmentUploadTokensMax).optional()
 }).and(zod.object({
   "kind": zod.enum(['refund', 'dispute']),
   "transactionReference": zod.string().min(1).max(createMerchantCaseBodyTwoTransactionReferenceMax)
 }))
+
+export const createMerchantCaseResponseMessagesItemAttachmentsItemNameMax = 180;
+
+export const createMerchantCaseResponseMessagesItemAttachmentsItemSizeMax = 10485760;
+
+export const createMerchantCaseResponseRefundEvidenceItemAmountExclusiveMin = 0;
+
+export const createMerchantCaseResponseRefundEvidenceItemCurrencyMin = 3;
+export const createMerchantCaseResponseRefundEvidenceItemCurrencyMax = 3;
+
+
 
 export const CreateMerchantCaseResponse = zod.object({
   "id": zod.number().int(),
   "kind": zod.enum(['refund', 'dispute']),
   "transactionReference": zod.string(),
   "status": zod.enum(['requested', 'in_review', 'resolved', 'declined']),
-  "financialMovement": zod.enum(['none', 'requested', 'recorded', 'confirmed']),
+  "financialMovement": zod.enum(['none', 'requested', 'recorded', 'confirmed']).describe('recorded means refund evidence is recorded but customer reimbursement is not yet confirmed; confirmed requires case-linked confirmed refund evidence.'),
   "messages": zod.array(zod.object({
   "id": zod.string(),
   "authorRole": zod.enum(['merchant', 'admin']),
   "message": zod.string(),
   "evidenceUrl": zod.string().nullable(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string().min(1).max(createMerchantCaseResponseMessagesItemAttachmentsItemNameMax),
+  "size": zod.number().int().min(1).max(createMerchantCaseResponseMessagesItemAttachmentsItemSizeMax),
+  "contentType": zod.enum(['application/pdf', 'image/png', 'image/jpeg']),
+  "createdAt": zod.coerce.date(),
+  "downloadPath": zod.string().describe('Authenticated API path; never a public storage URL.')
+})).nullish().describe('Private evidence metadata only; attachment bytes are available through authenticated download routes.'),
   "createdAt": zod.coerce.date()
 })),
+  "refundEvidence": zod.array(zod.object({
+  "reference": zod.string(),
+  "amount": zod.number().gt(createMerchantCaseResponseRefundEvidenceItemAmountExclusiveMin),
+  "currency": zod.string().min(createMerchantCaseResponseRefundEvidenceItemCurrencyMin).max(createMerchantCaseResponseRefundEvidenceItemCurrencyMax),
+  "status": zod.string().describe('Source refund row status; a case movement of recorded remains distinct from confirmed customer reimbursement.'),
+  "providerReference": zod.string(),
+  "evidenceReference": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "downloadPath": zod.string().nullable()
+})).describe('Case-linked refund source records exposing their specific provider and evidence references.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1866,19 +2582,48 @@ export const GetMerchantCaseParams = zod.object({
   "id": zod.coerce.number().int()
 })
 
+export const getMerchantCaseResponseMessagesItemAttachmentsItemNameMax = 180;
+
+export const getMerchantCaseResponseMessagesItemAttachmentsItemSizeMax = 10485760;
+
+export const getMerchantCaseResponseRefundEvidenceItemAmountExclusiveMin = 0;
+
+export const getMerchantCaseResponseRefundEvidenceItemCurrencyMin = 3;
+export const getMerchantCaseResponseRefundEvidenceItemCurrencyMax = 3;
+
+
+
 export const GetMerchantCaseResponse = zod.object({
   "id": zod.number().int(),
   "kind": zod.enum(['refund', 'dispute']),
   "transactionReference": zod.string(),
   "status": zod.enum(['requested', 'in_review', 'resolved', 'declined']),
-  "financialMovement": zod.enum(['none', 'requested', 'recorded', 'confirmed']),
+  "financialMovement": zod.enum(['none', 'requested', 'recorded', 'confirmed']).describe('recorded means refund evidence is recorded but customer reimbursement is not yet confirmed; confirmed requires case-linked confirmed refund evidence.'),
   "messages": zod.array(zod.object({
   "id": zod.string(),
   "authorRole": zod.enum(['merchant', 'admin']),
   "message": zod.string(),
   "evidenceUrl": zod.string().nullable(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string().min(1).max(getMerchantCaseResponseMessagesItemAttachmentsItemNameMax),
+  "size": zod.number().int().min(1).max(getMerchantCaseResponseMessagesItemAttachmentsItemSizeMax),
+  "contentType": zod.enum(['application/pdf', 'image/png', 'image/jpeg']),
+  "createdAt": zod.coerce.date(),
+  "downloadPath": zod.string().describe('Authenticated API path; never a public storage URL.')
+})).nullish().describe('Private evidence metadata only; attachment bytes are available through authenticated download routes.'),
   "createdAt": zod.coerce.date()
 })),
+  "refundEvidence": zod.array(zod.object({
+  "reference": zod.string(),
+  "amount": zod.number().gt(getMerchantCaseResponseRefundEvidenceItemAmountExclusiveMin),
+  "currency": zod.string().min(getMerchantCaseResponseRefundEvidenceItemCurrencyMin).max(getMerchantCaseResponseRefundEvidenceItemCurrencyMax),
+  "status": zod.string().describe('Source refund row status; a case movement of recorded remains distinct from confirmed customer reimbursement.'),
+  "providerReference": zod.string(),
+  "evidenceReference": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "downloadPath": zod.string().nullable()
+})).describe('Case-linked refund source records exposing their specific provider and evidence references.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1895,48 +2640,157 @@ export const addMerchantCaseMessageBodyMessageMax = 4000;
 
 export const addMerchantCaseMessageBodyEvidenceUrlMax = 2000;
 
+export const addMerchantCaseMessageBodyAttachmentUploadTokensItemMax = 128;
+
+export const addMerchantCaseMessageBodyAttachmentUploadTokensMax = 5;
+
 
 
 export const AddMerchantCaseMessageBody = zod.object({
   "message": zod.string().min(1).max(addMerchantCaseMessageBodyMessageMax),
-  "evidenceUrl": zod.string().url().max(addMerchantCaseMessageBodyEvidenceUrlMax).optional()
+  "evidenceUrl": zod.string().url().max(addMerchantCaseMessageBodyEvidenceUrlMax).optional(),
+  "attachmentUploadTokens": zod.array(zod.string().min(1).max(addMerchantCaseMessageBodyAttachmentUploadTokensItemMax)).max(addMerchantCaseMessageBodyAttachmentUploadTokensMax).optional()
 })
+
+export const addMerchantCaseMessageResponseMessagesItemAttachmentsItemNameMax = 180;
+
+export const addMerchantCaseMessageResponseMessagesItemAttachmentsItemSizeMax = 10485760;
+
+export const addMerchantCaseMessageResponseRefundEvidenceItemAmountExclusiveMin = 0;
+
+export const addMerchantCaseMessageResponseRefundEvidenceItemCurrencyMin = 3;
+export const addMerchantCaseMessageResponseRefundEvidenceItemCurrencyMax = 3;
+
+
 
 export const AddMerchantCaseMessageResponse = zod.object({
   "id": zod.number().int(),
   "kind": zod.enum(['refund', 'dispute']),
   "transactionReference": zod.string(),
   "status": zod.enum(['requested', 'in_review', 'resolved', 'declined']),
-  "financialMovement": zod.enum(['none', 'requested', 'recorded', 'confirmed']),
+  "financialMovement": zod.enum(['none', 'requested', 'recorded', 'confirmed']).describe('recorded means refund evidence is recorded but customer reimbursement is not yet confirmed; confirmed requires case-linked confirmed refund evidence.'),
   "messages": zod.array(zod.object({
   "id": zod.string(),
   "authorRole": zod.enum(['merchant', 'admin']),
   "message": zod.string(),
   "evidenceUrl": zod.string().nullable(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string().min(1).max(addMerchantCaseMessageResponseMessagesItemAttachmentsItemNameMax),
+  "size": zod.number().int().min(1).max(addMerchantCaseMessageResponseMessagesItemAttachmentsItemSizeMax),
+  "contentType": zod.enum(['application/pdf', 'image/png', 'image/jpeg']),
+  "createdAt": zod.coerce.date(),
+  "downloadPath": zod.string().describe('Authenticated API path; never a public storage URL.')
+})).nullish().describe('Private evidence metadata only; attachment bytes are available through authenticated download routes.'),
   "createdAt": zod.coerce.date()
 })),
+  "refundEvidence": zod.array(zod.object({
+  "reference": zod.string(),
+  "amount": zod.number().gt(addMerchantCaseMessageResponseRefundEvidenceItemAmountExclusiveMin),
+  "currency": zod.string().min(addMerchantCaseMessageResponseRefundEvidenceItemCurrencyMin).max(addMerchantCaseMessageResponseRefundEvidenceItemCurrencyMax),
+  "status": zod.string().describe('Source refund row status; a case movement of recorded remains distinct from confirmed customer reimbursement.'),
+  "providerReference": zod.string(),
+  "evidenceReference": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "downloadPath": zod.string().nullable()
+})).describe('Case-linked refund source records exposing their specific provider and evidence references.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
 
 
 /**
+ * @summary Create a short-lived private App Storage upload intent for case evidence
+ */
+
+
+
+export const CreateMerchantCaseAttachmentUploadIntentParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const createMerchantCaseAttachmentUploadIntentBodyNameMax = 180;
+
+export const createMerchantCaseAttachmentUploadIntentBodySizeMax = 10485760;
+
+
+
+export const CreateMerchantCaseAttachmentUploadIntentBody = zod.object({
+  "name": zod.string().min(1).max(createMerchantCaseAttachmentUploadIntentBodyNameMax),
+  "size": zod.number().int().min(1).max(createMerchantCaseAttachmentUploadIntentBodySizeMax),
+  "contentType": zod.enum(['application/pdf', 'image/png', 'image/jpeg'])
+})
+
+export const CreateMerchantCaseAttachmentUploadIntentResponse = zod.object({
+  "uploadURL": zod.string().url().describe('Short-lived signed upload URL.'),
+  "objectPath": zod.string().describe('Private opaque App Storage path; never a public URL.'),
+  "uploadToken": zod.string(),
+  "expiresAt": zod.coerce.date()
+})
+
+
+/**
+ * Authenticated case-owner download only. Returns PDF, PNG, or JPEG attachment bytes with attachment disposition and nosniff headers; never exposes a public object URL.
+ * @summary Download private case evidence after ownership verification
+ */
+
+
+
+
+export const DownloadMerchantCaseAttachmentParams = zod.object({
+  "id": zod.coerce.number().int().min(1),
+  "attachmentId": zod.coerce.number().int().min(1)
+})
+
+export const DownloadMerchantCaseAttachmentResponse = zod.unknown()
+
+
+/**
  * @summary Review merchant refund and dispute cases
  */
+export const listAdminCasesResponseItemsItemMessagesItemAttachmentsItemNameMax = 180;
+
+export const listAdminCasesResponseItemsItemMessagesItemAttachmentsItemSizeMax = 10485760;
+
+export const listAdminCasesResponseItemsItemRefundEvidenceItemAmountExclusiveMin = 0;
+
+export const listAdminCasesResponseItemsItemRefundEvidenceItemCurrencyMin = 3;
+export const listAdminCasesResponseItemsItemRefundEvidenceItemCurrencyMax = 3;
+
+
+
 export const ListAdminCasesResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().int(),
   "kind": zod.enum(['refund', 'dispute']),
   "transactionReference": zod.string(),
   "status": zod.enum(['requested', 'in_review', 'resolved', 'declined']),
-  "financialMovement": zod.enum(['none', 'requested', 'recorded', 'confirmed']),
+  "financialMovement": zod.enum(['none', 'requested', 'recorded', 'confirmed']).describe('recorded means refund evidence is recorded but customer reimbursement is not yet confirmed; confirmed requires case-linked confirmed refund evidence.'),
   "messages": zod.array(zod.object({
   "id": zod.string(),
   "authorRole": zod.enum(['merchant', 'admin']),
   "message": zod.string(),
   "evidenceUrl": zod.string().nullable(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string().min(1).max(listAdminCasesResponseItemsItemMessagesItemAttachmentsItemNameMax),
+  "size": zod.number().int().min(1).max(listAdminCasesResponseItemsItemMessagesItemAttachmentsItemSizeMax),
+  "contentType": zod.enum(['application/pdf', 'image/png', 'image/jpeg']),
+  "createdAt": zod.coerce.date(),
+  "downloadPath": zod.string().describe('Authenticated API path; never a public storage URL.')
+})).nullish().describe('Private evidence metadata only; attachment bytes are available through authenticated download routes.'),
   "createdAt": zod.coerce.date()
 })),
+  "refundEvidence": zod.array(zod.object({
+  "reference": zod.string(),
+  "amount": zod.number().gt(listAdminCasesResponseItemsItemRefundEvidenceItemAmountExclusiveMin),
+  "currency": zod.string().min(listAdminCasesResponseItemsItemRefundEvidenceItemCurrencyMin).max(listAdminCasesResponseItemsItemRefundEvidenceItemCurrencyMax),
+  "status": zod.string().describe('Source refund row status; a case movement of recorded remains distinct from confirmed customer reimbursement.'),
+  "providerReference": zod.string(),
+  "evidenceReference": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "downloadPath": zod.string().nullable()
+})).describe('Case-linked refund source records exposing their specific provider and evidence references.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }))
@@ -1958,26 +2812,164 @@ export const reviewAdminCaseBodyEvidenceUrlMax = 2000;
 
 export const ReviewAdminCaseBody = zod.object({
   "status": zod.enum(['in_review', 'resolved', 'declined']),
-  "financialMovement": zod.enum(['none', 'requested', 'recorded', 'confirmed']).optional(),
+  "financialMovement": zod.enum(['none', 'requested', 'recorded', 'confirmed']).optional().describe('recorded means evidence is recorded but customer reimbursement is not yet confirmed; administrative status changes alone cannot confirm money movement.'),
   "message": zod.string().min(1).max(reviewAdminCaseBodyMessageMax),
   "evidenceUrl": zod.string().url().max(reviewAdminCaseBodyEvidenceUrlMax).optional()
 })
+
+export const reviewAdminCaseResponseMessagesItemAttachmentsItemNameMax = 180;
+
+export const reviewAdminCaseResponseMessagesItemAttachmentsItemSizeMax = 10485760;
+
+export const reviewAdminCaseResponseRefundEvidenceItemAmountExclusiveMin = 0;
+
+export const reviewAdminCaseResponseRefundEvidenceItemCurrencyMin = 3;
+export const reviewAdminCaseResponseRefundEvidenceItemCurrencyMax = 3;
+
+
 
 export const ReviewAdminCaseResponse = zod.object({
   "id": zod.number().int(),
   "kind": zod.enum(['refund', 'dispute']),
   "transactionReference": zod.string(),
   "status": zod.enum(['requested', 'in_review', 'resolved', 'declined']),
-  "financialMovement": zod.enum(['none', 'requested', 'recorded', 'confirmed']),
+  "financialMovement": zod.enum(['none', 'requested', 'recorded', 'confirmed']).describe('recorded means refund evidence is recorded but customer reimbursement is not yet confirmed; confirmed requires case-linked confirmed refund evidence.'),
   "messages": zod.array(zod.object({
   "id": zod.string(),
   "authorRole": zod.enum(['merchant', 'admin']),
   "message": zod.string(),
   "evidenceUrl": zod.string().nullable(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string().min(1).max(reviewAdminCaseResponseMessagesItemAttachmentsItemNameMax),
+  "size": zod.number().int().min(1).max(reviewAdminCaseResponseMessagesItemAttachmentsItemSizeMax),
+  "contentType": zod.enum(['application/pdf', 'image/png', 'image/jpeg']),
+  "createdAt": zod.coerce.date(),
+  "downloadPath": zod.string().describe('Authenticated API path; never a public storage URL.')
+})).nullish().describe('Private evidence metadata only; attachment bytes are available through authenticated download routes.'),
   "createdAt": zod.coerce.date()
 })),
+  "refundEvidence": zod.array(zod.object({
+  "reference": zod.string(),
+  "amount": zod.number().gt(reviewAdminCaseResponseRefundEvidenceItemAmountExclusiveMin),
+  "currency": zod.string().min(reviewAdminCaseResponseRefundEvidenceItemCurrencyMin).max(reviewAdminCaseResponseRefundEvidenceItemCurrencyMax),
+  "status": zod.string().describe('Source refund row status; a case movement of recorded remains distinct from confirmed customer reimbursement.'),
+  "providerReference": zod.string(),
+  "evidenceReference": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "downloadPath": zod.string().nullable()
+})).describe('Case-linked refund source records exposing their specific provider and evidence references.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Authenticated administrator download only. Returns PDF, PNG, or JPEG attachment bytes with attachment disposition and nosniff headers; never exposes a public object URL.
+ * @summary Download private case evidence for administrator review
+ */
+
+
+
+
+export const DownloadAdminCaseAttachmentParams = zod.object({
+  "id": zod.coerce.number().int().min(1),
+  "attachmentId": zod.coerce.number().int().min(1)
+})
+
+export const DownloadAdminCaseAttachmentResponse = zod.unknown()
+
+
+/**
+ * Financial movement is confirmed only after a matching confirmed customer-reimbursed refund is linked to this specific case.
+ * @summary Record manually verified customer refund evidence without calling a provider
+ */
+
+
+
+export const RecordAdminCaseRefundParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const recordAdminCaseRefundBodyAmountExclusiveMin = 0;
+
+export const recordAdminCaseRefundBodyProviderReferenceMax = 200;
+
+export const recordAdminCaseRefundBodyIdempotencyKeyMax = 128;
+
+export const recordAdminCaseRefundBodyEvidenceReferenceMax = 200;
+
+export const recordAdminCaseRefundBodyNoteMax = 4000;
+
+
+
+export const RecordAdminCaseRefundBody = zod.object({
+  "amount": zod.number().gt(recordAdminCaseRefundBodyAmountExclusiveMin),
+  "providerReference": zod.string().min(1).max(recordAdminCaseRefundBodyProviderReferenceMax),
+  "idempotencyKey": zod.string().min(1).max(recordAdminCaseRefundBodyIdempotencyKeyMax),
+  "evidenceReference": zod.string().min(1).max(recordAdminCaseRefundBodyEvidenceReferenceMax),
+  "note": zod.string().min(1).max(recordAdminCaseRefundBodyNoteMax)
+})
+
+export const recordAdminCaseRefundResponseCaseMessagesItemAttachmentsItemNameMax = 180;
+
+export const recordAdminCaseRefundResponseCaseMessagesItemAttachmentsItemSizeMax = 10485760;
+
+export const recordAdminCaseRefundResponseCaseRefundEvidenceItemAmountExclusiveMin = 0;
+
+export const recordAdminCaseRefundResponseCaseRefundEvidenceItemCurrencyMin = 3;
+export const recordAdminCaseRefundResponseCaseRefundEvidenceItemCurrencyMax = 3;
+
+export const recordAdminCaseRefundResponseAmountExclusiveMin = 0;
+
+export const recordAdminCaseRefundResponseCurrencyMin = 3;
+export const recordAdminCaseRefundResponseCurrencyMax = 3;
+
+
+
+export const RecordAdminCaseRefundResponse = zod.object({
+  "case": zod.object({
+  "id": zod.number().int(),
+  "kind": zod.enum(['refund', 'dispute']),
+  "transactionReference": zod.string(),
+  "status": zod.enum(['requested', 'in_review', 'resolved', 'declined']),
+  "financialMovement": zod.enum(['none', 'requested', 'recorded', 'confirmed']).describe('recorded means refund evidence is recorded but customer reimbursement is not yet confirmed; confirmed requires case-linked confirmed refund evidence.'),
+  "messages": zod.array(zod.object({
+  "id": zod.string(),
+  "authorRole": zod.enum(['merchant', 'admin']),
+  "message": zod.string(),
+  "evidenceUrl": zod.string().nullable(),
+  "attachments": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string().min(1).max(recordAdminCaseRefundResponseCaseMessagesItemAttachmentsItemNameMax),
+  "size": zod.number().int().min(1).max(recordAdminCaseRefundResponseCaseMessagesItemAttachmentsItemSizeMax),
+  "contentType": zod.enum(['application/pdf', 'image/png', 'image/jpeg']),
+  "createdAt": zod.coerce.date(),
+  "downloadPath": zod.string().describe('Authenticated API path; never a public storage URL.')
+})).nullish().describe('Private evidence metadata only; attachment bytes are available through authenticated download routes.'),
+  "createdAt": zod.coerce.date()
+})),
+  "refundEvidence": zod.array(zod.object({
+  "reference": zod.string(),
+  "amount": zod.number().gt(recordAdminCaseRefundResponseCaseRefundEvidenceItemAmountExclusiveMin),
+  "currency": zod.string().min(recordAdminCaseRefundResponseCaseRefundEvidenceItemCurrencyMin).max(recordAdminCaseRefundResponseCaseRefundEvidenceItemCurrencyMax),
+  "status": zod.string().describe('Source refund row status; a case movement of recorded remains distinct from confirmed customer reimbursement.'),
+  "providerReference": zod.string(),
+  "evidenceReference": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "downloadPath": zod.string().nullable()
+})).describe('Case-linked refund source records exposing their specific provider and evidence references.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "refundReference": zod.string(),
+  "amount": zod.number().gt(recordAdminCaseRefundResponseAmountExclusiveMin),
+  "currency": zod.string().min(recordAdminCaseRefundResponseCurrencyMin).max(recordAdminCaseRefundResponseCurrencyMax),
+  "status": zod.enum(['processed']).describe('Source refund row status; here processed is recorded only after an administrator manually verifies completed customer reimbursement.'),
+  "providerReference": zod.string(),
+  "evidenceReference": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "idempotentReplay": zod.boolean().optional()
 })
 
 
@@ -1996,6 +2988,63 @@ export const GetPublicReceiptResponse = zod.object({
   "paidAt": zod.coerce.date(),
   "status": zod.enum(['confirmed', 'refunded'])
 })
+
+
+/**
+ * @summary List published public guides, articles, and FAQs
+ */
+export const ListPublicContentQueryParams = zod.object({
+  "kind": zod.enum(['guide', 'article', 'faq']).optional()
+})
+
+export const listPublicContentResponseItemsItemSlugMax = 120;
+
+
+export const listPublicContentResponseItemsItemSlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+
+
+export const ListPublicContentResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "kind": zod.enum(['guide', 'article', 'faq']),
+  "title": zod.string(),
+  "slug": zod.string().min(1).max(listPublicContentResponseItemsItemSlugMax).regex(listPublicContentResponseItemsItemSlugRegExp),
+  "summary": zod.string(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Read one published public content item
+ */
+export const getPublicContentPathSlugMax = 120;
+
+
+export const getPublicContentPathSlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+
+
+export const GetPublicContentParams = zod.object({
+  "slug": zod.coerce.string().min(1).max(getPublicContentPathSlugMax).regex(getPublicContentPathSlugRegExp)
+})
+
+export const getPublicContentResponseOneSlugMax = 120;
+
+
+export const getPublicContentResponseOneSlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+
+
+export const GetPublicContentResponse = zod.object({
+  "id": zod.number().int(),
+  "kind": zod.enum(['guide', 'article', 'faq']),
+  "title": zod.string(),
+  "slug": zod.string().min(1).max(getPublicContentResponseOneSlugMax).regex(getPublicContentResponseOneSlugRegExp),
+  "summary": zod.string(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "body": zod.string(),
+  "publishedAt": zod.coerce.date()
+}))
 
 
 /**
@@ -2179,6 +3228,29 @@ export const CreateMerchantProfileResponse = zod.object({
   "apiAccessEnabled": zod.boolean().optional(),
   "createdAt": zod.coerce.date()
 })
+})
+
+
+/**
+ * The merchant is resolved from the signed-in session. Disabled actions do not restrict read or history access.
+ * @summary Read the current merchant's action capabilities and signed-in member role
+ */
+export const GetMerchantActionControlsResponse = zod.object({
+  "merchantId": zod.number().int(),
+  "controls": zod.object({
+  "collect": zod.boolean(),
+  "createLinks": zod.boolean(),
+  "refundRequests": zod.boolean(),
+  "disputeRequests": zod.boolean(),
+  "invoices": zod.boolean(),
+  "reminders": zod.boolean(),
+  "payoutRequests": zod.boolean(),
+  "destinationChanges": zod.boolean(),
+  "walletConversion": zod.boolean(),
+  "teamManagement": zod.boolean(),
+  "apiAccess": zod.boolean()
+}),
+  "role": zod.enum(['owner', 'finance', 'viewer'])
 })
 
 
@@ -2544,8 +3616,8 @@ export const CreateMerchantTeamInvitationResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "expiresAt": zod.coerce.date()
 }),
-  "invitationUrl": zod.string().url(),
-  "delivery": zod.enum(['copy_link_required'])
+  "invitationUrl": zod.string().url().nullish().describe('Present only when the invitation must be copied manually; omitted or null when the invitation was queued for email delivery.'),
+  "delivery": zod.enum(['queued', 'copy_link_required'])
 })
 
 
@@ -3112,6 +4184,241 @@ export const GetAdminSummaryResponse = zod.object({
 
 
 /**
+ * @summary List public content drafts and published items for administrators
+ */
+export const ListAdminContentQueryParams = zod.object({
+  "kind": zod.enum(['guide', 'article', 'faq']).optional(),
+  "status": zod.enum(['draft', 'published']).optional()
+})
+
+export const listAdminContentResponseItemsItemOneSlugMax = 120;
+
+
+export const listAdminContentResponseItemsItemOneSlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+
+
+
+export const ListAdminContentResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "kind": zod.enum(['guide', 'article', 'faq']),
+  "title": zod.string(),
+  "slug": zod.string().min(1).max(listAdminContentResponseItemsItemOneSlugMax).regex(listAdminContentResponseItemsItemOneSlugRegExp),
+  "summary": zod.string(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "body": zod.string(),
+  "status": zod.enum(['draft', 'published']),
+  "createdAt": zod.coerce.date(),
+  "publishedAt": zod.coerce.date().nullable(),
+  "version": zod.number().int().min(1),
+  "updatedBy": zod.string().nullable()
+})))
+})
+
+
+/**
+ * @summary Create a public content draft
+ */
+export const createAdminContentBodyTitleMax = 160;
+
+export const createAdminContentBodySlugMax = 120;
+
+
+export const createAdminContentBodySlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const createAdminContentBodySummaryMax = 300;
+
+export const createAdminContentBodyBodyMax = 30000;
+
+export const createAdminContentBodyStatusDefault = `draft`;
+
+export const CreateAdminContentBody = zod.object({
+  "kind": zod.enum(['guide', 'article', 'faq']),
+  "title": zod.string().min(1).max(createAdminContentBodyTitleMax),
+  "slug": zod.string().min(1).max(createAdminContentBodySlugMax).regex(createAdminContentBodySlugRegExp),
+  "summary": zod.string().min(1).max(createAdminContentBodySummaryMax),
+  "body": zod.string().min(1).max(createAdminContentBodyBodyMax),
+  "status": zod.enum(['draft', 'published']).default(createAdminContentBodyStatusDefault)
+})
+
+export const createAdminContentResponseOneSlugMax = 120;
+
+
+export const createAdminContentResponseOneSlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+
+
+
+export const CreateAdminContentResponse = zod.object({
+  "id": zod.number().int(),
+  "kind": zod.enum(['guide', 'article', 'faq']),
+  "title": zod.string(),
+  "slug": zod.string().min(1).max(createAdminContentResponseOneSlugMax).regex(createAdminContentResponseOneSlugRegExp),
+  "summary": zod.string(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "body": zod.string(),
+  "status": zod.enum(['draft', 'published']),
+  "createdAt": zod.coerce.date(),
+  "publishedAt": zod.coerce.date().nullable(),
+  "version": zod.number().int().min(1),
+  "updatedBy": zod.string().nullable()
+}))
+
+
+/**
+ * @summary Update content and save published copy changes as a draft
+ */
+
+
+
+export const UpdateAdminContentParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const updateAdminContentBodyTitleMax = 160;
+
+export const updateAdminContentBodySlugMax = 120;
+
+
+export const updateAdminContentBodySlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const updateAdminContentBodySummaryMax = 300;
+
+export const updateAdminContentBodyBodyMax = 30000;
+
+
+
+export const UpdateAdminContentBody = zod.object({
+  "kind": zod.enum(['guide', 'article', 'faq']).optional(),
+  "title": zod.string().min(1).max(updateAdminContentBodyTitleMax).optional(),
+  "slug": zod.string().min(1).max(updateAdminContentBodySlugMax).regex(updateAdminContentBodySlugRegExp).optional(),
+  "summary": zod.string().min(1).max(updateAdminContentBodySummaryMax).optional(),
+  "body": zod.string().min(1).max(updateAdminContentBodyBodyMax).optional(),
+  "status": zod.enum(['draft']).optional()
+})
+
+export const updateAdminContentResponseOneSlugMax = 120;
+
+
+export const updateAdminContentResponseOneSlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+
+
+
+export const UpdateAdminContentResponse = zod.object({
+  "id": zod.number().int(),
+  "kind": zod.enum(['guide', 'article', 'faq']),
+  "title": zod.string(),
+  "slug": zod.string().min(1).max(updateAdminContentResponseOneSlugMax).regex(updateAdminContentResponseOneSlugRegExp),
+  "summary": zod.string(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "body": zod.string(),
+  "status": zod.enum(['draft', 'published']),
+  "createdAt": zod.coerce.date(),
+  "publishedAt": zod.coerce.date().nullable(),
+  "version": zod.number().int().min(1),
+  "updatedBy": zod.string().nullable()
+}))
+
+
+/**
+ * @summary Publish the current saved content revision
+ */
+
+
+
+export const PublishAdminContentParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const publishAdminContentResponseOneSlugMax = 120;
+
+
+export const publishAdminContentResponseOneSlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+
+
+
+export const PublishAdminContentResponse = zod.object({
+  "id": zod.number().int(),
+  "kind": zod.enum(['guide', 'article', 'faq']),
+  "title": zod.string(),
+  "slug": zod.string().min(1).max(publishAdminContentResponseOneSlugMax).regex(publishAdminContentResponseOneSlugRegExp),
+  "summary": zod.string(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "body": zod.string(),
+  "status": zod.enum(['draft', 'published']),
+  "createdAt": zod.coerce.date(),
+  "publishedAt": zod.coerce.date().nullable(),
+  "version": zod.number().int().min(1),
+  "updatedBy": zod.string().nullable()
+}))
+
+
+/**
+ * @summary Unpublish content from public reads and crawlable pages
+ */
+
+
+
+export const UnpublishAdminContentParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const unpublishAdminContentResponseOneSlugMax = 120;
+
+
+export const unpublishAdminContentResponseOneSlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+
+
+
+export const UnpublishAdminContentResponse = zod.object({
+  "id": zod.number().int(),
+  "kind": zod.enum(['guide', 'article', 'faq']),
+  "title": zod.string(),
+  "slug": zod.string().min(1).max(unpublishAdminContentResponseOneSlugMax).regex(unpublishAdminContentResponseOneSlugRegExp),
+  "summary": zod.string(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "body": zod.string(),
+  "status": zod.enum(['draft', 'published']),
+  "createdAt": zod.coerce.date(),
+  "publishedAt": zod.coerce.date().nullable(),
+  "version": zod.number().int().min(1),
+  "updatedBy": zod.string().nullable()
+}))
+
+
+/**
+ * @summary List the immutable version history of one content record
+ */
+
+
+
+export const ListAdminContentVersionsParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+
+
+
+export const ListAdminContentVersionsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "contentId": zod.number().int(),
+  "version": zod.number().int().min(1),
+  "kind": zod.enum(['guide', 'article', 'faq']),
+  "title": zod.string(),
+  "slug": zod.string(),
+  "summary": zod.string(),
+  "body": zod.string(),
+  "status": zod.enum(['draft', 'published']),
+  "createdAt": zod.coerce.date(),
+  "createdBy": zod.string().nullable()
+}))
+})
+
+
+/**
  * @summary Search and filter all merchant accounts
  */
 export const ListAdminMerchantsQueryParams = zod.object({
@@ -3188,6 +4495,239 @@ export const UpdateAdminMerchantResponse = zod.object({
   "riskNote": zod.string().nullish(),
   "diditSessionId": zod.string().nullish()
 }))
+
+
+/**
+ * @summary Read a merchant's action controls, payout safety settings, usage, and limits
+ */
+
+
+
+export const GetAdminMerchantActionControlsParams = zod.object({
+  "merchantId": zod.coerce.number().int().min(1)
+})
+
+export const getAdminMerchantActionControlsResponsePayoutSafetyLargePayoutThresholdsExclusiveMinOne = 0;
+
+export const getAdminMerchantActionControlsResponseUsageItemsItemCurrencyMin = 3;
+export const getAdminMerchantActionControlsResponseUsageItemsItemCurrencyMax = 3;
+
+export const getAdminMerchantActionControlsResponseUsageItemsItemConfirmedCollectionPerTransactionMin = 0;
+
+export const getAdminMerchantActionControlsResponseUsageItemsItemConfirmedCollectionDailyMin = 0;
+
+export const getAdminMerchantActionControlsResponseUsageItemsItemConfirmedCollectionMonthlyMin = 0;
+
+export const getAdminMerchantActionControlsResponseUsageItemsItemCommittedPayoutMin = 0;
+
+export const getAdminMerchantActionControlsResponseUsageItemsItemCommittedConversionMin = 0;
+
+export const getAdminMerchantActionControlsResponseLimitsItemsItemCurrencyMin = 3;
+export const getAdminMerchantActionControlsResponseLimitsItemsItemCurrencyMax = 3;
+
+export const getAdminMerchantActionControlsResponseLimitsItemsItemCollectionPerTransactionLimitMin = 0;
+
+export const getAdminMerchantActionControlsResponseLimitsItemsItemCollectionDailyLimitMin = 0;
+
+export const getAdminMerchantActionControlsResponseLimitsItemsItemCollectionMonthlyLimitMin = 0;
+
+export const getAdminMerchantActionControlsResponseLimitsItemsItemPayoutLimitMin = 0;
+
+export const getAdminMerchantActionControlsResponseLimitsItemsItemConversionLimitMin = 0;
+
+
+
+export const GetAdminMerchantActionControlsResponse = zod.object({
+  "merchantId": zod.number().int(),
+  "businessName": zod.string(),
+  "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "controls": zod.object({
+  "collect": zod.boolean(),
+  "createLinks": zod.boolean(),
+  "refundRequests": zod.boolean(),
+  "disputeRequests": zod.boolean(),
+  "invoices": zod.boolean(),
+  "reminders": zod.boolean(),
+  "payoutRequests": zod.boolean(),
+  "destinationChanges": zod.boolean(),
+  "walletConversion": zod.boolean(),
+  "teamManagement": zod.boolean(),
+  "apiAccess": zod.boolean()
+}),
+  "payoutSafety": zod.object({
+  "largePayoutThresholds": zod.record(zod.string(), zod.number().gt(getAdminMerchantActionControlsResponsePayoutSafetyLargePayoutThresholdsExclusiveMinOne)).describe('Explicit positive thresholds keyed by ISO currency code. A missing currency threshold requires manual review; no default is implied.'),
+  "destinationChangeRequiresDualApproval": zod.literal(true),
+  "dualApprovalEnabled": zod.boolean()
+}),
+  "usage": zod.object({
+  "items": zod.array(zod.object({
+  "tier": zod.enum(['unverified', 'kyc', 'kyb']),
+  "currency": zod.string().min(getAdminMerchantActionControlsResponseUsageItemsItemCurrencyMin).max(getAdminMerchantActionControlsResponseUsageItemsItemCurrencyMax),
+  "confirmedCollectionPerTransaction": zod.number().min(getAdminMerchantActionControlsResponseUsageItemsItemConfirmedCollectionPerTransactionMin).describe('Confirmed or committed collection usage only; pending and uncertain amounts are excluded.'),
+  "confirmedCollectionDaily": zod.number().min(getAdminMerchantActionControlsResponseUsageItemsItemConfirmedCollectionDailyMin).describe('Confirmed or committed collection usage only; pending and uncertain amounts are excluded.'),
+  "confirmedCollectionMonthly": zod.number().min(getAdminMerchantActionControlsResponseUsageItemsItemConfirmedCollectionMonthlyMin).describe('Confirmed or committed collection usage only; pending and uncertain amounts are excluded.'),
+  "committedPayout": zod.number().min(getAdminMerchantActionControlsResponseUsageItemsItemCommittedPayoutMin).describe('Confirmed or committed payout usage only; pending and uncertain amounts are excluded.'),
+  "committedConversion": zod.number().min(getAdminMerchantActionControlsResponseUsageItemsItemCommittedConversionMin).describe('Confirmed or committed conversion usage only; pending and uncertain amounts are excluded.')
+}))
+}),
+  "limits": zod.object({
+  "items": zod.array(zod.object({
+  "tier": zod.enum(['unverified', 'kyc', 'kyb']),
+  "currency": zod.string().min(getAdminMerchantActionControlsResponseLimitsItemsItemCurrencyMin).max(getAdminMerchantActionControlsResponseLimitsItemsItemCurrencyMax),
+  "collectionPerTransactionLimit": zod.number().min(getAdminMerchantActionControlsResponseLimitsItemsItemCollectionPerTransactionLimitMin).nullable(),
+  "collectionDailyLimit": zod.number().min(getAdminMerchantActionControlsResponseLimitsItemsItemCollectionDailyLimitMin).nullable(),
+  "collectionMonthlyLimit": zod.number().min(getAdminMerchantActionControlsResponseLimitsItemsItemCollectionMonthlyLimitMin).nullable(),
+  "payoutLimit": zod.number().min(getAdminMerchantActionControlsResponseLimitsItemsItemPayoutLimitMin).nullable(),
+  "conversionLimit": zod.number().min(getAdminMerchantActionControlsResponseLimitsItemsItemConversionLimitMin).nullable(),
+  "updatedAt": zod.coerce.date()
+}))
+}),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update reversible per-merchant action and payout safety controls
+ */
+
+
+
+export const UpdateAdminMerchantActionControlsParams = zod.object({
+  "merchantId": zod.coerce.number().int().min(1)
+})
+
+export const updateAdminMerchantActionControlsBodyPayoutSafetyLargePayoutThresholdsExclusiveMinOne = 0;
+
+export const updateAdminMerchantActionControlsBodyReasonMax = 2000;
+
+
+
+export const UpdateAdminMerchantActionControlsBody = zod.object({
+  "controls": zod.object({
+  "collect": zod.boolean().optional(),
+  "createLinks": zod.boolean().optional(),
+  "refundRequests": zod.boolean().optional(),
+  "disputeRequests": zod.boolean().optional(),
+  "invoices": zod.boolean().optional(),
+  "reminders": zod.boolean().optional(),
+  "payoutRequests": zod.boolean().optional(),
+  "destinationChanges": zod.boolean().optional(),
+  "walletConversion": zod.boolean().optional(),
+  "teamManagement": zod.boolean().optional(),
+  "apiAccess": zod.boolean().optional()
+}).optional(),
+  "payoutSafety": zod.object({
+  "largePayoutThresholds": zod.record(zod.string(), zod.number().gt(updateAdminMerchantActionControlsBodyPayoutSafetyLargePayoutThresholdsExclusiveMinOne)).describe('Explicit positive thresholds keyed by ISO currency code. A missing currency threshold requires manual review; no default is implied.'),
+  "destinationChangeRequiresDualApproval": zod.literal(true),
+  "dualApprovalEnabled": zod.boolean()
+}).optional(),
+  "reason": zod.string().min(1).max(updateAdminMerchantActionControlsBodyReasonMax)
+})
+
+export const updateAdminMerchantActionControlsResponsePayoutSafetyLargePayoutThresholdsExclusiveMinOne = 0;
+
+export const updateAdminMerchantActionControlsResponseUsageItemsItemCurrencyMin = 3;
+export const updateAdminMerchantActionControlsResponseUsageItemsItemCurrencyMax = 3;
+
+export const updateAdminMerchantActionControlsResponseUsageItemsItemConfirmedCollectionPerTransactionMin = 0;
+
+export const updateAdminMerchantActionControlsResponseUsageItemsItemConfirmedCollectionDailyMin = 0;
+
+export const updateAdminMerchantActionControlsResponseUsageItemsItemConfirmedCollectionMonthlyMin = 0;
+
+export const updateAdminMerchantActionControlsResponseUsageItemsItemCommittedPayoutMin = 0;
+
+export const updateAdminMerchantActionControlsResponseUsageItemsItemCommittedConversionMin = 0;
+
+export const updateAdminMerchantActionControlsResponseLimitsItemsItemCurrencyMin = 3;
+export const updateAdminMerchantActionControlsResponseLimitsItemsItemCurrencyMax = 3;
+
+export const updateAdminMerchantActionControlsResponseLimitsItemsItemCollectionPerTransactionLimitMin = 0;
+
+export const updateAdminMerchantActionControlsResponseLimitsItemsItemCollectionDailyLimitMin = 0;
+
+export const updateAdminMerchantActionControlsResponseLimitsItemsItemCollectionMonthlyLimitMin = 0;
+
+export const updateAdminMerchantActionControlsResponseLimitsItemsItemPayoutLimitMin = 0;
+
+export const updateAdminMerchantActionControlsResponseLimitsItemsItemConversionLimitMin = 0;
+
+
+
+export const UpdateAdminMerchantActionControlsResponse = zod.object({
+  "merchantId": zod.number().int(),
+  "businessName": zod.string(),
+  "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "controls": zod.object({
+  "collect": zod.boolean(),
+  "createLinks": zod.boolean(),
+  "refundRequests": zod.boolean(),
+  "disputeRequests": zod.boolean(),
+  "invoices": zod.boolean(),
+  "reminders": zod.boolean(),
+  "payoutRequests": zod.boolean(),
+  "destinationChanges": zod.boolean(),
+  "walletConversion": zod.boolean(),
+  "teamManagement": zod.boolean(),
+  "apiAccess": zod.boolean()
+}),
+  "payoutSafety": zod.object({
+  "largePayoutThresholds": zod.record(zod.string(), zod.number().gt(updateAdminMerchantActionControlsResponsePayoutSafetyLargePayoutThresholdsExclusiveMinOne)).describe('Explicit positive thresholds keyed by ISO currency code. A missing currency threshold requires manual review; no default is implied.'),
+  "destinationChangeRequiresDualApproval": zod.literal(true),
+  "dualApprovalEnabled": zod.boolean()
+}),
+  "usage": zod.object({
+  "items": zod.array(zod.object({
+  "tier": zod.enum(['unverified', 'kyc', 'kyb']),
+  "currency": zod.string().min(updateAdminMerchantActionControlsResponseUsageItemsItemCurrencyMin).max(updateAdminMerchantActionControlsResponseUsageItemsItemCurrencyMax),
+  "confirmedCollectionPerTransaction": zod.number().min(updateAdminMerchantActionControlsResponseUsageItemsItemConfirmedCollectionPerTransactionMin).describe('Confirmed or committed collection usage only; pending and uncertain amounts are excluded.'),
+  "confirmedCollectionDaily": zod.number().min(updateAdminMerchantActionControlsResponseUsageItemsItemConfirmedCollectionDailyMin).describe('Confirmed or committed collection usage only; pending and uncertain amounts are excluded.'),
+  "confirmedCollectionMonthly": zod.number().min(updateAdminMerchantActionControlsResponseUsageItemsItemConfirmedCollectionMonthlyMin).describe('Confirmed or committed collection usage only; pending and uncertain amounts are excluded.'),
+  "committedPayout": zod.number().min(updateAdminMerchantActionControlsResponseUsageItemsItemCommittedPayoutMin).describe('Confirmed or committed payout usage only; pending and uncertain amounts are excluded.'),
+  "committedConversion": zod.number().min(updateAdminMerchantActionControlsResponseUsageItemsItemCommittedConversionMin).describe('Confirmed or committed conversion usage only; pending and uncertain amounts are excluded.')
+}))
+}),
+  "limits": zod.object({
+  "items": zod.array(zod.object({
+  "tier": zod.enum(['unverified', 'kyc', 'kyb']),
+  "currency": zod.string().min(updateAdminMerchantActionControlsResponseLimitsItemsItemCurrencyMin).max(updateAdminMerchantActionControlsResponseLimitsItemsItemCurrencyMax),
+  "collectionPerTransactionLimit": zod.number().min(updateAdminMerchantActionControlsResponseLimitsItemsItemCollectionPerTransactionLimitMin).nullable(),
+  "collectionDailyLimit": zod.number().min(updateAdminMerchantActionControlsResponseLimitsItemsItemCollectionDailyLimitMin).nullable(),
+  "collectionMonthlyLimit": zod.number().min(updateAdminMerchantActionControlsResponseLimitsItemsItemCollectionMonthlyLimitMin).nullable(),
+  "payoutLimit": zod.number().min(updateAdminMerchantActionControlsResponseLimitsItemsItemPayoutLimitMin).nullable(),
+  "conversionLimit": zod.number().min(updateAdminMerchantActionControlsResponseLimitsItemsItemConversionLimitMin).nullable(),
+  "updatedAt": zod.coerce.date()
+}))
+}),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Activate or suspend a merchant with an audited reason
+ */
+
+
+
+export const SetAdminMerchantStatusParams = zod.object({
+  "merchantId": zod.coerce.number().int().min(1)
+})
+
+export const setAdminMerchantStatusBodyReasonMax = 2000;
+
+
+
+export const SetAdminMerchantStatusBody = zod.object({
+  "status": zod.enum(['active', 'suspended']),
+  "reason": zod.string().min(1).max(setAdminMerchantStatusBodyReasonMax)
+})
+
+export const SetAdminMerchantStatusResponse = zod.object({
+  "merchantId": zod.number().int(),
+  "status": zod.enum(['active', 'suspended']),
+  "reason": zod.string(),
+  "updatedAt": zod.coerce.date()
+})
 
 
 /**
@@ -3513,6 +5053,221 @@ export const UpdateAdminPlatformSettingsResponse = zod.object({
   "contactWhatsapp": zod.string().max(updateAdminPlatformSettingsResponseContactWhatsappMax),
   "logoUrl": zod.string().url().nullish(),
   "faviconUrl": zod.string().url().nullish()
+})
+
+
+/**
+ * Never returns provider credentials or token values.
+ * @summary Read transactional email readiness and durable delivery backlog
+ */
+export const getAdminEmailDeliverySettingsResponseCountsQueuedMin = 0;
+
+export const getAdminEmailDeliverySettingsResponseCountsSendingMin = 0;
+
+export const getAdminEmailDeliverySettingsResponseCountsSentMin = 0;
+
+export const getAdminEmailDeliverySettingsResponseCountsFailedMin = 0;
+
+export const getAdminEmailDeliverySettingsResponseCountsUncertainMin = 0;
+
+export const getAdminEmailDeliverySettingsResponseCountsHeldForReviewMin = 0;
+
+
+
+export const GetAdminEmailDeliverySettingsResponse = zod.object({
+  "provider": zod.enum(['mailtrap']),
+  "enabled": zod.boolean(),
+  "ready": zod.boolean(),
+  "fromEmail": zod.string().email().nullable(),
+  "senderVerified": zod.boolean().describe('Administrator-confirmed verification status for the configured sender.'),
+  "tokenConfigured": zod.boolean().describe('Boolean only; never the provider token.'),
+  "worker": zod.enum(['running', 'stopped', 'degraded']),
+  "counts": zod.object({
+  "queued": zod.number().int().min(getAdminEmailDeliverySettingsResponseCountsQueuedMin),
+  "sending": zod.number().int().min(getAdminEmailDeliverySettingsResponseCountsSendingMin),
+  "sent": zod.number().int().min(getAdminEmailDeliverySettingsResponseCountsSentMin),
+  "failed": zod.number().int().min(getAdminEmailDeliverySettingsResponseCountsFailedMin),
+  "uncertain": zod.number().int().min(getAdminEmailDeliverySettingsResponseCountsUncertainMin),
+  "heldForReview": zod.number().int().min(getAdminEmailDeliverySettingsResponseCountsHeldForReviewMin)
+})
+})
+
+
+/**
+ * A new sender requires an explicit verification confirmation. Credentials remain in server-side secret configuration.
+ * @summary Update verified email sender and delivery enablement
+ */
+export const UpdateAdminEmailDeliverySettingsBody = zod.object({
+  "enabled": zod.boolean().optional(),
+  "fromEmail": zod.string().email().optional(),
+  "senderVerified": zod.literal(true).optional()
+}).describe('senderVerified must be true when configuring a new sender address.')
+
+export const updateAdminEmailDeliverySettingsResponseCountsQueuedMin = 0;
+
+export const updateAdminEmailDeliverySettingsResponseCountsSendingMin = 0;
+
+export const updateAdminEmailDeliverySettingsResponseCountsSentMin = 0;
+
+export const updateAdminEmailDeliverySettingsResponseCountsFailedMin = 0;
+
+export const updateAdminEmailDeliverySettingsResponseCountsUncertainMin = 0;
+
+export const updateAdminEmailDeliverySettingsResponseCountsHeldForReviewMin = 0;
+
+
+
+export const UpdateAdminEmailDeliverySettingsResponse = zod.object({
+  "provider": zod.enum(['mailtrap']),
+  "enabled": zod.boolean(),
+  "ready": zod.boolean(),
+  "fromEmail": zod.string().email().nullable(),
+  "senderVerified": zod.boolean().describe('Administrator-confirmed verification status for the configured sender.'),
+  "tokenConfigured": zod.boolean().describe('Boolean only; never the provider token.'),
+  "worker": zod.enum(['running', 'stopped', 'degraded']),
+  "counts": zod.object({
+  "queued": zod.number().int().min(updateAdminEmailDeliverySettingsResponseCountsQueuedMin),
+  "sending": zod.number().int().min(updateAdminEmailDeliverySettingsResponseCountsSendingMin),
+  "sent": zod.number().int().min(updateAdminEmailDeliverySettingsResponseCountsSentMin),
+  "failed": zod.number().int().min(updateAdminEmailDeliverySettingsResponseCountsFailedMin),
+  "uncertain": zod.number().int().min(updateAdminEmailDeliverySettingsResponseCountsUncertainMin),
+  "heldForReview": zod.number().int().min(updateAdminEmailDeliverySettingsResponseCountsHeldForReviewMin)
+})
+})
+
+
+/**
+ * Sending occurs only after this explicit signed-in administrator request, never on page load.
+ * @summary Explicitly send a test email to a chosen recipient
+ */
+export const SendAdminEmailDeliveryTestBody = zod.object({
+  "recipientEmail": zod.string().email()
+})
+
+export const SendAdminEmailDeliveryTestResponse = zod.object({
+  "accepted": zod.boolean(),
+  "deliveryState": zod.enum(['sent', 'failed', 'uncertain']),
+  "detail": zod.string()
+})
+
+
+/**
+ * @summary Review transactional email queue and held legacy support receipts
+ */
+export const listAdminEmailDeliveryOutboxQueryPageDefault = 1;
+
+export const listAdminEmailDeliveryOutboxQueryPerPageDefault = 25;
+export const listAdminEmailDeliveryOutboxQueryPerPageMax = 100;
+
+export const listAdminEmailDeliveryOutboxQuerySearchMax = 200;
+
+
+
+export const ListAdminEmailDeliveryOutboxQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).default(listAdminEmailDeliveryOutboxQueryPageDefault),
+  "perPage": zod.coerce.number().int().min(1).max(listAdminEmailDeliveryOutboxQueryPerPageMax).default(listAdminEmailDeliveryOutboxQueryPerPageDefault),
+  "deliveryState": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured']).optional(),
+  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test']).optional(),
+  "search": zod.coerce.string().max(listAdminEmailDeliveryOutboxQuerySearchMax).optional()
+})
+
+export const listAdminEmailDeliveryOutboxResponseItemsItemAttemptsMin = 0;
+
+export const listAdminEmailDeliveryOutboxResponseTotalMin = 0;
+
+
+export const listAdminEmailDeliveryOutboxResponsePerPageMax = 100;
+
+
+
+export const ListAdminEmailDeliveryOutboxResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "eventKey": zod.string(),
+  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test']),
+  "recipientEmail": zod.string().email(),
+  "deliveryState": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured']),
+  "attempts": zod.number().int().min(listAdminEmailDeliveryOutboxResponseItemsItemAttemptsMin),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "nextAttemptAt": zod.coerce.date().nullable(),
+  "lastError": zod.string().nullable(),
+  "heldForReview": zod.boolean()
+})),
+  "legacyHeld": zod.array(zod.object({
+  "id": zod.number().int(),
+  "eventKey": zod.string(),
+  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test']),
+  "recipientEmail": zod.string().email(),
+  "deliveryState": zod.enum(['unconfigured']),
+  "createdAt": zod.coerce.date(),
+  "heldForReview": zod.literal(true)
+})),
+  "total": zod.number().int().min(listAdminEmailDeliveryOutboxResponseTotalMin),
+  "page": zod.number().int().min(1),
+  "perPage": zod.number().int().min(1).max(listAdminEmailDeliveryOutboxResponsePerPageMax)
+})
+
+
+/**
+ * @summary Explicitly retry one safely retryable failed transactional message
+ */
+
+
+
+export const RetryAdminEmailDeliveryOutboxItemParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const retryAdminEmailDeliveryOutboxItemResponseAttemptsMin = 0;
+
+
+
+export const RetryAdminEmailDeliveryOutboxItemResponse = zod.object({
+  "id": zod.number().int(),
+  "eventKey": zod.string(),
+  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test']),
+  "recipientEmail": zod.string().email(),
+  "deliveryState": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured']),
+  "attempts": zod.number().int().min(retryAdminEmailDeliveryOutboxItemResponseAttemptsMin),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "nextAttemptAt": zod.coerce.date().nullable(),
+  "lastError": zod.string().nullable(),
+  "heldForReview": zod.boolean()
+})
+
+
+/**
+ * @summary Explicitly review and requeue one held legacy support receipt
+ */
+
+
+
+export const ReviewAndRequeueLegacySupportEmailOutboxItemParams = zod.object({
+  "id": zod.coerce.number().int().min(1).describe('ID from the legacy support outbox')
+})
+
+export const ReviewAndRequeueLegacySupportEmailOutboxItemBody = zod.object({
+  "reviewed": zod.literal(true)
+})
+
+export const reviewAndRequeueLegacySupportEmailOutboxItemResponseAttemptsMin = 0;
+
+
+
+export const ReviewAndRequeueLegacySupportEmailOutboxItemResponse = zod.object({
+  "id": zod.number().int(),
+  "eventKey": zod.string(),
+  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test']),
+  "recipientEmail": zod.string().email(),
+  "deliveryState": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured']),
+  "attempts": zod.number().int().min(reviewAndRequeueLegacySupportEmailOutboxItemResponseAttemptsMin),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "nextAttemptAt": zod.coerce.date().nullable(),
+  "lastError": zod.string().nullable(),
+  "heldForReview": zod.boolean()
 })
 
 

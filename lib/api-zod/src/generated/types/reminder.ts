@@ -13,6 +13,8 @@ export interface Reminder {
   deliveryStatus: ReminderDeliveryStatus;
   createdAt: Date;
   /** @nullable */
+  scheduledAt: Date | null;
+  /** @nullable */
   attemptedAt?: Date | null;
   message: string;
 }

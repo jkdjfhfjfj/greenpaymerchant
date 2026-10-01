@@ -19,7 +19,19 @@ export interface Invoice {
   lines: InvoiceLine[];
   subtotal: number;
   total: number;
+  /** Net confirmed collected value only. */
   paidAmount: number;
+  /**
+     * Current unpaid invoice balance.
+     * @minimum 0
+     */
+  outstandingAmount: number;
+  /**
+     * Current active fixed-amount invoice link balance
+     * @minimum 0
+     * @nullable
+     */
+  paymentLinkAmount: number | null;
   payments: InvoicePayment[];
   status: InvoiceStatus;
   /** @nullable */

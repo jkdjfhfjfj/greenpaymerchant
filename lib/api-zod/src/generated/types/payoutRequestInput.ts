@@ -14,20 +14,11 @@ export interface PayoutRequestInput {
      * @maxLength 3
      */
   currency: string;
-  /** @minLength 1 */
-  method: string;
+  /** @minimum 1 */
+  destinationId: number;
   /**
+     * Optional consistency check; the approved destination's method remains authoritative.
      * @minLength 1
-     * @maxLength 200
      */
-  accountName: string;
-  /**
-     * @minLength 3
-     * @maxLength 100
-     */
-  accountNumber: string;
-  /** @maxLength 100 */
-  bankCode?: string;
-  /** @maxLength 200 */
-  bankName?: string;
+  method?: string;
 }

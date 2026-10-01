@@ -13,5 +13,6 @@ export const NotificationType = {
   support_reply: 'support_reply',
   kyc_update: 'kyc_update',
   payment_confirmed: 'payment_confirmed',
+  payment_failed: 'payment_failed',
   payout_update: 'payout_update',
 } as const;

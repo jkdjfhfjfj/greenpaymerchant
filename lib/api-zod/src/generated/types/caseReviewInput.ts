@@ -10,6 +10,7 @@ import type { CaseReviewInputStatus } from './caseReviewInputStatus';
 
 export interface CaseReviewInput {
   status: CaseReviewInputStatus;
+  /** recorded means evidence is recorded but customer reimbursement is not yet confirmed; administrative status changes alone cannot confirm money movement. */
   financialMovement?: CaseReviewInputFinancialMovement;
   /**
      * @minLength 1

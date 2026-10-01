@@ -10,5 +10,10 @@ export type ReminderDeliveryStatus = typeof ReminderDeliveryStatus[keyof typeof 
 
 
 export const ReminderDeliveryStatus = {
+  queued: 'queued',
+  sending: 'sending',
+  sent: 'sent',
+  failed: 'failed',
+  uncertain: 'uncertain',
   unconfigured: 'unconfigured',
 } as const;

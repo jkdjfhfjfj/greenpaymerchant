@@ -5,7 +5,7 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
-import type { SupportTicketDelivery } from './supportTicketDelivery';
+import type { EmailDeliveryState } from './emailDeliveryState';
 import type { SupportTicketStatus } from './supportTicketStatus';
 
 export interface SupportTicket {
@@ -19,5 +19,5 @@ export interface SupportTicket {
   createdAt: Date;
   updatedAt: Date;
   messageCount: number;
-  delivery: SupportTicketDelivery;
+  delivery: EmailDeliveryState;
 }

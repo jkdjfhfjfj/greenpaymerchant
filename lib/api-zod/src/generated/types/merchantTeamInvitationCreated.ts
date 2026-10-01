@@ -10,6 +10,10 @@ import type { MerchantTeamInvitationCreatedDelivery } from './merchantTeamInvita
 
 export interface MerchantTeamInvitationCreated {
   invitation: MerchantTeamInvitation;
-  invitationUrl: string;
+  /**
+     * Present only when the invitation must be copied manually; omitted or null when the invitation was queued for email delivery.
+     * @nullable
+     */
+  invitationUrl?: string | null;
   delivery: MerchantTeamInvitationCreatedDelivery;
 }

@@ -5,12 +5,19 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { StatementPayoutCashDateBasis } from './statementPayoutCashDateBasis';
+import type { StatementPayoutStatus } from './statementPayoutStatus';
 
 export interface StatementPayout {
   reference: string;
   amount: number;
   fee: number;
   currency: string;
-  status: string;
+  /** Only confirmed payout source rows are included. */
+  status: StatementPayoutStatus;
   createdAt: Date;
+  /** Cash-flow date; uses an explicit confirmation timestamp or the stated legacy-created-at fallback. */
+  cashDate: Date;
+  /** Distinguishes the source confirmation timestamp from a legacy record with no confirmation timestamp. */
+  cashDateBasis: StatementPayoutCashDateBasis;
 }

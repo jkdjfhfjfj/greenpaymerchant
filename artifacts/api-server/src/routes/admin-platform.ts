@@ -24,6 +24,7 @@ import { credentialVaultReady } from "../lib/secret-crypto";
 import { providerCredential, providerCredentialFields } from "../lib/credential-runtime";
 import { cleanPublicUrl, normalizeWhatsAppContact } from "../lib/platform-branding";
 import { cloudinaryUploadStatus, createCloudinaryUploadSignature } from "../lib/cloudinary-upload";
+import { resolveCloudinaryEnvironment } from "../lib/cloudinary-credentials";
 import {
   MERCHANT_ACTION_KEYS,
   normalizeMerchantActionControls,
@@ -33,7 +34,7 @@ import {
 import { verificationTierForMerchant } from "../lib/platform";
 
 const router: IRouter = Router();
-const providers = ["paystack", "payhero", "payzaapi", "didit"] as const;
+const providers = ["paystack", "payhero", "payzaapi", "didit", "cloudinary"] as const;
 
 function actor(req: Parameters<Parameters<IRouter["get"]>[1]>[0]): string {
   return getAuth(req).userId ?? "unknown-admin";
@@ -158,9 +159,13 @@ async function credentialDto(provider: typeof providers[number]) {
         ? fields.some((field) => field.name === "DIDIT_API_KEY" && field.present) &&
           fields.some((field) => field.name === "DIDIT_WORKFLOW_ID" && field.present) &&
           fields.some((field) => field.name === "DIDIT_KYB_WORKFLOW_ID" && field.present)
-        : fields.some((field) => field.name === "PAYZAAPI_API_KEY" && field.present) ||
-          (fields.some((field) => field.name === "PAYZA_PUBLIC_KEY" && field.present) &&
-           fields.some((field) => field.name === "PAYZA_SECRET_KEY" && field.present));
+        : provider === "cloudinary"
+          ? fields.some((field) => field.name === "CLOUDINARY_CLOUD_NAME" && field.present) &&
+            fields.some((field) => field.name === "CLOUDINARY_API_KEY" && field.present) &&
+            fields.some((field) => field.name === "CLOUDINARY_API_SECRET" && field.present)
+          : fields.some((field) => field.name === "PAYZAAPI_API_KEY" && field.present) ||
+            (fields.some((field) => field.name === "PAYZA_PUBLIC_KEY" && field.present) &&
+             fields.some((field) => field.name === "PAYZA_SECRET_KEY" && field.present));
   const payzaConfigured = fields.some((field) => field.name === "PAYZA_PUBLIC_KEY" && field.present) &&
     fields.some((field) => field.name === "PAYZA_SECRET_KEY" && field.present);
   return {
@@ -522,18 +527,20 @@ router.patch("/admin/platform-settings", async (req, res): Promise<void> => {
 
 router.get("/admin/platform-settings/cloudinary-status", async (_req, res): Promise<void> => {
   res.setHeader("Cache-Control", "no-store");
-  res.json(GetAdminCloudinaryUploadStatusResponse.parse(cloudinaryUploadStatus()));
+  const environment = await resolveCloudinaryEnvironment();
+  res.json(GetAdminCloudinaryUploadStatusResponse.parse(cloudinaryUploadStatus(environment)));
 });
 
 router.post("/admin/platform-settings/upload-signature", async (_req, res): Promise<void> => {
-  if (!cloudinaryUploadStatus().configured) {
+  const environment = await resolveCloudinaryEnvironment();
+  if (!cloudinaryUploadStatus(environment).configured) {
     res.status(503).json({
-      error: "Cloudinary uploads are not configured. An administrator must set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in Replit Secrets.",
+      error: "Cloudinary uploads are not configured. An administrator must add the Cloudinary credentials in Admin → Credentials.",
     });
     return;
   }
   res.setHeader("Cache-Control", "no-store");
-  const signedUpload = createCloudinaryUploadSignature("greenpay/platform");
+  const signedUpload = createCloudinaryUploadSignature("greenpay/platform", undefined, environment);
   res.json(CreateAdminCloudinaryUploadSignatureResponse.parse(signedUpload));
 });
 

@@ -22,9 +22,11 @@ import {
 } from "../lib/greenpay-ledger";
 import {
   db, merchantInvoicesTable, merchantsTable, paymentLinksTable, refundsTable, transactionsTable,
+  verificationTierLimitsTable,
 } from "@workspace/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { assertMerchantActionEnabled, getPlatformSettings } from "../lib/platform";
+import { merchantVerificationTier, type VerificationTier } from "../lib/security-policy";
 import { invoiceOutstandingAmount } from "../lib/merchant-business-tools";
 import { CUSTOMER_REIMBURSED_REFUND_STATUSES } from "../lib/payment-safety";
 import {
@@ -34,15 +36,23 @@ import {
 const router: IRouter = Router();
 const PAID_TRANSACTION_STATUSES = ["success", "refunded"] as const;
 
-async function getCollectionCurrencyOptions() {
+async function getCollectionCurrencyOptions(verificationTier?: VerificationTier) {
   const platformReady = (await getPlatformSettings()).paymentsEnabled;
   const routeReadiness = {
     paystack: await providerIsConfigured("paystack"),
     payhero: await providerIsConfigured("payhero"),
     payzaapi: await providerIsConfigured("payzaapi"),
   };
+  const configuredTierCurrencies = verificationTier === undefined
+    ? undefined
+    : new Set((await db.select({ currency: verificationTierLimitsTable.currency })
+      .from(verificationTierLimitsTable)
+      .where(eq(verificationTierLimitsTable.tier, verificationTier)))
+      .map(({ currency }) => currency.toUpperCase()));
   return COLLECTION_CURRENCIES.map(({ code, name, minorUnits }) => {
-    const collectionReady = platformReady && routeReadiness[providerForCurrency(code)];
+    const collectionReady = platformReady &&
+      routeReadiness[providerForCurrency(code)] &&
+      (configuredTierCurrencies === undefined || configuredTierCurrencies.has(code));
     return {
       code,
       name,
@@ -154,15 +164,21 @@ router.get("/public/payment-links/:slug", async (req, res): Promise<void> => {
     res.status(invoiceState.problem.status).json({ error: invoiceState.problem.message });
     return;
   }
+  let verificationTier: VerificationTier | undefined;
   if (link.merchantId !== null) {
-    const [merchant] = await db.select({ status: merchantsTable.status }).from(merchantsTable)
+    const [merchant] = await db.select({
+      status: merchantsTable.status,
+      kycStatus: merchantsTable.kycStatus,
+      kybStatus: merchantsTable.kybStatus,
+    }).from(merchantsTable)
       .where(eq(merchantsTable.id, link.merchantId)).limit(1);
     if (!merchant || merchant.status !== "active") {
       res.status(404).json({ error: "This payment link is no longer available." });
       return;
     }
+    verificationTier = merchantVerificationTier(merchant.kycStatus, merchant.kybStatus);
   }
-  const currencies = await getCollectionCurrencyOptions();
+  const currencies = await getCollectionCurrencyOptions(verificationTier);
   const availableCurrencies = link.amountType === "customer_choice" && invoiceState.invoiceOutstandingAmount === null
     ? currencies
     : currencies.filter(({ code }) => code === link.currency.toUpperCase());
@@ -260,7 +276,10 @@ router.post("/public/payment-links/:slug/checkout", async (req, res): Promise<vo
     merchantId: link.merchantId ?? undefined,
   }).catch((error: unknown) => {
     const status = error instanceof ApiError ? error.statusCode : 500;
-    req.log.warn({ statusCode: status }, "Public checkout could not be initiated");
+    req.log.warn({
+      statusCode: status,
+      failureReason: error instanceof ApiError ? error.message : "Unexpected collection failure",
+    }, "Public checkout could not be initiated");
     const failure = publicCheckoutFailure(
       status,
       error instanceof Error ? error.message : "Please check your payment details.",

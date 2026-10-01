@@ -718,6 +718,7 @@ function PublicCheckout() {
   const link = query.data;
   const invoiceBalance = typeof link?.invoiceOutstandingAmount === 'number' ? link.invoiceOutstandingAmount : null;
   const availableCurrencies = link?.availableCurrencies ?? [];
+  const hasReadyCurrencyOption = availableCurrencies.some((item) => item.collectionReady);
   const canChooseCurrency = link?.amountType === 'customer_choice' && invoiceBalance === null;
   const currencyCode = canChooseCurrency && availableCurrencies.some((item) => item.code === currencySelection)
     ? currencySelection
@@ -795,7 +796,7 @@ function PublicCheckout() {
                     setPaymentMethodSelection(availableCurrencies.find((item) => item.code === nextCode)?.paymentMethods.find((item) => item.ready)?.id ?? '');
                     setError('');
                   }} data-testid="select-checkout-currency">
-                    {availableCurrencies.map((item) => <option key={item.code} value={item.code}>{item.code} · {item.name}{item.collectionReady ? '' : ' · unavailable'}</option>)}
+                     {availableCurrencies.map((item) => <option key={item.code} value={item.code} disabled={!item.collectionReady}>{item.code} · {item.name}{item.collectionReady ? '' : ' · unavailable'}</option>)}
                   </select></Field>
                   : <Field label="Payment currency"><input value={`${link.currency} · ${invoiceBalance !== null ? 'invoice amount; currency locked' : 'fixed amount; currency locked'}`} readOnly /></Field>}
                 <Field label="Payment method"><select value={selectedMethodId} onChange={(event) => setPaymentMethodSelection(event.target.value)} disabled={!paymentMethods.some((item) => item.ready)} required data-testid="select-checkout-payment-method">
@@ -813,9 +814,9 @@ function PublicCheckout() {
                 <Field label={`Phone${selectedMethod?.requiresPhone ? ' (required for this method)' : ' (optional)'}`}><input name="phone" type="tel" placeholder="+254…" autoComplete="tel" required={selectedMethod?.requiresPhone} data-testid="input-checkout-phone" /></Field>
                 {currencyOption && (!currencyOption.collectionReady || !paymentMethods.some((item) => item.ready)) && <div className="provider-warning"><CircleAlert size={15} /><span>{currencyOption.collectionReady
                   ? `No payment method is currently available for ${currencyOption.code}.`
-                  : canChooseCurrency
+                  : canChooseCurrency && hasReadyCurrencyOption
                     ? `Checkout in ${currencyOption.code} is not currently available. Choose another currency or refresh availability.`
-                    : `Checkout in ${currencyOption.code} is not currently available. Refresh availability or contact the merchant.`}</span><Button variant="secondary" disabled={query.isFetching} onClick={() => { void query.refetch(); }}>{query.isFetching ? 'Checking…' : 'Refresh availability'}</Button></div>}
+                    : `Payments are not currently available for this payment link. Refresh availability or contact the merchant.`}</span><Button variant="secondary" disabled={query.isFetching} onClick={() => { void query.refetch(); }}>{query.isFetching ? 'Checking…' : 'Refresh availability'}</Button></div>}
                 {!currencyOption && <div className="provider-warning"><CircleAlert size={15} /><span>The available payment options could not be loaded. Refresh this page before continuing.</span><Button variant="secondary" disabled={query.isFetching} onClick={() => { void query.refetch(); }}>{query.isFetching ? 'Checking…' : 'Retry'}</Button></div>}
                 <ErrorLine error={error} />
                 <Button type="submit" className="btn-full" disabled={checkout.isPending || query.isFetching || !currencyOption?.collectionReady || !selectedMethod} data-testid="button-checkout-submit">{checkout.isPending ? 'Preparing secure checkout…' : <>Continue to payment <ArrowRight size={15} /></>}</Button>

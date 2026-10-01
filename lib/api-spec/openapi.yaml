@@ -966,7 +966,6 @@ components:
       type: http
       scheme: bearer
       bearerFormat: merchant API key
-components:
   schemas:
     HealthStatus:
       type: object

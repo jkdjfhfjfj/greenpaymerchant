@@ -1,14 +1,23 @@
 import { useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Activity, CheckCircle2, CircleAlert, Copy, Check, X, LoaderCircle } from 'lucide-react';
+import { COLLECTION_CURRENCIES } from '@workspace/api-zod';
 import { useGetAccessProfile } from '@workspace/api-client-react';
 
-export const CURRENCIES = ['USD', 'KES', 'NGN', 'GHS', 'UGX', 'TZS', 'RWF', 'ZMW', 'MWK', 'XOF', 'XAF'];
+export const CURRENCIES = COLLECTION_CURRENCIES.map(({ code }) => code);
+export function currencyMinorUnits(code: string) {
+  return COLLECTION_CURRENCIES.find((currency) => currency.code === code.toUpperCase())?.minorUnits ?? 2;
+}
+export function currencyAmountStep(code: string) {
+  return currencyMinorUnits(code) === 0 ? '1' : '0.01';
+}
 export const COUNTRIES: [string, string][] = [['KE', 'Kenya'], ['NG', 'Nigeria'], ['GH', 'Ghana'], ['UG', 'Uganda'], ['TZ', 'Tanzania'], ['RW', 'Rwanda'], ['ZM', 'Zambia'], ['MW', 'Malawi'], ['SN', 'Senegal'], ['CI', "Cote d'Ivoire"], ['CM', 'Cameroon'], ['ZA', 'South Africa'], ['EG', 'Egypt'], ['MA', 'Morocco'], ['ET', 'Ethiopia']];
 
 export function money(value: number | null | undefined, code = 'USD') {
   if (value === undefined || value === null || Number.isNaN(value)) return '-';
-  try { return new Intl.NumberFormat('en', { style: 'currency', currency: code, maximumFractionDigits: 2 }).format(value); } catch { return `${code} ${value.toLocaleString('en', { maximumFractionDigits: 2 })}`; }
+  const digits = currencyMinorUnits(code);
+  if (code.toUpperCase() === 'SLL') return `SLL ${value.toLocaleString('en', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+  try { return new Intl.NumberFormat('en', { style: 'currency', currency: code, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value); } catch { return `${code} ${value.toLocaleString('en', { maximumFractionDigits: digits })}`; }
 }
 export function fmtDate(value?: string | null) {
   if (!value) return '-';

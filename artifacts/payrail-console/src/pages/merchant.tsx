@@ -6,10 +6,12 @@ import {
   useListMerchantPaymentLinks, useCreateMerchantPaymentLink, useUpdateMerchantPaymentLink, useDeleteMerchantPaymentLink,
   useListMerchantTransactions, useListMerchantPayouts,
 } from '@workspace/api-client-react';
-import { Async, Btn, Card, COUNTRIES, CURRENCIES, Confirm, CopyBtn, Err, Field, Gate, Heading, Modal, Note, Pager, Pill, fmtDate, money, nice, useAccess, useInvalidateAll } from '@/components/kit';
+import { Async, Btn, Card, COUNTRIES, CURRENCIES, Confirm, CopyBtn, Err, Field, Gate, Heading, Modal, Note, Pager, Pill, currencyAmountStep, currencyMinorUnits, fmtDate, money, nice, useAccess, useInvalidateAll } from '@/components/kit';
+import { usePlatformBranding } from '@/components/platform-brand';
 
 export function MerchantPage() {
   const access = useAccess();
+  const branding = usePlatformBranding();
   const create = useCreateMerchantProfile();
   const inv = useInvalidateAll();
   const fees = useGetMerchantFees({ query: { enabled: !!access.merchant } as never });
@@ -28,7 +30,7 @@ export function MerchantPage() {
           <Field label="Business name"><input name="name" required minLength={2} maxLength={150} data-testid="input-business-name" /></Field>
           <div className="form-grid">
             <Field label="Country"><select name="country" defaultValue="KE" data-testid="select-country">{COUNTRIES.map(([c, n]) => <option key={c} value={c}>{n}</option>)}</select></Field>
-            <Field label="Base currency"><select name="cur" defaultValue="USD" data-testid="select-base-currency">{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></Field>
+            <Field label="Base currency"><select key={branding.baseCurrency} name="cur" defaultValue={branding.baseCurrency} data-testid="select-base-currency">{[...new Set([branding.baseCurrency, ...CURRENCIES])].map((c) => <option key={c}>{c}</option>)}</select></Field>
           </div>
           <Field label="Registration number" hint="Optional"><input name="reg" maxLength={150} data-testid="input-registration" /></Field>
           <Err error={create.error} />
@@ -66,9 +68,10 @@ function KycInner() {
   const q = useGetMerchantKyc({ query: {
     queryKey: getGetMerchantKycQueryKey(),
     refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      const hasActiveSession = Boolean(query.state.data?.sessionId);
-      return hasActiveSession && ['not_started', 'pending', 'in_review'].includes(status || '') ? 15_000 : false;
+      const data = query.state.data;
+      const kycActive = Boolean(data?.sessionId) && ['not_started', 'pending', 'in_review'].includes(data?.status || '');
+      const kybActive = Boolean(data?.kybSessionId) && ['not_started', 'pending', 'in_review'].includes(data?.kybStatus || '');
+      return kycActive || kybActive ? 15_000 : false;
     },
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
@@ -77,8 +80,9 @@ function KycInner() {
   const inv = useInvalidateAll();
   useEffect(() => {
     const refreshWhenVisible = () => {
-      const status = q.data?.status;
-      if (document.visibilityState === 'visible' && q.data?.sessionId && ['not_started', 'pending', 'in_review'].includes(status || '')) {
+      const kycActive = Boolean(q.data?.sessionId) && ['not_started', 'pending', 'in_review'].includes(q.data?.status || '');
+      const kybActive = Boolean(q.data?.kybSessionId) && ['not_started', 'pending', 'in_review'].includes(q.data?.kybStatus || '');
+      if (document.visibilityState === 'visible' && (kycActive || kybActive)) {
         void q.refetch();
       }
     };
@@ -88,25 +92,47 @@ function KycInner() {
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
-  }, [q.data?.sessionId, q.data?.status, q.refetch]);
+  }, [q.data?.sessionId, q.data?.status, q.data?.kybSessionId, q.data?.kybStatus, q.refetch]);
   const run = (kind: 'kyc' | 'kyb') => start.mutate({ data: { kind } }, { onSuccess: (r) => { void inv(); window.open(r.url, '_blank', 'noopener'); } });
+  const active = (status: string, sessionId: string | null) => Boolean(sessionId) && ['not_started', 'pending', 'in_review'].includes(status);
+  const limitRows = q.data?.limits ?? [];
+  const limitLabel = (amount: number | null, currency: string) => amount === null ? 'No configured cap' : money(amount, currency);
   return <>
     <Heading eyebrow="MERCHANT / VERIFICATION" title="Identity and business verification" subtitle="Hosted verification runs on Didit. Active checks sync automatically and refresh when you return to this page." />
     <Async q={q}>{q.data && <div className="split">
-      <Card title="Current status" action={<Btn variant="secondary" small onClick={() => { void q.refetch(); }}>Refresh</Btn>}>
-        <div className="kv"><div><span>Status</span><Pill value={q.data.status} /></div><div><span>Session</span><strong className="mono" style={{ fontSize: 12 }}>{q.data.sessionId || 'None'}</strong></div><div><span>Updated</span><strong>{fmtDate(q.data.updatedAt)}</strong></div></div>
-        {q.data.sessionId && ['not_started', 'pending', 'in_review'].includes(q.data.status) && <span className="sub" role="status">Checking for Didit status updates every 15 seconds while this session is active.</span>}
-        {!!q.data.requirements?.length && <ul style={{ margin: '14px 0 0', paddingLeft: 18, fontSize: 13 }}>{q.data.requirements.map((r) => <li key={r}>{r}</li>)}</ul>}
-        {q.data.sessionUrl && <p style={{ marginTop: 14 }}><a className="text-link" href={q.data.sessionUrl} target="_blank" rel="noreferrer">Resume hosted session <ExternalLink size={13} /></a></p>}
-      </Card>
-      <Card title="Start verification">
-        {!q.data.configured && <Note tone="warn">Verification is not configured on this platform yet. An administrator must save Didit credentials and workflow IDs. Starting a session will fail until then.</Note>}
-        <div className="form-stack" style={{ marginTop: 12 }}>
-          <Err error={start.error} />
-          <Btn disabled={start.isPending} onClick={() => run('kyc')} testId="button-start-kyc"><ShieldCheck size={15} />Verify identity (KYC)</Btn>
-          <Btn variant="secondary" disabled={start.isPending} onClick={() => run('kyb')} testId="button-start-kyb">Verify business (KYB)</Btn>
-        </div>
-      </Card>
+      <div className="form-stack">
+        <Err error={start.error} />
+        <Card title="Personal verification (KYC)" action={<Btn variant="secondary" small onClick={() => { void q.refetch(); }}>Refresh</Btn>}>
+          <div className="kv"><div><span>Status</span><Pill value={q.data.status} /></div><div><span>Session</span><strong className="mono" style={{ fontSize: 12 }}>{q.data.sessionId || 'None'}</strong></div><div><span>Updated</span><strong>{fmtDate(q.data.updatedAt)}</strong></div></div>
+          {active(q.data.status, q.data.sessionId) && <span className="sub" role="status">Checking for Didit KYC status updates every 15 seconds.</span>}
+          {!!q.data.requirements?.length && <ul style={{ margin: '14px 0 0', paddingLeft: 18, fontSize: 13 }}>{q.data.requirements.map((r) => <li key={r}>{r}</li>)}</ul>}
+          {q.data.sessionUrl && <p style={{ marginTop: 14 }}><a className="text-link" href={q.data.sessionUrl} target="_blank" rel="noreferrer">Resume KYC session <ExternalLink size={13} /></a></p>}
+          {!q.data.configured && <Note tone="warn">The Didit KYC workflow is not configured. An administrator must configure the API key and KYC workflow before you can start personal verification.</Note>}
+          <div className="form-stack" style={{ marginTop: 12 }}>
+            <Btn disabled={start.isPending || !q.data.configured || q.data.status === 'approved' || active(q.data.status, q.data.sessionId)} onClick={() => run('kyc')} testId="button-start-kyc"><ShieldCheck size={15} />Verify identity (KYC)</Btn>
+          </div>
+        </Card>
+        <Card title="Business verification (optional KYB)" subtitle="Approved KYB raises your monetary tier only when personal KYC is also approved.">
+          <div className="kv"><div><span>Status</span><Pill value={q.data.kybStatus} /></div><div><span>Session</span><strong className="mono" style={{ fontSize: 12 }}>{q.data.kybSessionId || 'None'}</strong></div><div><span>Updated</span><strong>{fmtDate(q.data.kybUpdatedAt)}</strong></div></div>
+          {active(q.data.kybStatus, q.data.kybSessionId) && <span className="sub" role="status">Checking for Didit KYB status updates every 15 seconds.</span>}
+          {q.data.kybSessionUrl && <p style={{ marginTop: 14 }}><a className="text-link" href={q.data.kybSessionUrl} target="_blank" rel="noreferrer">Resume KYB session <ExternalLink size={13} /></a></p>}
+          {!q.data.kybConfigured && <Note tone="warn">The Didit KYB workflow is not configured. Business verification is optional and unavailable until an administrator configures its workflow.</Note>}
+          <div className="form-stack" style={{ marginTop: 12 }}>
+            <Btn variant="secondary" disabled={start.isPending || !q.data.kybConfigured || q.data.kybStatus === 'approved' || active(q.data.kybStatus, q.data.kybSessionId)} onClick={() => run('kyb')} testId="button-start-kyb">Verify business (KYB)</Btn>
+          </div>
+        </Card>
+      </div>
+      <div className="form-stack">
+        <Card title="Your verification tier">
+          <div className="kv"><div><span>Active tier</span><Pill value={q.data.tier} /></div><div><span>Personal KYC</span><Pill value={q.data.status} /></div><div><span>Business KYB</span><Pill value={q.data.kybStatus} /></div></div>
+          <p className="sub" style={{ marginTop: 12 }}>All merchant features remain available subject to administrator account controls. Verification changes monetary limits, not feature access.</p>
+        </Card>
+        <Card title="Per-currency limits" subtitle="Limits are enforced server-side. An uncapped field means no tier-specific cap is configured for that action.">
+          {!limitRows.length ? <Note tone="warn">No limits are configured for the active tier. Contact the platform administrator before making payments.</Note> : <div className="table-wrap"><table className="dt"><thead><tr><th>Currency</th><th>Single collection</th><th>Daily collections</th><th>Monthly collections</th><th>Payout</th><th>Conversion</th></tr></thead><tbody>
+            {limitRows.map((limit) => <tr key={`${limit.tier}-${limit.currency}`}><td><strong>{limit.currency}</strong></td><td>{limitLabel(limit.collectionPerTransactionLimit, limit.currency)}</td><td>{limitLabel(limit.collectionDailyLimit, limit.currency)}</td><td>{limitLabel(limit.collectionMonthlyLimit, limit.currency)}</td><td>{limitLabel(limit.payoutLimit, limit.currency)}</td><td>{limitLabel(limit.conversionLimit, limit.currency)}</td></tr>)}
+          </tbody></table></div>}
+        </Card>
+      </div>
     </div>}</Async>
   </>;
 }
@@ -144,6 +170,7 @@ function LinkModal({ onClose }: { onClose: () => void }) {
   const create = useCreateMerchantPaymentLink();
   const inv = useInvalidateAll();
   const [type, setType] = useState<'fixed' | 'customer_choice'>('fixed');
+  const [currency, setCurrency] = useState('USD');
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
@@ -156,8 +183,8 @@ function LinkModal({ onClose }: { onClose: () => void }) {
     <Field label="Name"><input name="name" required data-testid="input-link-name" /></Field>
     <Field label="Description"><input name="desc" /></Field>
     <div className="form-grid"><Field label="Pricing"><select value={type} onChange={(e) => setType(e.target.value as 'fixed')}><option value="fixed">Fixed amount</option><option value="customer_choice">Customer enters amount</option></select></Field>
-      <Field label="Currency"><select name="cur" defaultValue="USD">{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></Field></div>
-    {type === 'fixed' && <Field label="Amount"><input name="amount" type="number" step="0.01" min="0.01" required data-testid="input-link-amount" /></Field>}
+      <Field label="Currency"><select name="cur" value={currency} onChange={(e) => setCurrency(e.target.value)}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></Field></div>
+    {type === 'fixed' && <Field label="Amount"><input name="amount" type="number" step={currencyAmountStep(currency)} min={currencyMinorUnits(currency) === 0 ? '1' : '0.01'} required data-testid="input-link-amount" /></Field>}
     <Field label="Expires" hint="Optional"><input name="exp" type="datetime-local" /></Field>
     <Err error={create.error} />
     <Btn type="submit" disabled={create.isPending} testId="button-save-link">{create.isPending && <LoaderCircle size={14} className="spin" />}Create link</Btn>

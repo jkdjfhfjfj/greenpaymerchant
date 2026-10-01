@@ -30,6 +30,44 @@ export function developerApiStatusAllowed(status: string): boolean {
   return status === "active";
 }
 
+export type VerificationTier = "unverified" | "kyc" | "kyb";
+export type VerificationAction = "collection" | "payout" | "conversion";
+
+export function merchantVerificationTier(kycStatus: string, kybStatus: string): VerificationTier {
+  if (kycStatus === "approved" && kybStatus === "approved") return "kyb";
+  if (kycStatus === "approved") return "kyc";
+  return "unverified";
+}
+
+export function verificationLimitError(input: {
+  action: VerificationAction;
+  amount: number;
+  currency: string;
+  currentDailyVolume?: number;
+  currentMonthlyVolume?: number;
+  collectionPerTransactionLimit: number | null;
+  collectionDailyLimit: number | null;
+  collectionMonthlyLimit: number | null;
+  payoutLimit: number | null;
+  conversionLimit: number | null;
+}): string | undefined {
+  const {
+    action, amount, currency, currentDailyVolume = 0, currentMonthlyVolume = 0,
+  } = input;
+  const checkLimit = (value: number | null, requested: number, label: string) =>
+    value !== null && requested > value + 0.000001
+      ? `The ${label} verification limit is ${value} ${currency}.`
+      : undefined;
+  if (action === "collection") {
+    return checkLimit(input.collectionPerTransactionLimit, amount, "per-collection") ??
+      checkLimit(input.collectionDailyLimit, currentDailyVolume + amount, "daily collection") ??
+      checkLimit(input.collectionMonthlyLimit, currentMonthlyVolume + amount, "monthly collection");
+  }
+  return action === "payout"
+    ? checkLimit(input.payoutLimit, amount, "payout")
+    : checkLimit(input.conversionLimit, amount, "conversion");
+}
+
 export function paymentTransitionAllowed(current: string, next: string): boolean {
   return current === "pending" && ["success", "failed", "cancelled"].includes(next);
 }

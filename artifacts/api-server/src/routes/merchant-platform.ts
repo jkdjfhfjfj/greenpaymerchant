@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { and, desc, eq, ilike, inArray, isNull, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import {
+  GetAdminVerificationLimitsResponse,
   CreateMerchantApiKeyBody, CreateMerchantApiKeyResponse, CreateMerchantKycSessionBody,
   CreateMerchantKycSessionResponse, CreateMerchantPaymentLinkBody, CreateMerchantPaymentLinkResponse,
   CreateMerchantProfileBody, CreateMerchantProfileResponse, CreateMerchantWebhookEndpointBody,
@@ -19,14 +20,16 @@ import {
   VerifyDeveloperTransactionParams, VerifyDeveloperTransactionResponse, GetDeveloperFxQuoteQueryParams,
   GetDeveloperFxQuoteResponse, GetDeveloperFeesResponse,
   ListMerchantPayoutsResponse,
+  UpdateAdminVerificationLimitsBody, UpdateAdminVerificationLimitsResponse,
 } from "@workspace/api-zod";
 import {
-  db, developerIdempotencyTable, feeSchedulesTable, fxRatesTable, merchantApiKeysTable,
+  adminAuditLogTable, db, developerIdempotencyTable, feeSchedulesTable, fxRatesTable, merchantApiKeysTable,
   merchantWebhookEndpointsTable, merchantsTable, paymentLinksTable, payoutsTable, transactionsTable,
+  verificationTierLimitsTable,
 } from "@workspace/db";
-import { createCollection } from "../lib/greenpay-collection";
+import { assertCollectionAmountPrecision, createCollection } from "../lib/greenpay-collection";
 import { assertSupportedCurrency, getPublicAppUrl, providerForCurrency, providerIsConfigured } from "../lib/greenpay-provider";
-import { requireSignedIn } from "../middlewares/requireAdmin";
+import { requireAdmin, requireSignedIn } from "../middlewares/requireAdmin";
 import { developerApiAuth, requireApiScope } from "../middlewares/developerApiAuth";
 import { assertMerchantMayTransact, assertPlatformEnabled } from "../lib/platform";
 import { apiKeyHash, encryptSecret, validateWebhookUrl } from "../lib/secure-storage";
@@ -35,6 +38,9 @@ import { verifyProviderPayment } from "../lib/greenpay-provider";
 import { calculateFxQuote } from "../lib/fx-math";
 import { diditDecisionStatus, diditStatusNeedsRefresh, ownsMerchantRecord } from "../lib/security-policy";
 import { idempotencyDisposition } from "../lib/payment-safety";
+import { verificationTierForMerchant } from "../lib/platform";
+import { getAuth } from "@clerk/express";
+import { findMerchantAccessForUser, resolveMerchantAccess } from "../lib/merchant-access";
 
 const router: IRouter = Router();
 const apiRouter: IRouter = Router();
@@ -61,10 +67,12 @@ function merchantFor(reqUserId: string) {
 }
 
 async function ownedMerchant(res: Parameters<Parameters<IRouter["get"]>[1]>[1]) {
-  const userId = res.locals.clerkUserId as string | undefined;
-  if (!userId) throw new Error("Authenticated user context is missing.");
-  const [merchant] = await merchantFor(userId);
-  return merchant;
+  const path = res.req.path;
+  const method = res.req.method.toUpperCase();
+  const ownerOnly = path === "/merchant" ||
+    /^\/merchant\/(?:kyc|api-keys(?:\/|$)|webhook-endpoints(?:\/|$))/.test(path);
+  const permission = ownerOnly ? "owner" : ["POST", "PATCH", "PUT", "DELETE"].includes(method) ? "finance" : "read";
+  return resolveMerchantAccess(res.req, res, permission);
 }
 
 async function getLinkStats(id: number) {
@@ -93,6 +101,9 @@ async function createOwnedLink(merchant: typeof merchantsTable.$inferSelect, inp
   assertSupportedCurrency(input.currency.toUpperCase());
   if (input.amountType === "fixed" && !(input.amount && input.amount > 0)) {
     throw Object.assign(new Error("A fixed-price link needs an amount greater than zero."), { statusCode: 400 });
+  }
+  if (input.amountType === "fixed") {
+    assertCollectionAmountPrecision(input.amount!, input.currency);
   }
   if (input.amountType === "customer_choice" && input.amount !== undefined) {
     throw Object.assign(new Error("Customer-choice links cannot have a preset amount."), { statusCode: 400 });
@@ -124,7 +135,7 @@ function endpointDto(row: typeof merchantWebhookEndpointsTable.$inferSelect) {
 
 router.get("/me", requireSignedIn, async (req, res): Promise<void> => {
   const userId = res.locals.clerkUserId as string;
-  const [merchant] = await merchantFor(userId);
+  const access = await findMerchantAccessForUser(userId);
   const allowed = (process.env.ADMIN_EMAILS ?? "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
   let isAdmin = false;
   if (allowed.length) {
@@ -132,7 +143,10 @@ router.get("/me", requireSignedIn, async (req, res): Promise<void> => {
     const email = await verifiedClerkEmail(userId);
     isAdmin = Boolean(email && allowed.includes(email));
   }
-  res.json(GetAccessProfileResponse.parse({ userId, isAdmin, merchant: merchant ? profile(merchant) : null }));
+  res.json(GetAccessProfileResponse.parse({
+    userId, isAdmin, ...(access ? { role: access.role } : {}),
+    merchant: access ? profile(access.merchant) : null,
+  }));
 });
 
 router.get("/merchant", requireSignedIn, async (_req, res): Promise<void> => {
@@ -159,63 +173,185 @@ router.post("/merchant", requireSignedIn, async (req, res): Promise<void> => {
   res.status(201).json(CreateMerchantProfileResponse.parse({ merchant: profile(merchant) }));
 });
 
-router.get("/merchant/kyc", requireSignedIn, async (_req, res): Promise<void> => {
+function verificationLimitDto(row: typeof verificationTierLimitsTable.$inferSelect) {
+  return {
+    tier: row.tier, currency: row.currency,
+    collectionPerTransactionLimit: row.collectionPerTransactionLimit,
+    collectionDailyLimit: row.collectionDailyLimit,
+    collectionMonthlyLimit: row.collectionMonthlyLimit,
+    payoutLimit: row.payoutLimit, conversionLimit: row.conversionLimit,
+    updatedAt: row.updatedAt,
+  };
+}
+
+router.get("/admin/verification-limits", requireAdmin, async (_req, res): Promise<void> => {
+  const rows = await db.select().from(verificationTierLimitsTable)
+    .orderBy(verificationTierLimitsTable.tier, verificationTierLimitsTable.currency);
+  res.json(GetAdminVerificationLimitsResponse.parse({ items: rows.map(verificationLimitDto) }));
+});
+
+router.put("/admin/verification-limits", requireAdmin, async (req, res): Promise<void> => {
+  const parsed = UpdateAdminVerificationLimitsBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const normalized = parsed.data.items.map((item) => ({ ...item, currency: item.currency.toUpperCase() }));
+  if (normalized.some((item) => !/^[A-Z]{3}$/.test(item.currency))) {
+    res.status(400).json({ error: "Currencies must use a three-letter ISO-style currency code." }); return;
+  }
+  if (new Set(normalized.map((item) => `${item.tier}:${item.currency}`)).size !== normalized.length) {
+    res.status(400).json({ error: "Each verification tier and currency can appear only once." }); return;
+  }
+  const rows = await db.transaction(async (tx) => {
+    await tx.delete(verificationTierLimitsTable);
+    for (const item of normalized) {
+      await tx.insert(verificationTierLimitsTable).values({
+        ...item, updatedAt: new Date(),
+      }).onConflictDoUpdate({
+        target: [verificationTierLimitsTable.tier, verificationTierLimitsTable.currency],
+        set: {
+          collectionPerTransactionLimit: item.collectionPerTransactionLimit,
+          collectionDailyLimit: item.collectionDailyLimit,
+          collectionMonthlyLimit: item.collectionMonthlyLimit,
+          payoutLimit: item.payoutLimit, conversionLimit: item.conversionLimit,
+          updatedAt: new Date(),
+        },
+      });
+    }
+    return tx.select().from(verificationTierLimitsTable)
+      .orderBy(verificationTierLimitsTable.tier, verificationTierLimitsTable.currency);
+  });
+  await db.insert(adminAuditLogTable).values({
+    actor: getAuth(req).userId ?? "unknown-admin",
+    action: "verification_limits.updated",
+    target: "verification-limits",
+    details: `Updated ${normalized.length} verification tier/currency limit row(s).`,
+  });
+  res.json(UpdateAdminVerificationLimitsResponse.parse({ items: rows.map(verificationLimitDto) }));
+});
+
+async function refreshDiditVerification(
+  req: Parameters<Parameters<IRouter["get"]>[1]>[0],
+  merchant: typeof merchantsTable.$inferSelect,
+  kind: "kyc" | "kyb",
+  apiKey: string | null | undefined,
+): Promise<typeof merchantsTable.$inferSelect> {
+  const sessionId = kind === "kyc" ? merchant.diditSessionId : merchant.diditKybSessionId;
+  const status = kind === "kyc" ? merchant.kycStatus : merchant.kybStatus;
+  if (!diditStatusNeedsRefresh(status, sessionId)) return merchant;
+  if (!apiKey) {
+    req.log.warn({ kind }, "Didit status refresh is unavailable because API credentials are not configured");
+    return merchant;
+  }
+  try {
+    const response = await fetch(`https://verification.didit.me/v3/session/${encodeURIComponent(sessionId!)}/decision/`, {
+      headers: { "x-api-key": apiKey, Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new Error(`Didit decision endpoint returned ${response.status}.`);
+    const mapped = diditDecisionStatus(await response.json(), sessionId!);
+    if (!mapped) throw new Error("Didit decision response was missing a recognized status or matching session ID.");
+    const updated = await db.transaction(async (tx) => {
+      const [latest] = await tx.select().from(merchantsTable)
+        .where(eq(merchantsTable.id, merchant.id)).for("update").limit(1);
+      if (!latest) return undefined;
+      const latestSessionId = kind === "kyc" ? latest.diditSessionId : latest.diditKybSessionId;
+      const latestStatus = kind === "kyc" ? latest.kycStatus : latest.kybStatus;
+      if (latestSessionId !== sessionId || !diditStatusNeedsRefresh(latestStatus, latestSessionId)) return latest;
+      if (mapped === latestStatus) return latest;
+      const now = new Date();
+      const fields = kind === "kyc"
+        ? {
+            kycStatus: mapped, verificationUpdatedAt: now,
+            ...(mapped === "approved" && latest.status === "pending" ? { status: "active" } : {}),
+            updatedAt: now,
+          }
+        : { kybStatus: mapped, kybVerificationUpdatedAt: now, updatedAt: now };
+      const [saved] = await tx.update(merchantsTable).set(fields)
+        .where(and(
+          eq(merchantsTable.id, latest.id),
+          eq(kind === "kyc" ? merchantsTable.diditSessionId : merchantsTable.diditKybSessionId, sessionId!),
+        )).returning();
+      return saved ?? latest;
+    });
+    return updated ?? merchant;
+  } catch (error) {
+    req.log.warn({ err: error, kind, sessionId }, "Didit status refresh failed; retaining the last verified status");
+    return merchant;
+  }
+}
+
+async function migrateLegacyKybSession(
+  merchant: typeof merchantsTable.$inferSelect,
+): Promise<typeof merchantsTable.$inferSelect> {
+  if (merchant.diditKind !== "kyb" || merchant.diditKybSessionId || !merchant.diditSessionId) return merchant;
+  const [migrated] = await db.transaction(async (tx) => {
+    const [latest] = await tx.select().from(merchantsTable)
+      .where(eq(merchantsTable.id, merchant.id)).for("update").limit(1);
+    if (!latest || latest.diditKind !== "kyb" || latest.diditKybSessionId || !latest.diditSessionId) return [latest];
+    return tx.update(merchantsTable).set({
+      diditKybSessionId: latest.diditSessionId,
+      diditKybSessionUrl: latest.diditSessionUrl,
+      kybStatus: latest.kycStatus,
+      kybVerificationUpdatedAt: latest.verificationUpdatedAt,
+      diditSessionId: null,
+      diditSessionUrl: null,
+      diditKind: null,
+      kycStatus: "not_started",
+      verificationUpdatedAt: null,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(merchantsTable.id, latest.id),
+      eq(merchantsTable.diditSessionId, latest.diditSessionId),
+    )).returning();
+  });
+  return migrated ?? merchant;
+}
+
+router.get("/merchant/kyc", requireSignedIn, async (req, res): Promise<void> => {
   let merchant = await ownedMerchant(res);
   if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  merchant = await migrateLegacyKybSession(merchant);
   const didit = await import("../lib/credential-runtime");
   const apiKey = await didit.providerCredential("didit", "DIDIT_API_KEY");
   const individualWorkflow = await didit.providerCredential("didit", "DIDIT_WORKFLOW_ID");
   const businessWorkflow = await didit.providerCredential("didit", "DIDIT_KYB_WORKFLOW_ID");
-  if (diditStatusNeedsRefresh(merchant.kycStatus, merchant.diditSessionId)) {
-    if (!apiKey) {
-      _req.log.warn("Didit status refresh is unavailable because API credentials are not configured");
-    } else {
-      try {
-        const response = await fetch(`https://verification.didit.me/v3/session/${encodeURIComponent(merchant.diditSessionId!)}/decision/`, {
-          headers: { "x-api-key": apiKey, Accept: "application/json" },
-          signal: AbortSignal.timeout(10_000),
-        });
-        if (!response.ok) throw new Error(`Didit decision endpoint returned ${response.status}.`);
-        const status = diditDecisionStatus(await response.json(), merchant.diditSessionId!);
-        if (!status) throw new Error("Didit decision response was missing a recognized status or matching session ID.");
-        if (status !== merchant.kycStatus) {
-          const [updated] = await db.update(merchantsTable).set({
-            kycStatus: status, verificationUpdatedAt: new Date(), updatedAt: new Date(),
-          }).where(and(
-            eq(merchantsTable.id, merchant.id),
-            eq(merchantsTable.diditSessionId, merchant.diditSessionId!),
-            inArray(merchantsTable.kycStatus, ["not_started", "pending", "in_review"]),
-          )).returning();
-          if (updated) {
-            merchant = updated;
-          } else {
-            // A signed webhook or a newer session decision won the race. Return the newest stored state.
-            const [latest] = await db.select().from(merchantsTable).where(eq(merchantsTable.id, merchant.id)).limit(1);
-            if (latest) merchant = latest;
-          }
-        }
-      } catch (error) {
-        _req.log.warn({ err: error, sessionId: merchant.diditSessionId }, "Didit status refresh failed; retaining the last verified status");
-      }
-    }
-  }
-  const requirements = ["identity", "liveness", "AML", "address"];
+  merchant = await refreshDiditVerification(req, merchant, "kyc", apiKey);
+  merchant = await refreshDiditVerification(req, merchant, "kyb", apiKey);
+  const tier = verificationTierForMerchant(merchant);
+  const limits = await db.select().from(verificationTierLimitsTable)
+    .where(eq(verificationTierLimitsTable.tier, tier))
+    .orderBy(verificationTierLimitsTable.currency);
   res.json(GetMerchantKycResponse.parse({
-    status: merchant.kycStatus, configured: Boolean(apiKey && individualWorkflow && businessWorkflow),
+    status: merchant.kycStatus, configured: Boolean(apiKey && individualWorkflow),
     sessionId: merchant.diditSessionId, sessionUrl: merchant.diditSessionUrl,
-    updatedAt: merchant.verificationUpdatedAt, requirements,
+    updatedAt: merchant.verificationUpdatedAt, requirements: ["identity", "liveness", "AML", "address"],
+    kybStatus: merchant.kybStatus, kybConfigured: Boolean(apiKey && businessWorkflow),
+    kybSessionId: merchant.diditKybSessionId, kybSessionUrl: merchant.diditKybSessionUrl,
+    kybUpdatedAt: merchant.kybVerificationUpdatedAt, tier, limits: limits.map(verificationLimitDto),
   }));
 });
 
 router.post("/merchant/kyc", requireSignedIn, async (req, res): Promise<void> => {
   const parsed = CreateMerchantKycSessionBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const merchant = await ownedMerchant(res);
+  let merchant = await ownedMerchant(res);
   if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  merchant = await migrateLegacyKybSession(merchant);
   const runtime = await import("../lib/credential-runtime");
   const apiKey = await runtime.providerCredential("didit", "DIDIT_API_KEY");
-  const workflowId = await runtime.providerCredential("didit", parsed.data.kind === "kyb" ? "DIDIT_KYB_WORKFLOW_ID" : "DIDIT_WORKFLOW_ID");
-  if (!apiKey || !workflowId) { res.status(503).json({ error: "Didit API credentials or the selected workflow are not configured." }); return; }
+  const kind = parsed.data.kind;
+  const workflowId = await runtime.providerCredential("didit", kind === "kyb" ? "DIDIT_KYB_WORKFLOW_ID" : "DIDIT_WORKFLOW_ID");
+  if (!apiKey || !workflowId) {
+    res.status(503).json({ error: kind === "kyb"
+      ? "Didit API credentials or the KYB workflow are not configured."
+      : "Didit API credentials or the KYC workflow are not configured." });
+    return;
+  }
+  const currentSessionId = kind === "kyb" ? merchant.diditKybSessionId : merchant.diditSessionId;
+  const currentStatus = kind === "kyb" ? merchant.kybStatus : merchant.kycStatus;
+  if (diditStatusNeedsRefresh(currentStatus, currentSessionId) || currentStatus === "approved") {
+    res.status(409).json({ error: `A ${kind.toUpperCase()} verification session is already active or approved.` });
+    return;
+  }
   const callback = `${getPublicAppUrl()}/merchant/kyc`;
   let response: Response;
   try {
@@ -234,11 +370,29 @@ router.post("/merchant/kyc", requireSignedIn, async (req, res): Promise<void> =>
   }
   const result = await response.json() as { session_id?: string; url?: string; session_token?: string };
   if (!result.session_id || !result.url) { res.status(502).json({ error: "Didit returned an incomplete verification session." }); return; }
-  const [updated] = await db.update(merchantsTable).set({
-    diditSessionId: result.session_id, diditSessionUrl: result.url, diditKind: parsed.data.kind,
-    kycStatus: "pending", verificationUpdatedAt: new Date(), updatedAt: new Date(),
-  }).where(eq(merchantsTable.id, merchant.id)).returning();
-  void updated;
+  const updated = await db.transaction(async (tx) => {
+    const [latest] = await tx.select().from(merchantsTable)
+      .where(eq(merchantsTable.id, merchant!.id)).for("update").limit(1);
+    if (!latest) return undefined;
+    const latestSessionId = kind === "kyb" ? latest.diditKybSessionId : latest.diditSessionId;
+    const latestStatus = kind === "kyb" ? latest.kybStatus : latest.kycStatus;
+    if (latestSessionId !== currentSessionId || diditStatusNeedsRefresh(latestStatus, latestSessionId) || latestStatus === "approved") return undefined;
+    const now = new Date();
+    const fields = kind === "kyb" ? {
+      diditKybSessionId: result.session_id, diditKybSessionUrl: result.url,
+      diditKind: "kyb", kybStatus: "pending", kybVerificationUpdatedAt: now, updatedAt: now,
+    } : {
+      diditSessionId: result.session_id, diditSessionUrl: result.url,
+      diditKind: "kyc", kycStatus: "pending", verificationUpdatedAt: now, updatedAt: now,
+    };
+    const [saved] = await tx.update(merchantsTable).set(fields)
+      .where(eq(merchantsTable.id, latest.id)).returning();
+    return saved;
+  });
+  if (!updated) {
+    res.status(409).json({ error: `A ${kind.toUpperCase()} session changed while the new session was being created. Refresh and try again.` });
+    return;
+  }
   res.status(201).json(CreateMerchantKycSessionResponse.parse({ sessionId: result.session_id, url: result.url, status: "pending" }));
 });
 
@@ -492,13 +646,11 @@ apiRouter.post("/transactions", requireApiScope("payments:write"), async (req, r
   await assertPlatformEnabled("paymentsEnabled");
   const currency = values.currency.toUpperCase();
   assertSupportedCurrency(currency);
+  assertCollectionAmountPrecision(values.amount, currency);
   const provider = providerForCurrency(currency);
   if (!await providerIsConfigured(provider)) {
     res.status(503).json({ error: `${provider} is not configured.` });
     return;
-  }
-  if (provider === "payhero" && !Number.isInteger(values.amount)) {
-    res.status(400).json({ error: "KES M-Pesa collections must use whole shillings." }); return;
   }
   if (provider === "payhero" && !values.customerPhone?.trim()) {
     res.status(400).json({ error: "A phone number is required for a KES M-Pesa prompt." }); return;

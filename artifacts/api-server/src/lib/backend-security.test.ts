@@ -6,6 +6,7 @@ import {
   featureIsEnabled, hasRequiredScope, merchantCapabilityIsEnabled,
   ownsMerchantRecord, timestampIsFresh, developerApiStatusAllowed,
   paymentTransitionAllowed, diditCanonicalStatus, diditDecisionStatus, diditStatusNeedsRefresh,
+  merchantVerificationTier, verificationLimitError,
 } from "./security-policy";
 import {
   CUSTOMER_REIMBURSED_REFUND_STATUSES,
@@ -211,4 +212,37 @@ test("webhook connection lookup stays pinned to the DNS-validated address", asyn
     resolve("attacker.example", { all: false }, (...values) => done(values));
   });
   assert.deepEqual(result, [null, "93.184.216.34", 4]);
+});
+
+test("KYB only raises the tier after personal KYC is approved", () => {
+  assert.equal(merchantVerificationTier("pending", "approved"), "unverified");
+  assert.equal(merchantVerificationTier("approved", "pending"), "kyc");
+  assert.equal(merchantVerificationTier("approved", "approved"), "kyb");
+});
+
+test("verification limits apply per collection and to reserved daily and monthly volume", () => {
+  const common = {
+    currency: "USD", collectionPerTransactionLimit: 100,
+    collectionDailyLimit: 150, collectionMonthlyLimit: 500,
+    payoutLimit: 200, conversionLimit: 300,
+  };
+  assert.equal(verificationLimitError({
+    action: "collection", amount: 40, currentDailyVolume: 100, currentMonthlyVolume: 200, ...common,
+  }), undefined);
+  assert.match(verificationLimitError({
+    action: "collection", amount: 60, currentDailyVolume: 100, currentMonthlyVolume: 200, ...common,
+  }) ?? "", /daily collection/);
+  assert.match(verificationLimitError({
+    action: "collection", amount: 101, ...common,
+  }) ?? "", /per-collection/);
+});
+
+test("payout and conversion caps are independent, while explicit null means uncapped", () => {
+  const common = {
+    currency: "KES", collectionPerTransactionLimit: null,
+    collectionDailyLimit: null, collectionMonthlyLimit: null,
+    payoutLimit: 500, conversionLimit: null,
+  };
+  assert.match(verificationLimitError({ action: "payout", amount: 501, ...common }) ?? "", /payout/);
+  assert.equal(verificationLimitError({ action: "conversion", amount: 100_000, ...common }), undefined);
 });

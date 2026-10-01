@@ -1,5 +1,5 @@
 import { createHash, createHmac } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { db, payoutsTable, refundsTable, merchantsTable, webhookEventsTable } from "@workspace/db";
 import {
@@ -11,11 +11,12 @@ import {
   type PaymentStatus,
 } from "../lib/greenpay-provider";
 import {
-  findTransaction, markTransactionStatus, reconcilePaystackRefund, recordWebhookEvent,
+  findTransaction, markTransactionStatus, reconcilePaystackRefund, recordRefund, recordWebhookEvent,
 } from "../lib/greenpay-ledger";
 import { providerCredential } from "../lib/credential-runtime";
 import { equalSignature } from "../lib/secure-storage";
-import { diditDecisionStatus, timestampIsFresh } from "../lib/security-policy";
+import { diditDecisionStatus, diditStatusNeedsRefresh, timestampIsFresh } from "../lib/security-policy";
+import { setWalletPayoutStatusFromProvider } from "../lib/wallet-service";
 
 const router: IRouter = Router();
 
@@ -61,7 +62,10 @@ router.post("/didit", async (req, res): Promise<void> => {
   try {
     outcome = await db.transaction(async (tx) => {
       const [lockedMerchant] = await tx.select().from(merchantsTable)
-        .where(eq(merchantsTable.diditSessionId, sessionId)).for("update").limit(1);
+        .where(or(
+          eq(merchantsTable.diditSessionId, sessionId),
+          eq(merchantsTable.diditKybSessionId, sessionId),
+        )).for("update").limit(1);
       if (!lockedMerchant) {
         await tx.insert(webhookEventsTable).values({
           deliveryKey, provider: "didit", event, reference: sessionId,
@@ -72,6 +76,35 @@ router.post("/didit", async (req, res): Promise<void> => {
       const [existingEvent] = await tx.select({ id: webhookEventsTable.id }).from(webhookEventsTable)
         .where(eq(webhookEventsTable.deliveryKey, deliveryKey)).limit(1);
       if (existingEvent) return { status: "duplicate" };
+
+      let activeMerchant = lockedMerchant;
+      if (activeMerchant.diditKind === "kyb" && !activeMerchant.diditKybSessionId && activeMerchant.diditSessionId === sessionId) {
+        const [migrated] = await tx.update(merchantsTable).set({
+          diditKybSessionId: activeMerchant.diditSessionId,
+          diditKybSessionUrl: activeMerchant.diditSessionUrl,
+          kybStatus: activeMerchant.kycStatus,
+          kybVerificationUpdatedAt: activeMerchant.verificationUpdatedAt,
+          diditSessionId: null,
+          diditSessionUrl: null,
+          diditKind: null,
+          kycStatus: "not_started",
+          verificationUpdatedAt: null,
+          updatedAt: new Date(),
+        }).where(and(
+          eq(merchantsTable.id, activeMerchant.id),
+          eq(merchantsTable.diditSessionId, sessionId),
+        )).returning();
+        if (migrated) activeMerchant = migrated;
+      }
+      const kind = activeMerchant.diditSessionId === sessionId ? "kyc" : "kyb";
+      const currentStatus = kind === "kyc" ? activeMerchant.kycStatus : activeMerchant.kybStatus;
+      if (!diditStatusNeedsRefresh(currentStatus, sessionId)) {
+        await tx.insert(webhookEventsTable).values({
+          deliveryKey, provider: "didit", event, reference: sessionId,
+          status: "ignored", httpStatus: 200,
+        }).onConflictDoNothing();
+        return { status: "ignored" };
+      }
 
       const decisionResponse = await fetch(`https://verification.didit.me/v3/session/${encodeURIComponent(sessionId)}/decision/`, {
         headers: { "x-api-key": apiKey },
@@ -86,10 +119,21 @@ router.post("/didit", async (req, res): Promise<void> => {
         }).onConflictDoNothing();
         return { status: "ignored" };
       }
-      if (lockedMerchant.kycStatus !== mapped) {
-        await tx.update(merchantsTable).set({
-          kycStatus: mapped, verificationUpdatedAt: new Date(), updatedAt: new Date(),
-        }).where(and(eq(merchantsTable.id, lockedMerchant.id), eq(merchantsTable.diditSessionId, sessionId)));
+      if (currentStatus !== mapped) {
+        const now = new Date();
+        const changes = kind === "kyc"
+          ? {
+              kycStatus: mapped, verificationUpdatedAt: now,
+              ...(mapped === "approved" && activeMerchant.status === "pending" ? { status: "active" } : {}),
+              updatedAt: now,
+            }
+          : { kybStatus: mapped, kybVerificationUpdatedAt: now, updatedAt: now };
+        await tx.update(merchantsTable).set(changes).where(and(
+          eq(merchantsTable.id, activeMerchant.id),
+          kind === "kyc"
+            ? eq(merchantsTable.diditSessionId, sessionId)
+            : eq(merchantsTable.diditKybSessionId, sessionId),
+        ));
       }
       await tx.insert(webhookEventsTable).values({
         deliveryKey, provider: "didit", event, reference: sessionId,
@@ -160,13 +204,22 @@ router.post("/:provider", async (req, res): Promise<void> => {
 
   const paystackData = asObject(payload.data);
   const payzaMetadata = asObject(payload.metadata);
+  const payzaPayout = asObject(payload.payout ?? payload.data);
   const payheroResponse = asObject(payload.response);
   const event = stringValue(payload.event) ?? "provider.callback";
   const reference = provider === "paystack"
     ? stringValue(paystackData.reference)
     : provider === "payhero"
       ? stringValue(payheroResponse.ExternalReference) ?? stringValue(payload.ExternalReference)
-      : stringValue(payload.reference);
+      : stringValue(payload.client_reference) ??
+        stringValue(payload.merchant_reference) ??
+        stringValue(payload.external_reference) ??
+        stringValue(payzaPayout.client_reference) ??
+        stringValue(payzaPayout.merchant_reference) ??
+        stringValue(payzaPayout.external_reference) ??
+        stringValue(payload.reference) ??
+        stringValue(payzaPayout.reference) ??
+        stringValue(payzaPayout.id);
   const deliveryKey = createHash("sha256").update(rawBody).digest("hex");
   let eventStatus = "processed";
   let httpStatus = 200;
@@ -190,26 +243,61 @@ router.post("/:provider", async (req, res): Promise<void> => {
     } else if (provider === "payzaapi" && event === "payment.refunded") {
       const originalReference = stringValue(payzaMetadata.original_reference);
       if (originalReference && reference) {
-        await db.update(refundsTable).set({ status: "recorded" })
-          .where(and(
-            eq(refundsTable.provider, "payzaapi"),
-            eq(refundsTable.providerReference, reference),
-            eq(refundsTable.originalReference, originalReference),
-          ));
+        const matchingRefunds = await db.select().from(refundsTable).where(and(
+          eq(refundsTable.provider, "payzaapi"),
+          eq(refundsTable.providerReference, reference),
+          eq(refundsTable.originalReference, originalReference),
+        ));
+        for (const refund of matchingRefunds) {
+          await recordRefund({
+            originalReference,
+            reservationId: refund.id,
+            provider: "payzaapi",
+            providerReference: reference,
+            source: "reconciliation",
+            amount: Number(refund.amount),
+            currency: refund.currency,
+            status: "recorded",
+            reason: refund.reason,
+          });
+        }
       }
     } else if (provider === "payzaapi" && event.startsWith("payout.")) {
       if (!reference) {
-        eventStatus = "ignored";
+        eventStatus = "failed";
+        httpStatus = 503;
+        lastError = "Payout callback has no client or provider reference; the event is retained for manual reconciliation.";
       } else {
-        const [payout] = await db.select().from(payoutsTable).where(and(
-          eq(payoutsTable.provider, "payzaapi"),
-          eq(payoutsTable.providerReference, reference),
-        )).limit(1);
-        if (!payout) {
-          eventStatus = "ignored";
-        } else {
-          await db.update(payoutsTable).set({ status: normalizePayoutStatus(payload.status) })
-            .where(eq(payoutsTable.id, payout.id));
+        const normalizedStatus = normalizePayoutStatus(payload.status ?? payzaPayout.status);
+        const merchantStatus = ["completed", "rejected", "failed"].includes(normalizedStatus)
+          ? normalizedStatus as "completed" | "rejected" | "failed"
+          : "processing";
+        const matchedWalletRequest = await setWalletPayoutStatusFromProvider("payzaapi", reference, merchantStatus);
+        if (!matchedWalletRequest) {
+          const [payout] = await db.select().from(payoutsTable).where(and(
+            eq(payoutsTable.provider, "payzaapi"),
+            or(
+              eq(payoutsTable.providerReference, reference),
+              eq(payoutsTable.reference, reference),
+            ),
+          )).limit(1);
+          if (!payout) {
+            eventStatus = "failed";
+            httpStatus = 503;
+            lastError = "Payout callback did not match a persisted wallet or platform payout; the event is retained for reconciliation.";
+          } else {
+            await db.transaction(async (tx) => {
+              const [current] = await tx.select().from(payoutsTable)
+                .where(eq(payoutsTable.id, payout.id)).for("update").limit(1);
+              if (!current || ["completed", "rejected", "failed"].includes(current.status)) return;
+              await tx.update(payoutsTable).set({
+                providerReference: current.reference === reference
+                  ? current.providerReference
+                  : reference,
+                status: normalizedStatus,
+              }).where(eq(payoutsTable.id, current.id));
+            });
+          }
         }
       }
     } else if (!reference) {

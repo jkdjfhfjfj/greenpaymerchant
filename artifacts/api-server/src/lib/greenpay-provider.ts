@@ -1,5 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { TransactionRecord } from "@workspace/db";
+import {
+  COLLECTION_CURRENCIES,
+  isSupportedCollectionCurrency,
+} from "@workspace/api-zod";
 import { providerCredential, providerEnabled } from "./credential-runtime";
 import { ApiError } from "./api-error";
 import { providerPaymentEvidenceMatches } from "./payment-safety";
@@ -9,13 +13,13 @@ export type ProviderName = "paystack" | "payhero" | "payzaapi";
 export type PaymentStatus = "pending" | "success" | "failed" | "cancelled";
 type JsonObject = Record<string, unknown>;
 
-export const PAYZA_CURRENCIES = [
-  "NGN", "GHS", "TZS", "XOF", "RWF", "UGX",
-  "ZMW", "MWK", "SLL", "CDF", "MZN", "XAF",
-] as const;
+export const PAYZA_CURRENCIES = COLLECTION_CURRENCIES
+  .filter(({ code }) => code !== "USD" && code !== "KES")
+  .map(({ code }) => code);
 
 export function providerForCurrency(currency: string): ProviderName {
   const normalized = currency.toUpperCase();
+  assertSupportedCurrency(normalized);
   if (normalized === "USD") return "paystack";
   if (normalized === "KES") return "payhero";
   return "payzaapi";
@@ -23,7 +27,7 @@ export function providerForCurrency(currency: string): ProviderName {
 
 export function assertSupportedCurrency(currency: string): void {
   const normalized = currency.toUpperCase();
-  if (normalized !== "USD" && normalized !== "KES" && !PAYZA_CURRENCIES.includes(normalized as (typeof PAYZA_CURRENCIES)[number])) {
+  if (!isSupportedCollectionCurrency(normalized)) {
     throw new ApiError(400, `Greenpay does not currently support ${normalized}.`);
   }
 }

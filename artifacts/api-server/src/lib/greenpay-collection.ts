@@ -1,12 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { eq, isNull } from "drizzle-orm";
+import {
+  collectionCurrency,
+  hasCollectionAmountPrecision,
+  normalizeCollectionAmount,
+} from "@workspace/api-zod";
 import { db, feeSchedulesTable, merchantsTable, transactionsTable } from "@workspace/db";
 import {
   ApiError, assertSupportedCurrency, providerForCurrency, providerIsConfigured, startProviderPayment,
   type ProviderName, type StartPaymentInput, type StartPaymentResult,
 } from "./greenpay-provider";
-import { insertPendingTransaction } from "./greenpay-ledger";
-import { assertMerchantMayTransact, assertPlatformEnabled } from "./platform";
+import { assertMerchantMayTransact, assertPlatformEnabled, reserveVerificationUsage } from "./platform";
 
 export interface CreateCollectionInput {
   amount: number;
@@ -27,6 +31,15 @@ export interface CreateCollectionDependencies {
   startProviderPayment?: (input: StartPaymentInput) => Promise<StartPaymentResult>;
 }
 
+export function assertCollectionAmountPrecision(amount: number, currency: string): void {
+  const item = collectionCurrency(currency);
+  if (!item || !hasCollectionAmountPrecision(amount, currency)) {
+    const digits = item?.minorUnits ?? 0;
+    const precision = digits === 0 ? "whole units" : `at most ${digits} fractional digits`;
+    throw new ApiError(400, `${currency.toUpperCase()} collection amounts must use ${precision}.`);
+  }
+}
+
 export async function createCollection(
   input: CreateCollectionInput,
   dependencies: CreateCollectionDependencies = {},
@@ -39,8 +52,9 @@ export async function createCollection(
     await assertMerchantMayTransact(merchant);
   }
   assertSupportedCurrency(currency);
+  assertCollectionAmountPrecision(input.amount, currency);
+  const amount = normalizeCollectionAmount(input.amount, currency);
   const provider: ProviderName = providerForCurrency(currency);
-  const amount = Math.round(input.amount * 100) / 100;
   if (!await (dependencies.providerIsConfigured ?? providerIsConfigured)(provider)) {
     throw new ApiError(503, `${provider} is not configured.`);
   }
@@ -69,22 +83,36 @@ export async function createCollection(
   const platformFee = Math.round((amount * platformFeePercent / 100 + platformFlatFee) * 100) / 100;
 
   const reference = `GP-${randomUUID()}`;
-  const row = await insertPendingTransaction({
-    reference,
-    provider,
-    amount,
-    platformFee,
-    platformFeePercent,
-    platformFlatFee,
-    platformFeeCurrency: feeSchedule?.currency.toUpperCase() ?? currency,
-    platformFeeScheduleId: feeSchedule?.id ?? null,
-    currency,
-    customerEmail: input.customerEmail.trim().toLowerCase(),
-    customerName: input.customerName?.trim() || null,
-    customerPhone: input.customerPhone?.trim() || null,
-    description: input.description?.trim() || null,
-    paymentLinkId: input.paymentLinkId ?? null,
-    merchantId: input.merchantId ?? null,
+  const row = await db.transaction(async (tx) => {
+    if (input.merchantId !== undefined) {
+      const [merchant] = await tx.select().from(merchantsTable)
+        .where(eq(merchantsTable.id, input.merchantId)).for("update").limit(1);
+      if (!merchant) throw new ApiError(404, "Merchant account not found.");
+      await assertMerchantMayTransact(merchant);
+    }
+    const [pending] = await tx.insert(transactionsTable).values({
+      reference,
+      provider,
+      amount,
+      platformFee,
+      platformFeePercent,
+      platformFlatFee,
+      platformFeeCurrency: feeSchedule?.currency.toUpperCase() ?? currency,
+      platformFeeScheduleId: feeSchedule?.id ?? null,
+      currency,
+      customerEmail: input.customerEmail.trim().toLowerCase(),
+      customerName: input.customerName?.trim() || null,
+      customerPhone: input.customerPhone?.trim() || null,
+      description: input.description?.trim() || null,
+      paymentLinkId: input.paymentLinkId ?? null,
+      merchantId: input.merchantId ?? null,
+      status: "pending",
+      settlementStatus: "not_applicable",
+    }).returning();
+    if (input.merchantId !== undefined) {
+      await reserveVerificationUsage(tx, input.merchantId, "collection", amount, currency, pending!.id);
+    }
+    return pending!;
   });
 
   const payment = await (dependencies.startProviderPayment ?? startProviderPayment)({

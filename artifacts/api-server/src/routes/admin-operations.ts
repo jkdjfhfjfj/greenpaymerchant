@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { Router, type IRouter } from "express";
 import {
@@ -61,7 +61,8 @@ import {
 } from "../lib/greenpay-ledger";
 import { markTransactionStatus } from "../lib/greenpay-ledger";
 import { idempotencyDisposition } from "../lib/payment-safety";
-import { assertMerchantMayPayout } from "../lib/platform";
+import { payoutProviderOutcome } from "../lib/wallet-math";
+import { createWalletPayoutRequest, reconcileMerchantPayoutByReference } from "../lib/wallet-service";
 
 const router: IRouter = Router();
 
@@ -195,42 +196,57 @@ router.get("/banks", async (req, res): Promise<void> => {
 });
 
 router.post("/payouts", async (req, res): Promise<void> => {
-  const { assertPlatformEnabled } = await import("../lib/platform");
-  await assertPlatformEnabled("payoutsEnabled");
   const parsed = CreatePayoutBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  if (!await providerIsConfigured("payzaapi")) throw new ApiError(503, "Payzaapi payouts are not configured.");
-
   const input = parsed.data;
-  const accountNumber = input.accountNumber.trim();
+  const accountNumber = input.accountNumber.trim().replace(/\s+/g, "");
+  const accountName = input.accountName.trim().replace(/\s+/g, " ");
+  const methodValue = input.method.trim();
+  const bankCode = input.bankCode?.trim() || null;
+  const bankName = input.bankName?.trim().replace(/\s+/g, " ") || null;
   const currency = input.currency.toUpperCase();
   const payoutMerchantId = input.merchantId ?? null;
-  if (payoutMerchantId !== null) {
+  if (input.fundingSource === "merchant_wallet") {
+    if (payoutMerchantId === null) {
+      res.status(400).json({ error: "Merchant-wallet payout mode requires a merchantId." });
+      return;
+    }
     const [merchant] = await db.select().from(merchantsTable)
       .where(eq(merchantsTable.id, payoutMerchantId)).limit(1);
     if (!merchant) { res.status(404).json({ error: "Merchant not found." }); return; }
-    await assertMerchantMayPayout(merchant);
+    const request = await createWalletPayoutRequest(merchant, {
+      amount: input.amount,
+      currency,
+      method: methodValue,
+      accountName,
+      accountNumber,
+      bankCode: bankCode ?? undefined,
+      bankName: bankName ?? undefined,
+      idempotencyKey: input.idempotencyKey,
+    });
+    res.status(201).json(CreatePayoutResponse.parse({
+      ...request,
+      provider: "payzaapi",
+    }));
+    return;
   }
-  const methods = await payzaPayoutMethods(currency);
-  if (!methods.available) throw new ApiError(422, `Payouts are unavailable in ${currency}.`);
-  const method = methods.methods.find((candidate) => candidate.value === input.method);
-  if (!method) throw new ApiError(400, "Choose a payout method returned by Payzaapi.");
-  if (input.amount < methods.minimumWithdrawal) {
-    throw new ApiError(400, `The minimum withdrawal for ${currency} is ${methods.minimumWithdrawal}.`);
+  if (payoutMerchantId !== null) {
+    res.status(400).json({ error: "Platform-funded payout mode cannot be merchant-attributed; use merchant_wallet funding." });
+    return;
   }
-  if (method.requiresBankFields && (!input.bankCode || !input.bankName)) {
-    throw new ApiError(400, "Select a bank and enter its bank code for this payout method.");
-  }
-
-  const reference = `GP-PO-${randomUUID()}`;
   const requestPayload = {
-    amount: input.amount, currency, method: input.method,
-    accountNumber, accountName: input.accountName.trim(),
-    bankCode: input.bankCode?.trim() ?? null, bankName: input.bankName?.trim() ?? null,
-    merchantId: payoutMerchantId,
+    fundingSource: "platform",
+    amount: input.amount,
+    currency,
+    method: methodValue,
+    accountNumber,
+    accountName,
+    bankCode,
+    bankName,
+    merchantId: null,
   };
   const requestHash = createHash("sha256").update(JSON.stringify(requestPayload)).digest("hex");
   const [reservation] = await db.insert(payoutIdempotencyTable).values({
@@ -264,12 +280,34 @@ router.post("/payouts", async (req, res): Promise<void> => {
     return;
   }
 
-  const feeAmount = methods.fee.type === "flat"
-    ? methods.fee.amount
-    : Math.max(
-      input.amount * (methods.fee.percent ?? 0) / 100,
-      methods.fee.floor ?? 0,
-    );
+  let feeAmount: number;
+  let methodLabel: string;
+  try {
+    const { assertPlatformEnabled } = await import("../lib/platform");
+    await assertPlatformEnabled("payoutsEnabled");
+    if (!await providerIsConfigured("payzaapi")) throw new ApiError(503, "Payzaapi payouts are not configured.");
+    const methods = await payzaPayoutMethods(currency);
+    if (!methods.available) throw new ApiError(422, `Payouts are unavailable in ${currency}.`);
+    const method = methods.methods.find((candidate) => candidate.value === methodValue);
+    if (!method) throw new ApiError(400, "Choose a payout method returned by Payzaapi.");
+    if (input.amount < methods.minimumWithdrawal) {
+      throw new ApiError(400, `The minimum withdrawal for ${currency} is ${methods.minimumWithdrawal}.`);
+    }
+    if (method.requiresBankFields && (!bankCode || !bankName)) {
+      throw new ApiError(400, "Select a bank and enter its bank code for this payout method.");
+    }
+    feeAmount = methods.fee.type === "flat"
+      ? methods.fee.amount
+      : Math.max(input.amount * (methods.fee.percent ?? 0) / 100, methods.fee.floor ?? 0);
+    methodLabel = method.label;
+  } catch (error) {
+    await db.delete(payoutIdempotencyTable).where(and(
+      eq(payoutIdempotencyTable.id, reservation.id),
+      eq(payoutIdempotencyTable.status, "in_flight"),
+    ));
+    throw error;
+  }
+  const reference = `GP-PO-${randomUUID()}`;
   const rawAccountDigits = accountNumber.replace(/\D/g, "");
   const maskedAccount = `${"•".repeat(Math.max(0, Math.min(8, rawAccountDigits.length - 4)))}${rawAccountDigits.slice(-4)}`;
   const [intent] = await db.insert(payoutsTable).values({
@@ -280,8 +318,8 @@ router.post("/payouts", async (req, res): Promise<void> => {
     fee: feeAmount,
     netAmount: input.amount,
     currency,
-    method: method.label,
-    accountName: input.accountName.trim(),
+    method: methodLabel,
+    accountName,
     maskedAccount: maskedAccount || "••••",
     status: "processing",
   }).returning();
@@ -293,19 +331,20 @@ router.post("/payouts", async (req, res): Promise<void> => {
     action: "payout.created",
     target: `payout:${intent.reference}`,
     details: payoutMerchantId === null
-      ? "Payout intent created without merchant attribution."
+      ? "Explicit platform-funded payout intent created without merchant attribution."
       : `Payout intent attributed to merchant:${payoutMerchantId}.`,
   });
 
   const payload: Record<string, unknown> = {
     amount: input.amount,
     currency,
-    method: input.method,
+    method: methodValue,
     account_number: accountNumber,
-    account_name: input.accountName.trim(),
+    account_name: accountName,
+    reference: intent.reference,
   };
-  if (input.bankCode) payload.bank_code = input.bankCode;
-  if (input.bankName) payload.bank_name = input.bankName;
+  if (bankCode) payload.bank_code = bankCode;
+  if (bankName) payload.bank_name = bankName;
 
   let response: Record<string, unknown>;
   try {
@@ -328,20 +367,30 @@ router.post("/payouts", async (req, res): Promise<void> => {
   const rawStatus = stringValue(payout.status)?.toLowerCase();
   const allowedStatuses = ["pending", "processing", "approved", "completed", "rejected", "failed"];
   const providerStatus = allowedStatuses.includes(rawStatus ?? "") ? rawStatus! : "processing";
-  const status = response.success !== true
-    ? "failed"
-    : providerReference ? providerStatus : "processing";
-  const [row] = await db.update(payoutsTable).set({
-    providerReference: providerReference ?? null,
-    netAmount: numberValue(payout.net_amount) ?? input.amount,
-    status,
-  }).where(eq(payoutsTable.id, intent.id)).returning();
-  const result = CreatePayoutResponse.parse(payoutDto(row));
-  await db.update(payoutIdempotencyTable).set({
-    status: providerReference || response.success !== true ? "completed" : "unresolved",
-    response: result,
-    updatedAt: new Date(),
-  }).where(eq(payoutIdempotencyTable.id, reservation.id));
+  const status = payoutProviderOutcome({
+    accepted: typeof response.success === "boolean" ? response.success : undefined,
+    providerReference,
+    providerStatus,
+  });
+  const result = await db.transaction(async (tx) => {
+    const [current] = await tx.select().from(payoutsTable)
+      .where(eq(payoutsTable.id, intent.id)).for("update").limit(1);
+    if (!current) throw new ApiError(404, "Payout intent was not found after provider submission.");
+    const terminal = ["completed", "rejected", "failed"].includes(current.status);
+    const [updated] = await tx.update(payoutsTable).set({
+      providerReference: providerReference ?? current.providerReference,
+      netAmount: numberValue(payout.net_amount) ?? current.netAmount ?? input.amount,
+      status: terminal ? current.status : status,
+    }).where(eq(payoutsTable.id, current.id)).returning();
+    if (!updated) throw new ApiError(503, "Payout outcome could not be persisted for reconciliation.");
+    const parsed = CreatePayoutResponse.parse(payoutDto(updated));
+    await tx.update(payoutIdempotencyTable).set({
+      status: ["uncertain", "processing"].includes(updated.status) ? "unresolved" : "completed",
+      response: parsed,
+      updatedAt: new Date(),
+    }).where(eq(payoutIdempotencyTable.id, reservation.id));
+    return parsed;
+  });
   res.status(201).json(result);
 });
 
@@ -401,20 +450,33 @@ router.post("/webhook-events/:id/replay", async (req, res): Promise<void> => {
   let errorMessage: string | null = null;
   try {
     if (event.event.startsWith("payout.") && event.provider === "payzaapi") {
-      const [payout] = await db.select().from(payoutsTable).where(and(
-        eq(payoutsTable.provider, "payzaapi"),
-        eq(payoutsTable.providerReference, event.reference),
-      )).limit(1);
-      if (!payout) throw new ApiError(404, "No payout matches this provider reference.");
-      const response = await payzaApiRequest(`/payouts?reference=${encodeURIComponent(event.reference)}`);
-      const raw = asObject(response.payout ?? (Array.isArray(response.payouts) ? response.payouts[0] : null));
-      if (response.success !== true || !stringValue(raw.status)) throw new ApiError(502, "Payzaapi could not verify the payout.");
-      const providerStatus = stringValue(raw.status)!.toLowerCase();
-      const payoutStatus = ["pending", "processing", "approved", "completed", "rejected", "failed"].includes(providerStatus)
-        ? providerStatus
-        : "processing";
-      await db.update(payoutsTable).set({ status: payoutStatus })
-        .where(eq(payoutsTable.id, payout.id));
+      const walletRequest = await reconcileMerchantPayoutByReference(event.reference);
+      if (!walletRequest) {
+        const [payout] = await db.select().from(payoutsTable).where(and(
+          eq(payoutsTable.provider, "payzaapi"),
+          or(
+            eq(payoutsTable.providerReference, event.reference),
+            eq(payoutsTable.reference, event.reference),
+          ),
+        )).limit(1);
+        if (!payout) throw new ApiError(404, "No payout matches this provider or client reference.");
+        const response = await payzaApiRequest(`/payouts?reference=${encodeURIComponent(payout.reference)}`);
+        const raw = asObject(response.payout ?? (Array.isArray(response.payouts) ? response.payouts[0] : null));
+        if (response.success !== true || !stringValue(raw.status)) throw new ApiError(502, "Payzaapi could not verify the payout.");
+        const providerStatus = stringValue(raw.status)!.toLowerCase();
+        const payoutStatus = ["pending", "processing", "approved", "completed", "rejected", "failed"].includes(providerStatus)
+          ? providerStatus
+          : "processing";
+        await db.transaction(async (tx) => {
+          const [current] = await tx.select().from(payoutsTable)
+            .where(eq(payoutsTable.id, payout.id)).for("update").limit(1);
+          if (!current || ["completed", "rejected", "failed"].includes(current.status)) return;
+          await tx.update(payoutsTable).set({
+            providerReference: stringValue(raw.reference) ?? stringValue(raw.id) ?? current.providerReference,
+            status: payoutStatus,
+          }).where(eq(payoutsTable.id, current.id));
+        });
+      }
     } else {
       const [transaction] = await db.select().from(transactionsTable)
         .where(eq(transactionsTable.reference, event.reference)).limit(1);

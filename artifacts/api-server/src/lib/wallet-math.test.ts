@@ -1,0 +1,65 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  calculateWalletConversion,
+  canApplyWalletRefundAdjustment,
+  canReserveWalletFunds,
+  decimalToMinor,
+  eligibleSettlementFunding,
+  payoutProviderOutcome,
+  proportionalNetRefundReversal,
+  shouldReleasePayoutHold,
+} from "./wallet-math";
+
+test("wallet money conversion uses integer minor units without binary rounding", () => {
+  assert.equal(decimalToMinor("0.10"), 10n);
+  assert.equal(decimalToMinor("125.01"), 12_501n);
+  assert.throws(() => decimalToMinor("1.001"), /decimal places/);
+  const converted = calculateWalletConversion({
+    sourceMinor: 10_000n,
+    sourceRate: "1.234500000000",
+    markupBps: 100,
+    feePercentage: "1.25",
+    flatFeeMinor: 25n,
+  });
+  assert.equal(converted.grossTargetMinor, 12_222n);
+  assert.equal(converted.feeMinor, 178n);
+  assert.equal(converted.targetMinor, 12_044n);
+});
+
+test("pre- and post-funding refunds use the same proportional reversal against eligible net", () => {
+  assert.equal(eligibleSettlementFunding({
+    confirmedNetMinor: 8_000n, confirmedRefundMinor: 1_000n,
+    originalAmountMinor: 10_000n, previouslyFundedMinor: 0n,
+  }), 7_200n);
+  const prefundingReversal = proportionalNetRefundReversal(8_000n, 1_000n, 10_000n);
+  const postfundingTarget = proportionalNetRefundReversal(8_000n, 2_000n, 10_000n);
+  assert.equal(prefundingReversal, 800n);
+  assert.equal(postfundingTarget - prefundingReversal, 800n);
+  assert.equal(eligibleSettlementFunding({
+    confirmedNetMinor: 1_000n, confirmedRefundMinor: 7_000n,
+    originalAmountMinor: 10_000n, previouslyFundedMinor: 500n,
+  }), 0n);
+});
+
+test("atomic wallet reservations must cover the entire hold", () => {
+  assert.equal(canReserveWalletFunds(10_000n, 5_000n), true);
+  assert.equal(canReserveWalletFunds(4_999n, 5_000n), false);
+  assert.equal(canReserveWalletFunds(10_000n, 0n), false);
+});
+
+test("provider payout uncertainty retains the hold and is never treated as a rejection", () => {
+  assert.equal(payoutProviderOutcome({ accepted: undefined, providerReference: "P-UNKNOWN" }), "uncertain");
+  assert.equal(payoutProviderOutcome({ accepted: true, providerReference: null }), "uncertain");
+  assert.equal(payoutProviderOutcome({ accepted: true, providerReference: "P-1", providerStatus: "pending" }), "processing");
+  assert.equal(payoutProviderOutcome({ accepted: true, providerReference: "P-1", providerStatus: "completed" }), "completed");
+  assert.equal(payoutProviderOutcome({ accepted: false }), "failed");
+  assert.equal(shouldReleasePayoutHold("uncertain"), false);
+  assert.equal(shouldReleasePayoutHold("processing"), false);
+  assert.equal(shouldReleasePayoutHold("failed"), true);
+});
+
+test("credited refund amounts cannot exceed funds still available to reverse", () => {
+  assert.equal(canApplyWalletRefundAdjustment(2_500n, 2_500n), true);
+  assert.equal(canApplyWalletRefundAdjustment(2_499n, 2_500n), false);
+});

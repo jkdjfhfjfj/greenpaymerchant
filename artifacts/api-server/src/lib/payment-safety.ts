@@ -1,5 +1,5 @@
 export const CUSTOMER_REIMBURSED_REFUND_STATUSES = ["success", "completed", "processed"] as const;
-export const OPEN_REFUND_RESERVATION_STATUSES = ["pending", "manual_required"] as const;
+export const OPEN_REFUND_RESERVATION_STATUSES = ["pending", "manual_required", "recorded"] as const;
 
 export function providerPaymentEvidenceMatches(input: {
   expectedReference: string;

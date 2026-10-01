@@ -36,6 +36,7 @@ import {
 } from "../lib/greenpay-ledger";
 import { providerCredential } from "../lib/credential-runtime";
 import { assertMerchantCapability } from "../lib/platform";
+import { reserveWalletRefundFunds } from "../lib/wallet-service";
 import {
   CUSTOMER_REIMBURSED_REFUND_STATUSES,
   OPEN_REFUND_RESERVATION_STATUSES,
@@ -187,6 +188,7 @@ router.post("/transactions/:reference/refund", async (req, res): Promise<void> =
       status: "pending",
       reason,
     }).returning();
+    if (reservation) await reserveWalletRefundFunds(tx, current, reservation);
     return { reservation, requestedAmount } as const;
   });
   if ("error" in amountRequest) {

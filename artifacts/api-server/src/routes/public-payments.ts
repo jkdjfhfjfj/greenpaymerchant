@@ -3,13 +3,15 @@ import {
   CheckoutPaymentLinkBody,
   CheckoutPaymentLinkParams,
   CheckoutPaymentLinkResponse,
+  COLLECTION_CURRENCIES,
   GetPublicPaymentLinkParams,
   GetPublicPaymentLinkResponse,
   GetPublicTransactionStatusParams,
   GetPublicTransactionStatusResponse,
+  ListSupportedCurrenciesResponse,
 } from "@workspace/api-zod";
 import { createCollection } from "../lib/greenpay-collection";
-import { ApiError, verifyProviderPayment } from "../lib/greenpay-provider";
+import { ApiError, providerForCurrency, providerIsConfigured, verifyProviderPayment } from "../lib/greenpay-provider";
 import {
   findTransaction,
   getPaymentLinkBySlug,
@@ -17,8 +19,26 @@ import {
 } from "../lib/greenpay-ledger";
 import { db, merchantsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { getPlatformSettings } from "../lib/platform";
 
 const router: IRouter = Router();
+
+router.get("/currencies", async (_req, res): Promise<void> => {
+  const platformReady = (await getPlatformSettings()).paymentsEnabled;
+  const routeReadiness = {
+    paystack: await providerIsConfigured("paystack"),
+    payhero: await providerIsConfigured("payhero"),
+    payzaapi: await providerIsConfigured("payzaapi"),
+  };
+  const items = await Promise.all(COLLECTION_CURRENCIES.map(async ({ code, name, minorUnits }) => ({
+    code,
+    name,
+    minorUnits,
+    collectionReady: platformReady && routeReadiness[providerForCurrency(code)],
+  })));
+  res.setHeader("Cache-Control", "public, max-age=60");
+  res.json(ListSupportedCurrenciesResponse.parse({ items }));
+});
 
 router.get("/public/payment-links/:slug", async (req, res): Promise<void> => {
   const params = GetPublicPaymentLinkParams.safeParse(req.params);

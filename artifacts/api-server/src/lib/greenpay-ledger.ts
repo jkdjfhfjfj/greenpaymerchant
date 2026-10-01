@@ -8,6 +8,7 @@ import {
   settlementsTable,
   transactionsTable,
   webhookEventsTable,
+  verificationUsageReservationsTable,
   type PaymentLinkRecord,
   type PayoutRecord,
   type SettlementRecord,
@@ -22,6 +23,7 @@ import { providerCredential } from "./credential-runtime";
 import { dispatchPendingMerchantWebhooks, enqueueMerchantWebhookOutbox } from "./outbound-webhooks";
 import { CUSTOMER_REIMBURSED_REFUND_STATUSES } from "./payment-safety";
 import { paymentTransitionAllowed } from "./security-policy";
+import { settleWalletRefundFunds } from "./wallet-service";
 
 const TERMINAL_REFUND_STATUSES = new Set([
   ...CUSTOMER_REIMBURSED_REFUND_STATUSES,
@@ -146,6 +148,15 @@ export async function markTransactionStatus(
         settlementStatus: "pending",
       }).where(and(eq(transactionsTable.id, current.id), eq(transactionsTable.status, "pending"))).returning();
       if (!updated) return { transaction: current, event: undefined };
+      if (current.merchantId !== null) {
+        await tx.update(verificationUsageReservationsTable).set({
+          status: "committed", updatedAt: new Date(),
+        }).where(and(
+          eq(verificationUsageReservationsTable.transactionId, current.id),
+          eq(verificationUsageReservationsTable.action, "collection"),
+          eq(verificationUsageReservationsTable.status, "reserved"),
+        ));
+      }
       await tx.insert(settlementsTable).values({
         reference: current.reference,
         provider: current.provider,
@@ -162,6 +173,15 @@ export async function markTransactionStatus(
         settlementStatus: "not_applicable",
       }).where(and(eq(transactionsTable.id, current.id), eq(transactionsTable.status, "pending"))).returning();
       if (!updated) return { transaction: current, event: undefined };
+      if (current.merchantId !== null) {
+        await tx.update(verificationUsageReservationsTable).set({
+          status: "released", updatedAt: new Date(),
+        }).where(and(
+          eq(verificationUsageReservationsTable.transactionId, current.id),
+          eq(verificationUsageReservationsTable.action, "collection"),
+          eq(verificationUsageReservationsTable.status, "reserved"),
+        ));
+      }
       if (result.status === "failed") event = "payment.failed";
     }
     if (updated && event) {
@@ -314,6 +334,7 @@ export async function recordRefund(input: {
       }).returning();
     }
     if (!refund) throw new Error("Refund outcome could not be persisted.");
+    if (transaction) await settleWalletRefundFunds(tx, transaction, refund);
 
     let event: string | undefined;
     if (transaction && transaction.status === "success" &&

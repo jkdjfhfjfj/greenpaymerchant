@@ -46,7 +46,7 @@ function Inner() {
   const kItems = keys.data?.items ?? [];
   const hItems = hooks.data?.items ?? [];
   return <>
-    <Heading eyebrow="DEVELOPERS" title="API access" subtitle="Keys, webhook destinations and the endpoints they unlock." />
+    <Heading eyebrow="DEVELOPERS" title="API access" subtitle="Keys, webhook destinations and the endpoints they unlock." action={<a className="btn btn-secondary" href="/developers/docs">API docs &amp; playground</a>} />
     <Card title="API keys" subtitle="Keys authenticate with Bearer tokens" action={<Btn small onClick={() => { setScopes(['read']); mk.reset(); setKeyOpen(true); }} testId="button-new-key"><Plus size={14} />New key</Btn>}>
       <Async q={keys} empty={!kItems.length} emptyTitle="No API keys" emptyBody="Create a key to call the merchant API."><div className="table-wrap"><table className="dt"><thead><tr><th>Name</th><th>Prefix</th><th>Scopes</th><th>Last used</th><th>State</th><th /></tr></thead><tbody>
         {kItems.map((k) => <tr key={k.id} data-testid={`row-key-${k.id}`}><td><strong>{k.name}</strong><span className="sub">Created {fmtDate(k.createdAt)}</span></td><td className="mono">{k.prefix}...</td><td>{k.scopes.join(', ')}</td><td>{fmtDate(k.lastUsedAt)}</td><td><Pill value={k.revokedAt ? 'revoked' : 'active'} /></td><td><div className="row-actions">{!k.revokedAt && <Btn variant="danger" small onClick={() => setRevoke(k.id)}><Trash2 size={13} />Revoke</Btn>}</div></td></tr>)}

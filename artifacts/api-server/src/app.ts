@@ -14,6 +14,7 @@ import {
 import { ApiError } from "./lib/greenpay-provider";
 import { requireSameOriginForCookieMutations, trustedBrowserOrigins } from "./middlewares/csrf";
 import { originIsAllowed } from "./lib/origin-policy";
+import { activityAuditMiddleware } from "./middlewares/activity-audit";
 
 const app: Express = express();
 
@@ -57,6 +58,7 @@ app.use(
   })),
 );
 
+app.use("/api", activityAuditMiddleware);
 app.use("/api", requireSameOriginForCookieMutations);
 app.use("/api", router);
 

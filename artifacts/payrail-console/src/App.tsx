@@ -22,7 +22,20 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import HomePage from '@/pages/home';
-import { useAccess, Gate, Async, errMsg } from '@/components/kit';
+import { useAccess, Gate, Async, errMsg, CURRENCIES, currencyAmountStep, currencyMinorUnits } from '@/components/kit';
+import { PlatformBrand, PlatformBrandingProvider, usePlatformBranding } from '@/components/platform-brand';
+import { NotificationBell } from '@/components/notification-bell';
+import { ContactPage } from '@/pages/contact';
+import { SupportPage } from '@/pages/support';
+import { AdminSupportPage } from '@/pages/admin-support';
+import { ProfilePage } from '@/pages/profile';
+import { NotificationsPage } from '@/pages/notifications';
+import { PlatformStatusPage } from '@/pages/platform-status';
+import { VerificationLimitsPage } from '@/pages/verification-limits';
+import { DeveloperDocsPage } from '@/pages/developer-docs';
+import { WalletPage, PayoutRequestsPage, AdminWalletsPage, AdminPayoutRequestsPage } from '@/pages/wallets';
+import { InvoicePage, InvoiceDetailPage, StatementsPage, CasesPage, AdminCasesPage, PublicReceiptPage } from '@/pages/business-tools';
+import { MerchantTeamPage, AcceptTeamInvitePage } from '@/pages/team';
 import { MerchantPage, KycPage, MerchantLinksPage, MerchantTransactionsPage, MerchantPayoutsPage } from '@/pages/merchant';
 import { DevelopersPage, ExchangePage } from '@/pages/developers';
 import { StatusPage, AuthSetupScreen } from '@/pages/status';
@@ -107,8 +120,20 @@ const navSections: { title: string; items: NavItem[] }[] = [
     { label: 'My links', href: '/merchant/payment-links', icon: Link2 },
     { label: 'My transactions', href: '/merchant/transactions', icon: ArrowDownLeft },
     { label: 'My payouts', href: '/merchant/payouts', icon: Send },
-    { label: 'Exchange quotes', href: '/exchange', icon: Banknote },
+    { label: 'Wallets & conversion', href: '/wallets', icon: Banknote },
+    { label: 'Payout requests', href: '/payout-requests', icon: Send },
+    { label: 'Invoices', href: '/invoices', icon: FileClock },
+    { label: 'Monthly statements', href: '/statements', icon: FileClock },
+    { label: 'Refunds & disputes', href: '/cases', icon: CircleHelp },
+    { label: 'Team access', href: '/team', icon: Globe2 },
     { label: 'API access', href: '/developers', icon: KeyRound },
+    { label: 'API docs & playground', href: '/developers/docs', icon: KeyRound },
+  ] },
+  { title: 'ACCOUNT', items: [
+    { label: 'My profile', href: '/profile', icon: CreditCard },
+    { label: 'Notifications', href: '/notifications', icon: Bell },
+    { label: 'Support tickets', href: '/support', icon: Headphones },
+    { label: 'Platform status', href: '/platform-status', icon: Activity },
   ] },
   { title: 'DEVELOPERS', items: [
     { label: 'Webhooks', href: '/webhooks', icon: Webhook },
@@ -124,8 +149,22 @@ const adminSection: { title: string; items: NavItem[] } = { title: 'PLATFORM ADM
   { label: 'Credentials', href: '/admin/credentials', icon: LockKeyhole },
   { label: 'Controls', href: '/admin/settings', icon: Settings2 },
   { label: 'Audit log', href: '/admin/audit', icon: FileClock },
+  { label: 'Verification limits', href: '/admin/verification-limits', icon: ShieldCheck },
+  { label: 'Funded wallets', href: '/admin/wallets', icon: WalletCards },
+  { label: 'Payout approvals', href: '/admin/payout-requests', icon: Send },
+  { label: 'Refund & dispute cases', href: '/admin/cases', icon: CircleHelp },
+  { label: 'Support inbox', href: '/admin/support', icon: Headphones },
 ] };
 const pageInfo: Record<string, { title: string; subtitle: string }> = {
+  '/wallets': { title: 'Wallets & conversion', subtitle: '' }, '/payout-requests': { title: 'Payout requests', subtitle: '' },
+  '/invoices': { title: 'Invoices', subtitle: '' }, '/statements': { title: 'Monthly statements', subtitle: '' },
+  '/cases': { title: 'Refunds & disputes', subtitle: '' }, '/team': { title: 'Team access', subtitle: '' },
+  '/profile': { title: 'My profile', subtitle: '' }, '/support': { title: 'Support tickets', subtitle: '' },
+  '/notifications': { title: 'Notifications', subtitle: '' }, '/developers/docs': { title: 'API documentation', subtitle: '' },
+  '/admin/wallets': { title: 'Funded wallets', subtitle: '' }, '/admin/payout-requests': { title: 'Payout approvals', subtitle: '' },
+  '/admin/cases': { title: 'Refund & dispute cases', subtitle: '' }, '/admin/support': { title: 'Support inbox', subtitle: '' },
+  '/admin/verification-limits': { title: 'Verification limits', subtitle: '' },
+  '/contact': { title: 'Contact', subtitle: '' }, '/platform-status': { title: 'Platform status', subtitle: '' },
   '/merchant': { title: 'Merchant profile', subtitle: '' }, '/merchant/kyc': { title: 'Verification', subtitle: '' },
   '/merchant/payment-links': { title: 'My payment links', subtitle: '' }, '/merchant/transactions': { title: 'My transactions', subtitle: '' }, '/merchant/payouts': { title: 'Admin-operated payouts', subtitle: '' },
   '/developers': { title: 'API access', subtitle: '' }, '/exchange': { title: 'Exchange quotes', subtitle: '' },
@@ -143,10 +182,11 @@ const pageInfo: Record<string, { title: string; subtitle: string }> = {
 
 function currency(value: number | null | undefined, code = 'USD') {
   if (value === undefined || value === null || Number.isNaN(value)) return '—';
+  const digits = currencyMinorUnits(code);
   try {
-    return new Intl.NumberFormat('en', { style: 'currency', currency: code, maximumFractionDigits: 2 }).format(value);
+    return new Intl.NumberFormat('en', { style: 'currency', currency: code, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value);
   } catch {
-    return `${code} ${value.toLocaleString('en', { maximumFractionDigits: 2 })}`;
+    return `${code} ${value.toLocaleString('en', { maximumFractionDigits: digits })}`;
   }
 }
 
@@ -202,7 +242,7 @@ function Notice({ children, danger = false }: { children: ReactNode; danger?: bo
 }
 
 function Brand({ compact = false }: { compact?: boolean }) {
-  return <div className={`brand ${compact ? 'brand-compact' : ''}`}><span className="brand-mark"><span /><span /><span /></span>{!compact && <span className="brand-name">greenpay<span>.</span></span>}</div>;
+  return <PlatformBrand compact={compact} />;
 }
 
 function ClerkQueryClientCacheInvalidator() {
@@ -252,24 +292,31 @@ function AppShell({ children }: { children: ReactNode }) {
   const { user } = useUser();
   const { signOut } = useClerk();
   const access = useAccess();
-  const merchantOnly = navSections.filter((section) => section.title === 'MERCHANT');
+  const branding = usePlatformBranding();
+  const merchantOnly = navSections.filter((section) => section.title === 'MERCHANT' || section.title === 'ACCOUNT');
   const sections = access.isAdmin ? [...navSections, adminSection] : merchantOnly;
-  const active = pageInfo[location] || pageInfo['/transactions'];
+  const active = pageInfo[location] || (location.startsWith('/invoices/') ? { title: 'Invoice details', subtitle: '' } : { title: 'Workspace', subtitle: '' });
   return <div className="app-shell">
     <aside className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}>
       <div className="sidebar-brand"><Brand /><button className="mobile-close icon-button" onClick={() => setMenuOpen(false)} aria-label="Close navigation"><X size={18} /></button></div>
       <div className="workspace-switch"><span className="workspace-avatar">K</span><span className="workspace-copy"><strong>{access.merchant?.businessName || 'No merchant yet'}</strong><small>{access.isAdmin ? 'Platform administrator' : access.merchant ? 'Merchant workspace' : 'Onboarding needed'}</small></span><ChevronDown size={15} /></div>
       <nav className="main-nav" aria-label="Main navigation">{sections.map((section) => <div className="nav-section" key={section.title}><div className="nav-label">{section.title}</div>{section.items.map((item) => { const Icon = item.icon; const current = location === item.href; return <a key={item.href} href={item.href} className={`nav-item ${current ? 'nav-active' : ''}`} onClick={(event) => { event.preventDefault(); setLocation(item.href); setMenuOpen(false); }} data-testid={`nav-${item.label.toLowerCase().replaceAll(' ', '-')}`}><Icon size={17} strokeWidth={1.8} /><span>{item.label}</span>{item.href === '/webhooks' && <span className="nav-dot" />}</a>; })}</div>)}</nav>
-      <div className="sidebar-bottom"><div className="readiness-card"><div className="readiness-icon"><ShieldCheck size={16} /></div><div><strong>Provider status</strong><span>View route readiness</span></div><ArrowRight size={14} /></div><a className="help-link" href="mailto:support@greenpay.africa"><Headphones size={16} />Contact support</a><div className="profile-row"><div className="profile-avatar">{user?.firstName?.[0] || user?.primaryEmailAddress?.emailAddress?.[0] || 'O'}</div><div className="profile-name"><strong>{user?.fullName || 'Operations user'}</strong><small>{user?.primaryEmailAddress?.emailAddress || 'Signed in'}</small></div><button className="icon-button profile-logout" onClick={() => signOut({ redirectUrl: basePath || '/' })} aria-label="Sign out" title="Sign out" data-testid="button-sign-out"><LogOut size={16} /></button></div></div>
+      <div className="sidebar-bottom"><a className="readiness-card" href={`${basePath}/platform-status`}><div className="readiness-icon"><ShieldCheck size={16} /></div><div><strong>Platform status</strong><span>View service readiness</span></div><ArrowRight size={14} /></a><a className="help-link" href={`${basePath}/support`}><Headphones size={16} />Contact support</a><div className="profile-row"><div className="profile-avatar">{user?.firstName?.[0] || user?.primaryEmailAddress?.emailAddress?.[0] || 'O'}</div><a className="profile-name" href={`${basePath}/profile`}><strong>{user?.fullName || 'Operations user'}</strong><small>{user?.primaryEmailAddress?.emailAddress || 'Signed in'}</small></a><button className="icon-button profile-logout" onClick={() => signOut({ redirectUrl: basePath || '/' })} aria-label="Sign out" title="Sign out" data-testid="button-sign-out"><LogOut size={16} /></button></div></div>
     </aside>
     {menuOpen && <button className="mobile-scrim" aria-label="Close menu" onClick={() => setMenuOpen(false)} />}
-    <main className="main-column"><header className="topbar"><button className="mobile-menu icon-button" aria-label="Open navigation" onClick={() => setMenuOpen(true)} data-testid="button-open-navigation"><Menu size={19} /></button><div className="breadcrumbs"><span>Greenpay</span><span className="crumb-sep">/</span><strong>{active.title}</strong></div><div className="topbar-right"><div className="environment"><span />Workspace</div><button className="icon-button top-bell" aria-label="Notifications"><Bell size={17} /><i /></button><div className="top-divider" /><div className="top-user"><span>{user?.firstName || 'Operator'}</span><div className="profile-avatar profile-avatar-small">{user?.firstName?.[0] || 'O'}</div></div></div></header><div className="page-content">{children}</div><footer className="app-footer"><span>Greenpay Console <span className="mono">v1.8.2</span></span><span>All times shown in East Africa Time <span className="footer-sep">·</span> <a href="mailto:support@greenpay.africa">Support</a></span></footer></main>
+    <main className="main-column"><header className="topbar"><button className="mobile-menu icon-button" aria-label="Open navigation" onClick={() => setMenuOpen(true)} data-testid="button-open-navigation"><Menu size={19} /></button><div className="breadcrumbs"><span>{branding.platformName}</span><span className="crumb-sep">/</span><strong>{active.title}</strong></div><div className="topbar-right"><div className="environment"><span />Workspace</div><NotificationBell /><div className="top-divider" /><a className="top-user" href={`${basePath}/profile`} aria-label="Open your profile"><span>{user?.firstName || 'Operator'}</span><div className="profile-avatar profile-avatar-small">{user?.firstName?.[0] || 'O'}</div></a></div></header><div className="page-content">{children}</div><footer className="app-footer"><span>{branding.platformName} Console</span><span>Dates shown in your device timezone <span className="footer-sep">·</span> <a href={`${basePath}/support`}>Support</a></span></footer></main>
     {newCollectionOpen && <CollectionModal onClose={() => setNewCollectionOpen(false)} />}
   </div>;
 }
 
 function Welcome() {
   return <HomePage />;
+}
+
+function isCurrencyAmountValid(amount: number, code: string) {
+  if (!Number.isFinite(amount) || amount <= 0) return false;
+  const scaled = amount * 10 ** currencyMinorUnits(code);
+  return Math.abs(scaled - Math.round(scaled)) <= Number.EPSILON * Math.max(1, Math.abs(scaled)) * 4;
 }
 
 function CollectionModal({ onClose }: { onClose: () => void }) {
@@ -283,7 +330,10 @@ function CollectionModal({ onClose }: { onClose: () => void }) {
     setError('');
     const form = new FormData(event.currentTarget);
     const amount = Number(form.get('amount'));
-    if (!(amount > 0)) { setError('Enter an amount greater than zero.'); return; }
+    if (!isCurrencyAmountValid(amount, currencyCode)) {
+      setError(`Enter a positive ${currencyCode} amount with at most ${currencyMinorUnits(currencyCode)} decimal places.`);
+      return;
+    }
     const phone = String(form.get('phone') || '').trim();
     if (currencyCode === 'KES' && !phone) { setError('Enter a phone number for the M-Pesa prompt.'); return; }
     mutation.mutate({ data: { amount, currency: currencyCode, customerEmail: String(form.get('email')), customerName: String(form.get('name') || ''), customerPhone: phone, description: String(form.get('description') || '') } }, {
@@ -293,7 +343,18 @@ function CollectionModal({ onClose }: { onClose: () => void }) {
     setWorking(true);
   }
   return <Modal title={checkout ? 'Collection initiated' : 'Start a collection'} description={checkout ? 'The payment session is ready. Continue to payment or complete the prompt on your phone.' : 'Greenpay will route this payment using the configured currency path.'} onClose={onClose}>
-    {checkout ? <div className="form-stack"><div className="route-confirm"><CheckCircle2 size={20} /><div><strong>{checkout.provider === 'payhero' ? 'M-Pesa prompt requested' : 'Checkout session created'}</strong><span>{checkout.provider === 'payhero' ? `Check the customer’s phone to complete payment. Reference ${checkout.reference}.` : 'No payment is marked successful until the provider confirms it.'}</span></div></div>{checkout.url && <a href={checkout.url} target="_blank" rel="noreferrer" className="btn btn-primary btn-full">Open checkout <ExternalLink size={15} /></a>}<Button variant="secondary" className="btn-full" onClick={onClose}>Close</Button></div> : <form className="form-stack" onSubmit={submit}><div className="form-grid"><Field label="Amount"><input name="amount" type="number" min={currencyCode === 'KES' ? '1' : '0.01'} step={currencyCode === 'KES' ? '1' : '0.01'} placeholder="0.00" required data-testid="input-collection-amount" /></Field><Field label="Currency"><select name="currency" value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value)} data-testid="select-collection-currency"><option>USD</option><option>KES</option><option>NGN</option><option>GHS</option><option>UGX</option><option>TZS</option><option>RWF</option><option>ZMW</option><option>MWK</option><option>XOF</option><option>XAF</option></select></Field></div><Field label="Customer email"><input name="email" type="email" placeholder="finance@example.com" required data-testid="input-collection-email" /></Field><Field label="Customer name"><input name="name" placeholder="Full name" data-testid="input-collection-name" /></Field><Field label={`Customer phone${currencyCode === 'KES' ? ' (required for M-Pesa)' : ''}`}><input name="phone" type="tel" placeholder="+254…" required={currencyCode === 'KES'} data-testid="input-collection-phone" /></Field><Field label="Description"><input name="description" placeholder="Invoice or order reference" data-testid="input-collection-description" /></Field><RouteHint currencyCode={currencyCode} /><ProviderNote /><ErrorLine error={error} /><Button type="submit" disabled={working} className="btn-full">{working ? <><LoaderCircle className="spin" size={16} /> Starting collection</> : <>Create checkout <ArrowRight size={15} /></>}</Button></form>}
+    {checkout ? <div className="form-stack"><div className="route-confirm"><CheckCircle2 size={20} /><div><strong>{checkout.provider === 'payhero' ? 'M-Pesa prompt requested' : 'Checkout session created'}</strong><span>{checkout.provider === 'payhero' ? `Check the customer’s phone to complete payment. Reference ${checkout.reference}.` : 'No payment is marked successful until the provider confirms it.'}</span></div></div>{checkout.url && <a href={checkout.url} target="_blank" rel="noreferrer" className="btn btn-primary btn-full">Open checkout <ExternalLink size={15} /></a>}<Button variant="secondary" className="btn-full" onClick={onClose}>Close</Button></div> : <form className="form-stack" onSubmit={submit}>
+      <div className="form-grid">
+        <Field label="Amount"><input name="amount" type="number" min={currencyMinorUnits(currencyCode) === 0 ? '1' : '0.01'} step={currencyAmountStep(currencyCode)} placeholder="0.00" required data-testid="input-collection-amount" /></Field>
+        <Field label="Currency"><select name="currency" value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value)} data-testid="select-collection-currency">{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></Field>
+      </div>
+      <Field label="Customer email"><input name="email" type="email" placeholder="finance@example.com" required data-testid="input-collection-email" /></Field>
+      <Field label="Customer name"><input name="name" placeholder="Full name" data-testid="input-collection-name" /></Field>
+      <Field label={`Customer phone${currencyCode === 'KES' ? ' (required for M-Pesa)' : ''}`}><input name="phone" type="tel" placeholder="+254…" required={currencyCode === 'KES'} data-testid="input-collection-phone" /></Field>
+      <Field label="Description"><input name="description" placeholder="Invoice or order reference" data-testid="input-collection-description" /></Field>
+      <RouteHint currencyCode={currencyCode} /><ProviderNote /><ErrorLine error={error} />
+      <Button type="submit" disabled={working} className="btn-full">{working ? <><LoaderCircle className="spin" size={16} /> Starting collection</> : <>Create checkout <ArrowRight size={15} /></>}</Button>
+    </form>}
   </Modal>;
 }
 
@@ -352,7 +413,7 @@ function Transactions() {
   const params = useMemo(() => ({ search: search || undefined, status: (status || undefined) as any, currency: currencyFilter || undefined, page, perPage: 20 }), [search, status, currencyFilter, page]);
   const query = useListTransactions(params);
   return <><PageHeading eyebrow="COLLECTIONS / LEDGER" title="Transactions" subtitle="Search, verify and resolve collection activity." action={<Button onClick={() => { const element = document.querySelector<HTMLInputElement>('[data-testid="input-transaction-search"]'); element?.focus(); }} variant="secondary"><Search size={15} /> Find a payment</Button>} />
-    <Panel className="filter-panel"><div className="toolbar-filters"><label className="search-box"><Search size={16} /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search reference, email or customer" data-testid="input-transaction-search" /></label><label className="select-wrap"><Filter size={14} /><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} data-testid="select-transaction-status"><option value="">All statuses</option><option value="pending">Pending</option><option value="success">Succeeded</option><option value="failed">Failed</option><option value="refunded">Refunded</option><option value="cancelled">Cancelled</option></select></label><label className="select-wrap"><Globe2 size={14} /><select value={currencyFilter} onChange={(event) => { setCurrencyFilter(event.target.value); setPage(1); }} data-testid="select-transaction-currency"><option value="">All currencies</option><option>USD</option><option>KES</option><option>NGN</option><option>GHS</option><option>UGX</option><option>TZS</option><option>RWF</option><option>ZMW</option><option>MWK</option><option>XOF</option><option>XAF</option></select></label><Button variant="quiet" className="filter-clear" onClick={() => { setSearch(''); setStatus(''); setCurrencyFilter(''); setPage(1); }}><X size={14} /> Clear</Button></div></Panel>
+    <Panel className="filter-panel"><div className="toolbar-filters"><label className="search-box"><Search size={16} /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search reference, email or customer" data-testid="input-transaction-search" /></label><label className="select-wrap"><Filter size={14} /><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} data-testid="select-transaction-status"><option value="">All statuses</option><option value="pending">Pending</option><option value="success">Succeeded</option><option value="failed">Failed</option><option value="refunded">Refunded</option><option value="cancelled">Cancelled</option></select></label><label className="select-wrap"><Globe2 size={14} /><select value={currencyFilter} onChange={(event) => { setCurrencyFilter(event.target.value); setPage(1); }} data-testid="select-transaction-currency"><option value="">All currencies</option>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></label><Button variant="quiet" className="filter-clear" onClick={() => { setSearch(''); setStatus(''); setCurrencyFilter(''); setPage(1); }}><X size={14} /> Clear</Button></div></Panel>
     <Panel className="table-panel"><div className="list-meta"><span>{query.data?.total ?? 0} transaction{query.data?.total === 1 ? '' : 's'}</span><span className="mono">PAGE {query.data?.page || page}</span></div><QueryState loading={query.isLoading} error={query.isError} retry={() => { void query.refetch(); }} empty={!query.data?.items?.length}><TransactionTable items={query.data?.items || []} onSelect={setSelected} /><div className="pagination"><span>Showing {query.data?.items.length ? (page - 1) * (query.data?.perPage || 20) + 1 : 0}–{Math.min(page * (query.data?.perPage || 20), query.data?.total || 0)} of {query.data?.total || 0}</span><div><Button variant="secondary" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>Previous</Button><Button variant="secondary" disabled={!query.data || page * query.data.perPage >= query.data.total} onClick={() => setPage((current) => current + 1)}>Next <ArrowRight size={13} /></Button></div></div></QueryState></Panel>
     {selected && <TransactionDetail reference={selected} onClose={() => setSelected('')} />}
   </>;
@@ -371,12 +432,35 @@ function TransactionDetail({ reference, onClose }: { reference: string; onClose:
     const form = new FormData(event.currentTarget);
     const amount = String(form.get('amount') || '').trim();
     const reason = String(form.get('reason') || '');
+    if (amount && !isCurrencyAmountValid(Number(amount), transaction.currency)) {
+      setMessage(`Enter a positive ${transaction.currency} refund amount with at most ${currencyMinorUnits(transaction.currency)} decimal places.`);
+      return;
+    }
     refund.mutate({ reference, data: { ...(amount ? { amount: Number(amount) } : {}), reason } }, {
       onSuccess: (r) => { setMessage(r.status === 'processed' ? `Refund ${r.reference} reported as processed by the server.` : r.status === 'manual_required' ? `Refund ${r.reference} needs manual action. No customer funds have been returned yet.` : `Refund ${r.reference} is ${r.status.replaceAll('_', ' ')}. This is a recorded request; customer funds are not confirmed returned.`); setRefundOpen(false); void query.refetch(); },
       onError: (err) => setMessage(errMsg(err)),
     });
   }
-  return <div className="modal-backdrop detail-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="detail-drawer" role="dialog" aria-modal="true" aria-label="Transaction details"><div className="drawer-head"><div><span className="eyebrow">PAYMENT RECORD</span><h2>Transaction details</h2></div><button className="icon-button" onClick={onClose} aria-label="Close details"><X size={18} /></button></div><QueryState loading={query.isLoading} error={query.isError} retry={() => { void query.refetch(); }} empty={!transaction}><>{transaction && <><div className="transaction-amount"><div className="eyebrow">GROSS AMOUNT</div><strong>{currency(transaction.amount, transaction.currency)}</strong><div><StatusPill value={transaction.status} /><span className="mono">{transaction.reference}</span></div></div><div className="drawer-actions"><Button variant="secondary" disabled={verify.isPending} onClick={() => verify.mutate({ reference }, { onSuccess: () => { setMessage('Provider verification complete.'); void query.refetch(); }, onError: () => setMessage('Provider verification failed. Try again later.') })}><RefreshCw size={14} />{verify.isPending ? 'Verifying' : 'Verify'}</Button><Button variant="danger" disabled={transaction.status !== 'success'} onClick={() => setRefundOpen((open) => !open)}><ArrowDownLeft size={14} /> Refund</Button></div>{refundOpen && <form className="refund-form" onSubmit={submitRefund}><strong>Record a refund</strong><Field label="Amount (leave blank for full refund)"><input name="amount" type="number" min="0.01" max={transaction.amount} step="0.01" placeholder={String(transaction.amount)} /></Field><Field label="Reason"><input name="reason" placeholder="Reason for refund" /></Field><Button type="submit" disabled={refund.isPending}>{refund.isPending ? 'Submitting…' : 'Submit refund'}</Button></form>}{message && <Notice danger={message.includes('failed') || message.includes('could not')}>{message}</Notice>}<div className="detail-section"><div className="detail-section-heading">Payment details</div><DetailRow label="Customer" value={transaction.customerName || '—'} /><DetailRow label="Email" value={transaction.customerEmail} /><DetailRow label="Phone" value={transaction.customerPhone || '—'} /><DetailRow label="Method" value={transaction.paymentMethod || '—'} /><DetailRow label="Provider" value={label(transaction.provider)} /><DetailRow label="Description" value={transaction.description || '—'} /></div><div className="detail-section"><div className="detail-section-heading">Settlement timeline</div><DetailRow label="Gross amount" value={currency(transaction.amount, transaction.currency)} /><DetailRow label="Fee" value={currency(transaction.fee, transaction.currency)} /><DetailRow label="Net amount" value={currency(transaction.netAmount, transaction.currency)} /><DetailRow label="Expected settlement" value={dateTime(transaction.settlementAt)} /><DetailRow label="Settlement status" value={label(transaction.settlementStatus)} /><DetailRow label="Created" value={dateTime(transaction.createdAt)} /><DetailRow label="Paid" value={dateTime(transaction.paidAt)} /></div></>}</></QueryState></section></div>;
+  return <div className="modal-backdrop detail-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className="detail-drawer" role="dialog" aria-modal="true" aria-label="Transaction details">
+      <div className="drawer-head"><div><span className="eyebrow">PAYMENT RECORD</span><h2>Transaction details</h2></div><button className="icon-button" onClick={onClose} aria-label="Close details"><X size={18} /></button></div>
+      <QueryState loading={query.isLoading} error={query.isError} retry={() => { void query.refetch(); }} empty={!transaction}>
+        <>{transaction && <>
+          <div className="transaction-amount"><div className="eyebrow">GROSS AMOUNT</div><strong>{currency(transaction.amount, transaction.currency)}</strong><div><StatusPill value={transaction.status} /><span className="mono">{transaction.reference}</span></div></div>
+          <div className="drawer-actions"><Button variant="secondary" disabled={verify.isPending} onClick={() => verify.mutate({ reference }, { onSuccess: () => { setMessage('Provider verification complete.'); void query.refetch(); }, onError: () => setMessage('Provider verification failed. Try again later.') })}><RefreshCw size={14} />{verify.isPending ? 'Verifying' : 'Verify'}</Button><Button variant="danger" disabled={transaction.status !== 'success'} onClick={() => setRefundOpen((open) => !open)}><ArrowDownLeft size={14} /> Refund</Button></div>
+          {refundOpen && <form className="refund-form" onSubmit={submitRefund}>
+            <strong>Record a refund</strong>
+            <Field label="Amount (leave blank for full refund)"><input name="amount" type="number" min={currencyMinorUnits(transaction.currency) === 0 ? '1' : '0.01'} max={transaction.amount} step={currencyAmountStep(transaction.currency)} placeholder={String(transaction.amount)} /></Field>
+            <Field label="Reason"><input name="reason" placeholder="Reason for refund" /></Field>
+            <Button type="submit" disabled={refund.isPending}>{refund.isPending ? 'Submitting…' : 'Submit refund'}</Button>
+          </form>}
+          {message && <Notice danger={message.includes('failed') || message.includes('could not')}>{message}</Notice>}
+          <div className="detail-section"><div className="detail-section-heading">Payment details</div><DetailRow label="Customer" value={transaction.customerName || '—'} /><DetailRow label="Email" value={transaction.customerEmail} /><DetailRow label="Phone" value={transaction.customerPhone || '—'} /><DetailRow label="Method" value={transaction.paymentMethod || '—'} /><DetailRow label="Provider" value={label(transaction.provider)} /><DetailRow label="Description" value={transaction.description || '—'} /></div>
+          <div className="detail-section"><div className="detail-section-heading">Settlement timeline</div><DetailRow label="Gross amount" value={currency(transaction.amount, transaction.currency)} /><DetailRow label="Fee" value={currency(transaction.fee, transaction.currency)} /><DetailRow label="Net amount" value={currency(transaction.netAmount, transaction.currency)} /><DetailRow label="Expected settlement" value={dateTime(transaction.settlementAt)} /><DetailRow label="Settlement status" value={label(transaction.settlementStatus)} /><DetailRow label="Created" value={dateTime(transaction.createdAt)} /><DetailRow label="Paid" value={dateTime(transaction.paidAt)} /></div>
+        </>}</>
+      </QueryState>
+    </section>
+  </div>;
 }
 
 function DetailRow({ label: title, value }: { label: string; value: string }) {
@@ -409,16 +493,35 @@ function PaymentLinks() {
 function PaymentLinkForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const create = useCreatePaymentLink();
   const [error, setError] = useState('');
+  const [currencyCode, setCurrencyCode] = useState('USD');
+  const [amountType, setAmountType] = useState<'fixed' | 'customer_choice'>('fixed');
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const amountType = String(form.get('amountType')) as 'fixed' | 'customer_choice';
+    const submittedAmountType = String(form.get('amountType')) as 'fixed' | 'customer_choice';
     const amount = Number(form.get('amount'));
-    const payload = { name: String(form.get('name')), description: String(form.get('description') || ''), amountType, currency: String(form.get('currency')), ...(amountType === 'fixed' ? { amount } : {}), ...(form.get('expiresAt') ? { expiresAt: String(form.get('expiresAt')) } : {}) };
-    if (amountType === 'fixed' && !(amount > 0)) { setError('Enter an amount greater than zero.'); return; }
+    const currency = String(form.get('currency'));
+    const payload = { name: String(form.get('name')), description: String(form.get('description') || ''), amountType: submittedAmountType, currency, ...(submittedAmountType === 'fixed' ? { amount } : {}), ...(form.get('expiresAt') ? { expiresAt: String(form.get('expiresAt')) } : {}) };
+    if (submittedAmountType === 'fixed' && !isCurrencyAmountValid(amount, currency)) {
+      setError(`Enter a positive ${currency} amount with at most ${currencyMinorUnits(currency)} decimal places.`);
+      return;
+    }
     create.mutate({ data: payload }, { onSuccess: onCreated, onError: () => setError('Could not create the payment link. Check the form and try again.') });
   }
-  return <Modal title="Create payment link" description="Give customers a focused way to pay." onClose={onClose}><form className="form-stack" onSubmit={submit}><Field label="Link name"><input name="name" placeholder="e.g. May studio retainer" required data-testid="input-link-name" /></Field><Field label="Description"><textarea name="description" placeholder="What is this payment for?" rows={2} data-testid="input-link-description" /></Field><div className="form-grid"><Field label="Amount type"><select name="amountType" defaultValue="fixed" data-testid="select-link-amount-type"><option value="fixed">Fixed amount</option><option value="customer_choice">Customer chooses</option></select></Field><Field label="Currency"><select name="currency" defaultValue="USD" data-testid="select-link-currency"><option>USD</option><option>KES</option><option>NGN</option><option>GHS</option><option>UGX</option><option>TZS</option><option>RWF</option><option>ZMW</option><option>MWK</option><option>XOF</option><option>XAF</option></select></Field></div><Field label="Amount"><input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" data-testid="input-link-amount" /></Field><Field label="Expires on (optional)"><input name="expiresAt" type="date" data-testid="input-link-expiry" /></Field><ErrorLine error={error} /><div className="form-actions"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={create.isPending}>{create.isPending ? 'Creating…' : 'Create link'} <ArrowRight size={14} /></Button></div></form></Modal>;
+  return <Modal title="Create payment link" description="Give customers a focused way to pay." onClose={onClose}>
+    <form className="form-stack" onSubmit={submit}>
+      <Field label="Link name"><input name="name" placeholder="e.g. May studio retainer" required data-testid="input-link-name" /></Field>
+      <Field label="Description"><textarea name="description" placeholder="What is this payment for?" rows={2} data-testid="input-link-description" /></Field>
+      <div className="form-grid">
+        <Field label="Amount type"><select name="amountType" value={amountType} onChange={(event) => setAmountType(event.target.value as 'fixed' | 'customer_choice')} data-testid="select-link-amount-type"><option value="fixed">Fixed amount</option><option value="customer_choice">Customer chooses</option></select></Field>
+        <Field label="Currency"><select name="currency" value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value)} data-testid="select-link-currency">{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></Field>
+      </div>
+      {amountType === 'fixed' && <Field label="Amount"><input name="amount" type="number" min={currencyMinorUnits(currencyCode) === 0 ? '1' : '0.01'} step={currencyAmountStep(currencyCode)} placeholder="0.00" required data-testid="input-link-amount" /></Field>}
+      <Field label="Expires on (optional)"><input name="expiresAt" type="date" data-testid="input-link-expiry" /></Field>
+      <ErrorLine error={error} />
+      <div className="form-actions"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={create.isPending}>{create.isPending ? 'Creating…' : 'Create link'} <ArrowRight size={14} /></Button></div>
+    </form>
+  </Modal>;
 }
 
 function PaymentLinkEdit({ link, onClose, onUpdated }: { link: any; onClose: () => void; onUpdated: () => void }) {
@@ -446,7 +549,7 @@ function Payouts() {
   const [selected, setSelected] = useState<any>(null);
   return <><PageHeading eyebrow="OUTBOUND / DISBURSEMENT" title="Payouts" subtitle="Create a payout and keep every transfer accountable." action={<Button onClick={() => setCreateOpen(true)} disabled={methods.data?.available === false}><Plus size={16} /> Create payout</Button>} />
     <div className="payout-intro"><div className="payout-intro-icon"><WalletCards size={19} /></div><div><strong>Payzaapi payouts</strong><span>Available methods and fees are fetched live for each currency.</span></div><div className="payout-intro-meta"><span>Minimum withdrawal</span><strong>{methods.data?.available ? currency(methods.data.minimumWithdrawal, methods.data.currency) : '—'}</strong></div></div>
-    <div className="toolbar-filters payout-filters"><label className="select-wrap"><Globe2 size={14} /><select value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value)} data-testid="select-payout-currency"><option>KES</option><option>USD</option><option>NGN</option><option>GHS</option><option>UGX</option><option>TZS</option><option>RWF</option><option>ZMW</option><option>MWK</option><option>XOF</option><option>XAF</option></select></label><label className="select-wrap"><Filter size={14} /><select value={status} onChange={(event) => setStatus(event.target.value)} data-testid="select-payout-status"><option value="">All statuses</option><option value="pending">Pending</option><option value="processing">Processing</option><option value="approved">Approved</option><option value="completed">Completed</option><option value="failed">Failed</option><option value="rejected">Rejected</option></select></label><span className="filter-note">{methods.isLoading ? 'Checking methods…' : methods.data?.available ? `${methods.data.methods.length} method${methods.data.methods.length === 1 ? '' : 's'} available for ${currencyCode}` : 'Payout method unavailable for this currency'}</span></div>
+    <div className="toolbar-filters payout-filters"><label className="select-wrap"><Globe2 size={14} /><select value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value)} data-testid="select-payout-currency">{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></label><label className="select-wrap"><Filter size={14} /><select value={status} onChange={(event) => setStatus(event.target.value)} data-testid="select-payout-status"><option value="">All statuses</option><option value="pending">Pending</option><option value="processing">Processing</option><option value="approved">Approved</option><option value="completed">Completed</option><option value="failed">Failed</option><option value="rejected">Rejected</option></select></label><span className="filter-note">{methods.isLoading ? 'Checking methods…' : methods.data?.available ? `${methods.data.methods.length} method${methods.data.methods.length === 1 ? '' : 's'} available for ${currencyCode}` : 'Payout method unavailable for this currency'}</span></div>
     <Panel title="Payout queue" subtitle="Latest outbound transfers" className="table-panel"><QueryState loading={query.isLoading} error={query.isError} retry={() => { void query.refetch(); }} empty={!query.data?.items?.length}><div className="table-scroll"><table className="data-table"><thead><tr><th>Transfer</th><th>Recipient</th><th>Method</th><th>Amount</th><th>Provider</th><th>Status</th><th>Created</th></tr></thead><tbody>{(query.data?.items || []).map((item) => <tr key={item.id} onClick={() => setSelected(item)} className="table-row-clickable" data-testid={`row-payout-${item.id}`}><td><strong className="mono ref-cell">{item.reference}</strong><small>{item.currency}</small></td><td><strong>{item.accountName}</strong><small>{item.maskedAccount || 'Account details protected'}</small></td><td>{label(item.method)}</td><td><strong className="amount-cell">{currency(item.amount, item.currency)}</strong><small>Net {currency(item.netAmount, item.currency)}</small></td><td>{label(item.provider)}</td><td><StatusPill value={item.status} /></td><td>{dateTime(item.createdAt)}</td></tr>)}</tbody></table></div></QueryState></Panel>
     {createOpen && <PayoutForm currencyCode={currencyCode} methods={methods.data} banks={banks.data?.banks || []} onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); void query.refetch(); }} />}
     {selected && <Modal title="Payout review" description="Confirm transfer details before acting outside this console." onClose={() => setSelected(null)}><div className="transaction-amount"><span className="eyebrow">PAYOUT AMOUNT</span><strong>{currency(selected.amount, selected.currency)}</strong><div><StatusPill value={selected.status} /><span className="mono">{selected.reference}</span></div></div><div className="detail-section"><DetailRow label="Recipient" value={selected.accountName} /><DetailRow label="Account" value={selected.maskedAccount || 'Protected'} /><DetailRow label="Method" value={label(selected.method)} /><DetailRow label="Provider" value={label(selected.provider)} /><DetailRow label="Fee" value={currency(selected.fee, selected.currency)} /><DetailRow label="Net payout" value={currency(selected.netAmount, selected.currency)} /><DetailRow label="Created" value={dateTime(selected.createdAt)} /></div><div className="provider-warning"><LockKeyhole size={15} />Payout review and approval actions are controlled by provider-side status. This console does not create an approval action.</div></Modal>}
@@ -462,16 +565,39 @@ function PayoutForm({ currencyCode, methods, banks, onClose, onCreated }: { curr
   const [error, setError] = useState('');
   const [bankFields, setBankFields] = useState({ code: '', name: '' });
   const selectedMethod = methods?.methods?.find((item: any) => item.value === method);
+  const minimumAmount = currencyMinorUnits(currencyCode) === 0
+    ? Math.ceil(Math.max(methods?.minimumWithdrawal || 0, 1))
+    : Math.max(methods?.minimumWithdrawal || 0, 0.01);
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const amount = Number(form.get('amount'));
     if (!methods?.available || !method) { setError('No payout method is available for this currency.'); return; }
+    if (!isCurrencyAmountValid(amount, currencyCode)) {
+      setError(`Enter a positive ${currencyCode} payout amount with at most ${currencyMinorUnits(currencyCode)} decimal places.`);
+      return;
+    }
     if (amount < (methods.minimumWithdrawal || 0)) { setError(`The minimum payout is ${currency(methods.minimumWithdrawal, currencyCode)}.`); return; }
-    const payload = { idempotencyKey: intentKey.current, ...(merchantId ? { merchantId: Number(merchantId) } : {}), amount, currency: currencyCode, method, accountNumber: String(form.get('accountNumber')), accountName: String(form.get('accountName')), ...(bankFields.code ? { bankCode: bankFields.code, bankName: bankFields.name } : {}) };
+    const fundingSource: 'merchant_wallet' | 'platform' = merchantId ? 'merchant_wallet' : 'platform';
+    const payload = { fundingSource, idempotencyKey: intentKey.current, ...(merchantId ? { merchantId: Number(merchantId) } : {}), amount, currency: currencyCode, method, accountNumber: String(form.get('accountNumber')), accountName: String(form.get('accountName')), ...(bankFields.code ? { bankCode: bankFields.code, bankName: bankFields.name } : {}) };
     create.mutate({ data: payload }, { onSuccess: onCreated, onError: (err) => setError(errMsg(err)) });
   }
-  return <Modal title="Create payout" description="Funds will be sent using the available Payzaapi route." onClose={onClose}><form className="form-stack" onSubmit={submit}><div className="form-grid"><Field label="Amount"><input name="amount" type="number" min={methods?.minimumWithdrawal || 0.01} step="0.01" placeholder="0.00" required data-testid="input-payout-amount" /></Field><Field label="Currency"><input value={currencyCode} readOnly /></Field></div><Field label="Attribute to merchant (optional)"><select value={merchantId} onChange={(event) => setMerchantId(event.target.value)} data-testid="select-payout-merchant"><option value="">Platform payout (no merchant)</option>{(merchants.data?.items || []).map((m) => <option key={m.id} value={m.id}>{m.businessName}</option>)}</select></Field><Field label="Payout method"><select value={method} onChange={(event) => setMethod(event.target.value)} required data-testid="select-payout-method">{(methods?.methods || []).map((item: any) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field><Field label="Account name"><input name="accountName" placeholder="Account holder name" required data-testid="input-payout-account-name" /></Field><Field label="Account number"><input name="accountNumber" placeholder="Account number or wallet" required data-testid="input-payout-account-number" /></Field>{selectedMethod?.requiresBankFields && <Field label="Bank"><select value={bankFields.code} onChange={(event) => { const selected = banks.find((bank) => bank.code === event.target.value); setBankFields({ code: event.target.value, name: selected?.name || '' }); }} required data-testid="select-payout-bank"><option value="">Choose a bank</option>{banks.map((bank) => <option value={bank.code} key={bank.code}>{bank.name}</option>)}</select></Field>}<div className="fee-quote"><span>Provider fee</span><strong>{methods?.fee?.type === 'percent' ? `${methods.fee.amount}%` : currency(methods?.fee?.amount, currencyCode)}</strong></div><ErrorLine error={error} /><div className="form-actions"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={create.isPending || !methods?.available}>{create.isPending ? 'Creating…' : 'Create payout'} <ArrowRight size={14} /></Button></div></form></Modal>;
+  return <Modal title="Create payout" description="Merchant payouts reserve funded wallet balances. Platform payouts use external platform funds, not merchant wallets." onClose={onClose}>
+    <form className="form-stack" onSubmit={submit}>
+      <div className="form-grid">
+        <Field label="Amount"><input name="amount" type="number" min={minimumAmount} step={currencyAmountStep(currencyCode)} placeholder="0.00" required data-testid="input-payout-amount" /></Field>
+        <Field label="Currency"><input value={currencyCode} readOnly /></Field>
+      </div>
+      <Field label="Attribute to merchant (optional)"><select value={merchantId} onChange={(event) => setMerchantId(event.target.value)} data-testid="select-payout-merchant"><option value="">Platform payout (no merchant)</option>{(merchants.data?.items || []).map((m) => <option key={m.id} value={m.id}>{m.businessName}</option>)}</select></Field>
+      <Field label="Payout method"><select value={method} onChange={(event) => setMethod(event.target.value)} required data-testid="select-payout-method">{(methods?.methods || []).map((item: any) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field>
+      <Field label="Account name"><input name="accountName" placeholder="Account holder name" required data-testid="input-payout-account-name" /></Field>
+      <Field label="Account number"><input name="accountNumber" placeholder="Account number or wallet" required data-testid="input-payout-account-number" /></Field>
+      {selectedMethod?.requiresBankFields && <Field label="Bank"><select value={bankFields.code} onChange={(event) => { const selected = banks.find((bank) => bank.code === event.target.value); setBankFields({ code: event.target.value, name: selected?.name || '' }); }} required data-testid="select-payout-bank"><option value="">Choose a bank</option>{banks.map((bank) => <option value={bank.code} key={bank.code}>{bank.name}</option>)}</select></Field>}
+      <div className="fee-quote"><span>Provider fee</span><strong>{methods?.fee?.type === 'percent' ? `${methods.fee.amount}%` : currency(methods?.fee?.amount, currencyCode)}</strong></div>
+      <ErrorLine error={error} />
+      <div className="form-actions"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={create.isPending || !methods?.available}>{create.isPending ? 'Creating…' : 'Create payout'} <ArrowRight size={14} /></Button></div>
+    </form>
+  </Modal>;
 }
 
 function Settlements() {
@@ -484,7 +610,7 @@ function Settlements() {
   const openCount = rows.filter((item) => item.status !== 'settled').length;
   return <><PageHeading eyebrow="RECONCILIATION / T+3" title="Settlements" subtitle="Know what has landed, what is due and what needs a closer look." />
     <div className="settlement-summary"><div><span className="summary-icon"><Clock3 size={17} /></span><div><span>Open settlement items</span><strong>{openCount}</strong></div></div><div><span className="summary-divider" /><div><span>Due for review</span><strong>{dueCount} <small>items</small></strong></div></div><div className="summary-explainer"><FileClock size={15} /><span>T+3 is a tracking target. Actual settlement timing is provider-controlled.</span></div></div>
-    <div className="toolbar-filters"><label className="select-wrap"><Filter size={14} /><select value={status} onChange={(event) => setStatus(event.target.value)} data-testid="select-settlement-status"><option value="">All statuses</option><option value="pending">Pending</option><option value="due">Due</option><option value="settled">Settled</option><option value="held">Held</option></select></label><label className="select-wrap"><Globe2 size={14} /><select value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value)} data-testid="select-settlement-currency"><option value="">All currencies</option><option>USD</option><option>KES</option><option>NGN</option><option>GHS</option><option>UGX</option><option>TZS</option><option>RWF</option><option>ZMW</option><option>MWK</option><option>XOF</option><option>XAF</option></select></label></div>
+    <div className="toolbar-filters"><label className="select-wrap"><Filter size={14} /><select value={status} onChange={(event) => setStatus(event.target.value)} data-testid="select-settlement-status"><option value="">All statuses</option><option value="pending">Pending</option><option value="due">Due</option><option value="settled">Settled</option><option value="held">Held</option></select></label><label className="select-wrap"><Globe2 size={14} /><select value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value)} data-testid="select-settlement-currency"><option value="">All currencies</option>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></label></div>
     <Panel title="Settlement ledger" subtitle="Provider-level view of collection proceeds" className="table-panel"><QueryState loading={query.isLoading} error={query.isError} retry={() => { void query.refetch(); }} empty={!rows.length}><div className="table-scroll"><table className="data-table"><thead><tr><th>Reference</th><th>Provider</th><th>Gross</th><th>Net to settle</th><th>Expected by</th><th>Settled on</th><th>Method</th><th>Status</th></tr></thead><tbody>{rows.map((item) => <tr key={item.id} data-testid={`row-settlement-${item.id}`}><td><strong className="mono ref-cell">{item.reference}</strong></td><td><span className="provider-cell"><span className={`provider-mini provider-${item.provider}`} />{label(item.provider)}</span></td><td>{currency(item.amount, item.currency)}</td><td><strong className="amount-cell">{currency(item.netAmount, item.currency)}</strong></td><td>{dateOnly(item.expectedAt)}</td><td>{dateOnly(item.settledAt)}</td><td>{item.payoutMethod || '—'}</td><td><StatusPill value={item.status} /></td></tr>)}</tbody></table></div><div className="ledger-note"><CircleHelp size={15} /><span>Expected dates are calculated by the provider route. Bank holidays can affect the final settlement time.</span></div></QueryState></Panel>
   </>;
 }
@@ -531,6 +657,7 @@ function Settings() {
 }
 
 function PublicCheckout() {
+  const branding = usePlatformBranding();
   const slug = window.location.pathname.split('/').filter(Boolean).at(-1) || '';
   const query = useGetPublicPaymentLink(slug);
   const checkout = useCheckoutPaymentLink();
@@ -539,10 +666,14 @@ function PublicCheckout() {
   const link = query.data;
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError('');
     if (!link) return;
     const form = new FormData(event.currentTarget);
     const amount = Number(form.get('amount'));
-    if (link.amountType === 'customer_choice' && !(amount > 0)) { setError('Enter a valid amount to continue.'); return; }
+    if (link.amountType === 'customer_choice' && !isCurrencyAmountValid(amount, link.currency)) {
+      setError(`Enter a positive ${link.currency} amount with at most ${currencyMinorUnits(link.currency)} decimal places.`);
+      return;
+    }
     checkout.mutate({ slug, data: { customerEmail: String(form.get('email')), customerName: String(form.get('name') || ''), customerPhone: String(form.get('phone') || ''), ...(link.amountType === 'customer_choice' ? { amount } : {}) } }, {
       onSuccess: (result) => setCheckoutResult({ url: result.checkoutUrl, reference: result.reference, nextAction: result.nextAction }),
       onError: () => setError('We could not start checkout. Please confirm your details and try again.'),
@@ -566,7 +697,7 @@ function PublicCheckout() {
               <span className="checkout-trust">Reference: <span className="mono">{checkoutResult.reference}</span></span>
               {checkoutResult.url && <a href={checkoutResult.url} className="btn btn-primary btn-full" target="_blank" rel="noreferrer" data-testid="link-checkout-continue">Continue to secure payment <ArrowRight size={15} /></a>}
               <a href={`${basePath}/status/${encodeURIComponent(checkoutResult.reference)}`} className="text-link" data-testid="link-checkout-status">View payment status <ArrowRight size={15} /></a>
-              <span className="checkout-trust">Greenpay only marks your payment successful once it has been confirmed.</span>
+              <span className="checkout-trust">{branding.platformName} only marks your payment successful once it has been confirmed.</span>
             </div>
           ) : (
             <>
@@ -575,19 +706,19 @@ function PublicCheckout() {
               <p className="checkout-description">{link.description || 'Complete your details to continue to secure payment.'}</p>
               <div className="checkout-price">{link.amountType === 'fixed' ? currency(link.amount, link.currency) : 'Pay what you choose'}<span>{link.amountType === 'customer_choice' ? link.currency : `${link.currency} · one-time payment`}</span></div>
               <form className="form-stack checkout-form" onSubmit={submit}>
-                {link.amountType === 'customer_choice' && <Field label={`Amount (${link.currency})`}><input name="amount" type="number" min={link.currency === 'KES' ? '1' : '0.01'} step={link.currency === 'KES' ? '1' : '0.01'} placeholder="0.00" required data-testid="input-checkout-amount" /></Field>}
+                {link.amountType === 'customer_choice' && <Field label={`Amount (${link.currency})`}><input name="amount" type="number" min={currencyMinorUnits(link.currency) === 0 ? '1' : '0.01'} step={currencyAmountStep(link.currency)} placeholder="0.00" required data-testid="input-checkout-amount" /></Field>}
                 <Field label="Email address"><input type="email" name="email" placeholder="you@example.com" autoComplete="email" required data-testid="input-checkout-email" /></Field>
                 <Field label="Full name"><input name="name" placeholder="Name on payment" autoComplete="name" required data-testid="input-checkout-name" /></Field>
                 <Field label={link.currency === 'KES' ? 'Phone (required for mobile payment)' : 'Phone (optional)'}><input name="phone" type="tel" placeholder="+254…" autoComplete="tel" required={link.currency === 'KES'} data-testid="input-checkout-phone" /></Field>
                 <ErrorLine error={error} />
                 <Button type="submit" className="btn-full" disabled={checkout.isPending} data-testid="button-checkout-submit">{checkout.isPending ? 'Preparing secure checkout…' : <>Continue to payment <ArrowRight size={15} /></>}</Button>
               </form>
-              <div className="checkout-footer"><LockKeyhole size={13} /> Secure checkout with Greenpay</div>
+              <div className="checkout-footer"><LockKeyhole size={13} /> Secure checkout with {branding.platformName}</div>
             </>
           ))}
         </QueryState>
       </main>
-      <footer className="checkout-bottom"><span>Powered by <strong>greenpay.</strong></span><a href={basePath || '/'} data-testid="link-checkout-home">Back to Greenpay</a></footer>
+      <footer className="checkout-bottom"><span>Powered by <strong>{branding.platformName}</strong></span><a href={basePath || '/'} data-testid="link-checkout-home">Back to {branding.platformName}</a></footer>
     </div>
   );
 }
@@ -597,21 +728,44 @@ const protectedRoutes: [string, () => ReactNode][] = [
   ['/merchant', MerchantPage], ['/merchant/kyc', KycPage], ['/merchant/payment-links', MerchantLinksPage], ['/merchant/transactions', MerchantTransactionsPage], ['/merchant/payouts', MerchantPayoutsPage],
   ['/developers', DevelopersPage], ['/exchange', ExchangePage], ['/admin', AdminSummaryPage], ['/admin/merchants', AdminMerchantsPage], ['/admin/fees', AdminFeesPage],
   ['/admin/exchange', AdminExchangePage], ['/admin/credentials', AdminCredentialsPage], ['/admin/settings', AdminSettingsPage], ['/admin/audit', AdminAuditPage],
+  ['/support', SupportPage], ['/admin/support', AdminSupportPage], ['/profile', ProfilePage], ['/notifications', NotificationsPage],
+  ['/admin/verification-limits', VerificationLimitsPage], ['/developers/docs', DeveloperDocsPage],
+  ['/wallets', WalletPage], ['/payout-requests', PayoutRequestsPage], ['/admin/wallets', AdminWalletsPage], ['/admin/payout-requests', AdminPayoutRequestsPage],
+  ['/invoices', InvoicePage], ['/invoices/:id', InvoiceDetailPage], ['/statements', StatementsPage], ['/cases', CasesPage], ['/admin/cases', AdminCasesPage],
+  ['/team', MerchantTeamPage],
 ];
 protectedRoutes.push(['/operations', () => <Gate need="admin"><Dashboard /></Gate>]);
-const extraRoutes = protectedRoutes.map(([path, C]) => <Route key={path} path={path} component={wrap(C)} />);
+const extraRoutes = protectedRoutes.map(([path, C]) => <Route key={path} path={path} component={wrap(() => path.startsWith('/admin') ? <Gate need="admin"><C /></Gate> : <C />)} />);
 
 function PublicOnlyApp() {
-  return <QueryClientProvider client={queryClient}><TooltipProvider><Switch><Route path="/pay/:slug" component={PublicCheckout} /><Route path="/status/:reference" component={StatusPage} /><Route component={AuthSetupScreen} /></Switch><Toaster /></TooltipProvider></QueryClientProvider>;
+  return <TooltipProvider><Switch><Route path="/" component={HomePage} /><Route path="/contact" component={ContactPage} /><Route path="/platform-status" component={PlatformStatusPage} /><Route path="/receipt/:reference" component={PublicReceiptPage} /><Route path="/pay/:slug" component={PublicCheckout} /><Route path="/status/:reference" component={StatusPage} /><Route component={AuthSetupScreen} /></Switch><Toaster /></TooltipProvider>;
 }
 
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
-  return <ClerkProvider publishableKey={clerkPubKey} proxyUrl={clerkProxyUrl} appearance={clerkAppearance} signInUrl={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} localization={{ signIn: { start: { title: 'Welcome back', subtitle: 'Sign in to access your Payrail workspace' } }, signUp: { start: { title: 'Create your workspace', subtitle: 'Bring payments operations into one clear view' } } }} routerPush={(to) => setLocation(stripBase(to))} routerReplace={(to) => setLocation(stripBase(to), { replace: true })}><QueryClientProvider client={queryClient}><TooltipProvider><ClerkQueryClientCacheInvalidator /><Switch><Route path="/" component={DashboardRoot} /><Route path="/transactions"><Protected><AppShell><Gate need="admin"><Transactions /></Gate></AppShell></Protected></Route><Route path="/payment-links"><Protected><AppShell><Gate need="admin"><PaymentLinks /></Gate></AppShell></Protected></Route><Route path="/payouts"><Protected><AppShell><Gate need="admin"><Payouts /></Gate></AppShell></Protected></Route><Route path="/settlements"><Protected><AppShell><Gate need="admin"><Settlements /></Gate></AppShell></Protected></Route><Route path="/customers"><Protected><AppShell><Gate need="admin"><Customers /></Gate></AppShell></Protected></Route><Route path="/webhooks"><Protected><AppShell><Gate need="admin"><Webhooks /></Gate></AppShell></Protected></Route><Route path="/settings"><Protected><AppShell><Gate need="admin"><Settings /></Gate></AppShell></Protected></Route>{extraRoutes}<Route path="/pay/:slug" component={PublicCheckout} /><Route path="/status/:reference" component={StatusPage} /><Route path="/sign-in/*?" component={SignInPage} /><Route path="/sign-up/*?" component={SignUpPage} /><Route component={NotFound} /></Switch><Toaster /></TooltipProvider></QueryClientProvider></ClerkProvider>;
+  const branding = usePlatformBranding();
+  const appearance = { ...clerkAppearance, options: { ...clerkAppearance.options, logoImageUrl: branding.logoUrl || clerkAppearance.options.logoImageUrl } };
+  return <ClerkProvider publishableKey={clerkPubKey} proxyUrl={clerkProxyUrl} appearance={appearance} signInUrl={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} localization={{ signIn: { start: { title: 'Welcome back', subtitle: `Sign in to access your ${branding.platformName} workspace` } }, signUp: { start: { title: 'Create your workspace', subtitle: 'Bring payments operations into one clear view' } } }} routerPush={(to) => setLocation(stripBase(to))} routerReplace={(to) => setLocation(stripBase(to), { replace: true })}><TooltipProvider><ClerkQueryClientCacheInvalidator /><Switch><Route path="/" component={DashboardRoot} /><Route path="/transactions"><Protected><AppShell><Gate need="admin"><Transactions /></Gate></AppShell></Protected></Route><Route path="/payment-links"><Protected><AppShell><Gate need="admin"><PaymentLinks /></Gate></AppShell></Protected></Route><Route path="/payouts"><Protected><AppShell><Gate need="admin"><Payouts /></Gate></AppShell></Protected></Route><Route path="/settlements"><Protected><AppShell><Gate need="admin"><Settlements /></Gate></AppShell></Protected></Route><Route path="/customers"><Protected><AppShell><Gate need="admin"><Customers /></Gate></AppShell></Protected></Route><Route path="/webhooks"><Protected><AppShell><Gate need="admin"><Webhooks /></Gate></AppShell></Protected></Route><Route path="/settings"><Protected><AppShell><Gate need="admin"><Settings /></Gate></AppShell></Protected></Route>{extraRoutes}<Route path="/contact" component={ContactPage} /><Route path="/platform-status" component={PlatformStatusPage} /><Route path="/receipt/:reference" component={PublicReceiptPage} /><Route path="/team/accept" component={AcceptTeamInvitePage} /><Route path="/pay/:slug" component={PublicCheckout} /><Route path="/status/:reference" component={StatusPage} /><Route path="/sign-in/*?" component={SignInPage} /><Route path="/sign-up/*?" component={SignUpPage} /><Route component={NotFound} /></Switch><Toaster /></TooltipProvider></ClerkProvider>;
+}
+
+function PageMetadata() {
+  const [location] = useLocation();
+  const { platformName } = usePlatformBranding();
+  useEffect(() => {
+    const title = pageInfo[location]?.title
+      || (location.startsWith('/invoices/') ? 'Invoice details' : location.startsWith('/receipt/') ? 'Payment receipt'
+      : location.startsWith('/pay/') ? 'Secure checkout' : location.startsWith('/status/') ? 'Payment status'
+      : location.startsWith('/sign-in') ? 'Sign in' : location.startsWith('/sign-up') ? 'Create your account'
+      : location === '/team/accept' ? 'Accept team invitation' : 'Workspace');
+    document.title = location === '/' ? `${platformName} | Payments for African businesses` : `${title} · ${platformName}`;
+    const description = document.querySelector<HTMLMetaElement>('meta[name="description"]');
+    if (description) description.content = location === '/' ? `${platformName} helps businesses collect payments, manage funded wallets, issue invoices and track payment activity.` : `${title} in ${platformName}.`;
+  }, [location, platformName]);
+  return null;
 }
 
 function App() {
-  return <WouterRouter base={basePath}>{clerkPubKey ? <ClerkProviderWithRoutes /> : <PublicOnlyApp />}</WouterRouter>;
+  return <QueryClientProvider client={queryClient}><PlatformBrandingProvider><WouterRouter base={basePath}><PageMetadata />{clerkPubKey ? <ClerkProviderWithRoutes /> : <PublicOnlyApp />}</WouterRouter></PlatformBrandingProvider></QueryClientProvider>;
 }
 
 export default App;

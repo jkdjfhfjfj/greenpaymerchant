@@ -38,13 +38,47 @@ const steps = [
 
 export default function HomePage() {
   const branding = usePlatformBranding();
+  useEffect(() => {
+    const title = `${branding.platformName} | Payment collection and business finance records`;
+    const description = `${branding.platformName} helps businesses collect payments with links and review confirmed transactions, settlement evidence, invoices, refunds and payout records.`;
+    const publicBase = import.meta.env.VITE_PUBLIC_SITE_URL?.trim() || 'https://empty-project.replit.app';
+    const canonicalUrl = new URL('/', `${publicBase.replace(/\/$/, '')}/`).toString();
+    document.title = title;
+    const setMeta = (selector: string, attribute: 'name' | 'property', key: string, content: string) => {
+      let element = document.querySelector<HTMLMetaElement>(selector);
+      if (!element) {
+        element = document.createElement('meta');
+        element.setAttribute(attribute, key);
+        document.head.append(element);
+      }
+      element.content = content;
+    };
+    setMeta('meta[name="description"]', 'name', 'description', description);
+    setMeta('meta[name="robots"]', 'name', 'robots', 'index, follow');
+    setMeta('meta[property="og:title"]', 'property', 'og:title', title);
+    setMeta('meta[property="og:description"]', 'property', 'og:description', description);
+    setMeta('meta[property="og:url"]', 'property', 'og:url', canonicalUrl);
+    setMeta('meta[property="og:type"]', 'property', 'og:type', 'website');
+    setMeta('meta[name="twitter:title"]', 'name', 'twitter:title', title);
+    setMeta('meta[name="twitter:description"]', 'name', 'twitter:description', description);
+    let canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.rel = 'canonical';
+      document.head.append(canonical);
+    }
+    canonical.href = canonicalUrl;
+  }, [branding.platformName]);
   return <div className="hp" data-testid="page-home">
     <header className="hp-nav">
       <a href="/" aria-label={`${branding.platformName} home`}><Mark /></a>
       <nav className="hp-nav-links" aria-label="Primary">
         <a href="#products" data-testid="link-nav-products">Products</a>
         <a href="#how" data-testid="link-nav-how">How it works</a>
-        <a href="#records" data-testid="link-nav-records">For finance</a>
+          <a href="#records" data-testid="link-nav-records">For finance</a>
+          <a href="/learn" data-testid="link-nav-help">Help & FAQs</a>
+          <a href="/guides" data-testid="link-nav-guides">Guides</a>
+          <a href="/articles">Articles</a>
         <a href="/contact" data-testid="link-nav-support">Contact</a>
         <a href="/platform-status" data-testid="link-nav-platform-status">Platform status</a>
       </nav>
@@ -109,6 +143,10 @@ export default function HomePage() {
         </Reveal>
       </section>
 
+      <section className="hp-section hp-help">
+        <Reveal><span className="hp-eyebrow dark"><i />Clear answers</span><h2>Requests, forecasts and confirmed money are not the same thing.</h2><p>Greenpay help explains when a receipt is confirmed, what a verified settlement wallet balance means, how invoices differ from payment records, and why a refund request is not proof of reimbursement.</p><div className="hp-help-links"><a href="/learn">Browse payment FAQs <ArrowRight size={15} /></a><a href="/guides">Read Greenpay guides <ArrowRight size={15} /></a><a href="/articles">Explore articles <ArrowRight size={15} /></a></div></Reveal>
+      </section>
+
       <section className="hp-cta">
         <Reveal><h2>Ready to collect with a clear paper trail?</h2><div className="hp-actions center"><a href="/sign-up" className="hp-btn hp-btn-gold hp-btn-lg" data-testid="link-sign-up-cta">Create your account <ArrowRight size={17} /></a><a href="/contact" className="hp-btn hp-btn-ghost hp-btn-lg" data-testid="link-support-cta">Talk to support</a></div></Reveal>
       </section>
@@ -116,7 +154,7 @@ export default function HomePage() {
 
     <footer className="hp-footer">
       <Mark /><span>Payments for businesses, backed by clear records.</span>
-      <div><a href="/sign-in" data-testid="link-footer-sign-in">Sign in</a><a href="/sign-up" data-testid="link-footer-sign-up">Sign up</a><a href="/contact" data-testid="link-footer-support">Contact</a><a href="/platform-status" data-testid="link-footer-platform-status">Platform status</a></div>
+      <div><a href="/learn" data-testid="link-footer-help">Help & FAQs</a><a href="/guides">Guides</a><a href="/articles">Articles</a><a href="/sign-in" data-testid="link-footer-sign-in">Sign in</a><a href="/sign-up" data-testid="link-footer-sign-up">Sign up</a><a href="/contact" data-testid="link-footer-support">Contact</a><a href="/platform-status" data-testid="link-footer-platform-status">Platform status</a></div>
     </footer>
   </div>;
 }

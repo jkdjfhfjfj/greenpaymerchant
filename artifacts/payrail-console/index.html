@@ -2,17 +2,51 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>Greenpay | Payments for African businesses</title>
-    <meta name="description" content="Greenpay helps African merchants collect payments with payment links and gives finance teams clear transaction and payout records." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Greenpay | Payment collection and business finance records</title>
+    <meta name="description" content="Greenpay helps businesses collect payments with links and review confirmed transactions, settlement evidence, invoices, refunds and payout records." />
     <meta name="robots" content="index, follow" />
-    <meta property="og:title" content="Greenpay | Payments for African businesses" />
-    <meta property="og:description" content="Greenpay helps African merchants collect payments with payment links and gives finance teams clear transaction and payout records." />
+    <link rel="canonical" href="https://empty-project.replit.app/" />
+    <meta property="og:site_name" content="Greenpay" />
+    <meta property="og:title" content="Greenpay | Payment collection and business finance records" />
+    <meta property="og:description" content="Greenpay helps businesses collect payments with links and review confirmed transactions, settlement evidence, invoices, refunds and payout records." />
+    <meta property="og:url" content="https://empty-project.replit.app/" />
     <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Greenpay | Payments for African businesses" />
-    <meta name="twitter:description" content="Greenpay helps African merchants collect payments with payment links and gives finance teams clear transaction and payout records." />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Greenpay | Payment collection and business finance records" />
+    <meta name="twitter:description" content="Greenpay helps businesses collect payments with links and review confirmed transactions, settlement evidence, invoices, refunds and payout records." />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://empty-project.replit.app/#organization",
+            "name": "Greenpay",
+            "url": "https://empty-project.replit.app/"
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://empty-project.replit.app/#website",
+            "name": "Greenpay",
+            "url": "https://empty-project.replit.app/",
+            "publisher": {
+              "@id": "https://empty-project.replit.app/#organization"
+            }
+          }
+        ]
+      }
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script>
+      (() => {
+        const privateSurface = /\/(?:api|admin|merchant|customers|transactions|invoices|receipts|payment-links|wallets|payouts|payout-requests|team|pay|receipt|status|sign-in|sign-up|profile|notifications|statements|cases|developers|settings|operations|settlements|support|exchange|webhooks)(?:\/|$)/i.test(window.location.pathname);
+        if (privateSurface) {
+          const robots = document.querySelector('meta[name="robots"]');
+          if (robots) robots.content = 'noindex, nofollow';
+        }
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">

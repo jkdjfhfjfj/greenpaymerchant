@@ -13,7 +13,39 @@ type ContactFormValues = ContactTicketInput & {
 
 export function ContactPage() {
   const branding = usePlatformBranding();
-  useEffect(() => { document.title = `${branding.platformName} · Contact`; }, [branding.platformName]);
+  useEffect(() => {
+    const title = `Contact ${branding.platformName} Support`;
+    const description = `Contact ${branding.platformName} about payments, your account, business verification or a technical issue. Do not include passwords or payment credentials.`;
+    const publicBase = import.meta.env.VITE_PUBLIC_SITE_URL?.trim() || 'https://empty-project.replit.app';
+    const canonicalUrl = new URL('/contact', `${publicBase.replace(/\/$/, '')}/`).toString();
+    document.title = title;
+    const setMeta = (selector: string, attribute: 'name' | 'property', key: string, content: string) => {
+      let element = document.querySelector<HTMLMetaElement>(selector);
+      if (!element) {
+        element = document.createElement('meta');
+        element.setAttribute(attribute, key);
+        document.head.append(element);
+      }
+      element.content = content;
+    };
+    setMeta('meta[name="description"]', 'name', 'description', description);
+    setMeta('meta[name="robots"]', 'name', 'robots', 'index, follow');
+    setMeta('meta[property="og:site_name"]', 'property', 'og:site_name', branding.platformName);
+    setMeta('meta[property="og:title"]', 'property', 'og:title', title);
+    setMeta('meta[property="og:description"]', 'property', 'og:description', description);
+    setMeta('meta[property="og:url"]', 'property', 'og:url', canonicalUrl);
+    setMeta('meta[property="og:type"]', 'property', 'og:type', 'website');
+    setMeta('meta[name="twitter:card"]', 'name', 'twitter:card', 'summary');
+    setMeta('meta[name="twitter:title"]', 'name', 'twitter:title', title);
+    setMeta('meta[name="twitter:description"]', 'name', 'twitter:description', description);
+    let canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.rel = 'canonical';
+      document.head.append(canonical);
+    }
+    canonical.href = canonicalUrl;
+  }, [branding.platformName]);
   const [receipt, setReceipt] = useState<ContactTicketReceipt | null>(null);
   const form = useForm<ContactFormValues>({
     defaultValues: { name: '', email: '', subject: '', category: 'other', message: '' },

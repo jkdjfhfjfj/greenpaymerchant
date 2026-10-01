@@ -20,6 +20,14 @@ serve = "static"
 publicDir = "artifacts/payrail-console/dist/public"
 
 [[services.production.rewrites]]
+from = "/contact"
+to = "/contact/index.html"
+
+[[services.production.rewrites]]
+from = "/contact/"
+to = "/contact/index.html"
+
+[[services.production.rewrites]]
 from = "/*"
 to = "/index.html"
 

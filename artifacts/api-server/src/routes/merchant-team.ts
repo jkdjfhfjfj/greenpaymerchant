@@ -5,7 +5,6 @@ import {
   AcceptMerchantTeamInvitationBody,
   AcceptMerchantTeamInvitationResponse,
   CreateMerchantTeamInvitationBody,
-  CreateMerchantTeamInvitationResponse,
   ListMerchantTeamResponse,
   RemoveMerchantTeamMemberParams,
   RemoveMerchantTeamMemberResponse,
@@ -25,6 +24,8 @@ import { getPublicAppUrl } from "../lib/greenpay-provider";
 import { canAcceptWorkspaceInvitation, invitationCanBeAccepted } from "../lib/merchant-access-policy";
 import { findMerchantAccessForUser, resolveMerchantAccess } from "../lib/merchant-access";
 import { ApiError } from "../lib/api-error";
+import { assertMerchantActionEnabled } from "../lib/platform";
+import { notifyTeamInvitation } from "../lib/mailtrap-delivery";
 import { requireSignedIn, verifiedClerkEmail } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
@@ -79,6 +80,7 @@ router.post("/merchant/team", requireSignedIn, async (req, res): Promise<void> =
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const merchant = await resolveMerchantAccess(req, res, "owner");
   if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  await assertMerchantActionEnabled(merchant.id, "teamManagement");
   const email = parsed.data.email.trim().toLowerCase();
   const existingOwnerEmail = await verifiedClerkEmail(merchant.ownerClerkId);
   if (existingOwnerEmail === email) {
@@ -120,11 +122,26 @@ router.post("/merchant/team", requireSignedIn, async (req, res): Promise<void> =
     createdByClerkId: res.locals.clerkUserId as string,
     expiresAt,
   }).returning();
-  res.status(201).json(CreateMerchantTeamInvitationResponse.parse({
+  try {
+    await notifyTeamInvitation({
+      invitationId: invitation.id,
+      merchantId: merchant.id,
+      recipientEmail: email,
+      inviteUrl: inviteUrl.toString(),
+      role: parsed.data.role,
+      expiresAt,
+    });
+  } catch (error) {
+    await db.update(merchantTeamInvitationsTable).set({ revokedAt: new Date() })
+      .where(eq(merchantTeamInvitationsTable.id, invitation.id));
+    throw new ApiError(503, error instanceof Error
+      ? `Invitation email could not be queued: ${error.message}`
+      : "Invitation email could not be queued. Please retry.");
+  }
+  res.status(201).json({
     invitation: invitationDto(invitation),
-    invitationUrl: inviteUrl.toString(),
-    delivery: "copy_link_required",
-  }));
+    delivery: "queued",
+  });
 });
 
 router.delete("/merchant/team/invitations/:id", requireSignedIn, async (req, res): Promise<void> => {
@@ -132,6 +149,7 @@ router.delete("/merchant/team/invitations/:id", requireSignedIn, async (req, res
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const merchant = await resolveMerchantAccess(req, res, "owner");
   if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  await assertMerchantActionEnabled(merchant.id, "teamManagement");
   const [invitation] = await db.update(merchantTeamInvitationsTable)
     .set({ revokedAt: new Date() })
     .where(and(
@@ -153,6 +171,7 @@ router.patch("/merchant/team/members/:id", requireSignedIn, async (req, res): Pr
   }
   const merchant = await resolveMerchantAccess(req, res, "owner");
   if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  await assertMerchantActionEnabled(merchant.id, "teamManagement");
   const [member] = await db.update(merchantTeamMembersTable).set({
     role: body.data.role,
     updatedAt: new Date(),
@@ -224,6 +243,7 @@ router.post("/merchant/team/accept", requireSignedIn, async (req, res): Promise<
     res.status(409).json({ error: "The merchant owner cannot accept a team invitation." });
     return;
   }
+  await assertMerchantActionEnabled(merchant.id, "teamManagement");
   try {
     await db.transaction(async (tx) => {
       const [accepted] = await tx.update(merchantTeamInvitationsTable)

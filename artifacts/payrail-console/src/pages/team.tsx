@@ -10,11 +10,13 @@ import {
   useUpdateMerchantTeamMember,
 } from "@workspace/api-client-react";
 import { Async, Btn, Card, Confirm, CopyBtn, Err, Field, Heading, Note, fmtDate, nice, useAccess, useInvalidateAll } from "@/components/kit";
+import { useMerchantActionCapability } from "@/hooks/use-merchant-action-controls";
 
 type TeamRole = "finance" | "viewer";
 
 export function MerchantTeamPage() {
   const access = useAccess();
+  const capabilities = useMerchantActionCapability();
   const team = useListMerchantTeam();
   const invite = useCreateMerchantTeamInvitation();
   const changeRole = useUpdateMerchantTeamMember();
@@ -23,17 +25,22 @@ export function MerchantTeamPage() {
   const invalidate = useInvalidateAll();
   const [role, setRole] = useState<TeamRole>("finance");
   const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [inviteQueued, setInviteQueued] = useState(false);
   const [removeId, setRemoveId] = useState<number | null>(null);
   const members = team.data?.members ?? [];
   const invitations = team.data?.invitations ?? [];
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!capabilities.can("teamManagement")) return;
+    setInviteLink(null);
+    setInviteQueued(false);
     const form = event.currentTarget;
     const email = String(new FormData(form).get("email") || "").trim();
     invite.mutate({ data: { email, role } }, {
       onSuccess: (created) => {
-        setInviteLink(created.invitationUrl);
+        setInviteLink(created.invitationUrl ?? null);
+        setInviteQueued(String(created.delivery) === "queued");
         form.reset();
         setRole("finance");
         void invalidate();
@@ -45,21 +52,26 @@ export function MerchantTeamPage() {
     <Heading eyebrow="MERCHANT / ACCESS" title="Team and permissions" subtitle="Invite finance operators and read-only accountants to the merchant workspace." />
     <div className="split">
       <Card title="Invite a teammate" subtitle="Invitation links expire after seven days and only work for the invited verified email.">
+        {capabilities.isLoading && <Note>Loading current team-management permissions…</Note>}
+        {capabilities.isError && <Note tone="danger">Team permissions could not be verified. Refresh before making changes.</Note>}
+        {!capabilities.isLoading && !capabilities.isError && !capabilities.can("teamManagement") &&
+          <Note tone="warn">{capabilities.disabledReason("teamManagement")}</Note>}
         <form className="form-stack" onSubmit={submit}>
           <Field label="Verified email address"><input name="email" type="email" autoComplete="email" maxLength={254} placeholder="finance@example.com" required data-testid="input-team-email" /></Field>
           <Field label="Role">
             <select value={role} onChange={(event) => setRole(event.target.value as TeamRole)} data-testid="select-team-role">
               <option value="finance">Finance operator</option>
-              <option value="viewer">Read-only accountant / viewer</option>
+              <option value="viewer">Read-only accountant</option>
             </select>
           </Field>
-          <p className="sub">Greenpay email delivery is not configured. The link is shown once after creation so you can copy and deliver it securely.</p>
+    <p className="sub">The private invitation link is delivered by the mail worker. Never share it in a public channel.</p>
           <Err error={invite.error} />
-          <Btn type="submit" disabled={invite.isPending} testId="button-create-team-invite">
+          <Btn type="submit" disabled={!capabilities.can("teamManagement") || invite.isPending} testId="button-create-team-invite">
             {invite.isPending ? <LoaderCircle size={15} className="spin" /> : <MailPlus size={15} />}
             Create invitation
           </Btn>
         </form>
+        {inviteQueued && <Note>Invitation email queued for delivery. The recipient must accept using the same verified email address.</Note>}
         {inviteLink && <div className="notice" role="status" style={{ marginTop: 14 }}>
           <ShieldCheck size={16} />
           <div><strong>Invitation created — copy this private link now.</strong><p className="mono" style={{ overflowWrap: "anywhere", margin: "8px 0" }}>{inviteLink}</p><CopyBtn text={inviteLink} /></div>
@@ -69,7 +81,7 @@ export function MerchantTeamPage() {
         <div className="form-stack">
           <div><strong>Owner</strong><p className="sub">Full merchant control, including business profile, verification, API keys, webhooks, and team access.</p></div>
           <div><strong>Finance operator</strong><p className="sub">Can read merchant activity and perform permitted operational work. Cannot change merchant profile, KYC/KYB, API keys, webhooks, or team access.</p></div>
-          <div><strong>Read-only accountant / viewer</strong><p className="sub">Can review permitted workspace records but every mutation is rejected by the server.</p></div>
+          <div><strong>Read-only accountant</strong><p className="sub">Can review permitted workspace records but every mutation is rejected by the server.</p></div>
           <Note tone="warn">Payment success is recorded only after provider confirmation. Team access does not bypass independent payout review.</Note>
         </div>
       </Card>
@@ -82,26 +94,26 @@ export function MerchantTeamPage() {
           <thead><tr><th>Email</th><th>Access</th><th>Added</th><th /></tr></thead>
           <tbody>{members.map((member) => <tr key={member.id} data-testid={`row-team-member-${member.id}`}>
             <td><strong>{member.email}</strong><span className="sub">Active team member</span></td>
-            <td><select aria-label={`Role for ${member.email}`} value={member.role === "owner" ? "finance" : member.role} onChange={(event) => changeRole.mutate({ id: member.id, data: { role: event.target.value as TeamRole } }, { onSuccess: () => { void invalidate(); } })} disabled={changeRole.isPending || member.role === "owner"} data-testid={`select-member-role-${member.id}`}>
-              <option value="finance">Finance operator</option><option value="viewer">Read-only accountant / viewer</option>
+            <td><select aria-label={`Role for ${member.email}`} value={member.role === "owner" ? "finance" : member.role} onChange={(event) => changeRole.mutate({ id: member.id, data: { role: event.target.value as TeamRole } }, { onSuccess: () => { void invalidate(); } })} disabled={!capabilities.can("teamManagement") || changeRole.isPending || member.role === "owner"} data-testid={`select-member-role-${member.id}`}>
+              <option value="finance">Finance operator</option><option value="viewer">Read-only accountant</option>
             </select></td>
             <td>{fmtDate(member.createdAt)}</td>
-            <td><Btn variant="danger" small disabled={remove.isPending || member.role === "owner"} onClick={() => setRemoveId(member.id)}><Trash2 size={13} />Remove</Btn></td>
+            <td><Btn variant="danger" small disabled={!capabilities.can("teamManagement") || remove.isPending || member.role === "owner"} onClick={() => setRemoveId(member.id)}><Trash2 size={13} />Remove</Btn></td>
           </tr>)}</tbody>
         </table></div>
       </Async>
     </Card>
 
-    <Card title="Pending invitations" subtitle="Invitation links are returned only once at creation; revoke one here if it was not delivered securely.">
+    <Card title="Pending invitations" subtitle="Recipients must accept with the invited verified email. Revoke any invitation that should no longer be used.">
       <Err error={revoke.error} />
       <Async q={team} empty={!invitations.length} emptyTitle="No pending invitations" emptyBody="New invites remain pending for seven days or until accepted or revoked.">
         <div className="table-wrap"><table className="dt">
           <thead><tr><th>Recipient</th><th>Role</th><th>Expires</th><th /></tr></thead>
           <tbody>{invitations.map((invitation) => <tr key={invitation.id} data-testid={`row-team-invitation-${invitation.id}`}>
-            <td><strong>{invitation.email}</strong><span className="sub">Link delivery required</span></td>
-            <td>{invitation.role === "viewer" ? "Read-only accountant / viewer" : nice(invitation.role)}</td>
+            <td><strong>{invitation.email}</strong><span className="sub">Email invitation pending</span></td>
+            <td>{invitation.role === "viewer" ? "Read-only accountant" : nice(invitation.role)}</td>
             <td>{fmtDate(invitation.expiresAt)}</td>
-            <td><Btn variant="quiet" small disabled={revoke.isPending} onClick={() => revoke.mutate({ id: invitation.id }, { onSuccess: () => { void invalidate(); } })}><Trash2 size={13} />Revoke</Btn></td>
+            <td><Btn variant="quiet" small disabled={!capabilities.can("teamManagement") || revoke.isPending} onClick={() => revoke.mutate({ id: invitation.id }, { onSuccess: () => { void invalidate(); } })}><Trash2 size={13} />Revoke</Btn></td>
           </tr>)}</tbody>
         </table></div>
       </Async>

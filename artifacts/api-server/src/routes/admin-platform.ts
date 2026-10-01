@@ -16,11 +16,19 @@ import {
 import {
   adminAuditLogTable, db, feeSchedulesTable, fxRatesTable, merchantApiKeysTable,
   merchantsTable, platformSettingsTable, providerCredentialsTable, transactionsTable,
+  verificationTierLimitsTable, verificationUsageReservationsTable,
 } from "@workspace/db";
 import { encryptProviderCredentials, readProviderCredentials } from "../lib/secure-storage";
 import { credentialVaultReady } from "../lib/secret-crypto";
 import { providerCredential, providerCredentialFields } from "../lib/credential-runtime";
 import { cleanPublicUrl, normalizeWhatsAppContact } from "../lib/platform-branding";
+import {
+  MERCHANT_ACTION_KEYS,
+  normalizeMerchantActionControls,
+  normalizePayoutSafetySettings,
+  type MerchantActionKey,
+} from "../lib/merchant-access-policy";
+import { verificationTierForMerchant } from "../lib/platform";
 
 const router: IRouter = Router();
 const providers = ["paystack", "payhero", "payzaapi", "didit"] as const;
@@ -31,6 +39,49 @@ function actor(req: Parameters<Parameters<IRouter["get"]>[1]>[0]): string {
 
 async function audit(req: Parameters<Parameters<IRouter["get"]>[1]>[0], action: string, target: string, details: string) {
   await db.insert(adminAuditLogTable).values({ actor: actor(req), action, target, details });
+}
+
+function routeMerchantId(value: string): number | null {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+async function adminMerchantControlsDto(merchant: typeof merchantsTable.$inferSelect) {
+  const [usageRows, limitRows] = await Promise.all([
+    db.select({
+      action: verificationUsageReservationsTable.action,
+      currency: verificationUsageReservationsTable.currency,
+      confirmedAmount: sql<number>`coalesce(sum(${verificationUsageReservationsTable.amount}), 0)::numeric`,
+    }).from(verificationUsageReservationsTable).where(and(
+      eq(verificationUsageReservationsTable.merchantId, merchant.id),
+      eq(verificationUsageReservationsTable.status, "committed"),
+    )).groupBy(verificationUsageReservationsTable.action, verificationUsageReservationsTable.currency),
+    db.select().from(verificationTierLimitsTable)
+      .where(eq(verificationTierLimitsTable.tier, verificationTierForMerchant(merchant))),
+  ]);
+  return {
+    merchantId: merchant.id,
+    businessName: merchant.businessName,
+    status: merchant.status,
+    controls: normalizeMerchantActionControls(merchant.merchantActionControls),
+    payoutSafety: normalizePayoutSafetySettings(merchant.payoutSafetySettings),
+    usage: usageRows.map((row) => ({
+      action: row.action,
+      currency: row.currency,
+      confirmedAmount: Number(row.confirmedAmount ?? 0),
+      basis: "committed" as const,
+    })),
+    limits: limitRows.map((row) => ({
+      tier: row.tier,
+      currency: row.currency,
+      collectionPerTransactionLimit: row.collectionPerTransactionLimit,
+      collectionDailyLimit: row.collectionDailyLimit,
+      collectionMonthlyLimit: row.collectionMonthlyLimit,
+      payoutLimit: row.payoutLimit,
+      conversionLimit: row.conversionLimit,
+    })),
+    updatedAt: merchant.updatedAt,
+  };
 }
 
 function merchantDto(row: typeof merchantsTable.$inferSelect) {
@@ -150,15 +201,166 @@ router.get("/admin/merchants", async (req, res): Promise<void> => {
   res.json(ListAdminMerchantsResponse.parse({ items: rows.map(merchantDto) }));
 });
 
+router.get("/admin/merchants/:merchantId/controls", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  const merchantId = routeMerchantId(req.params.merchantId ?? "");
+  if (merchantId === null) { res.status(400).json({ error: "A valid merchant ID is required." }); return; }
+  const [merchant] = await db.select().from(merchantsTable).where(eq(merchantsTable.id, merchantId)).limit(1);
+  if (!merchant) { res.status(404).json({ error: "Merchant not found." }); return; }
+  res.json(await adminMerchantControlsDto(merchant));
+});
+
+router.put("/admin/merchants/:merchantId/controls", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  const merchantId = routeMerchantId(req.params.merchantId ?? "");
+  if (merchantId === null) { res.status(400).json({ error: "A valid merchant ID is required." }); return; }
+  const body = req.body && typeof req.body === "object" && !Array.isArray(req.body)
+    ? req.body as Record<string, unknown>
+    : {};
+  const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+  if (!reason || reason.length > 1000) {
+    res.status(400).json({ error: "A nonempty audit reason of at most 1000 characters is required." }); return;
+  }
+
+  let controlsPatch: Partial<Record<MerchantActionKey, boolean>> | undefined;
+  if (body.controls !== undefined) {
+    if (!body.controls || typeof body.controls !== "object" || Array.isArray(body.controls)) {
+      res.status(400).json({ error: "Controls must be an object of action booleans." }); return;
+    }
+    const rawControls = body.controls as Record<string, unknown>;
+    const unknown = Object.keys(rawControls).filter((key) => !MERCHANT_ACTION_KEYS.includes(key as MerchantActionKey));
+    if (unknown.length || Object.values(rawControls).some((value) => typeof value !== "boolean")) {
+      res.status(400).json({ error: "Controls contain an unknown action or non-boolean value." }); return;
+    }
+    controlsPatch = rawControls as Partial<Record<MerchantActionKey, boolean>>;
+  }
+
+  let safetyPatch: { largePayoutThresholds: Record<string, number>; dualApprovalEnabled: boolean } | undefined;
+  if (body.payoutSafety !== undefined) {
+    if (!body.payoutSafety || typeof body.payoutSafety !== "object" || Array.isArray(body.payoutSafety)) {
+      res.status(400).json({ error: "Payout safety must be an object." }); return;
+    }
+    const rawSafety = body.payoutSafety as Record<string, unknown>;
+    if (rawSafety.destinationChangeRequiresDualApproval !== undefined &&
+        rawSafety.destinationChangeRequiresDualApproval !== true) {
+      res.status(400).json({ error: "Dual approval for changed payout destinations is mandatory and cannot be disabled." }); return;
+    }
+    const thresholds = rawSafety.largePayoutThresholds;
+    if (!thresholds || typeof thresholds !== "object" || Array.isArray(thresholds) ||
+        typeof rawSafety.dualApprovalEnabled !== "boolean") {
+      res.status(400).json({ error: "Provide currency-specific positive payout thresholds and a dual-approval setting." }); return;
+    }
+    const normalizedThresholds: Record<string, number> = {};
+    for (const [rawCurrency, amount] of Object.entries(thresholds as Record<string, unknown>)) {
+      const currency = rawCurrency.trim().toUpperCase();
+      if (!/^[A-Z]{3}$/.test(currency) || typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) {
+        res.status(400).json({ error: "Every payout threshold needs a three-letter currency and positive finite amount." }); return;
+      }
+      normalizedThresholds[currency] = amount;
+    }
+    safetyPatch = {
+      largePayoutThresholds: normalizedThresholds,
+      dualApprovalEnabled: rawSafety.dualApprovalEnabled,
+    };
+  }
+  if (!controlsPatch && !safetyPatch) {
+    res.status(400).json({ error: "Provide at least one merchant control or payout-safety setting to update." }); return;
+  }
+
+  const result = await db.transaction(async (tx) => {
+    const [current] = await tx.select().from(merchantsTable)
+      .where(eq(merchantsTable.id, merchantId)).for("update").limit(1);
+    if (!current) return null;
+    const before = {
+      controls: normalizeMerchantActionControls(current.merchantActionControls),
+      payoutSafety: normalizePayoutSafetySettings(current.payoutSafetySettings),
+    };
+    const controls = controlsPatch
+      ? { ...normalizeMerchantActionControls(current.merchantActionControls), ...controlsPatch }
+      : current.merchantActionControls;
+    const oldSafety = normalizePayoutSafetySettings(current.payoutSafetySettings);
+    const payoutSafety = safetyPatch
+      ? {
+          ...oldSafety,
+          ...safetyPatch,
+          destinationChangeRequiresDualApproval: true as const,
+        }
+      : current.payoutSafetySettings;
+    const changedFields = [
+      ...(controlsPatch ? [`controls(${Object.keys(controlsPatch).join(",")})`] : []),
+      ...(safetyPatch ? ["payoutSafety"] : []),
+    ];
+    const [saved] = await tx.update(merchantsTable).set({
+      ...(controlsPatch ? { merchantActionControls: controls } : {}),
+      ...(safetyPatch ? { payoutSafetySettings: payoutSafety } : {}),
+      updatedAt: new Date(),
+    }).where(eq(merchantsTable.id, merchantId)).returning();
+    await tx.insert(adminAuditLogTable).values({
+      actor: actor(req),
+      action: "merchant.controls.updated",
+      target: `merchant:${merchantId}`,
+      details: JSON.stringify({
+        changedFields,
+        reason,
+        before,
+        after: {
+          controls: controlsPatch ? controls : before.controls,
+          payoutSafety: safetyPatch ? payoutSafety : before.payoutSafety,
+        },
+      }),
+    });
+    return saved;
+  });
+  if (!result) { res.status(404).json({ error: "Merchant not found." }); return; }
+  res.json(await adminMerchantControlsDto(result));
+});
+
+router.post("/admin/merchants/:merchantId/status", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  const merchantId = routeMerchantId(req.params.merchantId ?? "");
+  if (merchantId === null) { res.status(400).json({ error: "A valid merchant ID is required." }); return; }
+  const body = req.body && typeof req.body === "object" && !Array.isArray(req.body)
+    ? req.body as Record<string, unknown>
+    : {};
+  const status = body.status;
+  const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+  if (status !== "active" && status !== "suspended") {
+    res.status(400).json({ error: "Merchant status must be active or suspended." }); return;
+  }
+  if (!reason || reason.length > 1000) {
+    res.status(400).json({ error: "A nonempty audit reason of at most 1000 characters is required." }); return;
+  }
+  const saved = await db.transaction(async (tx) => {
+    const [current] = await tx.select().from(merchantsTable)
+      .where(eq(merchantsTable.id, merchantId)).for("update").limit(1);
+    if (!current) return null;
+    const [updated] = await tx.update(merchantsTable).set({ status, updatedAt: new Date() })
+      .where(eq(merchantsTable.id, merchantId)).returning();
+    await tx.insert(adminAuditLogTable).values({
+      actor: actor(req),
+      action: status === "suspended" ? "merchant.suspended" : "merchant.reactivated",
+      target: `merchant:${merchantId}`,
+      details: `Status changed from ${current.status} to ${status}. Reason: ${reason}`,
+    });
+    return updated;
+  });
+  if (!saved) { res.status(404).json({ error: "Merchant not found." }); return; }
+  res.json({ merchantId: saved.id, status: saved.status, reason, updatedAt: saved.updatedAt });
+});
+
 router.patch("/admin/merchants/:id", async (req, res): Promise<void> => {
   const params = UpdateAdminMerchantParams.safeParse(req.params);
   const parsed = UpdateAdminMerchantBody.safeParse(req.body);
   if (!params.success || !parsed.success) {
     res.status(400).json({ error: !params.success ? params.error.message : parsed.error?.message ?? "Invalid merchant update." }); return;
   }
+  if (parsed.data.status !== undefined) {
+    res.status(400).json({ error: "Status changes require POST /admin/merchants/:merchantId/status with an audit reason." });
+    return;
+  }
   const patch = parsed.data as typeof parsed.data & Record<string, unknown>;
   const updates: Partial<typeof merchantsTable.$inferInsert> = { updatedAt: new Date() };
-  for (const key of ["businessName", "status", "riskNote", "baseCurrency", "paymentsEnabled", "apiAccessEnabled", "payoutsEnabled", "refundsEnabled"] as const) {
+  for (const key of ["businessName", "riskNote", "baseCurrency", "paymentsEnabled", "apiAccessEnabled", "payoutsEnabled", "refundsEnabled"] as const) {
     const value = patch[key];
     if (value !== undefined) (updates as Record<string, unknown>)[key] = typeof value === "string" && key === "baseCurrency" ? value.toUpperCase() : value;
   }

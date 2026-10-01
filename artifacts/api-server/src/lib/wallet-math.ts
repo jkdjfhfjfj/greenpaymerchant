@@ -101,6 +101,23 @@ export function shouldReleasePayoutHold(status: string): boolean {
   return status === "failed" || status === "rejected";
 }
 
+export function payoutNeedsSecondApproval(input: {
+  amountMinor: bigint;
+  largePayoutThresholdMinor: bigint | null;
+  thresholdConfigured: boolean;
+  destinationIsApproved: boolean;
+  dualApprovalEnabled?: boolean;
+}): boolean {
+  if (input.amountMinor <= 0n) throw new Error("Payout amount must be positive.");
+  if (input.dualApprovalEnabled) return true;
+  if (!input.destinationIsApproved || !input.thresholdConfigured ||
+      input.largePayoutThresholdMinor === null) return true;
+  if (input.largePayoutThresholdMinor <= 0n) {
+    throw new Error("A configured payout threshold must be positive.");
+  }
+  return input.amountMinor >= input.largePayoutThresholdMinor;
+}
+
 export function payoutProviderOutcome(input: {
   accepted: boolean | undefined;
   providerReference?: string | null;

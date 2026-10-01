@@ -1,16 +1,24 @@
 import { randomUUID } from "node:crypto";
-import { eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import {
   collectionCurrency,
   hasCollectionAmountPrecision,
   normalizeCollectionAmount,
 } from "@workspace/api-zod";
-import { db, feeSchedulesTable, merchantsTable, transactionsTable } from "@workspace/db";
+import {
+  db, feeSchedulesTable, merchantInvoicesTable, merchantsTable, paymentLinksTable,
+  refundsTable, transactionsTable,
+} from "@workspace/db";
 import {
   ApiError, assertSupportedCurrency, providerForCurrency, providerIsConfigured, startProviderPayment,
   type ProviderName, type StartPaymentInput, type StartPaymentResult,
 } from "./greenpay-provider";
 import { assertMerchantMayTransact, assertPlatformEnabled, reserveVerificationUsage } from "./platform";
+import { invoiceOutstandingAmount } from "./merchant-business-tools";
+import { CUSTOMER_REIMBURSED_REFUND_STATUSES } from "./payment-safety";
+
+const PAID_TRANSACTION_STATUSES = ["success", "refunded"] as const;
+const OPEN_TRANSACTION_STATUSES = ["pending"] as const;
 
 export interface CreateCollectionInput {
   amount: number;
@@ -83,11 +91,62 @@ export async function createCollection(
   const platformFee = Math.round((amount * platformFeePercent / 100 + platformFlatFee) * 100) / 100;
 
   const reference = `GP-${randomUUID()}`;
-  const row = await db.transaction(async (tx) => {
+  const outcome = await db.transaction(async (tx) => {
+    const [linkedInvoice] = input.paymentLinkId === undefined ? [] : await tx.select().from(merchantInvoicesTable)
+      .where(eq(merchantInvoicesTable.paymentLinkId, input.paymentLinkId)).for("update").limit(1);
+    let lockedLink: typeof paymentLinksTable.$inferSelect | undefined;
+    if (input.paymentLinkId !== undefined) {
+      [lockedLink] = await tx.select().from(paymentLinksTable)
+        .where(eq(paymentLinksTable.id, input.paymentLinkId)).for("update").limit(1);
+      if (!lockedLink || lockedLink.status !== "active" || lockedLink.slug !== input.paymentLinkSlug ||
+          lockedLink.merchantId !== (input.merchantId ?? null)) {
+        return { blocked: "This payment link is no longer active." as const, statusCode: 409 as const };
+      }
+      if (!linkedInvoice && lockedLink.amountType === "fixed" && Number(lockedLink.amount) !== amount) {
+        return { blocked: "The payment amount does not match this fixed payment link." as const, statusCode: 409 as const };
+      }
+    }
+    if (linkedInvoice) {
+      if (!lockedLink || lockedLink.merchantId !== linkedInvoice.merchantId ||
+          linkedInvoice.merchantId !== input.merchantId || lockedLink.status !== "active") {
+        return { blocked: "This invoice payment link is no longer active." as const, statusCode: 409 as const };
+      }
+      const [pendingCollection] = await tx.select({ id: transactionsTable.id }).from(transactionsTable).where(and(
+        eq(transactionsTable.paymentLinkId, linkedInvoice.paymentLinkId!),
+        eq(transactionsTable.merchantId, linkedInvoice.merchantId),
+        inArray(transactionsTable.status, [...OPEN_TRANSACTION_STATUSES]),
+      )).limit(1);
+      if (pendingCollection) {
+        return { blocked: "An invoice payment is awaiting provider confirmation. The balance is held until its outcome is known." as const, statusCode: 409 as const };
+      }
+      const paidTransactions = await tx.select().from(transactionsTable).where(and(
+        eq(transactionsTable.merchantId, linkedInvoice.merchantId),
+        eq(transactionsTable.paymentLinkId, linkedInvoice.paymentLinkId!),
+        inArray(transactionsTable.status, [...PAID_TRANSACTION_STATUSES]),
+      ));
+      const collected = paidTransactions.reduce((sum, row) => sum + (row.paidAt ? Number(row.amount) : 0), 0);
+      let refunded = 0;
+      for (const transaction of paidTransactions) {
+        const confirmedRefunds = await tx.select({ amount: refundsTable.amount }).from(refundsTable).where(and(
+          eq(refundsTable.originalReference, transaction.reference),
+          inArray(refundsTable.status, [...CUSTOMER_REIMBURSED_REFUND_STATUSES]),
+        ));
+        refunded += confirmedRefunds.reduce((sum, refund) => sum + Number(refund.amount), 0);
+      }
+      const outstanding = invoiceOutstandingAmount(
+        linkedInvoice.total,
+        Math.max(0, Math.min(linkedInvoice.total, collected - refunded)),
+      );
+      if (outstanding <= 0 || Number(lockedLink.amount) !== outstanding ||
+          Number(linkedInvoice.paymentLinkAmount ?? lockedLink.amount) !== outstanding || amount > outstanding) {
+        await tx.update(paymentLinksTable).set({ status: "archived" }).where(eq(paymentLinksTable.id, lockedLink.id));
+        return { blocked: "This invoice payment link no longer matches the outstanding balance. Request a fresh invoice payment link." as const, statusCode: 409 as const };
+      }
+    }
     if (input.merchantId !== undefined) {
       const [merchant] = await tx.select().from(merchantsTable)
         .where(eq(merchantsTable.id, input.merchantId)).for("update").limit(1);
-      if (!merchant) throw new ApiError(404, "Merchant account not found.");
+      if (!merchant) return { blocked: "Merchant account not found." as const, statusCode: 404 };
       await assertMerchantMayTransact(merchant);
     }
     const [pending] = await tx.insert(transactionsTable).values({
@@ -112,8 +171,13 @@ export async function createCollection(
     if (input.merchantId !== undefined) {
       await reserveVerificationUsage(tx, input.merchantId, "collection", amount, currency, pending!.id);
     }
-    return pending!;
+    return { transaction: pending! };
   });
+  if (!("transaction" in outcome) || !outcome.transaction) {
+    if ("blocked" in outcome && outcome.blocked) throw new ApiError(outcome.statusCode, outcome.blocked);
+    throw new ApiError(500, "The collection could not be reserved.");
+  }
+  const row = outcome.transaction;
 
   const payment = await (dependencies.startProviderPayment ?? startProviderPayment)({
     reference,

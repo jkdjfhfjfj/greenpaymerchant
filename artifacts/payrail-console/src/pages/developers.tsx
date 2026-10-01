@@ -6,6 +6,7 @@ import {
   useGetMerchantFxQuote, useGetMerchantFees,
 } from '@workspace/api-client-react';
 import { Async, Btn, Card, CopyBtn, CURRENCIES, Confirm, Err, Field, Gate, Heading, Modal, Note, Pill, fmtDate, money, useInvalidateAll } from '@/components/kit';
+import { useMerchantActionCapability } from '@/hooks/use-merchant-action-controls';
 
 const SCOPES = ['read', 'payment_links:write', 'payments:write'] as const;
 const EVENTS = ['payment.success', 'payment.failed', 'payment.refunded'] as const;
@@ -17,6 +18,8 @@ function Secret({ title, secret, hint, onClose }: { title: string; secret: strin
 export function DevelopersPage() { return <Gate need="merchant"><Inner /></Gate>; }
 function Inner() {
   const inv = useInvalidateAll();
+  const capabilities = useMerchantActionCapability();
+  const mayManageApi = capabilities.can('apiAccess');
   const keys = useListMerchantApiKeys();
   const hooks = useListMerchantWebhookEndpoints();
   const mk = useCreateMerchantApiKey();
@@ -47,12 +50,15 @@ function Inner() {
   const hItems = hooks.data?.items ?? [];
   return <>
     <Heading eyebrow="DEVELOPERS" title="API access" subtitle="Keys, webhook destinations and the endpoints they unlock." action={<a className="btn btn-secondary" href="/developers/docs">API docs &amp; playground</a>} />
-    <Card title="API keys" subtitle="Keys authenticate with Bearer tokens" action={<Btn small onClick={() => { setScopes(['read']); mk.reset(); setKeyOpen(true); }} testId="button-new-key"><Plus size={14} />New key</Btn>}>
+    {capabilities.isLoading && <Note>Loading current API-access permissions…</Note>}
+    {capabilities.isError && <Note tone="danger">API-access permissions could not be verified. Retry before creating keys or webhooks.</Note>}
+    {!capabilities.isLoading && !capabilities.isError && !mayManageApi && <Note tone="warn">{capabilities.disabledReason('apiAccess')}</Note>}
+    <Card title="API keys" subtitle="Keys authenticate with Bearer tokens" action={<Btn small disabled={!mayManageApi} onClick={() => { setScopes(['read']); mk.reset(); setKeyOpen(true); }} testId="button-new-key"><Plus size={14} />New key</Btn>}>
       <Async q={keys} empty={!kItems.length} emptyTitle="No API keys" emptyBody="Create a key to call the merchant API."><div className="table-wrap"><table className="dt"><thead><tr><th>Name</th><th>Prefix</th><th>Scopes</th><th>Last used</th><th>State</th><th /></tr></thead><tbody>
         {kItems.map((k) => <tr key={k.id} data-testid={`row-key-${k.id}`}><td><strong>{k.name}</strong><span className="sub">Created {fmtDate(k.createdAt)}</span></td><td className="mono">{k.prefix}...</td><td>{k.scopes.join(', ')}</td><td>{fmtDate(k.lastUsedAt)}</td><td><Pill value={k.revokedAt ? 'revoked' : 'active'} /></td><td><div className="row-actions">{!k.revokedAt && <Btn variant="danger" small onClick={() => setRevoke(k.id)}><Trash2 size={13} />Revoke</Btn>}</div></td></tr>)}
       </tbody></table></div></Async>
     </Card>
-    <Card title="Webhook destinations" subtitle="Receive signed payment events" action={<Btn small onClick={() => { setEvents(['payment.success']); mh.reset(); setHookOpen(true); }} testId="button-new-webhook"><Webhook size={14} />Add endpoint</Btn>}>
+    <Card title="Webhook destinations" subtitle="Receive signed payment events" action={<Btn small disabled={!mayManageApi} onClick={() => { setEvents(['payment.success']); mh.reset(); setHookOpen(true); }} testId="button-new-webhook"><Webhook size={14} />Add endpoint</Btn>}>
       <Async q={hooks} empty={!hItems.length} emptyTitle="No webhook endpoints" emptyBody="Add an HTTPS URL to be notified of payment events."><div className="table-wrap"><table className="dt"><thead><tr><th>URL</th><th>Events</th><th>State</th><th /></tr></thead><tbody>
         {hItems.map((h) => <tr key={h.id} data-testid={`row-webhook-${h.id}`}><td className="mono" style={{ fontSize: 12 }}>{h.url}<span className="sub">Added {fmtDate(h.createdAt)}</span></td><td>{h.events.join(', ')}</td><td><Pill value={h.active ? 'active' : 'disabled'} /></td><td><div className="row-actions"><Btn variant="danger" small onClick={() => setRmHook(h.id)}><Trash2 size={13} />Delete</Btn></div></td></tr>)}
       </tbody></table></div></Async>
@@ -101,13 +107,13 @@ curl "${origin}/api/v1/transactions?page=1&perPage=20" \\
       <Field label="Name"><input name="name" required minLength={2} maxLength={100} data-testid="input-key-name" /></Field>
       <Field label="Scopes"><div className="chips">{SCOPES.map((s) => <label key={s} className={`chip ${scopes.includes(s) ? 'on' : ''}`}><input type="checkbox" checked={scopes.includes(s)} onChange={() => toggle(scopes, s, setScopes)} />{s}</label>)}</div></Field>
       <Err error={mk.error} />
-      <Btn type="submit" disabled={mk.isPending || !scopes.length} testId="button-create-key">{mk.isPending ? <LoaderCircle size={14} className="spin" /> : <KeyRound size={14} />}Create key</Btn>
+      <Btn type="submit" disabled={!mayManageApi || mk.isPending || !scopes.length} testId="button-create-key">{mk.isPending ? <LoaderCircle size={14} className="spin" /> : <KeyRound size={14} />}Create key</Btn>
     </form></Modal>}
     {hookOpen && <Modal title="Add webhook endpoint" onClose={() => setHookOpen(false)}><form className="form-stack" onSubmit={createHook}>
       <Field label="Endpoint URL"><input name="url" type="url" required placeholder="https://example.com/hooks/payrail" data-testid="input-webhook-url" /></Field>
       <Field label="Events"><div className="chips">{EVENTS.map((s) => <label key={s} className={`chip ${events.includes(s) ? 'on' : ''}`}><input type="checkbox" checked={events.includes(s)} onChange={() => toggle(events, s, setEvents)} />{s}</label>)}</div></Field>
       <Err error={mh.error} />
-      <Btn type="submit" disabled={mh.isPending || !events.length} testId="button-create-webhook">{mh.isPending && <LoaderCircle size={14} className="spin" />}Create endpoint</Btn>
+      <Btn type="submit" disabled={!mayManageApi || mh.isPending || !events.length} testId="button-create-webhook">{mh.isPending && <LoaderCircle size={14} className="spin" />}Create endpoint</Btn>
     </form></Modal>}
     {secret && <Secret title={secret.title} secret={secret.value} hint={secret.hint} onClose={() => setSecret(null)} />}
     {revoke !== null && <Confirm title="Revoke API key" body="Requests using this key will be rejected immediately. This cannot be undone." confirmLabel="Revoke key" pending={rk.isPending} error={rk.error} onClose={() => { setRevoke(null); rk.reset(); }} onConfirm={() => rk.mutate({ id: revoke }, { onSuccess: () => { void inv(); setRevoke(null); } })} />}

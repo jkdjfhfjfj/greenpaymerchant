@@ -1,22 +1,32 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, hkdfSync, randomBytes, randomUUID } from "node:crypto";
-import { and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import {
   adminAuditLogTable, db, feeSchedulesTable, merchantsTable, merchantWalletsTable,
   refundsTable, settlementsTable, transactionsTable, walletConversionsTable,
   walletFxRatesTable, walletJournalEntriesTable, walletJournalsTable,
   walletPayoutRequestsTable, walletSettlementConfirmationsTable, walletRefundAdjustmentsTable,
+  walletPayoutDestinationsTable, walletPayoutDestinationVersionsTable,
+  walletPayoutDestinationChangeRequestsTable,
   type MerchantWalletRecord, type WalletPayoutRequestRecord,
+  type WalletPayoutDestinationChangeRequestRecord, type WalletPayoutDestinationVersionRecord,
 } from "@workspace/db";
+import { persistFinancialNotificationEvent } from "./financial-notification-events";
 import {
   ApiError, asObject, assertSupportedCurrency, numberValue, payzaApiRequest,
   payzaPayoutMethods, providerIsConfigured, stringValue,
 } from "./greenpay-provider";
-import { assertMerchantMayPayout, assertPlatformEnabled, enforceVerificationLimit } from "./platform";
+import {
+  assertMerchantMayPayout, assertPlatformEnabled, enforceVerificationLimit,
+} from "./platform";
+import {
+  assertMerchantActionEnabled, getMerchantActionControls,
+  type MerchantActionControlsSnapshot,
+} from "./merchant-action-controls";
 import { CUSTOMER_REIMBURSED_REFUND_STATUSES, OPEN_REFUND_RESERVATION_STATUSES } from "./payment-safety";
 import {
   calculateWalletConversion, canApplyWalletRefundAdjustment, canReserveWalletFunds,
   decimalToMinor, eligibleSettlementFunding, minorToDecimal, minorToNumber,
-  payoutProviderOutcome, proportionalNetRefundReversal, shouldReleasePayoutHold,
+  payoutNeedsSecondApproval, payoutProviderOutcome, proportionalNetRefundReversal, shouldReleasePayoutHold,
 } from "./wallet-math";
 
 const RATE_SOURCE = "Fawaz Ahmed currency-api daily ISO-currency reference rates (jsDelivr/GitHub mirrors; target units per one source unit)";
@@ -34,6 +44,17 @@ function cryptoKey(): Buffer {
     "sha256", Buffer.from(secret, "utf8"),
     Buffer.from("greenpay-wallet-destination"),
     Buffer.from("AES-256-GCM"), 32,
+  ));
+}
+
+function destinationFingerprintKey(): Buffer {
+  const secret = process.env.SESSION_SECRET?.trim();
+  if (!secret) throw new ApiError(503, "Secure wallet destination storage is unavailable until SESSION_SECRET is configured.");
+  return Buffer.from(hkdfSync(
+    "sha256", Buffer.from(secret, "utf8"),
+    Buffer.from("greenpay-wallet-destination"),
+    Buffer.from("HMAC-SHA256"),
+    32,
   ));
 }
 
@@ -61,7 +82,7 @@ function decryptDestination(value: string): Record<string, string> {
 }
 
 function destinationFingerprint(value: Record<string, string | null>): string {
-  return createHmac("sha256", cryptoKey()).update(JSON.stringify(value)).digest("hex");
+  return createHmac("sha256", destinationFingerprintKey()).update(JSON.stringify(value)).digest("hex");
 }
 
 function maskDestinationName(value: string): string {
@@ -111,6 +132,55 @@ function walletAccountDto(row: MerchantWalletRecord) {
 }
 
 export function walletPayoutRequestDto(row: WalletPayoutRequestRecord) {
+  const destination = {
+    id: row.destinationId,
+    versionId: row.destinationVersion,
+    fingerprint: row.destinationFingerprint,
+    accountName: row.accountName,
+    maskedAccount: row.maskedAccount,
+    method: row.method,
+    currency: row.currency,
+  };
+  const reviewHistory = [{
+    stage: "requested",
+    actor: row.requestedBy ?? "merchant",
+    occurredAt: row.createdAt,
+    outcome: "requested",
+    destination,
+    fee: minorToNumber(row.feeMinor),
+  }];
+  if (row.firstApprovedBy && row.firstApprovedAt) reviewHistory.push({
+    stage: "first",
+    actor: row.firstApprovedBy,
+    occurredAt: row.firstApprovedAt,
+    outcome: "approved",
+    destination,
+    fee: minorToNumber(row.feeMinor),
+  });
+  if (row.secondApprovedBy && row.secondApprovedAt) reviewHistory.push({
+    stage: "second",
+    actor: row.secondApprovedBy,
+    occurredAt: row.secondApprovedAt,
+    outcome: "approved",
+    destination,
+    fee: minorToNumber(row.feeMinor),
+  });
+  if (row.rejectedBy && row.rejectedAt) reviewHistory.push({
+    stage: "reject",
+    actor: row.rejectedBy,
+    occurredAt: row.rejectedAt,
+    outcome: "rejected",
+    destination,
+    fee: minorToNumber(row.feeMinor),
+  });
+  if (row.submittedAt) reviewHistory.push({
+    stage: "provider",
+    actor: row.secondApprovedBy ?? row.approvedBy ?? "platform",
+    occurredAt: row.submittedAt,
+    outcome: row.status,
+    destination,
+    fee: minorToNumber(row.feeMinor),
+  });
   return {
     id: row.id,
     reference: row.reference,
@@ -122,8 +192,127 @@ export function walletPayoutRequestDto(row: WalletPayoutRequestRecord) {
     method: row.method,
     accountName: row.accountName,
     maskedAccount: row.maskedAccount,
+    destinationId: row.destinationId,
+    destinationVersion: row.destinationVersion,
+    destinationFingerprint: row.destinationFingerprint,
+    requiresSecondApproval: row.requiresSecondApproval || !row.thresholdConfigured || row.destinationVersionId === null,
+    largePayoutThreshold: row.thresholdMinor === null ? null : minorToNumber(row.thresholdMinor),
+    thresholdConfigured: row.thresholdConfigured,
+    requestedBy: row.requestedBy,
+    firstApprovedBy: row.firstApprovedBy,
+    firstApprovedAt: row.firstApprovedAt,
+    secondApprovedBy: row.secondApprovedBy,
+    secondApprovedAt: row.secondApprovedAt,
+    rejectedBy: row.rejectedBy,
+    rejectedAt: row.rejectedAt,
+    reviewHistory,
     status: row.status,
     providerReference: row.providerReference,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+type WalletPayoutTransitionNotifier = (
+  previousStatus: string,
+  row: WalletPayoutRequestRecord,
+) => Promise<void>;
+
+async function persistWalletPayoutTransition(
+  tx: FinancialTx,
+  previousStatus: string,
+  row: WalletPayoutRequestRecord,
+): Promise<void> {
+  if (previousStatus === row.status) return;
+  await persistFinancialNotificationEvent(tx, {
+    kind: "wallet_payout",
+    walletPayoutRequestId: row.id,
+    reference: row.reference,
+    previousStatus,
+    status: row.status,
+    amount: minorToDecimal(row.amountMinor),
+    currency: row.currency,
+  });
+}
+
+function walletPayoutDestinationDto(input: {
+  destination: typeof walletPayoutDestinationsTable.$inferSelect;
+  version: WalletPayoutDestinationVersionRecord;
+}) {
+  return {
+    id: input.destination.id,
+    version: input.version.version,
+    currency: input.version.currency,
+    label: input.version.label,
+    method: input.version.method,
+    accountName: input.version.accountName,
+    maskedAccount: input.version.maskedAccount,
+    fingerprint: input.version.fingerprint,
+    status: input.destination.status,
+    approvedBy: input.version.approvedBy,
+    approvedAt: input.version.approvedAt,
+    createdAt: input.destination.createdAt,
+    updatedAt: input.destination.updatedAt,
+  };
+}
+
+function walletPayoutDestinationChangeDto(row: WalletPayoutDestinationChangeRequestRecord) {
+  const destination = {
+    id: row.destinationId,
+    label: row.proposedLabel,
+    currency: row.currency,
+    method: row.method,
+    accountName: row.accountName,
+    maskedAccount: row.maskedAccount,
+    fingerprint: row.destinationFingerprint,
+  };
+  const history = [{
+    stage: "requested",
+    actor: row.requestedBy,
+    occurredAt: row.createdAt,
+    outcome: "requested",
+    destination,
+    fee: null,
+  }];
+  if (row.firstApprovedBy && row.firstApprovedAt) history.push({
+    stage: "first",
+    actor: row.firstApprovedBy,
+    occurredAt: row.firstApprovedAt,
+    outcome: "approved",
+    destination,
+    fee: null,
+  });
+  if (row.secondApprovedBy && row.secondApprovedAt) history.push({
+    stage: "second",
+    actor: row.secondApprovedBy,
+    occurredAt: row.secondApprovedAt,
+    outcome: "approved",
+    destination,
+    fee: null,
+  });
+  if (row.rejectedBy && row.rejectedAt) history.push({
+    stage: "reject",
+    actor: row.rejectedBy,
+    occurredAt: row.rejectedAt,
+    outcome: "rejected",
+    destination,
+    fee: null,
+  });
+  return {
+    id: row.id,
+    destinationId: row.destinationId,
+    destination,
+    destinationFingerprint: row.destinationFingerprint,
+    status: row.status,
+    requestedBy: row.requestedBy,
+    firstApprovedBy: row.firstApprovedBy,
+    firstApprovedAt: row.firstApprovedAt,
+    secondApprovedBy: row.secondApprovedBy,
+    secondApprovedAt: row.secondApprovedAt,
+    rejectedBy: row.rejectedBy,
+    rejectedAt: row.rejectedAt,
+    decisionReason: row.decisionReason,
+    reviewHistory: history,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -430,6 +619,7 @@ export async function convertWalletFunds(merchantId: number, input: {
     }
     return walletConversionDto(prior);
   }
+  await assertMerchantActionEnabled(merchantId, "walletConversion");
   const quote = await quoteWalletConversion(merchantId, input);
   return db.transaction(async (tx) => {
     const [existing] = await tx.select().from(walletConversionsTable).where(and(
@@ -453,6 +643,7 @@ export async function convertWalletFunds(merchantId: number, input: {
       }
       return walletConversionDto(concurrent);
     }
+    await assertMerchantActionEnabled(merchantId, "walletConversion", tx);
     const sourceWallet = wallets.get(fromCurrency)!;
     const targetWallet = wallets.get(toCurrency)!;
     await enforceVerificationLimit(
@@ -540,6 +731,315 @@ export async function listAdminPayoutRequests(status?: string) {
   return rows.map(walletPayoutRequestDto);
 }
 
+export async function listMerchantWalletPayoutDestinations(merchantId: number) {
+  const destinations = await db.select().from(walletPayoutDestinationsTable).where(and(
+    eq(walletPayoutDestinationsTable.merchantId, merchantId),
+    eq(walletPayoutDestinationsTable.status, "active"),
+  )).orderBy(desc(walletPayoutDestinationsTable.updatedAt)).limit(500);
+  const items = [];
+  for (const destination of destinations) {
+    if (!destination.currentVersionId) continue;
+    const [version] = await db.select().from(walletPayoutDestinationVersionsTable).where(and(
+      eq(walletPayoutDestinationVersionsTable.id, destination.currentVersionId),
+      eq(walletPayoutDestinationVersionsTable.destinationId, destination.id),
+    )).limit(1);
+    if (version) items.push(walletPayoutDestinationDto({ destination, version }));
+  }
+  return items;
+}
+
+export async function listMerchantWalletPayoutDestinationChanges(merchantId: number) {
+  const rows = await db.select().from(walletPayoutDestinationChangeRequestsTable).where(eq(
+    walletPayoutDestinationChangeRequestsTable.merchantId, merchantId,
+  )).orderBy(desc(walletPayoutDestinationChangeRequestsTable.createdAt)).limit(500);
+  return rows.map(walletPayoutDestinationChangeDto);
+}
+
+export async function listAdminWalletPayoutDestinationChanges(status?: string) {
+  const rows = await db.select().from(walletPayoutDestinationChangeRequestsTable)
+    .where(status ? eq(walletPayoutDestinationChangeRequestsTable.status, status) : undefined)
+    .orderBy(desc(walletPayoutDestinationChangeRequestsTable.createdAt)).limit(1000);
+  return rows.map(walletPayoutDestinationChangeDto);
+}
+
+export async function createMerchantWalletPayoutDestinationChange(merchant: typeof merchantsTable.$inferSelect, input: {
+  destinationId?: number;
+  label: string;
+  currency: string;
+  method: string;
+  accountName: string;
+  accountNumber: string;
+  bankCode?: string;
+  bankName?: string;
+  idempotencyKey: string;
+  requester: string;
+}) {
+  const label = input.label.trim().replace(/\s+/g, " ");
+  const currency = input.currency.trim().toUpperCase();
+  assertSupportedCurrency(currency);
+  const method = input.method.trim();
+  const destination = {
+    accountName: input.accountName.trim().replace(/\s+/g, " "),
+    accountNumber: input.accountNumber.trim().replace(/\s+/g, ""),
+    bankCode: input.bankCode?.trim() || null,
+    bankName: input.bankName?.trim().replace(/\s+/g, " ") || null,
+    method,
+  };
+  if (!label || label.length > 120 || !destination.accountName ||
+      destination.accountName.length > 200 || destination.accountNumber.length < 3 ||
+      destination.accountNumber.length > 100 || !method || method.length > 120) {
+    throw new ApiError(400, "Enter a destination label, beneficiary name, account number, and payout method.");
+  }
+
+  const destinationHash = destinationFingerprint(destination);
+  const rawDigits = destination.accountNumber.replace(/\D/g, "");
+  const maskedAccount = `${"•".repeat(Math.max(0, Math.min(8, rawDigits.length - 4)))}${rawDigits.slice(-4)}` || "••••";
+  const maskedAccountName = maskDestinationName(destination.accountName);
+  const [prior] = await db.select().from(walletPayoutDestinationChangeRequestsTable).where(and(
+    eq(walletPayoutDestinationChangeRequestsTable.merchantId, merchant.id),
+    eq(walletPayoutDestinationChangeRequestsTable.idempotencyKey, input.idempotencyKey),
+  )).limit(1);
+  if (prior) {
+    if (prior.destinationId !== (input.destinationId ?? null) ||
+        prior.proposedLabel !== label || prior.currency !== currency || prior.method !== method ||
+        prior.accountName !== maskedAccountName || prior.maskedAccount !== maskedAccount ||
+        prior.destinationFingerprint !== destinationHash) {
+      throw new ApiError(409, "This destination idempotency key was already used with different details.");
+    }
+    return walletPayoutDestinationChangeDto(prior);
+  }
+
+  let expectedVersionId: number | null = null;
+  let existingFingerprint: string | null = null;
+  let existingDestination: typeof walletPayoutDestinationsTable.$inferSelect | null = null;
+  if (input.destinationId !== undefined) {
+    const [existing] = await db.select().from(walletPayoutDestinationsTable).where(and(
+      eq(walletPayoutDestinationsTable.id, input.destinationId),
+      eq(walletPayoutDestinationsTable.merchantId, merchant.id),
+      eq(walletPayoutDestinationsTable.status, "active"),
+    )).limit(1);
+    if (!existing?.currentVersionId) throw new ApiError(404, "Approved payout destination not found.");
+    const [currentVersion] = await db.select().from(walletPayoutDestinationVersionsTable).where(and(
+      eq(walletPayoutDestinationVersionsTable.id, existing.currentVersionId),
+      eq(walletPayoutDestinationVersionsTable.destinationId, existing.id),
+    )).limit(1);
+    if (!currentVersion) throw new ApiError(409, "The current approved destination version is unavailable.");
+    if (currentVersion.currency !== currency) {
+      throw new ApiError(409, "A payout destination change cannot change its currency.");
+    }
+    existingDestination = existing;
+    expectedVersionId = currentVersion.id;
+    existingFingerprint = currentVersion.fingerprint;
+  }
+  if (existingFingerprint === destinationHash) {
+    throw new ApiError(409, "The proposed destination matches the currently approved destination; submit only a substantive account change.");
+  }
+  const fingerprint = requestHash({
+    destinationId: existingDestination?.id ?? null,
+    expectedVersionId,
+    label,
+    currency,
+    destinationHash,
+  });
+
+  await assertMerchantActionEnabled(merchant.id, "destinationChanges");
+  const encryptedDestination = encryptDestination(destination);
+  return db.transaction(async (tx) => {
+    await tx.select({ id: merchantsTable.id }).from(merchantsTable)
+      .where(eq(merchantsTable.id, merchant.id)).for("update").limit(1);
+    const [concurrentRequest] = await tx.select().from(walletPayoutDestinationChangeRequestsTable).where(and(
+      eq(walletPayoutDestinationChangeRequestsTable.merchantId, merchant.id),
+      eq(walletPayoutDestinationChangeRequestsTable.idempotencyKey, input.idempotencyKey),
+    )).for("update").limit(1);
+    if (concurrentRequest) {
+      if (concurrentRequest.destinationId !== (input.destinationId ?? null) ||
+          concurrentRequest.proposedLabel !== label || concurrentRequest.currency !== currency ||
+          concurrentRequest.method !== method || concurrentRequest.accountName !== maskedAccountName ||
+          concurrentRequest.maskedAccount !== maskedAccount ||
+          concurrentRequest.destinationFingerprint !== destinationHash) {
+        throw new ApiError(409, "This destination idempotency key was already used with different details.");
+      }
+      return walletPayoutDestinationChangeDto(concurrentRequest);
+    }
+    await assertMerchantActionEnabled(merchant.id, "destinationChanges", tx);
+    let targetDestinationId = existingDestination?.id ?? null;
+    if (existingDestination) {
+      const [locked] = await tx.select().from(walletPayoutDestinationsTable).where(and(
+        eq(walletPayoutDestinationsTable.id, existingDestination.id),
+        eq(walletPayoutDestinationsTable.merchantId, merchant.id),
+      )).for("update").limit(1);
+      if (!locked || locked.currentVersionId !== expectedVersionId || locked.status !== "active") {
+        throw new ApiError(409, "The approved payout destination changed while this request was being prepared.");
+      }
+    } else {
+      const [createdDestination] = await tx.insert(walletPayoutDestinationsTable).values({
+        merchantId: merchant.id,
+        status: "pending",
+        currentVersionId: null,
+        createdBy: input.requester,
+      }).returning();
+      if (!createdDestination) throw new ApiError(503, "Payout destination change could not be prepared.");
+      targetDestinationId = createdDestination.id;
+    }
+    const [created] = await tx.insert(walletPayoutDestinationChangeRequestsTable).values({
+      merchantId: merchant.id,
+      destinationId: targetDestinationId,
+      expectedVersionId,
+      idempotencyKey: input.idempotencyKey,
+      requestHash: fingerprint,
+      proposedLabel: label,
+      currency,
+      method,
+      accountName: maskedAccountName,
+      maskedAccount: maskedAccount || "••••",
+      encryptedDestination,
+      destinationFingerprint: destinationHash,
+      requestedBy: input.requester,
+      status: "requested",
+    }).returning();
+    if (!created) throw new ApiError(503, "Payout destination change could not be persisted.");
+    return walletPayoutDestinationChangeDto(created);
+  });
+}
+
+export async function approveWalletPayoutDestinationChange(
+  requestId: number,
+  actor: string,
+  expectedFingerprint?: string,
+) {
+  return db.transaction(async (tx) => {
+    const [request] = await tx.select().from(walletPayoutDestinationChangeRequestsTable)
+      .where(eq(walletPayoutDestinationChangeRequestsTable.id, requestId)).for("update").limit(1);
+    if (!request) throw new ApiError(404, "Payout destination change request not found.");
+    if (request.requestedBy === actor) {
+      throw new ApiError(409, "The destination requester cannot approve their own change.");
+    }
+    const now = new Date();
+    if (request.status === "requested") {
+      const [updated] = await tx.update(walletPayoutDestinationChangeRequestsTable).set({
+        status: "first_approved",
+        firstApprovedBy: actor,
+        firstApprovedAt: now,
+        updatedAt: now,
+      }).where(and(
+        eq(walletPayoutDestinationChangeRequestsTable.id, request.id),
+        eq(walletPayoutDestinationChangeRequestsTable.status, "requested"),
+      )).returning();
+      if (!updated) throw new ApiError(409, "Destination review was concurrently processed.");
+      await tx.insert(adminAuditLogTable).values({
+        actor,
+        action: "wallet.destination.first_approved",
+        target: `wallet-destination-change:${request.id}`,
+        details: `First review recorded for masked destination ${request.maskedAccount}; no approved destination was changed.`,
+      });
+      return walletPayoutDestinationChangeDto(updated);
+    }
+    if (request.status !== "first_approved") {
+      throw new ApiError(409, "This destination change has already been reviewed or is no longer pending.");
+    }
+    if (actor === request.firstApprovedBy) throw new ApiError(409, "A different administrator must provide the second destination approval.");
+    if (expectedFingerprint !== request.destinationFingerprint) {
+      throw new ApiError(409, "The pending destination version changed. Review the exact fingerprint before second approval.");
+    }
+    if (!request.destinationId) throw new ApiError(409, "Destination change has no destination identity.");
+    const [destination] = await tx.select().from(walletPayoutDestinationsTable).where(and(
+      eq(walletPayoutDestinationsTable.id, request.destinationId),
+      eq(walletPayoutDestinationsTable.merchantId, request.merchantId),
+    )).for("update").limit(1);
+    if (!destination) throw new ApiError(409, "The merchant payout destination no longer exists.");
+    if (destination.currentVersionId !== request.expectedVersionId) {
+      throw new ApiError(409, "Another approved change replaced this destination version. Create a new request.");
+    }
+    let versionNumber = 1;
+    if (request.expectedVersionId !== null) {
+      const [priorVersion] = await tx.select().from(walletPayoutDestinationVersionsTable).where(eq(
+        walletPayoutDestinationVersionsTable.id, request.expectedVersionId,
+      )).limit(1);
+      if (!priorVersion) throw new ApiError(409, "The destination version under review is unavailable.");
+      versionNumber = priorVersion.version + 1;
+    }
+    const [version] = await tx.insert(walletPayoutDestinationVersionsTable).values({
+      destinationId: destination.id,
+      version: versionNumber,
+      label: request.proposedLabel,
+      currency: request.currency,
+      method: request.method,
+      accountName: request.accountName,
+      maskedAccount: request.maskedAccount,
+      encryptedDestination: request.encryptedDestination,
+      fingerprint: request.destinationFingerprint,
+      approvedBy: actor,
+      approvedAt: now,
+    }).returning();
+    if (!version) throw new ApiError(503, "Approved destination version could not be saved.");
+    await tx.update(walletPayoutDestinationsTable).set({
+      currentVersionId: version.id,
+      status: "active",
+      updatedAt: now,
+    }).where(eq(walletPayoutDestinationsTable.id, destination.id));
+    const [updated] = await tx.update(walletPayoutDestinationChangeRequestsTable).set({
+      status: "approved",
+      secondApprovedBy: actor,
+      secondApprovedAt: now,
+      approvedVersionId: version.id,
+      updatedAt: now,
+    }).where(and(
+      eq(walletPayoutDestinationChangeRequestsTable.id, request.id),
+      eq(walletPayoutDestinationChangeRequestsTable.status, "first_approved"),
+      eq(walletPayoutDestinationChangeRequestsTable.destinationFingerprint, expectedFingerprint!),
+    )).returning();
+    if (!updated) throw new ApiError(409, "Destination second approval was concurrently processed.");
+    await tx.insert(adminAuditLogTable).values({
+      actor,
+      action: "wallet.destination.second_approved",
+      target: `wallet-destination-change:${request.id}`,
+      details: `Destination ${destination.id} version ${version.version} approved (${request.maskedAccount}, ${request.currency}); prior approved version remains in immutable history.`,
+    });
+    return walletPayoutDestinationChangeDto(updated);
+  });
+}
+
+export async function rejectWalletPayoutDestinationChange(requestId: number, actor: string, reason: string) {
+  const normalizedReason = reason.trim();
+  if (!normalizedReason || normalizedReason.length > 400) throw new ApiError(400, "Enter a rejection reason.");
+  return db.transaction(async (tx) => {
+    const [request] = await tx.select().from(walletPayoutDestinationChangeRequestsTable)
+      .where(eq(walletPayoutDestinationChangeRequestsTable.id, requestId)).for("update").limit(1);
+    if (!request) throw new ApiError(404, "Payout destination change request not found.");
+    if (!["requested", "first_approved"].includes(request.status)) {
+      throw new ApiError(409, "Only an unapproved destination change can be rejected.");
+    }
+    const now = new Date();
+    const [updated] = await tx.update(walletPayoutDestinationChangeRequestsTable).set({
+      status: "rejected",
+      rejectedBy: actor,
+      rejectedAt: now,
+      decisionReason: normalizedReason,
+      updatedAt: now,
+    }).where(and(
+      eq(walletPayoutDestinationChangeRequestsTable.id, request.id),
+      inArray(walletPayoutDestinationChangeRequestsTable.status, ["requested", "first_approved"]),
+    )).returning();
+    if (!updated) throw new ApiError(409, "Destination change was concurrently processed.");
+    if (request.expectedVersionId === null && request.destinationId !== null) {
+      await tx.update(walletPayoutDestinationsTable).set({
+        status: "rejected",
+        updatedAt: now,
+      }).where(and(
+        eq(walletPayoutDestinationsTable.id, request.destinationId),
+        isNull(walletPayoutDestinationsTable.currentVersionId),
+      ));
+    }
+    await tx.insert(adminAuditLogTable).values({
+      actor,
+      action: "wallet.destination.rejected",
+      target: `wallet-destination-change:${request.id}`,
+      details: `Destination change rejected; existing approved version preserved. ${normalizedReason}`,
+    });
+    return walletPayoutDestinationChangeDto(updated);
+  });
+}
+
 export async function walletPayoutMethods(currency: string) {
   const normalized = currency.toUpperCase();
   assertSupportedCurrency(normalized);
@@ -571,37 +1071,95 @@ type WalletPayoutRequestDependencies = {
   assertMerchantMayPayout?: (merchant: typeof merchantsTable.$inferSelect) => Promise<void>;
   providerIsConfigured?: () => Promise<boolean>;
   payoutMethods?: (currency: string) => ReturnType<typeof payzaPayoutMethods>;
+  getPayoutSafetySettings?: (merchantId: number) => Promise<MerchantActionControlsSnapshot["payoutSafety"]>;
+  notifyWalletPayoutTransition?: WalletPayoutTransitionNotifier;
 };
 
 export async function createWalletPayoutRequest(merchant: typeof merchantsTable.$inferSelect, input: {
   amount: number;
   currency: string;
-  method: string;
-  accountName: string;
-  accountNumber: string;
+  method?: string;
+  destinationId?: number;
+  accountName?: string;
+  accountNumber?: string;
   bankCode?: string;
   bankName?: string;
   idempotencyKey: string;
+  requester?: string;
 }, dependencies: WalletPayoutRequestDependencies = {}) {
   const currency = input.currency.toUpperCase();
   assertSupportedCurrency(currency);
   const amountMinor = userAmountToMinor(input.amount);
   if (amountMinor <= 0n) throw new ApiError(400, "Enter a payout amount greater than zero.");
-  const methodValue = input.method.trim();
-  const destination = {
-    accountName: input.accountName.trim().replace(/\s+/g, " "),
-    accountNumber: input.accountNumber.trim().replace(/\s+/g, ""),
-    bankCode: input.bankCode?.trim() || null,
-    bankName: input.bankName?.trim().replace(/\s+/g, " ") || null,
-    method: methodValue,
-  };
-  if (!destination.accountName || destination.accountNumber.length < 3 || !methodValue) {
+  if (input.destinationId !== undefined) {
+    const [previous] = await db.select().from(walletPayoutRequestsTable).where(and(
+      eq(walletPayoutRequestsTable.merchantId, merchant.id),
+      eq(walletPayoutRequestsTable.idempotencyKey, input.idempotencyKey),
+    )).limit(1);
+    if (previous) {
+      if (previous.amountMinor !== amountMinor || previous.currency !== currency ||
+          previous.destinationId !== input.destinationId) {
+        throw new ApiError(409, "This payout idempotency key was already used with different payout details.");
+      }
+      if (input.method && previous.destinationVersionId) {
+        const [previousVersion] = await db.select({ method: walletPayoutDestinationVersionsTable.method })
+          .from(walletPayoutDestinationVersionsTable)
+          .where(eq(walletPayoutDestinationVersionsTable.id, previous.destinationVersionId)).limit(1);
+        if (!previousVersion || previousVersion.method !== input.method.trim()) {
+          throw new ApiError(409, "This payout idempotency key was already used with different payout details.");
+        }
+      }
+      return walletPayoutRequestDto(previous);
+    }
+  }
+  let savedDestination: typeof walletPayoutDestinationsTable.$inferSelect | null = null;
+  let savedVersion: WalletPayoutDestinationVersionRecord | null = null;
+  let destination: Record<string, string | null>;
+  let methodValue: string;
+  if (input.destinationId !== undefined) {
+    const [destinationRow] = await db.select().from(walletPayoutDestinationsTable).where(and(
+      eq(walletPayoutDestinationsTable.id, input.destinationId),
+      eq(walletPayoutDestinationsTable.merchantId, merchant.id),
+      eq(walletPayoutDestinationsTable.status, "active"),
+    )).limit(1);
+    if (!destinationRow?.currentVersionId) {
+      throw new ApiError(409, "Choose a currently approved payout destination. Pending destination changes cannot be used.");
+    }
+    const [version] = await db.select().from(walletPayoutDestinationVersionsTable).where(and(
+      eq(walletPayoutDestinationVersionsTable.id, destinationRow.currentVersionId),
+      eq(walletPayoutDestinationVersionsTable.destinationId, destinationRow.id),
+    )).limit(1);
+    if (!version) throw new ApiError(409, "The approved payout destination version is unavailable.");
+    savedDestination = destinationRow;
+    savedVersion = version;
+    destination = decryptDestination(version.encryptedDestination);
+    methodValue = version.method;
+    if (version.currency !== currency) {
+      throw new ApiError(400, `Choose a saved payout destination denominated in ${currency}.`);
+    }
+    if (input.method && input.method.trim() !== methodValue) {
+      throw new ApiError(409, "The selected payout method does not match the approved destination version.");
+    }
+  } else {
+    methodValue = input.method?.trim() ?? "";
+    destination = {
+      accountName: input.accountName?.trim().replace(/\s+/g, " ") ?? "",
+      accountNumber: input.accountNumber?.trim().replace(/\s+/g, "") ?? "",
+      bankCode: input.bankCode?.trim() || null,
+      bankName: input.bankName?.trim().replace(/\s+/g, " ") || null,
+      method: methodValue,
+    };
+  }
+  const destinationAccountName = destination.accountName;
+  const destinationAccountNumber = destination.accountNumber;
+  if (!destinationAccountName || !destinationAccountNumber ||
+      destinationAccountNumber.length < 3 || !methodValue) {
     throw new ApiError(400, "Enter a beneficiary name, destination, and payout method.");
   }
-  const destinationHash = destinationFingerprint(destination);
+  const destinationHash = savedVersion?.fingerprint ?? destinationFingerprint(destination);
   const fingerprint = requestHash({
     amountMinor: amountMinor.toString(), currency, method: methodValue,
-    destinationHash,
+    destinationHash, destinationVersionId: savedVersion?.id ?? null,
   });
   const [prior] = await db.select().from(walletPayoutRequestsTable).where(and(
     eq(walletPayoutRequestsTable.merchantId, merchant.id),
@@ -616,6 +1174,7 @@ export async function createWalletPayoutRequest(merchant: typeof merchantsTable.
 
   await (dependencies.assertPayoutsEnabled ?? (() => assertPlatformEnabled("payoutsEnabled")))();
   await (dependencies.assertMerchantMayPayout ?? assertMerchantMayPayout)(merchant);
+  await assertMerchantActionEnabled(merchant.id, "payoutRequests");
   if (!await (dependencies.providerIsConfigured ?? (() => providerIsConfigured("payzaapi")))) {
     throw new ApiError(503, "Payzaapi payouts are not configured.");
   }
@@ -629,12 +1188,41 @@ export async function createWalletPayoutRequest(merchant: typeof merchantsTable.
   if (method.requiresBankFields && (!destination.bankCode || !destination.bankName)) {
     throw new ApiError(400, "Select a bank and enter its bank code for this payout method.");
   }
-  const encryptedDestination = encryptDestination(destination);
+  const encryptedDestination = savedVersion?.encryptedDestination ?? encryptDestination(destination);
   const feeMinor = payoutFeeMinor(amountMinor, methods);
   const holdMinor = amountMinor + feeMinor;
-  const rawDigits = destination.accountNumber.replace(/\D/g, "");
+  const rawDigits = destinationAccountNumber.replace(/\D/g, "");
   const maskedAccount = `${"•".repeat(Math.max(0, Math.min(8, rawDigits.length - 4)))}${rawDigits.slice(-4)}`;
-  return db.transaction(async (tx) => {
+  const payoutSafety = dependencies.getPayoutSafetySettings
+    ? await dependencies.getPayoutSafetySettings(merchant.id)
+    : (await getMerchantActionControls(merchant.id)).payoutSafety;
+  const rawThreshold = payoutSafety.largePayoutThresholds[currency];
+  let thresholdMinor: bigint | null = null;
+  if (rawThreshold !== undefined) {
+    try {
+      thresholdMinor = decimalToMinor(rawThreshold);
+    } catch {
+      throw new ApiError(503, `The configured ${currency} large-payout threshold must use the wallet's two-decimal amount scale.`);
+    }
+  }
+  const thresholdConfigured = thresholdMinor !== null;
+  let destinationAlreadySecondReviewed = false;
+  if (savedVersion) {
+    const [priorApprovedUse] = await db.select({ id: walletPayoutRequestsTable.id })
+      .from(walletPayoutRequestsTable).where(and(
+        eq(walletPayoutRequestsTable.destinationVersionId, savedVersion.id),
+        isNotNull(walletPayoutRequestsTable.secondApprovedAt),
+      )).limit(1);
+    destinationAlreadySecondReviewed = Boolean(priorApprovedUse);
+  }
+  const requiresSecondApproval = payoutNeedsSecondApproval({
+    amountMinor,
+    largePayoutThresholdMinor: thresholdMinor,
+    thresholdConfigured,
+    destinationIsApproved: savedVersion !== null && destinationAlreadySecondReviewed,
+    dualApprovalEnabled: payoutSafety.dualApprovalEnabled,
+  });
+  const createdRequest = await db.transaction(async (tx) => {
     const [existing] = await tx.select().from(walletPayoutRequestsTable).where(and(
       eq(walletPayoutRequestsTable.merchantId, merchant.id),
       eq(walletPayoutRequestsTable.idempotencyKey, input.idempotencyKey),
@@ -643,8 +1231,9 @@ export async function createWalletPayoutRequest(merchant: typeof merchantsTable.
       if (existing.requestHash !== fingerprint) {
         throw new ApiError(409, "This payout idempotency key was already used with different payout details.");
       }
-      return walletPayoutRequestDto(existing);
+      return { row: existing, created: false };
     }
+    await assertMerchantActionEnabled(merchant.id, "payoutRequests", tx);
     const wallet = await lockWallet(tx, merchant.id, currency);
     const [concurrent] = await tx.select().from(walletPayoutRequestsTable).where(and(
       eq(walletPayoutRequestsTable.merchantId, merchant.id),
@@ -654,7 +1243,7 @@ export async function createWalletPayoutRequest(merchant: typeof merchantsTable.
       if (concurrent.requestHash !== fingerprint) {
         throw new ApiError(409, "This payout idempotency key was already used with different payout details.");
       }
-      return walletPayoutRequestDto(concurrent);
+      return { row: concurrent, created: false };
     }
     await enforceVerificationLimit(tx, merchant.id, "payout", minorToNumber(holdMinor), currency);
     if (!canReserveWalletFunds(wallet.availableMinor, holdMinor)) {
@@ -686,9 +1275,17 @@ export async function createWalletPayoutRequest(merchant: typeof merchantsTable.
       amountMinor,
       feeMinor,
       holdMinor,
+      destinationId: savedDestination?.id ?? null,
+      destinationVersionId: savedVersion?.id ?? null,
+      destinationVersion: savedVersion?.version ?? null,
+      destinationFingerprint: destinationHash,
+      requestedBy: input.requester ?? null,
+      requiresSecondApproval,
+      thresholdMinor,
+      thresholdConfigured,
       currency,
       method: method.label,
-      accountName: maskDestinationName(destination.accountName),
+      accountName: savedVersion?.accountName ?? maskDestinationName(destinationAccountName),
       maskedAccount: maskedAccount || "••••",
       encryptedDestination,
       status: "requested",
@@ -696,8 +1293,10 @@ export async function createWalletPayoutRequest(merchant: typeof merchantsTable.
       reservationJournalId: journal.id,
     }).returning();
     if (!created) throw new ApiError(503, "Payout reservation could not be recorded.");
-    return walletPayoutRequestDto(created);
+    await persistWalletPayoutTransition(tx, "not_created", created);
+    return { row: created, created: true };
   });
+  return walletPayoutRequestDto(createdRequest.row);
 }
 
 async function applyPayoutFinalState(
@@ -757,76 +1356,154 @@ async function applyPayoutFinalState(
 export async function recordMerchantPayoutProviderOutcome(requestId: number, input: {
   status: "uncertain" | "processing" | "completed" | "rejected" | "failed";
   providerReference?: string | null;
-}) {
-  return db.transaction(async (tx) => {
+}, _dependencies: { notifyWalletPayoutTransition?: WalletPayoutTransitionNotifier } = {}) {
+  const result = await db.transaction(async (tx) => {
     const [request] = await tx.select().from(walletPayoutRequestsTable)
       .where(eq(walletPayoutRequestsTable.id, requestId)).for("update").limit(1);
     if (!request) throw new ApiError(404, "Payout request not found.");
     if (request.status === "completed" || request.status === "rejected" || request.status === "failed") {
-      if (!input.providerReference || input.providerReference === request.providerReference) return request;
+      if (!input.providerReference || input.providerReference === request.providerReference) {
+        return { previousStatus: request.status, row: request };
+      }
       const [updated] = await tx.update(walletPayoutRequestsTable).set({
         providerReference: input.providerReference,
         updatedAt: new Date(),
       }).where(eq(walletPayoutRequestsTable.id, request.id)).returning();
-      return updated ?? request;
+      return { previousStatus: request.status, row: updated ?? request };
     }
     if (input.status === "completed" || input.status === "rejected" || input.status === "failed") {
-      return applyPayoutFinalState(tx, request, input.status, input.providerReference);
+      const row = await applyPayoutFinalState(tx, request, input.status, input.providerReference);
+      await persistWalletPayoutTransition(tx, request.status, row);
+      return { previousStatus: request.status, row };
     }
     const [updated] = await tx.update(walletPayoutRequestsTable).set({
       status: input.status,
       providerReference: input.providerReference ?? request.providerReference,
       updatedAt: new Date(),
     }).where(eq(walletPayoutRequestsTable.id, request.id)).returning();
-    return updated ?? request;
+    const row = updated ?? request;
+    await persistWalletPayoutTransition(tx, request.status, row);
+    return { previousStatus: request.status, row };
   });
+  return result.row;
 }
 
 export async function rejectMerchantPayoutRequest(requestId: number, actor: string, reason: string) {
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [request] = await tx.select().from(walletPayoutRequestsTable)
       .where(eq(walletPayoutRequestsTable.id, requestId)).for("update").limit(1);
     if (!request) throw new ApiError(404, "Payout request not found.");
-    if (request.status !== "requested") throw new ApiError(409, "Only an unsubmitted payout request can be rejected.");
+    if (!["requested", "awaiting_second_approval"].includes(request.status)) {
+      throw new ApiError(409, "Only an unsubmitted payout request can be rejected.");
+    }
     const updated = await applyPayoutFinalState(tx, request, "rejected");
-    await tx.update(walletPayoutRequestsTable).set({ decisionReason: reason }).where(eq(walletPayoutRequestsTable.id, request.id));
+    const [reviewed] = await tx.update(walletPayoutRequestsTable).set({
+      decisionReason: reason,
+      rejectedBy: actor,
+      rejectedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(walletPayoutRequestsTable.id, request.id)).returning();
     await tx.insert(adminAuditLogTable).values({
       actor, action: "wallet.payout.rejected", target: `wallet-payout:${request.reference}`,
       details: `Merchant payout request rejected. ${reason}`,
     });
-    return updated;
+    const row = reviewed ?? updated;
+    await persistWalletPayoutTransition(tx, request.status, row);
+    return row;
   });
+  return walletPayoutRequestDto(result);
 }
 
-export async function approveAndSubmitMerchantPayout(requestId: number, actor: string) {
-  await assertPlatformEnabled("payoutsEnabled");
-  const approved = await db.transaction(async (tx) => {
+type WalletPayoutApprovalDependencies = {
+  assertPayoutsEnabled?: () => Promise<void>;
+  providerIsConfigured?: () => Promise<boolean>;
+  submitPayout?: (payload: Record<string, unknown>, reference: string) => Promise<Record<string, unknown>>;
+  notifyWalletPayoutTransition?: WalletPayoutTransitionNotifier;
+};
+
+export async function approveAndSubmitMerchantPayout(
+  requestId: number,
+  actor: string,
+  expectedDestinationFingerprint?: string,
+  dependencies: WalletPayoutApprovalDependencies = {},
+) {
+  await (dependencies.assertPayoutsEnabled ?? (() => assertPlatformEnabled("payoutsEnabled")))();
+  const approval = await db.transaction(async (tx) => {
     const [request] = await tx.select().from(walletPayoutRequestsTable)
       .where(eq(walletPayoutRequestsTable.id, requestId)).for("update").limit(1);
     if (!request) throw new ApiError(404, "Payout request not found.");
-    if (request.status !== "requested") {
-      throw new ApiError(409, "This request has already been approved, submitted, or reached a terminal outcome.");
-    }
+    const isSensitive = request.requiresSecondApproval || !request.thresholdConfigured ||
+      request.destinationVersionId === null;
+    if (request.requestedBy === actor) throw new ApiError(409, "The payout requester cannot approve their own payout.");
     const [merchant] = await tx.select().from(merchantsTable).where(eq(merchantsTable.id, request.merchantId)).limit(1);
     if (!merchant) throw new ApiError(409, "Payout merchant account no longer exists.");
     await enforceVerificationLimit(tx, merchant.id, "payout", minorToNumber(request.holdMinor), request.currency);
-    await assertMerchantMayPayout(merchant);
-    const [updated] = await tx.update(walletPayoutRequestsTable).set({
-      status: "approved", approvedBy: actor, submittedAt: new Date(), updatedAt: new Date(),
-    }).where(and(
-      eq(walletPayoutRequestsTable.id, request.id),
-      eq(walletPayoutRequestsTable.status, "requested"),
-    )).returning();
-    if (!updated) throw new ApiError(409, "Payout approval was concurrently processed.");
-    await tx.insert(adminAuditLogTable).values({
-      actor, action: "wallet.payout.approved", target: `wallet-payout:${request.reference}`,
-      details: "Merchant payout approved for one provider submission; destination is stored encrypted.",
-    });
-    return updated;
+    await assertMerchantActionEnabled(merchant.id, "payoutRequests", tx);
+    const now = new Date();
+    let updated: WalletPayoutRequestRecord | undefined;
+    let submit = false;
+    if (request.status === "requested") {
+      const values = isSensitive
+        ? { status: "awaiting_second_approval", firstApprovedBy: actor, firstApprovedAt: now, updatedAt: now }
+        : {
+          status: "approved", approvedBy: actor, firstApprovedBy: actor,
+          firstApprovedAt: now, submittedAt: now, updatedAt: now,
+        };
+      [updated] = await tx.update(walletPayoutRequestsTable).set(values).where(and(
+        eq(walletPayoutRequestsTable.id, request.id),
+        eq(walletPayoutRequestsTable.status, "requested"),
+      )).returning();
+      if (!updated) throw new ApiError(409, "Payout approval was concurrently processed.");
+      submit = !isSensitive;
+      await tx.insert(adminAuditLogTable).values({
+        actor,
+        action: isSensitive ? "wallet.payout.first_approved" : "wallet.payout.approved",
+        target: `wallet-payout:${request.reference}`,
+        details: isSensitive
+          ? `First payout review recorded. Second approval is required for ${request.currency} ${minorToDecimal(request.amountMinor)} plus fee ${minorToDecimal(request.feeMinor)}; destination ${request.maskedAccount} (${request.destinationFingerprint ?? "legacy destination"}).`
+          : `Merchant payout reviewed for one provider submission; destination ${request.maskedAccount} (${request.destinationFingerprint ?? "legacy destination"}).`,
+      });
+    } else if (request.status === "awaiting_second_approval" && isSensitive) {
+      if (actor === request.firstApprovedBy) {
+        throw new ApiError(409, "A different administrator must provide the second payout approval.");
+      }
+      if (!request.destinationFingerprint || expectedDestinationFingerprint !== request.destinationFingerprint) {
+        throw new ApiError(409, "Second approval must match the exact destination version and fingerprint under review.");
+      }
+      [updated] = await tx.update(walletPayoutRequestsTable).set({
+        status: "approved",
+        approvedBy: actor,
+        secondApprovedBy: actor,
+        secondApprovedAt: now,
+        submittedAt: now,
+        updatedAt: now,
+      }).where(and(
+        eq(walletPayoutRequestsTable.id, request.id),
+        eq(walletPayoutRequestsTable.status, "awaiting_second_approval"),
+        eq(walletPayoutRequestsTable.destinationFingerprint, expectedDestinationFingerprint),
+      )).returning();
+      if (!updated) throw new ApiError(409, "Payout second approval was concurrently processed.");
+      submit = true;
+      await tx.insert(adminAuditLogTable).values({
+        actor,
+        action: "wallet.payout.second_approved",
+        target: `wallet-payout:${request.reference}`,
+        details: `Second payout approval bound to destination ${request.maskedAccount} (${request.destinationFingerprint}); amount ${request.currency} ${minorToDecimal(request.amountMinor)}, fee ${minorToDecimal(request.feeMinor)}.`,
+      });
+    } else {
+      throw new ApiError(409, "This payout has already been approved, submitted, or reached a terminal outcome.");
+    }
+    await persistWalletPayoutTransition(tx, request.status, updated!);
+    return {
+      request: updated!,
+      submit,
+    };
   });
 
-  if (!await providerIsConfigured("payzaapi")) {
-    await recordMerchantPayoutProviderOutcome(requestId, { status: "uncertain" });
+  if (!approval.submit) return walletPayoutRequestDto(approval.request);
+  const approved = approval.request;
+  if (!await (dependencies.providerIsConfigured ?? (() => providerIsConfigured("payzaapi")))()) {
+    await recordMerchantPayoutProviderOutcome(requestId, { status: "uncertain" }, dependencies);
     throw new ApiError(503, "Payzaapi is not configured. The payout remains reserved for administrator reconciliation and will not be auto-submitted.");
   }
   let response: Record<string, unknown>;
@@ -842,13 +1519,15 @@ export async function approveAndSubmitMerchantPayout(requestId: number, actor: s
     };
     if (destination.bankCode) payload.bank_code = destination.bankCode;
     if (destination.bankName) payload.bank_name = destination.bankName;
-    response = await payzaApiRequest("/payout", {
-      method: "POST",
-      headers: { "Idempotency-Key": approved.reference },
-      body: JSON.stringify(payload),
-    });
+    response = await (dependencies.submitPayout
+      ? dependencies.submitPayout(payload, approved.reference)
+      : payzaApiRequest("/payout", {
+        method: "POST",
+        headers: { "Idempotency-Key": approved.reference },
+        body: JSON.stringify(payload),
+      }));
   } catch {
-    await recordMerchantPayoutProviderOutcome(requestId, { status: "uncertain" });
+    await recordMerchantPayoutProviderOutcome(requestId, { status: "uncertain" }, dependencies);
     throw new ApiError(503, `Payzaapi payout outcome is uncertain. Request ${approved.reference} remains reserved and cannot be re-submitted.`);
   }
   const payout = asObject(response.payout);
@@ -860,19 +1539,27 @@ export async function approveAndSubmitMerchantPayout(requestId: number, actor: s
   });
   const result = await recordMerchantPayoutProviderOutcome(requestId, {
     status: outcome, providerReference,
-  });
+  }, dependencies);
   return walletPayoutRequestDto(result);
 }
 
-export async function reconcileMerchantPayoutRequest(requestId: number) {
+export async function reconcileMerchantPayoutRequest(requestId: number, dependencies: {
+  providerIsConfigured?: () => Promise<boolean>;
+  lookupPayout?: (reference: string) => Promise<Record<string, unknown>>;
+} = {}) {
   const [request] = await db.select().from(walletPayoutRequestsTable)
     .where(eq(walletPayoutRequestsTable.id, requestId)).limit(1);
   if (!request) throw new ApiError(404, "Payout request not found.");
   if (!["approved", "uncertain", "processing"].includes(request.status)) {
     throw new ApiError(409, "Only an approved, processing, or uncertain payout can be reconciled.");
   }
-  if (!await providerIsConfigured("payzaapi")) throw new ApiError(503, "Payzaapi is not configured for payout reconciliation.");
-  const response = await payzaApiRequest(`/payouts?reference=${encodeURIComponent(request.providerReference ?? request.reference)}`);
+  if (!await (dependencies.providerIsConfigured ?? (() => providerIsConfigured("payzaapi")))()) {
+    throw new ApiError(503, "Payzaapi is not configured for payout reconciliation.");
+  }
+  const lookupReference = request.providerReference ?? request.reference;
+  const response = await (dependencies.lookupPayout
+    ? dependencies.lookupPayout(lookupReference)
+    : payzaApiRequest(`/payouts?reference=${encodeURIComponent(lookupReference)}`));
   const payout = asObject(response.payout ?? (Array.isArray(response.payouts) ? response.payouts[0] : null));
   const status = stringValue(payout.status)?.toLowerCase();
   if (response.success !== true || !status) {
@@ -1134,6 +1821,7 @@ export async function setWalletPayoutStatusFromProvider(
   provider: string,
   providerReference: string,
   status: "processing" | "completed" | "rejected" | "failed",
+  dependencies: { notifyWalletPayoutTransition?: WalletPayoutTransitionNotifier } = {},
 ): Promise<boolean> {
   const [request] = await db.select().from(walletPayoutRequestsTable).where(and(
     eq(walletPayoutRequestsTable.provider, provider),
@@ -1146,7 +1834,7 @@ export async function setWalletPayoutStatusFromProvider(
   await recordMerchantPayoutProviderOutcome(request.id, {
     status,
     providerReference: request.reference === providerReference ? request.providerReference : providerReference,
-  });
+  }, dependencies);
   return true;
 }
 

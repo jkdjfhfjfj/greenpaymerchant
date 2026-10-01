@@ -7,6 +7,7 @@ import {
   decimalToMinor,
   eligibleSettlementFunding,
   payoutProviderOutcome,
+  payoutNeedsSecondApproval,
   proportionalNetRefundReversal,
   shouldReleasePayoutHold,
 } from "./wallet-math";
@@ -46,6 +47,46 @@ test("atomic wallet reservations must cover the entire hold", () => {
   assert.equal(canReserveWalletFunds(10_000n, 5_000n), true);
   assert.equal(canReserveWalletFunds(4_999n, 5_000n), false);
   assert.equal(canReserveWalletFunds(10_000n, 0n), false);
+});
+
+test("large payout approval threshold is per currency, fail-closed when missing, and retains cents", () => {
+  assert.equal(payoutNeedsSecondApproval({
+    amountMinor: decimalToMinor("50.01"),
+    largePayoutThresholdMinor: decimalToMinor("50.00"),
+    thresholdConfigured: true,
+    destinationIsApproved: true,
+  }), true);
+  assert.equal(payoutNeedsSecondApproval({
+    amountMinor: decimalToMinor("50.00"),
+    largePayoutThresholdMinor: decimalToMinor("50.00"),
+    thresholdConfigured: true,
+    destinationIsApproved: true,
+  }), true);
+  assert.equal(payoutNeedsSecondApproval({
+    amountMinor: decimalToMinor("49.99"),
+    largePayoutThresholdMinor: decimalToMinor("50.00"),
+    thresholdConfigured: true,
+    destinationIsApproved: true,
+  }), false);
+  assert.equal(payoutNeedsSecondApproval({
+    amountMinor: decimalToMinor("1.00"),
+    largePayoutThresholdMinor: decimalToMinor("50.00"),
+    thresholdConfigured: true,
+    destinationIsApproved: true,
+    dualApprovalEnabled: true,
+  }), true);
+  assert.equal(payoutNeedsSecondApproval({
+    amountMinor: decimalToMinor("0.01"),
+    largePayoutThresholdMinor: null,
+    thresholdConfigured: false,
+    destinationIsApproved: true,
+  }), true);
+  assert.equal(payoutNeedsSecondApproval({
+    amountMinor: decimalToMinor("0.01"),
+    largePayoutThresholdMinor: decimalToMinor("500.00"),
+    thresholdConfigured: true,
+    destinationIsApproved: false,
+  }), true);
 });
 
 test("provider payout uncertainty retains the hold and is never treated as a rejection", () => {

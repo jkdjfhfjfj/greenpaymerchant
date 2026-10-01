@@ -61,6 +61,7 @@ import {
 } from "../lib/greenpay-ledger";
 import { markTransactionStatus } from "../lib/greenpay-ledger";
 import { idempotencyDisposition } from "../lib/payment-safety";
+import { payoutConfirmationTimestamp } from "../lib/payment-safety";
 import { payoutProviderOutcome } from "../lib/wallet-math";
 import { createWalletPayoutRequest, reconcileMerchantPayoutByReference } from "../lib/wallet-service";
 
@@ -377,10 +378,12 @@ router.post("/payouts", async (req, res): Promise<void> => {
       .where(eq(payoutsTable.id, intent.id)).for("update").limit(1);
     if (!current) throw new ApiError(404, "Payout intent was not found after provider submission.");
     const terminal = ["completed", "rejected", "failed"].includes(current.status);
+    const nextStatus = terminal ? current.status : status;
     const [updated] = await tx.update(payoutsTable).set({
       providerReference: providerReference ?? current.providerReference,
       netAmount: numberValue(payout.net_amount) ?? current.netAmount ?? input.amount,
-      status: terminal ? current.status : status,
+      status: nextStatus,
+      confirmedAt: payoutConfirmationTimestamp(current.status, current.confirmedAt, nextStatus),
     }).where(eq(payoutsTable.id, current.id)).returning();
     if (!updated) throw new ApiError(503, "Payout outcome could not be persisted for reconciliation.");
     const parsed = CreatePayoutResponse.parse(payoutDto(updated));
@@ -474,6 +477,7 @@ router.post("/webhook-events/:id/replay", async (req, res): Promise<void> => {
           await tx.update(payoutsTable).set({
             providerReference: stringValue(raw.reference) ?? stringValue(raw.id) ?? current.providerReference,
             status: payoutStatus,
+            confirmedAt: payoutConfirmationTimestamp(current.status, current.confirmedAt, payoutStatus),
           }).where(eq(payoutsTable.id, current.id));
         });
       }

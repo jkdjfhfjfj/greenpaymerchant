@@ -1,5 +1,17 @@
 export const CUSTOMER_REIMBURSED_REFUND_STATUSES = ["success", "completed", "processed"] as const;
 export const OPEN_REFUND_RESERVATION_STATUSES = ["pending", "manual_required", "recorded"] as const;
+export const CONFIRMED_PAYOUT_STATUSES = ["success", "completed", "processed"] as const;
+
+export function payoutConfirmationTimestamp(
+  previousStatus: string,
+  previousConfirmedAt: Date | null,
+  nextStatus: string,
+  confirmedAt = new Date(),
+): Date | null {
+  if (!CONFIRMED_PAYOUT_STATUSES.includes(nextStatus as never)) return previousConfirmedAt;
+  if (CONFIRMED_PAYOUT_STATUSES.includes(previousStatus as never)) return previousConfirmedAt;
+  return previousConfirmedAt ?? confirmedAt;
+}
 
 export function providerPaymentEvidenceMatches(input: {
   expectedReference: string;

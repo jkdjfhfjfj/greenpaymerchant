@@ -140,7 +140,10 @@ test("a stale pending initiation reply retains an already processed partial refu
     });
 
     assert.equal(processed?.status, "processed");
+    assert.ok(processed?.confirmedAt instanceof Date, "the first confirmed refund transition receives its ledger timestamp");
     assert.equal(retained?.status, "processed");
+    assert.equal(retained?.confirmedAt?.getTime(), processed?.confirmedAt?.getTime(),
+      "a stale pending initiation must not change the first confirmation timestamp");
     assert.equal(retained?.provider, "paystack");
     assert.equal(retained?.providerReference, "PAYSTACK-REFUND-INTERLEAVE");
     assert.equal(retained?.amount, 25);
@@ -150,6 +153,19 @@ test("a stale pending initiation reply retains an already processed partial refu
     const [refundTotal] = await db.select({ total: refundsTable.amount }).from(refundsTable)
       .where(eq(refundsTable.id, reservationId));
     assert.equal(Number(refundTotal?.total), 25);
+    await db.update(refundsTable).set({ confirmedAt: null }).where(eq(refundsTable.id, reservationId));
+    const legacyRetained = await recordRefund({
+      originalReference: reference,
+      reservationId,
+      provider: "paystack",
+      providerReference: "PAYSTACK-REFUND-INTERLEAVE",
+      source: "reconciliation",
+      amount: 25,
+      currency: "USD",
+      status: "processed",
+    });
+    assert.equal(legacyRetained?.confirmedAt, null,
+      "a replay must not invent a confirmation date for a legacy confirmed refund without one");
   } finally {
     if (reservationId) await db.delete(refundsTable).where(eq(refundsTable.id, reservationId));
     if (transactionId) await db.delete(transactionsTable).where(eq(transactionsTable.id, transactionId));

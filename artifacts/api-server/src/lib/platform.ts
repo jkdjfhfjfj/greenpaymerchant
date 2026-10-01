@@ -8,10 +8,20 @@ import {
   featureIsEnabled, merchantCapabilityIsEnabled, merchantVerificationTier,
   verificationLimitError, type VerificationAction, type VerificationTier,
 } from "./security-policy";
+import {
+  normalizeMerchantActionControls,
+  normalizePayoutSafetySettings,
+  MERCHANT_ACTION_KEYS,
+  merchantActionPolicyDenial,
+  type MerchantActionKey,
+  type MerchantActionControls,
+  type PayoutSafetySettings,
+} from "./merchant-access-policy";
 
 export type PlatformFlag = "paymentsEnabled" | "payoutsEnabled" | "refundsEnabled" | "apiAccessEnabled" | "newMerchantSignups" | "kycRequired";
 export type MerchantFlag = "paymentsEnabled" | "payoutsEnabled" | "refundsEnabled" | "apiAccessEnabled";
 export type { VerificationAction, VerificationTier } from "./security-policy";
+export type { MerchantActionKey, MerchantActionControls, PayoutSafetySettings } from "./merchant-access-policy";
 export type FinancialTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const DEFAULT_SETTINGS = {
@@ -61,6 +71,75 @@ export async function assertMerchantCapability(merchant: MerchantRecord, flag: M
     };
     throw new ApiError(403, labels[flag]);
   }
+}
+
+/**
+ * Action gate for mutating merchant operations. It intentionally composes
+ * granular controls with account state and the pre-existing merchant/global
+ * flags. Callers must still apply their existing KYC, amount-limit, balance,
+ * idempotency, and provider-confirmation policies; this helper never replaces
+ * those business-specific checks.
+ */
+export async function assertMerchantActionEnabled(
+  merchantId: number,
+  action: MerchantActionKey,
+  tx?: FinancialTransaction,
+): Promise<void> {
+  const executor = tx ?? db;
+  const [merchant] = await executor.select().from(merchantsTable)
+    .where(eq(merchantsTable.id, merchantId)).limit(1);
+  if (!merchant) throw new ApiError(404, "Merchant account not found.");
+  const [settings] = await executor.select({
+    paymentsEnabled: platformSettingsTable.paymentsEnabled,
+    payoutsEnabled: platformSettingsTable.payoutsEnabled,
+    refundsEnabled: platformSettingsTable.refundsEnabled,
+    apiAccessEnabled: platformSettingsTable.apiAccessEnabled,
+  }).from(platformSettingsTable).where(eq(platformSettingsTable.id, 1)).limit(1);
+  const denial = merchantActionPolicyDenial({
+    action,
+    controls: merchant.merchantActionControls,
+    merchant,
+    platform: settings ?? {
+      paymentsEnabled: true, payoutsEnabled: true, refundsEnabled: true, apiAccessEnabled: true,
+    },
+  });
+  if (denial) throw new ApiError(403, denial);
+}
+
+export async function getMerchantActionControls(
+  merchantId: number,
+  tx?: FinancialTransaction,
+): Promise<MerchantActionControls> {
+  const executor = tx ?? db;
+  const [merchant] = await executor.select().from(merchantsTable)
+    .where(eq(merchantsTable.id, merchantId)).limit(1);
+  if (!merchant) throw new ApiError(404, "Merchant account not found.");
+  const controls = normalizeMerchantActionControls(merchant.merchantActionControls);
+  const [settings] = await executor.select({
+    paymentsEnabled: platformSettingsTable.paymentsEnabled,
+    payoutsEnabled: platformSettingsTable.payoutsEnabled,
+    refundsEnabled: platformSettingsTable.refundsEnabled,
+    apiAccessEnabled: platformSettingsTable.apiAccessEnabled,
+  }).from(platformSettingsTable).where(eq(platformSettingsTable.id, 1)).limit(1);
+  const global = settings ?? {
+    paymentsEnabled: true, payoutsEnabled: true, refundsEnabled: true, apiAccessEnabled: true,
+  };
+  for (const action of MERCHANT_ACTION_KEYS) {
+    if (merchantActionPolicyDenial({ action, controls, merchant, platform: global })) controls[action] = false;
+  }
+  return controls;
+}
+
+export async function getMerchantPayoutSafetySettings(
+  merchantId: number,
+  tx?: FinancialTransaction,
+): Promise<PayoutSafetySettings> {
+  const executor = tx ?? db;
+  const [merchant] = await executor.select({
+    payoutSafetySettings: merchantsTable.payoutSafetySettings,
+  }).from(merchantsTable).where(eq(merchantsTable.id, merchantId)).limit(1);
+  if (!merchant) throw new ApiError(404, "Merchant account not found.");
+  return normalizePayoutSafetySettings(merchant.payoutSafetySettings);
 }
 
 export async function assertMerchantMayTransact(merchant: MerchantRecord): Promise<void> {

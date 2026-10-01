@@ -1,5 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Search, LoaderCircle, Pencil, Trash2, Plus } from 'lucide-react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { useRoute } from 'wouter';
 import {
   useGetAdminSummary, useListAdminMerchants, useUpdateAdminMerchant, useGetAdminPlatformSettings, useUpdateAdminPlatformSettings,
   useListAdminAuditLog, useListAdminFeeSchedules, useUpdateAdminFeeSchedule, useListAdminFxRates, useCreateAdminFxRate, useUpdateAdminFxRate,
@@ -33,7 +35,7 @@ function MerchantsInner() {
       <select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="select-merchant-status"><option value="">Any status</option>{['pending', 'active', 'suspended', 'closed'].map((s) => <option key={s} value={s}>{nice(s)}</option>)}</select>
       <select value={kyc} onChange={(e) => setKyc(e.target.value)} data-testid="select-merchant-kyc"><option value="">Any verification</option>{['not_started', 'pending', 'in_review', 'approved', 'declined', 'expired'].map((s) => <option key={s} value={s}>{nice(s)}</option>)}</select></div>
     <Async q={q} empty={!items.length} emptyTitle="No merchants match" emptyBody="Adjust the search or filters."><div className="table-wrap"><table className="dt"><thead><tr><th>Business</th><th>Country</th><th>Base</th><th>Status</th><th>Verification</th><th>Created</th><th /></tr></thead><tbody>
-      {items.map((m) => <tr key={m.id} data-testid={`row-merchant-${m.id}`}><td><strong>{m.businessName}</strong><span className="sub">{m.riskNote || m.ownerUserId}</span></td><td>{m.country}</td><td>{m.baseCurrency}</td><td><Pill value={m.status} /></td><td><Pill value={m.kycStatus} /></td><td>{fmtDate(m.createdAt)}</td><td><div className="row-actions"><Btn variant="secondary" small onClick={() => setEdit(m)}><Pencil size={13} />Edit</Btn></div></td></tr>)}
+      {items.map((m) => <tr key={m.id} data-testid={`row-merchant-${m.id}`}><td><strong>{m.businessName}</strong><span className="sub">{m.riskNote || m.ownerUserId}</span></td><td>{m.country}</td><td>{m.baseCurrency}</td><td><Pill value={m.status} /></td><td><Pill value={m.kycStatus} /></td><td>{fmtDate(m.createdAt)}</td><td><div className="row-actions"><a className="btn btn-secondary btn-sm" href={`/admin/merchants/${m.id}/controls`}>Controls</a><Btn variant="secondary" small onClick={() => setEdit(m)}><Pencil size={13} />Edit</Btn></div></td></tr>)}
     </tbody></table></div></Async>
     {edit && <MerchantEdit m={edit} onClose={() => setEdit(null)} />}</>;
 }
@@ -45,15 +47,198 @@ function MerchantEdit({ m, onClose }: { m: AdminMerchant; onClose: () => void })
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const risk = String(f.get('risk') || '').trim();
-    up.mutate({ id: m.id, data: { businessName: String(f.get('name')).trim(), status: String(f.get('status')) as never, baseCurrency: String(f.get('cur')), riskNote: risk || null, paymentsEnabled: flags.paymentsEnabled, payoutsEnabled: flags.payoutsEnabled, refundsEnabled: flags.refundsEnabled, apiAccessEnabled: flags.apiAccessEnabled } }, { onSuccess: () => { void inv(); onClose(); } });
+    up.mutate({ id: m.id, data: { businessName: String(f.get('name')).trim(), baseCurrency: String(f.get('cur')), riskNote: risk || null, paymentsEnabled: flags.paymentsEnabled, payoutsEnabled: flags.payoutsEnabled, refundsEnabled: flags.refundsEnabled, apiAccessEnabled: flags.apiAccessEnabled } }, { onSuccess: () => { void inv(); onClose(); } });
   }
   return <Modal title={`Edit ${m.businessName}`} onClose={onClose}><form className="form-stack" onSubmit={submit}>
     <Field label="Business name"><input name="name" defaultValue={m.businessName} required minLength={2} maxLength={150} data-testid="input-edit-name" /></Field>
-    <div className="form-grid"><Field label="Status"><select name="status" defaultValue={m.status} data-testid="select-edit-status">{['pending', 'active', 'suspended', 'closed'].map((s) => <option key={s} value={s}>{nice(s)}</option>)}</select></Field>
-      <Field label="Base currency"><select name="cur" defaultValue={m.baseCurrency}>{[...new Set([m.baseCurrency, ...CURRENCIES])].map((c) => <option key={c}>{c}</option>)}</select></Field></div>
+    <Field label="Base currency"><select name="cur" defaultValue={m.baseCurrency}>{[...new Set([m.baseCurrency, ...CURRENCIES])].map((c) => <option key={c}>{c}</option>)}</select></Field>
+    <Note tone="warn">Account suspension and reactivation require an audit reason in the merchant controls page.</Note>
     <Field label="Risk notes" hint="Internal only, 1000 characters"><textarea name="risk" defaultValue={m.riskNote ?? ''} maxLength={1000} data-testid="input-edit-risk" /></Field>
     <Field label="Capabilities">{([['paymentsEnabled', 'Payments'], ['payoutsEnabled', 'Payouts'], ['refundsEnabled', 'Refunds'], ['apiAccessEnabled', 'API access']] as const).map(([k, t]) => <div className="setting-row" key={k} style={{ padding: '7px 0' }}><span>{t}</span><Switch on={flags[k]} label={`merchant ${t}`} onChange={(v) => setFlags({ ...flags, [k]: v })} /></div>)}</Field>
     <Err error={up.error} /><Btn type="submit" disabled={up.isPending} testId="button-save-merchant">{up.isPending && <LoaderCircle size={14} className="spin" />}Save changes</Btn></form></Modal>;
+}
+
+type MerchantActionKey =
+  | 'collect' | 'createLinks' | 'refundRequests' | 'disputeRequests' | 'invoices'
+  | 'reminders' | 'payoutRequests' | 'destinationChanges' | 'walletConversion'
+  | 'teamManagement' | 'apiAccess';
+type MerchantControlsResponse = {
+  merchantId: number;
+  businessName: string;
+  status: string;
+  controls: Record<MerchantActionKey, boolean>;
+  payoutSafety: {
+    largePayoutThresholds: Record<string, number>;
+    dualApprovalEnabled: boolean;
+    destinationChangeRequiresDualApproval: true;
+  };
+  usage: Array<{ action: string; currency: string; confirmedAmount: number; basis: string }>;
+  limits: Array<Record<string, string | number | null>>;
+  updatedAt: string;
+};
+const ACTION_CONTROLS: Array<[MerchantActionKey, string, string]> = [
+  ['collect', 'Collect payments', 'Start a new collection or payment checkout.'],
+  ['createLinks', 'Create payment links', 'Create new shareable payment links.'],
+  ['refundRequests', 'Submit refund requests', 'Request review of a customer refund.'],
+  ['disputeRequests', 'Submit dispute requests', 'Open a dispute or payment case.'],
+  ['invoices', 'Create invoices', 'Create and send invoices; historical invoices remain readable.'],
+  ['reminders', 'Send reminders', 'Create invoice or payment reminders.'],
+  ['payoutRequests', 'Request payouts', 'Request a payout from eligible funds.'],
+  ['destinationChanges', 'Change payout destinations', 'Edit payout destination details; destination changes always require a second approval.'],
+  ['walletConversion', 'Convert wallet funds', 'Request conversion between supported wallet currencies.'],
+  ['teamManagement', 'Manage team', 'Invite, change roles, or remove workspace users.'],
+  ['apiAccess', 'Manage API access', 'Create or use merchant API access.'],
+];
+
+async function requestMerchantControls<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`/api${url}`, {
+    credentials: 'include',
+    ...init,
+    headers: { ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },
+  });
+  const payload = await response.json().catch(() => null) as { error?: string } | T | null;
+  if (!response.ok) {
+    const error = payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string'
+      ? payload.error : `The request failed with status ${response.status}.`;
+    throw new Error(error);
+  }
+  return payload as T;
+}
+
+export function AdminMerchantControlsPage() {
+  return <G><AdminMerchantControlsInner /></G>;
+}
+
+function AdminMerchantControlsInner() {
+  const [, params] = useRoute('/admin/merchants/:merchantId/controls');
+  const merchantId = Number(params?.merchantId);
+  const validId = Number.isSafeInteger(merchantId) && merchantId > 0;
+  const queryKey = ['admin-merchant-controls', merchantId];
+  const q = useQuery({
+    queryKey,
+    queryFn: () => requestMerchantControls<MerchantControlsResponse>(`/admin/merchants/${merchantId}/controls`),
+    enabled: validId,
+    refetchInterval: 12000,
+  });
+  const inv = useInvalidateAll();
+  const save = useMutation({
+    mutationFn: (body: Record<string, unknown>) => requestMerchantControls<MerchantControlsResponse>(
+      `/admin/merchants/${merchantId}/controls`,
+      { method: 'PUT', body: JSON.stringify(body) },
+    ),
+    onSuccess: async () => {
+      await q.refetch();
+      void inv();
+      setDirty(false);
+      setChangedActions(new Set());
+      setReason('');
+    },
+  });
+  const updateStatus = useMutation({
+    mutationFn: (body: { status: 'active' | 'suspended'; reason: string }) =>
+      requestMerchantControls(`/admin/merchants/${merchantId}/status`, {
+        method: 'POST', body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      void q.refetch();
+      void inv();
+      setReason('');
+    },
+  });
+  const [controls, setControls] = useState<Record<MerchantActionKey, boolean> | null>(null);
+  const [thresholds, setThresholds] = useState<Record<string, string>>({});
+  const [dualApproval, setDualApproval] = useState(true);
+  const [reason, setReason] = useState('');
+  const [dirty, setDirty] = useState(false);
+  const [changedActions, setChangedActions] = useState<Set<MerchantActionKey>>(new Set());
+  const [newCurrency, setNewCurrency] = useState<string>(CURRENCIES[0] ?? 'USD');
+  useEffect(() => {
+    if (!q.data || dirty) return;
+    setControls({ ...q.data.controls });
+    setThresholds(Object.fromEntries(Object.entries(q.data.payoutSafety.largePayoutThresholds).map(([currency, amount]) => [currency, String(amount)])));
+    setDualApproval(q.data.payoutSafety.dualApprovalEnabled);
+  }, [q.data, dirty]);
+
+  if (!validId) return <><Heading eyebrow="ADMIN / MERCHANT" title="Merchant controls" /><Note tone="danger">A valid merchant ID is required to load controls.</Note></>;
+  const hasReason = reason.trim().length > 0 && reason.trim().length <= 1000;
+  const thresholdEntries = Object.entries(thresholds).filter(([, value]) => value.trim() !== '');
+  const thresholdsValid = thresholdEntries.every(([, value]) => Number.isFinite(Number(value)) && Number(value) > 0);
+  const canSave = hasReason && thresholdsValid && Boolean(controls) && !save.isPending;
+  const title = q.data ? q.data.businessName : `Merchant #${merchantId}`;
+  return <>
+    <Heading eyebrow="ADMIN / MERCHANT CONTROLS" title={title} subtitle="Reversible capability controls, safety policy, current limits, and committed usage." />
+    <Async q={q}>
+      {q.data && controls && <div className="form-stack">
+        <Card title="Account status" subtitle="Suspending blocks new actions; historical merchant records remain readable. Every status change requires a reason.">
+          <div className="setting-row"><div><strong>Current status</strong><span>Last updated {fmtDate(q.data.updatedAt)}</span></div><Pill value={q.data.status} /></div>
+          <Field label="Audit reason"><textarea value={reason} onChange={(event) => setReason(event.target.value)} maxLength={1000} placeholder="Explain why this account is being changed" /></Field>
+          <div className="row-actions">
+            {q.data.status !== 'suspended'
+              ? <Btn variant="danger" disabled={!hasReason || updateStatus.isPending} onClick={() => updateStatus.mutate({ status: 'suspended', reason: reason.trim() })}>Suspend account</Btn>
+              : <Btn disabled={!hasReason || updateStatus.isPending} onClick={() => updateStatus.mutate({ status: 'active', reason: reason.trim() })}>Reactivate account</Btn>}
+          </div>
+          <Err error={updateStatus.error} />
+        </Card>
+        <Card title="Merchant actions" subtitle="Disabled actions are explicitly reported to merchant clients. Reads of prior transactions, invoices and cases remain available.">
+          <div className="form-stack">
+            {ACTION_CONTROLS.map(([key, label, detail]) => <div className="setting-row" key={key}>
+              <div><strong>{label}</strong><span>{detail}</span></div>
+              <Switch on={controls[key]} label={`merchant ${label}`} onChange={(enabled) => {
+                setControls((current) => current ? { ...current, [key]: enabled } : current);
+                setChangedActions((current) => new Set(current).add(key));
+                setDirty(true);
+              }} />
+            </div>)}
+          </div>
+          <Note tone="warn">These switches cannot override the merchant's existing payments, payouts, refunds, or API flags, account status, verification requirements, transaction limits, balance checks, or provider confirmation rules.</Note>
+        </Card>
+        <Card title="Payout safety" subtitle="Thresholds are explicit per currency. A currency with no threshold is held for manual review; no threshold is guessed.">
+          <div className="setting-row">
+            <div><strong>Additional dual approval</strong><span>Require a second approval under the merchant's payout policy.</span></div>
+            <Switch on={dualApproval} label="additional payout dual approval" onChange={(enabled) => { setDualApproval(enabled); setDirty(true); }} />
+          </div>
+          <div className="setting-row"><div><strong>Changed payout destination</strong><span>Dual approval is mandatory and cannot be disabled by an administrator.</span></div><Pill value="required" /></div>
+          <div className="form-grid" style={{ alignItems: 'end' }}>
+            <Field label="Currency"><select value={newCurrency} onChange={(event) => setNewCurrency(event.target.value)}>{CURRENCIES.map((currency) => <option key={currency}>{currency}</option>)}</select></Field>
+            <Btn variant="secondary" onClick={() => { setThresholds((current) => ({ ...current, [newCurrency]: current[newCurrency] ?? '' })); setDirty(true); }}>Add currency threshold</Btn>
+          </div>
+          {!Object.keys(thresholds).length && <Note tone="warn">No explicit thresholds are set. Payouts will be held for manual review in every currency.</Note>}
+          <div className="form-stack">{Object.entries(thresholds).map(([currency, amount]) => <div className="form-grid" key={currency}>
+            <Field label={`${currency} large-payout threshold`} hint="Positive amount; a payout at or above this threshold requires additional review"><input type="number" min="0.01" step="any" value={amount} onChange={(event) => { setThresholds((current) => ({ ...current, [currency]: event.target.value })); setDirty(true); }} /></Field>
+            <Btn variant="quiet" onClick={() => { const next = { ...thresholds }; delete next[currency]; setThresholds(next); setDirty(true); }}>Remove</Btn>
+          </div>)}</div>
+          {!thresholdsValid && <Note tone="danger">Each configured threshold must be a positive finite amount.</Note>}
+        </Card>
+        <div className="form-grid">
+          <Card title="Committed usage" subtitle="Only committed usage is shown as confirmed; pending and uncertain activity is excluded.">
+            {!q.data.usage.length ? <p className="sub">No committed usage recorded.</p> : <div className="table-wrap"><table className="dt"><thead><tr><th>Action</th><th>Currency</th><th className="num">Confirmed amount</th></tr></thead><tbody>
+              {q.data.usage.map((row) => <tr key={`${row.action}:${row.currency}`}><td>{nice(row.action)}</td><td>{row.currency}</td><td className="num">{money(row.confirmedAmount, row.currency)}</td></tr>)}
+            </tbody></table></div>}
+          </Card>
+          <Card title="Verification limits" subtitle="Configured tier limits remain independently enforced.">
+            {!q.data.limits.length ? <p className="sub">No limits are configured for this merchant's current verification tier.</p> : <div className="table-wrap"><table className="dt"><thead><tr><th>Tier / currency</th><th>Collection / day / month</th><th>Payout</th><th>Conversion</th></tr></thead><tbody>
+              {q.data.limits.map((row, index) => <tr key={`${row.tier}:${row.currency}:${index}`}><td>{nice(String(row.tier))} · {row.currency}</td><td>{row.collectionPerTransactionLimit ?? '—'} / {row.collectionDailyLimit ?? '—'} / {row.collectionMonthlyLimit ?? '—'}</td><td>{row.payoutLimit ?? '—'}</td><td>{row.conversionLimit ?? '—'}</td></tr>)}
+            </tbody></table></div>}
+          </Card>
+        </div>
+        <Card title="Save reversible controls" subtitle="Every update is recorded in the platform audit log with your reason.">
+          <Field label="Audit reason"><textarea value={reason} onChange={(event) => setReason(event.target.value)} maxLength={1000} placeholder="Explain why these control changes are needed" /></Field>
+          <Err error={save.error} />
+          <Btn disabled={!canSave} onClick={() => save.mutate({
+            ...(changedActions.size ? {
+              controls: Object.fromEntries(Array.from(changedActions, (action) => [action, controls[action]])),
+            } : {}),
+            payoutSafety: {
+              largePayoutThresholds: Object.fromEntries(thresholdEntries.map(([currency, amount]) => [currency, Number(amount)])),
+              dualApprovalEnabled: dualApproval,
+              destinationChangeRequiresDualApproval: true,
+            },
+            reason: reason.trim(),
+          })}>{save.isPending && <LoaderCircle size={14} className="spin" />}Save control changes</Btn>
+        </Card>
+      </div>}
+    </Async>
+  </>;
 }
 
 export function AdminFeesPage() { return <G><FeesInner /></G>; }

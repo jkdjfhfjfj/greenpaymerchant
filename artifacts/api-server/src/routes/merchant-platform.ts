@@ -31,7 +31,12 @@ import { assertCollectionAmountPrecision, createCollection } from "../lib/greenp
 import { assertSupportedCurrency, getPublicAppUrl, providerForCurrency, providerIsConfigured } from "../lib/greenpay-provider";
 import { requireAdmin, requireSignedIn } from "../middlewares/requireAdmin";
 import { developerApiAuth, requireApiScope } from "../middlewares/developerApiAuth";
-import { assertMerchantMayTransact, assertPlatformEnabled } from "../lib/platform";
+import {
+  assertMerchantActionEnabled,
+  assertMerchantMayTransact,
+  assertPlatformEnabled,
+  getMerchantActionControls,
+} from "../lib/platform";
 import { apiKeyHash, encryptSecret, validateWebhookUrl } from "../lib/secure-storage";
 import { findTransaction, markTransactionStatus, paymentLinkDto, payoutDto, transactionDto } from "../lib/greenpay-ledger";
 import { verifyProviderPayment } from "../lib/greenpay-provider";
@@ -96,6 +101,7 @@ async function createOwnedLink(merchant: typeof merchantsTable.$inferSelect, inp
   name: string; description?: string; amountType: "fixed" | "customer_choice"; amount?: number;
   currency: string; expiresAt?: Date;
 }) {
+  await assertMerchantActionEnabled(merchant.id, "createLinks");
   await assertMerchantMayTransact(merchant);
   await assertPlatformEnabled("paymentsEnabled");
   assertSupportedCurrency(input.currency.toUpperCase());
@@ -147,6 +153,18 @@ router.get("/me", requireSignedIn, async (req, res): Promise<void> => {
     userId, isAdmin, ...(access ? { role: access.role } : {}),
     merchant: access ? profile(access.merchant) : null,
   }));
+});
+
+router.get("/merchant/action-controls", requireSignedIn, async (_req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  const userId = res.locals.clerkUserId as string;
+  const access = await findMerchantAccessForUser(userId);
+  if (!access) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  res.json({
+    merchantId: access.merchant.id,
+    controls: await getMerchantActionControls(access.merchant.id),
+    role: access.role,
+  });
 });
 
 router.get("/merchant", requireSignedIn, async (_req, res): Promise<void> => {
@@ -486,6 +504,7 @@ router.post("/merchant/api-keys", requireSignedIn, async (req, res): Promise<voi
   }
   const merchant = await ownedMerchant(res);
   if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  await assertMerchantActionEnabled(merchant.id, "apiAccess");
   await assertMerchantMayTransact(merchant);
   await assertPlatformEnabled("apiAccessEnabled");
   if (!merchant.apiAccessEnabled) { res.status(403).json({ error: "Developer API access is disabled for this merchant." }); return; }
@@ -527,6 +546,7 @@ router.post("/merchant/webhook-endpoints", requireSignedIn, async (req, res): Pr
   const url = await validateWebhookUrl(parsed.data.url);
   const merchant = await ownedMerchant(res);
   if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  await assertMerchantActionEnabled(merchant.id, "apiAccess");
   await assertMerchantMayTransact(merchant);
   const signingSecret = `whsec_${randomBytes(32).toString("base64url")}`;
   const [endpoint] = await db.insert(merchantWebhookEndpointsTable).values({
@@ -641,6 +661,7 @@ apiRouter.post("/transactions", requireApiScope("payments:write"), async (req, r
     res.status(400).json({ error: !header.success ? header.error.message : parsed.error?.message ?? "Invalid developer payment request." }); return;
   }
   const merchant = res.locals.merchant as typeof merchantsTable.$inferSelect;
+  await assertMerchantActionEnabled(merchant.id, "collect");
   await assertMerchantMayTransact(merchant);
   const values = parsed.data;
   await assertPlatformEnabled("paymentsEnabled");

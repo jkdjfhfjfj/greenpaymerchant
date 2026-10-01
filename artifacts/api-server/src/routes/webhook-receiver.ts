@@ -16,6 +16,7 @@ import {
 import { providerCredential } from "../lib/credential-runtime";
 import { equalSignature } from "../lib/secure-storage";
 import { diditDecisionStatus, diditStatusNeedsRefresh, timestampIsFresh } from "../lib/security-policy";
+import { payoutConfirmationTimestamp } from "../lib/payment-safety";
 import { setWalletPayoutStatusFromProvider } from "../lib/wallet-service";
 
 const router: IRouter = Router();
@@ -295,6 +296,7 @@ router.post("/:provider", async (req, res): Promise<void> => {
                   ? current.providerReference
                   : reference,
                 status: normalizedStatus,
+                confirmedAt: payoutConfirmationTimestamp(current.status, current.confirmedAt, normalizedStatus),
               }).where(eq(payoutsTable.id, current.id));
             });
           }

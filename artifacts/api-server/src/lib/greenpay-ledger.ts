@@ -24,11 +24,25 @@ import { dispatchPendingMerchantWebhooks, enqueueMerchantWebhookOutbox } from ".
 import { CUSTOMER_REIMBURSED_REFUND_STATUSES } from "./payment-safety";
 import { paymentTransitionAllowed } from "./security-policy";
 import { settleWalletRefundFunds } from "./wallet-service";
+import { persistFinancialNotificationEvent } from "./mailtrap-delivery";
 
 const TERMINAL_REFUND_STATUSES = new Set([
   ...CUSTOMER_REIMBURSED_REFUND_STATUSES,
   "failed", "reversed", "rejected", "cancelled", "recorded", "manual_required",
 ]);
+type FinancialTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export type RecordRefundInput = {
+  originalReference: string;
+  reservationId?: number;
+  provider?: string | null;
+  providerReference?: string | null;
+  source?: "initiation" | "reconciliation";
+  amount: number;
+  currency: string;
+  status: string;
+  reason?: string | null;
+};
 
 export function transactionDto(row: TransactionRecord) {
   return {
@@ -195,6 +209,16 @@ export async function markTransactionStatus(
         eq(merchantWebhookEndpointsTable.active, true),
       ));
       await enqueueMerchantWebhookOutbox(tx, updated, event, endpoints);
+      if (event === "payment.success" || event === "payment.failed") {
+        await persistFinancialNotificationEvent(tx, {
+          kind: "payment",
+          transactionId: updated.id,
+          reference: updated.reference,
+          transition: event === "payment.success" ? "success" : "failed",
+          amount: updated.amount,
+          currency: updated.currency,
+        });
+      }
     }
     return { transaction: updated ?? current, event };
   });
@@ -283,96 +307,97 @@ export async function recordWebhookEvent(input: {
   return created;
 }
 
-export async function recordRefund(input: {
-  originalReference: string;
-  reservationId?: number;
-  provider?: string | null;
-  providerReference?: string | null;
-  source?: "initiation" | "reconciliation";
-  amount: number;
-  currency: string;
-  status: string;
-  reason?: string | null;
-}) {
-  const outcome = await db.transaction(async (tx) => {
-    const [transaction] = await tx.select().from(transactionsTable)
-      .where(eq(transactionsTable.reference, input.originalReference)).for("update").limit(1);
-    let refund: typeof refundsTable.$inferSelect | undefined;
-    if (input.reservationId) {
-      const [currentRefund] = await tx.select().from(refundsTable).where(and(
-        eq(refundsTable.id, input.reservationId),
-        eq(refundsTable.originalReference, input.originalReference),
-      )).for("update").limit(1);
-      if (!currentRefund) throw new Error("Refund reservation no longer exists.");
-      const retainedTerminal = TERMINAL_REFUND_STATUSES.has(currentRefund.status) &&
-        (input.source === "initiation" || input.status === "pending");
-      if (retainedTerminal) {
-        refund = currentRefund;
-      } else {
-        [refund] = await tx.update(refundsTable).set({
-          provider: input.provider ?? currentRefund.provider,
-          providerReference: input.providerReference ?? currentRefund.providerReference,
-          amount: input.amount,
-          currency: input.currency,
-          status: input.status,
-          reason: input.reason ?? currentRefund.reason,
-        }).where(and(
-          eq(refundsTable.id, input.reservationId),
-          eq(refundsTable.originalReference, input.originalReference),
-        )).returning();
-      }
+export async function recordRefundInTransaction(
+  tx: FinancialTx,
+  input: RecordRefundInput,
+): Promise<{ refund: typeof refundsTable.$inferSelect; event?: string }> {
+  const [transaction] = await tx.select().from(transactionsTable)
+    .where(eq(transactionsTable.reference, input.originalReference)).for("update").limit(1);
+  let refund: typeof refundsTable.$inferSelect | undefined;
+  if (input.reservationId) {
+    const [currentRefund] = await tx.select().from(refundsTable).where(and(
+      eq(refundsTable.id, input.reservationId),
+      eq(refundsTable.originalReference, input.originalReference),
+    )).for("update").limit(1);
+    if (!currentRefund) throw new Error("Refund reservation no longer exists.");
+    const retainedTerminal = TERMINAL_REFUND_STATUSES.has(currentRefund.status) &&
+      (input.source === "initiation" || input.status === "pending");
+    if (retainedTerminal) {
+      refund = currentRefund;
     } else {
-      [refund] = await tx.insert(refundsTable).values({
-        reference: `GP-RF-${crypto.randomUUID()}`,
-        originalReference: input.originalReference,
-        provider: input.provider ?? null,
-        providerReference: input.providerReference ?? null,
+      const wasCustomerReimbursed = CUSTOMER_REIMBURSED_REFUND_STATUSES.includes(currentRefund.status as never);
+      const isCustomerReimbursed = CUSTOMER_REIMBURSED_REFUND_STATUSES.includes(input.status as never);
+      [refund] = await tx.update(refundsTable).set({
+        provider: input.provider ?? currentRefund.provider,
+        providerReference: input.providerReference ?? currentRefund.providerReference,
         amount: input.amount,
         currency: input.currency,
         status: input.status,
-        reason: input.reason ?? null,
-      }).returning();
-    }
-    if (!refund) throw new Error("Refund outcome could not be persisted.");
-    if (transaction) await settleWalletRefundFunds(tx, transaction, refund);
-
-    let event: string | undefined;
-    if (transaction && transaction.status === "success" &&
-        CUSTOMER_REIMBURSED_REFUND_STATUSES.includes(refund.status as never)) {
-      const [sumRow] = await tx.select({
-        total: sql<number>`coalesce(sum(${refundsTable.amount}), 0)::numeric`,
-      }).from(refundsTable).where(and(
+        reason: input.reason ?? currentRefund.reason,
+        confirmedAt: isCustomerReimbursed
+          ? currentRefund.confirmedAt ?? (wasCustomerReimbursed ? null : new Date())
+          : currentRefund.confirmedAt,
+      }).where(and(
+        eq(refundsTable.id, input.reservationId),
         eq(refundsTable.originalReference, input.originalReference),
-        inArray(refundsTable.status, CUSTOMER_REIMBURSED_REFUND_STATUSES),
-      ));
-      if (Number(sumRow?.total ?? 0) + 0.001 >= Number(transaction.amount)) {
-        const [refunded] = await tx.update(transactionsTable).set({ status: "refunded" })
-          .where(and(
-            eq(transactionsTable.id, transaction.id),
-            eq(transactionsTable.status, "success"),
-          )).returning();
-        await tx.update(settlementsTable).set({ status: "held" })
-          .where(and(
-            eq(settlementsTable.reference, input.originalReference),
-            inArray(settlementsTable.status, ["pending", "due"]),
-          ));
-        if (refunded) {
-          event = "payment.refunded";
-          const endpoints = await tx.select({
-            id: merchantWebhookEndpointsTable.id,
-            url: merchantWebhookEndpointsTable.url,
-            encryptedSecret: merchantWebhookEndpointsTable.encryptedSecret,
-            events: merchantWebhookEndpointsTable.events,
-          }).from(merchantWebhookEndpointsTable).where(and(
-            eq(merchantWebhookEndpointsTable.merchantId, refunded.merchantId ?? -1),
-            eq(merchantWebhookEndpointsTable.active, true),
-          ));
-          await enqueueMerchantWebhookOutbox(tx, refunded, event, endpoints);
-        }
+      )).returning();
+    }
+  } else {
+    [refund] = await tx.insert(refundsTable).values({
+      reference: `GP-RF-${crypto.randomUUID()}`,
+      originalReference: input.originalReference,
+      provider: input.provider ?? null,
+      providerReference: input.providerReference ?? null,
+      amount: input.amount,
+      currency: input.currency,
+      status: input.status,
+      reason: input.reason ?? null,
+      confirmedAt: CUSTOMER_REIMBURSED_REFUND_STATUSES.includes(input.status as never) ? new Date() : null,
+    }).returning();
+  }
+  if (!refund) throw new Error("Refund outcome could not be persisted.");
+  if (transaction) await settleWalletRefundFunds(tx, transaction, refund);
+
+  let event: string | undefined;
+  if (transaction && transaction.status === "success" &&
+      CUSTOMER_REIMBURSED_REFUND_STATUSES.includes(refund.status as never)) {
+    const [sumRow] = await tx.select({
+      total: sql<number>`coalesce(sum(${refundsTable.amount}), 0)::numeric`,
+    }).from(refundsTable).where(and(
+      eq(refundsTable.originalReference, input.originalReference),
+      inArray(refundsTable.status, CUSTOMER_REIMBURSED_REFUND_STATUSES),
+    ));
+    if (Number(sumRow?.total ?? 0) + 0.001 >= Number(transaction.amount)) {
+      const [refunded] = await tx.update(transactionsTable).set({ status: "refunded" })
+        .where(and(
+          eq(transactionsTable.id, transaction.id),
+          eq(transactionsTable.status, "success"),
+        )).returning();
+      await tx.update(settlementsTable).set({ status: "held" })
+        .where(and(
+          eq(settlementsTable.reference, input.originalReference),
+          inArray(settlementsTable.status, ["pending", "due"]),
+        ));
+      if (refunded) {
+        event = "payment.refunded";
+        const endpoints = await tx.select({
+          id: merchantWebhookEndpointsTable.id,
+          url: merchantWebhookEndpointsTable.url,
+          encryptedSecret: merchantWebhookEndpointsTable.encryptedSecret,
+          events: merchantWebhookEndpointsTable.events,
+        }).from(merchantWebhookEndpointsTable).where(and(
+          eq(merchantWebhookEndpointsTable.merchantId, refunded.merchantId ?? -1),
+          eq(merchantWebhookEndpointsTable.active, true),
+        ));
+        await enqueueMerchantWebhookOutbox(tx, refunded, event, endpoints);
       }
     }
-    return { refund, event };
-  });
+  }
+  return { refund, event };
+}
+
+export async function recordRefund(input: RecordRefundInput) {
+  const outcome = await db.transaction((tx) => recordRefundInTransaction(tx, input));
   if (outcome.event) void dispatchPendingMerchantWebhooks().catch(() => undefined);
   return outcome.refund;
 }

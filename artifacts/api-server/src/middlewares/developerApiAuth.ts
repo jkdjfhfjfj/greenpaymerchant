@@ -2,7 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import type { RequestHandler } from "express";
 import { db, merchantApiKeysTable, merchantsTable } from "@workspace/db";
-import { assertMerchantCapability, assertPlatformEnabled } from "../lib/platform";
+import { assertMerchantActionEnabled, assertMerchantCapability, assertPlatformEnabled } from "../lib/platform";
 import { hasRequiredScope } from "../lib/security-policy";
 import { developerApiStatusAllowed } from "../lib/security-policy";
 
@@ -46,6 +46,7 @@ export const developerApiAuth: RequestHandler = async (req, res, next) => {
   try {
     await assertPlatformEnabled("apiAccessEnabled");
     await assertMerchantCapability(merchant, "apiAccessEnabled");
+    await assertMerchantActionEnabled(merchant.id, "apiAccess");
   } catch (error) {
     const status = typeof error === "object" && error && "statusCode" in error ? Number(error.statusCode) : 403;
     res.status(status).json({ error: error instanceof Error ? error.message : "Developer API access is disabled." });

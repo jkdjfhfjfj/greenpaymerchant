@@ -43,6 +43,7 @@ import type {
   PayoutMethodsResponse,
   ProviderStatusList,
   PublicPaymentLink,
+  PublicTransactionStatus,
   Refund,
   RefundInput,
   SettlementList,
@@ -1147,6 +1148,83 @@ export const useCheckoutPaymentLink = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getCheckoutPaymentLinkMutationOptions(options));
     }
+
+export const getGetPublicTransactionStatusUrl = (reference: string,) => {
+
+
+
+
+  return `/api/public/transactions/${reference}`
+}
+
+/**
+ * @summary Verify a transaction for its customer checkout return
+ */
+export const getPublicTransactionStatus = async (reference: string, options?: Parameters<typeof customFetch>[1]): Promise<PublicTransactionStatus> => {
+
+  return customFetch<PublicTransactionStatus>(getGetPublicTransactionStatusUrl(reference),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicTransactionStatusQueryKey = (reference: string,) => {
+    return [
+    `/api/public/transactions/${reference}`
+    ] as const;
+    }
+
+
+export const getGetPublicTransactionStatusQueryOptions = <TData = Awaited<ReturnType<typeof getPublicTransactionStatus>>, TError = ErrorType<void>>(reference: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicTransactionStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicTransactionStatusQueryKey(reference);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicTransactionStatus>>> = ({ signal }) => getPublicTransactionStatus(reference, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: reference !== null && reference !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicTransactionStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicTransactionStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicTransactionStatus>>>
+export type GetPublicTransactionStatusQueryError = ErrorType<void>
+
+
+/**
+ * @summary Verify a transaction for its customer checkout return
+ */
+
+export function useGetPublicTransactionStatus<TData = Awaited<ReturnType<typeof getPublicTransactionStatus>>, TError = ErrorType<void>>(
+ reference: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicTransactionStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicTransactionStatusQueryOptions(reference,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListPayoutsUrl = (params?: ListPayoutsParams,) => {
   const normalizedParams = new URLSearchParams();

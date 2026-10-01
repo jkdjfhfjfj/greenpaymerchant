@@ -10,7 +10,6 @@ import type { ProviderStatus } from './providerStatus';
 import type { Transaction } from './transaction';
 
 export interface DashboardSummary {
-  volumeToday: number;
   paymentsToday: number;
   successRate: number;
   pendingSettlements: number;

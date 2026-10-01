@@ -109,7 +109,6 @@ export interface ProviderStatus {
 }
 
 export interface DashboardSummary {
-  volumeToday: number;
   paymentsToday: number;
   successRate: number;
   pendingSettlements: number;
@@ -143,7 +142,39 @@ export interface TransactionInput {
 
 export interface TransactionCreated {
   transaction: Transaction;
-  checkoutUrl: string;
+  /** @nullable */
+  checkoutUrl: string | null;
+}
+
+export type PublicTransactionStatusStatus = typeof PublicTransactionStatusStatus[keyof typeof PublicTransactionStatusStatus];
+
+
+export const PublicTransactionStatusStatus = {
+  pending: 'pending',
+  success: 'success',
+  failed: 'failed',
+  cancelled: 'cancelled',
+  refunded: 'refunded',
+} as const;
+
+export type PublicTransactionStatusProvider = typeof PublicTransactionStatusProvider[keyof typeof PublicTransactionStatusProvider];
+
+
+export const PublicTransactionStatusProvider = {
+  paystack: 'paystack',
+  payhero: 'payhero',
+  payzaapi: 'payzaapi',
+} as const;
+
+export interface PublicTransactionStatus {
+  reference: string;
+  status: PublicTransactionStatusStatus;
+  amount: number;
+  currency: string;
+  provider: PublicTransactionStatusProvider;
+  /** @nullable */
+  paidAt?: string | null;
+  createdAt: string;
 }
 
 export interface RefundInput {
@@ -350,7 +381,11 @@ export const PayoutMethodsResponseFeeType = {
 
 export type PayoutMethodsResponseFee = {
   type: PayoutMethodsResponseFeeType;
-  amount: number;
+  amount?: number;
+  /** @nullable */
+  percent?: number | null;
+  /** @nullable */
+  floor?: number | null;
 };
 
 export interface PayoutMethod {
@@ -421,7 +456,6 @@ export interface Customer {
   /** @nullable */
   phone?: string | null;
   orderCount: number;
-  totalVolume: number;
   currencySummary: string;
   /** @nullable */
   lastPaymentAt?: string | null;

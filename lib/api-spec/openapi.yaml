@@ -258,6 +258,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TransactionCreated"
+  /public/transactions/{reference}:
+    get:
+      operationId: getPublicTransactionStatus
+      tags: [transactions]
+      summary: Verify a transaction for its customer checkout return
+      parameters:
+        - name: reference
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Public-safe payment status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicTransactionStatus"
+        "404":
+          description: Not found
   /payouts:
     get:
       operationId: listPayouts
@@ -421,12 +440,11 @@ components:
       required: [status]
     DashboardSummary:
       type: object
-      required: [volumeToday, paymentsToday, successRate, pendingSettlements, settlementsDue, volumeByCurrency, recentTransactions, providerStatus]
+      required: [paymentsToday, successRate, pendingSettlements, settlementsDue, volumeByCurrency, recentTransactions, providerStatus]
       properties:
-        volumeToday: { type: number }
         paymentsToday: { type: integer }
         successRate: { type: number }
-        pendingSettlements: { type: number }
+        pendingSettlements: { type: integer }
         settlementsDue: { type: integer }
         volumeByCurrency:
           type: array
@@ -498,7 +516,20 @@ components:
       required: [transaction, checkoutUrl]
       properties:
         transaction: { $ref: "#/components/schemas/Transaction" }
-        checkoutUrl: { type: string, format: uri }
+        checkoutUrl: { type: ["string", "null"], format: uri }
+    PublicTransactionStatus:
+      type: object
+      required: [reference, status, amount, currency, provider, createdAt]
+      properties:
+        reference: { type: string }
+        status:
+          type: string
+          enum: [pending, success, failed, cancelled, refunded]
+        amount: { type: number }
+        currency: { type: string }
+        provider: { type: string, enum: [paystack, payhero, payzaapi] }
+        paidAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
     RefundInput:
       type: object
       properties:
@@ -621,10 +652,12 @@ components:
         minimumWithdrawal: { type: number }
         fee:
           type: object
-          required: [type, amount]
+          required: [type]
           properties:
             type: { type: string, enum: [flat, percent] }
             amount: { type: number }
+            percent: { type: ["number", "null"] }
+            floor: { type: ["number", "null"] }
         methods:
           type: array
           items: { $ref: "#/components/schemas/PayoutMethod" }
@@ -671,14 +704,13 @@ components:
           items: { $ref: "#/components/schemas/Settlement" }
     Customer:
       type: object
-      required: [id, name, email, orderCount, totalVolume, currencySummary]
+      required: [id, name, email, orderCount, currencySummary]
       properties:
         id: { type: integer }
         name: { type: string }
         email: { type: string }
         phone: { type: ["string", "null"] }
         orderCount: { type: integer }
-        totalVolume: { type: number }
         currencySummary: { type: string }
         lastPaymentAt: { type: ["string", "null"], format: date-time }
     CustomerList:

@@ -9,5 +9,6 @@ import type { Transaction } from './transaction';
 
 export interface TransactionCreated {
   transaction: Transaction;
-  checkoutUrl: string;
+  /** @nullable */
+  checkoutUrl: string | null;
 }

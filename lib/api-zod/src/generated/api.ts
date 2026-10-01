@@ -20,10 +20,9 @@ export const HealthCheckResponse = zod.object({
  * @summary Read dashboard metrics and recent activity
  */
 export const GetDashboardResponse = zod.object({
-  "volumeToday": zod.number(),
   "paymentsToday": zod.number().int(),
   "successRate": zod.number(),
-  "pendingSettlements": zod.number(),
+  "pendingSettlements": zod.number().int(),
   "settlementsDue": zod.number().int(),
   "volumeByCurrency": zod.array(zod.object({
   "currency": zod.string(),
@@ -154,7 +153,7 @@ export const CreateTransactionResponse = zod.object({
   "settlementAt": zod.coerce.date().nullish(),
   "settlementStatus": zod.enum(['pending', 'due', 'settled', 'held', 'not_applicable'])
 }),
-  "checkoutUrl": zod.string().url()
+  "checkoutUrl": zod.string().url().nullable()
 })
 
 
@@ -414,7 +413,25 @@ export const CheckoutPaymentLinkResponse = zod.object({
   "settlementAt": zod.coerce.date().nullish(),
   "settlementStatus": zod.enum(['pending', 'due', 'settled', 'held', 'not_applicable'])
 }),
-  "checkoutUrl": zod.string().url()
+  "checkoutUrl": zod.string().url().nullable()
+})
+
+
+/**
+ * @summary Verify a transaction for its customer checkout return
+ */
+export const GetPublicTransactionStatusParams = zod.object({
+  "reference": zod.coerce.string()
+})
+
+export const GetPublicTransactionStatusResponse = zod.object({
+  "reference": zod.string(),
+  "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
+  "amount": zod.number(),
+  "currency": zod.string(),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
+  "paidAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
 })
 
 
@@ -496,7 +513,9 @@ export const ListPayoutMethodsResponse = zod.object({
   "minimumWithdrawal": zod.number(),
   "fee": zod.object({
   "type": zod.enum(['flat', 'percent']),
-  "amount": zod.number()
+  "amount": zod.number().optional(),
+  "percent": zod.number().nullish(),
+  "floor": zod.number().nullish()
 }),
   "methods": zod.array(zod.object({
   "value": zod.string(),
@@ -561,7 +580,6 @@ export const ListCustomersResponse = zod.object({
   "email": zod.string(),
   "phone": zod.string().nullish(),
   "orderCount": zod.number().int(),
-  "totalVolume": zod.number(),
   "currencySummary": zod.string(),
   "lastPaymentAt": zod.coerce.date().nullish()
 }))

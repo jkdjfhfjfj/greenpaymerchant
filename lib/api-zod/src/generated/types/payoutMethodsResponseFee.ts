@@ -9,5 +9,9 @@ import type { PayoutMethodsResponseFeeType } from './payoutMethodsResponseFeeTyp
 
 export type PayoutMethodsResponseFee = {
   type: PayoutMethodsResponseFeeType;
-  amount: number;
+  amount?: number;
+  /** @nullable */
+  percent?: number | null;
+  /** @nullable */
+  floor?: number | null;
 };

@@ -13,7 +13,6 @@ export interface Customer {
   /** @nullable */
   phone?: string | null;
   orderCount: number;
-  totalVolume: number;
   currencySummary: string;
   /** @nullable */
   lastPaymentAt?: Date | null;

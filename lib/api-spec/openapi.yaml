@@ -2311,7 +2311,7 @@ paths:
         - name: provider
           in: path
           required: true
-          schema: { type: string, enum: [paystack, payhero, payzaapi, didit] }
+          schema: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary] }
       requestBody:
         required: true
         content:
@@ -2331,7 +2331,7 @@ paths:
         - name: provider
           in: path
           required: true
-          schema: { type: string, enum: [paystack, payhero, payzaapi, didit] }
+          schema: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary] }
       responses:
         "204": { description: Provider credentials deleted }
   /admin/platform-settings:
@@ -4368,7 +4368,7 @@ components:
       type: object
       required: [provider, configured, enabled, fields, updatedAt, storage]
       properties:
-        provider: { type: string, enum: [paystack, payhero, payzaapi, didit] }
+        provider: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary] }
         configured: { type: boolean }
         enabled: { type: boolean }
         fields:

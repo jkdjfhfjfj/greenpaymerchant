@@ -311,10 +311,11 @@ function RateEdit({ r, onClose }: { r: AdminFxRate | null; onClose: () => void }
 const CRED_FIELDS: Record<string, string[]> = {
   paystack: ['PAYSTACK_SECRET_KEY'], payhero: ['PAYHERO_BASIC_AUTH', 'PAYHERO_CHANNEL_ID'], payzaapi: ['PAYZAAPI_API_KEY', 'PAYZA_PUBLIC_KEY', 'PAYZA_SECRET_KEY', 'PAYZA_WEBHOOK_SECRET'],
   didit: ['DIDIT_API_KEY', 'DIDIT_WEBHOOK_SECRET', 'DIDIT_WORKFLOW_ID', 'DIDIT_KYB_WORKFLOW_ID'],
+  cloudinary: ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'],
 };
 const OPTIONAL = new Set(['DIDIT_WORKFLOW_ID', 'DIDIT_KYB_WORKFLOW_ID']);
 const REQUIRED_HINT: Record<string, string> = { PAYZA_PUBLIC_KEY: 'Required for the existing Payza rail', PAYZA_SECRET_KEY: 'Required for the existing Payza rail' };
-const PLAIN = new Set(['PAYZA_PUBLIC_KEY', 'DIDIT_WORKFLOW_ID', 'DIDIT_KYB_WORKFLOW_ID', 'PAYHERO_CHANNEL_ID']);
+const PLAIN = new Set(['PAYZA_PUBLIC_KEY', 'DIDIT_WORKFLOW_ID', 'DIDIT_KYB_WORKFLOW_ID', 'PAYHERO_CHANNEL_ID', 'CLOUDINARY_CLOUD_NAME']);
 
 export function AdminCredentialsPage() { return <G><CredInner /></G>; }
 function CredInner() {
@@ -414,12 +415,15 @@ function SettingsInner() {
   return <><Heading eyebrow="ADMIN" title="Platform settings" subtitle="Brand identity, customer contact details and platform-wide feature switches. Changes are audited." />
     <Err error={up.error} />
     <Async q={q}><div className="form-stack">
-      <Card title="Cloudinary API settings" subtitle="Uploads are signed on the server. API secrets are kept in Replit Secrets and are never shown here.">
+      <Card title="Cloudinary API settings" subtitle="Upload signatures are generated server-side. Credentials are encrypted at rest and masked after saving.">
         {cloudinaryStatus.isLoading ? <span className="sub">Checking Cloudinary configuration…</span>
           : cloudinaryStatus.isError ? <Err error={cloudinaryStatus.error} />
-            : cloudinaryStatus.data?.configured
-              ? <Note>Cloudinary uploads are enabled{cloudinaryStatus.data.cloudName ? ` for ${cloudinaryStatus.data.cloudName}` : ''}.</Note>
-              : <Note tone="warn">Cloudinary uploads are not configured. Add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in Replit Secrets to enable uploads.</Note>}
+            : <div className="form-stack">
+              {cloudinaryStatus.data?.configured
+                ? <Note>Cloudinary uploads are enabled{cloudinaryStatus.data.cloudName ? ` for ${cloudinaryStatus.data.cloudName}` : ''}.</Note>
+                : <Note tone="warn">Cloudinary uploads are not configured. Add the Cloud Name, API Key, and API Secret in Provider credentials to enable uploads.</Note>}
+              <a className="text-link" href="/admin/credentials">Manage Cloudinary credentials</a>
+            </div>}
       </Card>
       <Card title="Platform identity" subtitle="Public details shown across the platform and onboarding.">
         {branding && <form className="form-stack" onSubmit={submitBranding}>

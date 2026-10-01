@@ -53,6 +53,7 @@ import { getAuth } from "@clerk/express";
 import { findMerchantAccessForUser, resolveMerchantAccess } from "../lib/merchant-access";
 import { cleanPublicUrl } from "../lib/platform-branding";
 import { cloudinaryUploadStatus, createCloudinaryUploadSignature } from "../lib/cloudinary-upload";
+import { resolveCloudinaryEnvironment } from "../lib/cloudinary-credentials";
 
 const router: IRouter = Router();
 const apiRouter: IRouter = Router();
@@ -217,14 +218,15 @@ router.post("/merchant/shop-profile/upload-signature", requireSignedIn, async (_
     res.status(404).json({ error: "Merchant onboarding is not complete." });
     return;
   }
-  if (!cloudinaryUploadStatus().configured) {
+  const environment = await resolveCloudinaryEnvironment();
+  if (!cloudinaryUploadStatus(environment).configured) {
     res.status(503).json({
-      error: "Cloudinary uploads are not configured. An administrator must set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in Replit Secrets.",
+      error: "Cloudinary uploads are not configured. An administrator must add the Cloudinary credentials in Admin → Credentials.",
     });
     return;
   }
   res.setHeader("Cache-Control", "no-store");
-  const signedUpload = createCloudinaryUploadSignature(`greenpay/merchants/${merchant.id}/profile`);
+  const signedUpload = createCloudinaryUploadSignature(`greenpay/merchants/${merchant.id}/profile`, undefined, environment);
   res.json(CreateMerchantCloudinaryUploadSignatureResponse.parse(signedUpload));
 });
 

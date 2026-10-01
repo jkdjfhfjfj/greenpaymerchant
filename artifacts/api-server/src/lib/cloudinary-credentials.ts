@@ -1,11 +1,17 @@
-import { providerCredential } from "./credential-runtime";
 import type { CloudinaryEnvironment } from "./cloudinary-upload";
 
-export async function resolveCloudinaryEnvironment(): Promise<CloudinaryEnvironment> {
+export type ProviderCredentialReader = (
+  provider: string,
+  key: string,
+) => Promise<string | null>;
+
+export async function resolveCloudinaryEnvironment(
+  readCredential: ProviderCredentialReader,
+): Promise<CloudinaryEnvironment> {
   const [cloudName, apiKey, apiSecret] = await Promise.all([
-    providerCredential("cloudinary", "CLOUDINARY_CLOUD_NAME"),
-    providerCredential("cloudinary", "CLOUDINARY_API_KEY"),
-    providerCredential("cloudinary", "CLOUDINARY_API_SECRET"),
+    readCredential("cloudinary", "CLOUDINARY_CLOUD_NAME"),
+    readCredential("cloudinary", "CLOUDINARY_API_KEY"),
+    readCredential("cloudinary", "CLOUDINARY_API_SECRET"),
   ]);
 
   return {

@@ -54,6 +54,7 @@ import { findMerchantAccessForUser, resolveMerchantAccess } from "../lib/merchan
 import { cleanPublicUrl } from "../lib/platform-branding";
 import { cloudinaryUploadStatus, createCloudinaryUploadSignature } from "../lib/cloudinary-upload";
 import { resolveCloudinaryEnvironment } from "../lib/cloudinary-credentials";
+import { providerCredential } from "../lib/credential-runtime";
 
 const router: IRouter = Router();
 const apiRouter: IRouter = Router();
@@ -218,7 +219,7 @@ router.post("/merchant/shop-profile/upload-signature", requireSignedIn, async (_
     res.status(404).json({ error: "Merchant onboarding is not complete." });
     return;
   }
-  const environment = await resolveCloudinaryEnvironment();
+  const environment = await resolveCloudinaryEnvironment(providerCredential);
   if (!cloudinaryUploadStatus(environment).configured) {
     res.status(503).json({
       error: "Cloudinary uploads are not configured. An administrator must add the Cloudinary credentials in Admin → Credentials.",

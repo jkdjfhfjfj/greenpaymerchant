@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
+import { resolveCloudinaryEnvironment } from "./cloudinary-credentials";
 import { cloudinaryUploadStatus, createCloudinaryUploadSignature } from "./cloudinary-upload";
 
 const testEnvironment = {
@@ -8,6 +9,21 @@ const testEnvironment = {
   CLOUDINARY_API_KEY: "test-api-key",
   CLOUDINARY_API_SECRET: "test-api-secret",
 };
+
+test("Cloudinary environment resolves only its three provider credentials", async () => {
+  const requested: string[] = [];
+  const environment = await resolveCloudinaryEnvironment(async (provider, key) => {
+    requested.push(`${provider}:${key}`);
+    return testEnvironment[key as keyof typeof testEnvironment] ?? null;
+  });
+
+  assert.deepEqual(environment, testEnvironment);
+  assert.deepEqual(requested, [
+    "cloudinary:CLOUDINARY_CLOUD_NAME",
+    "cloudinary:CLOUDINARY_API_KEY",
+    "cloudinary:CLOUDINARY_API_SECRET",
+  ]);
+});
 
 test("Cloudinary upload signatures cover the sorted folder and timestamp parameters", () => {
   const signature = createCloudinaryUploadSignature(

@@ -527,12 +527,12 @@ router.patch("/admin/platform-settings", async (req, res): Promise<void> => {
 
 router.get("/admin/platform-settings/cloudinary-status", async (_req, res): Promise<void> => {
   res.setHeader("Cache-Control", "no-store");
-  const environment = await resolveCloudinaryEnvironment();
+  const environment = await resolveCloudinaryEnvironment(providerCredential);
   res.json(GetAdminCloudinaryUploadStatusResponse.parse(cloudinaryUploadStatus(environment)));
 });
 
 router.post("/admin/platform-settings/upload-signature", async (_req, res): Promise<void> => {
-  const environment = await resolveCloudinaryEnvironment();
+  const environment = await resolveCloudinaryEnvironment(providerCredential);
   if (!cloudinaryUploadStatus(environment).configured) {
     res.status(503).json({
       error: "Cloudinary uploads are not configured. An administrator must add the Cloudinary credentials in Admin → Credentials.",

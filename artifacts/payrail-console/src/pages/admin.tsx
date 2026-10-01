@@ -422,7 +422,7 @@ function SettingsInner() {
               {cloudinaryStatus.data?.configured
                 ? <Note>Cloudinary uploads are enabled{cloudinaryStatus.data.cloudName ? ` for ${cloudinaryStatus.data.cloudName}` : ''}.</Note>
                 : <Note tone="warn">Cloudinary uploads are not configured. Add the Cloud Name, API Key, and API Secret in Provider credentials to enable uploads.</Note>}
-              <a className="text-link" href="/admin/credentials">Manage Cloudinary credentials</a>
+              <a className="text-link" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/admin/credentials`}>Manage Cloudinary credentials</a>
             </div>}
       </Card>
       <Card title="Platform identity" subtitle="Public details shown across the platform and onboarding.">

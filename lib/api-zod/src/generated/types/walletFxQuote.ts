@@ -16,6 +16,8 @@ export interface WalletFxQuote {
   feeAmount: number;
   targetAmount: number;
   markupBps: number;
+  scheduleMarkupBps: number;
+  currencySpreadBps: number;
   source: string;
   quotedAt: Date;
   expiresAt: Date;

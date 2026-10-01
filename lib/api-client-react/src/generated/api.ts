@@ -12024,7 +12024,7 @@ export function useListAdminProviderCredentials<TData = Awaited<ReturnType<typeo
 
 
 
-export const getSaveAdminProviderCredentialsUrl = (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary',) => {
+export const getSaveAdminProviderCredentialsUrl = (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi',) => {
 
 
 
@@ -12035,7 +12035,7 @@ export const getSaveAdminProviderCredentialsUrl = (provider: 'paystack' | 'payhe
 /**
  * @summary Encrypt and save or replace a provider's credentials
  */
-export const saveAdminProviderCredentials = async (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary',
+export const saveAdminProviderCredentials = async (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi',
     saveProviderCredentialsInput: SaveProviderCredentialsInput, options?: Parameters<typeof customFetch>[1]): Promise<ProviderCredential> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
@@ -12097,7 +12097,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SaveAdminProviderCredentialsMutationResult = NonNullable<Awaited<ReturnType<typeof saveAdminProviderCredentials>>>
     export type SaveAdminProviderCredentialsMutationBody = BodyType<SaveProviderCredentialsInput>
     export type SaveAdminProviderCredentialsMutationError = ErrorType<unknown>
-    export type SaveAdminProviderCredentialsMutationVariables = {provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary';data: BodyType<SaveProviderCredentialsInput>}
+    export type SaveAdminProviderCredentialsMutationVariables = {provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi';data: BodyType<SaveProviderCredentialsInput>}
 
     /**
  * @summary Encrypt and save or replace a provider's credentials
@@ -12113,7 +12113,7 @@ export const useSaveAdminProviderCredentials = <TError = ErrorType<unknown>,
       return useMutation(getSaveAdminProviderCredentialsMutationOptions(options));
     }
 
-export const getDeleteAdminProviderCredentialsUrl = (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary',) => {
+export const getDeleteAdminProviderCredentialsUrl = (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi',) => {
 
 
 
@@ -12124,7 +12124,7 @@ export const getDeleteAdminProviderCredentialsUrl = (provider: 'paystack' | 'pay
 /**
  * @summary Delete stored credentials and disable the selected provider
  */
-export const deleteAdminProviderCredentials = async (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary', options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+export const deleteAdminProviderCredentials = async (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi', options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
   return customFetch<void>(getDeleteAdminProviderCredentialsUrl(provider),
   {
@@ -12171,7 +12171,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type DeleteAdminProviderCredentialsMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminProviderCredentials>>>
 
     export type DeleteAdminProviderCredentialsMutationError = ErrorType<unknown>
-    export type DeleteAdminProviderCredentialsMutationVariables = {provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary'}
+    export type DeleteAdminProviderCredentialsMutationVariables = {provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi'}
 
     /**
  * @summary Delete stored credentials and disable the selected provider

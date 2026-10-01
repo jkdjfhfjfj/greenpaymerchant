@@ -76,6 +76,7 @@ export const walletConversionsTable = pgTable("greenpay_wallet_conversions", {
   sourceRate: numeric("source_rate", { precision: 24, scale: 12, mode: "number" }).notNull(),
   effectiveRate: numeric("effective_rate", { precision: 24, scale: 12, mode: "number" }).notNull(),
   markupBps: integer("markup_bps").notNull(),
+  currencySpreadBps: integer("currency_spread_bps").notNull().default(0),
   feeScheduleId: integer("fee_schedule_id"),
   rateSource: varchar("rate_source", { length: 160 }).notNull(),
   rateSourceDate: varchar("rate_source_date", { length: 10 }).notNull(),

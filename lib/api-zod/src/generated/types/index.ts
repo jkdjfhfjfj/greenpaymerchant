@@ -236,6 +236,8 @@ export * from './platformOperationalStatusServicesItemStatus';
 export * from './platformOperationalStatusStatus';
 export * from './platformSettings';
 export * from './platformSettingsUpdate';
+export * from './platformSettingsUpdateWalletFxCurrencySpreads';
+export * from './platformSettingsWalletFxCurrencySpreads';
 export * from './providerCredential';
 export * from './providerCredentialFieldsItem';
 export * from './providerCredentialList';

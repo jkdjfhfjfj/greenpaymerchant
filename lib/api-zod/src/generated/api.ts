@@ -920,6 +920,8 @@ export const GetMerchantWalletFxQuoteResponse = zod.object({
   "feeAmount": zod.number(),
   "targetAmount": zod.number(),
   "markupBps": zod.number().int(),
+  "scheduleMarkupBps": zod.number().int(),
+  "currencySpreadBps": zod.number().int(),
   "source": zod.string(),
   "quotedAt": zod.coerce.date(),
   "expiresAt": zod.coerce.date(),
@@ -965,6 +967,8 @@ export const ConvertMerchantWalletFundsResponse = zod.object({
   "feeAmount": zod.number(),
   "targetAmount": zod.number(),
   "markupBps": zod.number().int(),
+  "scheduleMarkupBps": zod.number().int(),
+  "currencySpreadBps": zod.number().int(),
   "source": zod.string(),
   "quotedAt": zod.coerce.date(),
   "expiresAt": zod.coerce.date(),
@@ -5218,7 +5222,7 @@ export const UpdateAdminFxRateResponse = zod.object({
  */
 export const ListAdminProviderCredentialsResponse = zod.object({
   "items": zod.array(zod.object({
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi']),
   "configured": zod.boolean(),
   "enabled": zod.boolean(),
   "fields": zod.array(zod.object({
@@ -5237,7 +5241,7 @@ export const ListAdminProviderCredentialsResponse = zod.object({
  * @summary Encrypt and save or replace a provider's credentials
  */
 export const SaveAdminProviderCredentialsParams = zod.object({
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary'])
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi'])
 })
 
 export const SaveAdminProviderCredentialsBody = zod.object({
@@ -5246,7 +5250,7 @@ export const SaveAdminProviderCredentialsBody = zod.object({
 })
 
 export const SaveAdminProviderCredentialsResponse = zod.object({
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi']),
   "configured": zod.boolean(),
   "enabled": zod.boolean(),
   "fields": zod.array(zod.object({
@@ -5263,7 +5267,7 @@ export const SaveAdminProviderCredentialsResponse = zod.object({
  * @summary Delete stored credentials and disable the selected provider
  */
 export const DeleteAdminProviderCredentialsParams = zod.object({
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary'])
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi'])
 })
 
 export const DeleteAdminProviderCredentialsResponse = zod.void()
@@ -5285,6 +5289,9 @@ export const getAdminPlatformSettingsResponseContactAddressMax = 250;
 
 export const getAdminPlatformSettingsResponseContactWhatsappMax = 100;
 
+export const getAdminPlatformSettingsResponseWalletFxCurrencySpreadsMinOne = 0;
+export const getAdminPlatformSettingsResponseWalletFxCurrencySpreadsMaxOne = 10000;
+
 
 
 export const GetAdminPlatformSettingsResponse = zod.object({
@@ -5301,7 +5308,8 @@ export const GetAdminPlatformSettingsResponse = zod.object({
   "contactAddress": zod.string().max(getAdminPlatformSettingsResponseContactAddressMax),
   "contactWhatsapp": zod.string().max(getAdminPlatformSettingsResponseContactWhatsappMax),
   "logoUrl": zod.string().url().nullish(),
-  "faviconUrl": zod.string().url().nullish()
+  "faviconUrl": zod.string().url().nullish(),
+  "walletFxCurrencySpreads": zod.record(zod.string(), zod.number().int().min(getAdminPlatformSettingsResponseWalletFxCurrencySpreadsMinOne).max(getAdminPlatformSettingsResponseWalletFxCurrencySpreadsMaxOne))
 })
 
 
@@ -5321,6 +5329,9 @@ export const updateAdminPlatformSettingsBodyContactAddressMax = 250;
 
 export const updateAdminPlatformSettingsBodyContactWhatsappMax = 100;
 
+export const updateAdminPlatformSettingsBodyWalletFxCurrencySpreadsMinOne = 0;
+export const updateAdminPlatformSettingsBodyWalletFxCurrencySpreadsMaxOne = 10000;
+
 
 
 export const UpdateAdminPlatformSettingsBody = zod.object({
@@ -5337,7 +5348,8 @@ export const UpdateAdminPlatformSettingsBody = zod.object({
   "contactAddress": zod.string().max(updateAdminPlatformSettingsBodyContactAddressMax).optional(),
   "contactWhatsapp": zod.string().max(updateAdminPlatformSettingsBodyContactWhatsappMax).optional(),
   "logoUrl": zod.string().url().nullish(),
-  "faviconUrl": zod.string().url().nullish()
+  "faviconUrl": zod.string().url().nullish(),
+  "walletFxCurrencySpreads": zod.record(zod.string(), zod.number().int().min(updateAdminPlatformSettingsBodyWalletFxCurrencySpreadsMinOne).max(updateAdminPlatformSettingsBodyWalletFxCurrencySpreadsMaxOne)).optional()
 })
 
 export const updateAdminPlatformSettingsResponsePlatformNameMax = 100;
@@ -5352,6 +5364,9 @@ export const updateAdminPlatformSettingsResponseContactPhoneMax = 40;
 export const updateAdminPlatformSettingsResponseContactAddressMax = 250;
 
 export const updateAdminPlatformSettingsResponseContactWhatsappMax = 100;
+
+export const updateAdminPlatformSettingsResponseWalletFxCurrencySpreadsMinOne = 0;
+export const updateAdminPlatformSettingsResponseWalletFxCurrencySpreadsMaxOne = 10000;
 
 
 
@@ -5369,7 +5384,8 @@ export const UpdateAdminPlatformSettingsResponse = zod.object({
   "contactAddress": zod.string().max(updateAdminPlatformSettingsResponseContactAddressMax),
   "contactWhatsapp": zod.string().max(updateAdminPlatformSettingsResponseContactWhatsappMax),
   "logoUrl": zod.string().url().nullish(),
-  "faviconUrl": zod.string().url().nullish()
+  "faviconUrl": zod.string().url().nullish(),
+  "walletFxCurrencySpreads": zod.record(zod.string(), zod.number().int().min(updateAdminPlatformSettingsResponseWalletFxCurrencySpreadsMinOne).max(updateAdminPlatformSettingsResponseWalletFxCurrencySpreadsMaxOne))
 })
 
 

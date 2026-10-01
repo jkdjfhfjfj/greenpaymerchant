@@ -1,8 +1,9 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, hkdfSync, randomBytes, randomUUID } from "node:crypto";
 import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { COLLECTION_CURRENCIES } from "@workspace/api-zod";
 import {
   adminAuditLogTable, db, feeSchedulesTable, merchantsTable, merchantWalletsTable,
-  refundsTable, settlementsTable, transactionsTable, walletConversionsTable,
+  platformSettingsTable, refundsTable, settlementsTable, transactionsTable, walletConversionsTable,
   walletFxRatesTable, walletJournalEntriesTable, walletJournalsTable,
   walletPayoutRequestsTable, walletSettlementConfirmationsTable, walletRefundAdjustmentsTable,
   walletPayoutDestinationsTable, walletPayoutDestinationVersionsTable,
@@ -25,13 +26,13 @@ import {
 import { CUSTOMER_REIMBURSED_REFUND_STATUSES, OPEN_REFUND_RESERVATION_STATUSES } from "./payment-safety";
 import {
   calculateWalletConversion, canApplyWalletRefundAdjustment, canReserveWalletFunds,
-  decimalToMinor, eligibleSettlementFunding, minorToDecimal, minorToNumber,
+  combineWalletFxMarkupBps, decimalToMinor, eligibleSettlementFunding, minorToDecimal, minorToNumber,
   payoutNeedsSecondApproval, payoutProviderOutcome, proportionalNetRefundReversal, shouldReleasePayoutHold,
 } from "./wallet-math";
+import { providerCredential } from "./credential-runtime";
+import { fetchWalletFxRateCandidate, sourcePublicationDateIsFresh } from "./wallet-fx-rates";
 
-const RATE_SOURCE = "Fawaz Ahmed currency-api daily ISO-currency reference rates (jsDelivr/GitHub mirrors; target units per one source unit)";
 const FX_CACHE_MS = 6 * 60 * 60 * 1000;
-const FX_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 const SLL_FX_UNSUPPORTED_ERROR =
   "FX quotes involving SLL are disabled until Payzaapi's legacy SLL amount scale is verified; Greenpay keeps SLL balances and payment-link amounts unchanged and never substitutes SLE rates.";
 
@@ -92,15 +93,6 @@ function maskDestinationName(value: string): string {
 
 function requestHash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
-}
-
-function sourcePublicationDateIsFresh(sourceDate: string | undefined, now: Date): boolean {
-  if (!sourceDate || !/^\d{4}-\d{2}-\d{2}$/.test(sourceDate)) return false;
-  const sourceDay = new Date(`${sourceDate}T00:00:00.000Z`);
-  return !Number.isNaN(sourceDay.getTime()) &&
-    sourceDay.toISOString().slice(0, 10) === sourceDate &&
-    sourceDay.getTime() <= now.getTime() + 60_000 &&
-    now.getTime() - sourceDay.getTime() <= FX_MAX_AGE_MS;
 }
 
 function userAmountToMinor(value: number): bigint {
@@ -403,12 +395,19 @@ export async function listMerchantWallets(merchantId: number) {
   const [merchant] = await db.select({ baseCurrency: merchantsTable.baseCurrency }).from(merchantsTable)
     .where(eq(merchantsTable.id, merchantId)).limit(1);
   if (!merchant) throw new ApiError(404, "Merchant account not found.");
-  await db.insert(merchantWalletsTable).values({
-    merchantId, currency: merchant.baseCurrency,
-  }).onConflictDoNothing();
+  const baseCurrency = merchant.baseCurrency.toUpperCase();
+  const walletCurrencies = new Set([...COLLECTION_CURRENCIES.map(({ code }) => code), baseCurrency]);
+  await db.insert(merchantWalletsTable).values([...walletCurrencies].map((currency) => ({
+    merchantId, currency,
+  }))).onConflictDoNothing();
   const rows = await db.select().from(merchantWalletsTable)
     .where(eq(merchantWalletsTable.merchantId, merchantId))
     .orderBy(merchantWalletsTable.currency);
+  rows.sort((left, right) => left.currency === baseCurrency
+    ? -1
+    : right.currency === baseCurrency
+      ? 1
+      : left.currency.localeCompare(right.currency));
   return rows.map(walletAccountDto);
 }
 
@@ -476,72 +475,34 @@ async function getMarketRate(fromCurrency: string, toCurrency: string) {
   };
 
   try {
-    const baseCode = from.toLowerCase();
-    const targetCode = to.toLowerCase();
-    const endpoints = [
-      `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${baseCode}.json`,
-      `https://raw.githubusercontent.com/fawazahmed0/currency-api/latest/v1/currencies/${baseCode}.json`,
-    ];
-    let body: Record<string, unknown> | undefined;
-    let lastFailure: unknown;
-    for (const url of endpoints) {
-      try {
-        const response = await fetch(url, {
-          headers: { Accept: "application/json" },
-          signal: AbortSignal.timeout(8_000),
-        });
-        if (!response.ok) throw new Error(`Currency reference source responded with ${response.status}.`);
-        body = asObject(await response.json());
-        break;
-      } catch (error) {
-        lastFailure = error;
-      }
-    }
-    if (!body) throw lastFailure ?? new Error("Currency reference sources are unavailable.");
-    const sourceDate = stringValue(body.date);
-    const rates = asObject(body[baseCode]);
-    const rawRate = numberValue(rates[targetCode]);
-    if (!sourceDate || !/^\d{4}-\d{2}-\d{2}$/.test(sourceDate)) {
-      throw new Error("Currency reference source returned a missing or invalid publication date.");
-    }
-    const sourceDay = new Date(`${sourceDate}T00:00:00.000Z`);
-    if (Number.isNaN(sourceDay.getTime()) || sourceDay.toISOString().slice(0, 10) !== sourceDate ||
-        sourceDay.getTime() > now.getTime() + 60_000) {
-      throw new Error("Currency reference source returned an invalid or future publication date.");
-    }
-    if (now.getTime() - sourceDay.getTime() > FX_MAX_AGE_MS) {
-      throw new Error("Currency reference rate publication date is stale.");
-    }
-    if (rawRate === undefined || !Number.isFinite(rawRate) || rawRate <= 0) {
-      throw new Error("Currency reference source returned an invalid ISO-currency unit rate.");
-    }
+    const apiKey = await providerCredential("currencyapi", "CURRENCYAPI_API_KEY");
+    const fresh = await fetchWalletFxRateCandidate(from, to, apiKey, now);
+    if (!fresh) throw new Error("All public currency-reference sources are unavailable, stale, or invalid.");
     const fetchedAt = now;
     const expiresAt = new Date(now.getTime() + FX_CACHE_MS);
     await db.insert(walletFxRatesTable).values({
-      fromCurrency: from, toCurrency: to, rate: rawRate, source: RATE_SOURCE,
-      sourceDate, fetchedAt, expiresAt,
+      fromCurrency: from, toCurrency: to, rate: fresh.rate, source: fresh.source,
+      sourceDate: fresh.sourceDate, fetchedAt, expiresAt,
     }).onConflictDoUpdate({
       target: [
         walletFxRatesTable.fromCurrency,
         walletFxRatesTable.toCurrency,
         walletFxRatesTable.sourceDate,
       ],
-      set: { rate: rawRate, source: RATE_SOURCE, fetchedAt, expiresAt },
+      set: { rate: fresh.rate, source: fresh.source, fetchedAt, expiresAt },
     });
     const [rateRow] = await db.select().from(walletFxRatesTable).where(and(
       eq(walletFxRatesTable.fromCurrency, from),
       eq(walletFxRatesTable.toCurrency, to),
-      eq(walletFxRatesTable.sourceDate, sourceDate),
+      eq(walletFxRatesTable.sourceDate, fresh.sourceDate),
     )).limit(1);
-    if (!rateRow || rateRow.expiresAt < now) throw new Error("Frankfurter rate cache did not persist.");
+    if (!rateRow || rateRow.expiresAt < now) throw new Error("Wallet FX rate cache did not persist.");
     return {
       rate: String(rateRow.rate), source: rateRow.source, sourceDate: rateRow.sourceDate,
       fetchedAt: rateRow.fetchedAt, expiresAt: rateRow.expiresAt,
     };
-  } catch (error) {
-    throw new ApiError(503, error instanceof Error && error.message.includes("stale")
-      ? "The public currency-reference rate is stale. Wallet conversion is unavailable until a fresh rate is published."
-      : "The public currency-reference API is unavailable or returned an invalid rate, and no fresh cached rate can be used.");
+  } catch {
+    throw new ApiError(503, "Public currency-reference providers are unavailable or returned stale/invalid data, and no fresh cached rate can be used.");
   }
 }
 
@@ -551,6 +512,17 @@ async function getWalletFeeSchedule(merchantId: number) {
   const [global] = specific ? [] : await db.select().from(feeSchedulesTable)
     .where(isNull(feeSchedulesTable.merchantId)).limit(1);
   return specific ?? global ?? null;
+}
+
+async function getWalletCurrencySpreadBps(currency: string): Promise<number> {
+  const [settings] = await db.select({
+    spreads: platformSettingsTable.walletFxCurrencySpreads,
+  }).from(platformSettingsTable).where(eq(platformSettingsTable.id, 1)).limit(1);
+  const spread = settings?.spreads?.[currency] ?? 0;
+  if (!Number.isInteger(spread) || spread < 0 || spread > 10_000) {
+    throw new ApiError(503, `The configured ${currency} wallet FX spread is invalid.`);
+  }
+  return spread;
 }
 
 export async function quoteWalletConversion(merchantId: number, input: {
@@ -565,13 +537,21 @@ export async function quoteWalletConversion(merchantId: number, input: {
   if (sourceMinor <= 0n) throw new ApiError(400, "Enter an amount greater than zero.");
   const rate = await getMarketRate(fromCurrency, toCurrency);
   const schedule = await getWalletFeeSchedule(merchantId);
+  const scheduleMarkupBps = schedule?.fxMarkupBps ?? 0;
+  const currencySpreadBps = await getWalletCurrencySpreadBps(toCurrency);
+  let markupBps: number;
+  try {
+    markupBps = combineWalletFxMarkupBps(scheduleMarkupBps, currencySpreadBps);
+  } catch (error) {
+    throw new ApiError(409, error instanceof Error ? error.message : "The configured wallet FX markup is invalid.");
+  }
   const flatCurrency = schedule?.currency.toUpperCase();
   if (schedule && Number(schedule.flatAmount) > 0 && flatCurrency !== toCurrency) {
     throw new ApiError(409, `The active fee schedule flat fee is denominated in ${flatCurrency}; this quote cannot safely apply it.`);
   }
   const flatFeeMinor = schedule ? decimalToMinor(schedule.flatAmount) : 0n;
   const calculation = calculateWalletConversion({
-    sourceMinor, sourceRate: rate.rate, markupBps: schedule?.fxMarkupBps ?? 0,
+    sourceMinor, sourceRate: rate.rate, markupBps,
     feePercentage: schedule ? String(schedule.percentage) : "0", flatFeeMinor,
   });
   const now = new Date();
@@ -585,7 +565,9 @@ export async function quoteWalletConversion(merchantId: number, input: {
     effectiveRate: Number(calculation.effectiveRateScaled) / 1_000_000_000_000,
     feeAmount: minorToNumber(calculation.feeMinor),
     targetAmount: minorToNumber(calculation.targetMinor),
-    markupBps: schedule?.fxMarkupBps ?? 0,
+    markupBps,
+    scheduleMarkupBps,
+    currencySpreadBps,
     source: rate.source,
     quotedAt: rate.fetchedAt,
     expiresAt: rate.expiresAt,
@@ -664,6 +646,7 @@ export async function convertWalletFunds(merchantId: number, input: {
       sourceRate: Number(quote.sourceRate),
       effectiveRate: Number(quote.effectiveRate),
       markupBps: quote.markupBps,
+      currencySpreadBps: quote.currencySpreadBps,
       feeScheduleId: quote.schedule?.id ?? null,
       rateSource: quote.source,
       rateSourceDate: quote.rateSourceDate,
@@ -707,6 +690,8 @@ function walletConversionDto(row: typeof walletConversionsTable.$inferSelect) {
     feeAmount: minorToNumber(row.feeMinor),
     targetAmount: minorToNumber(row.targetMinor),
     markupBps: row.markupBps,
+    scheduleMarkupBps: row.markupBps - row.currencySpreadBps,
+    currencySpreadBps: row.currencySpreadBps,
     source: row.rateSource,
     quotedAt: row.rateFetchedAt,
     expiresAt: row.rateFetchedAt,

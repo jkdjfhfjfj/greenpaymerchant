@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { boolean, index, integer, jsonb, numeric, pgTable, serial, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 
 export const merchantsTable = pgTable("greenpay_merchants", {
@@ -108,6 +109,7 @@ export const platformSettingsTable = pgTable("greenpay_platform_settings", {
   contactWhatsapp: varchar("contact_whatsapp", { length: 100 }).notNull().default(""),
   logoUrl: text("logo_url"),
   faviconUrl: text("favicon_url"),
+  walletFxCurrencySpreads: jsonb("wallet_fx_currency_spreads").$type<Record<string, number>>().notNull().default(sql`'{}'::jsonb`),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

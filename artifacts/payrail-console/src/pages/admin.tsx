@@ -366,6 +366,7 @@ function RatesInner() {
   const [edit, setEdit] = useState<{ r: AdminFxRate | null } | null>(null);
   const items = q.data?.items ?? [];
   return <><Heading eyebrow="ADMIN" title="Exchange rates" subtitle="Rates feed merchant quotes only. They do not settle funds with a provider." action={<Btn onClick={() => setEdit({ r: null })} testId="button-new-rate"><Plus size={15} />New rate</Btn>} />
+    <WalletFxSpreadSettings />
     <Err error={up.error} />
     <Async q={q} empty={!items.length} emptyTitle="No exchange rates" emptyBody="Merchants cannot get quotes until an active rate exists." emptyAction={<Btn onClick={() => setEdit({ r: null })}>Create rate</Btn>}><div className="table-wrap"><table className="dt"><thead><tr><th>Pair</th><th className="num">Rate</th><th>Source</th><th>Effective</th><th>Expires</th><th>State</th><th /></tr></thead><tbody>
       {items.map((r) => <tr key={r.id} data-testid={`row-rate-${r.id}`}><td><strong>{r.from} / {r.to}</strong></td><td className="num mono">{r.rate}</td><td>{r.source}</td><td>{fmtDate(r.effectiveAt)}</td><td>{fmtDate(r.expiresAt)}</td><td><Pill value={r.active ? 'active' : 'disabled'} /></td><td><div className="row-actions"><Btn variant="secondary" small onClick={() => setEdit({ r })}><Pencil size={13} />Edit</Btn><Btn variant="quiet" small disabled={up.isPending} onClick={() => up.mutate({ id: r.id, data: { active: !r.active } }, { onSuccess: () => { void inv(); } })}>{r.active ? 'Deactivate' : 'Activate'}</Btn></div></td></tr>)}
@@ -394,8 +395,60 @@ function RateEdit({ r, onClose }: { r: AdminFxRate | null; onClose: () => void }
     <Err error={err} /><Btn type="submit" disabled={create.isPending || up.isPending} testId="button-save-rate">{(create.isPending || up.isPending) && <LoaderCircle size={14} className="spin" />}Save rate</Btn></form></Modal>;
 }
 
+function WalletFxSpreadSettings() {
+  const settings = useGetAdminPlatformSettings();
+  const save = useUpdateAdminPlatformSettings();
+  const invalidate = useInvalidateAll();
+  const currencies = CURRENCIES.filter((currency) => currency !== "SLL");
+  const [spreads, setSpreads] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!settings.data) return;
+    setSpreads(Object.fromEntries(currencies.map((currency) => [
+      currency,
+      String(settings.data.walletFxCurrencySpreads[currency] ?? 0),
+    ])));
+  }, [settings.data]);
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const walletFxCurrencySpreads = Object.fromEntries(currencies.map((currency) => [
+      currency,
+      Number(spreads[currency] ?? 0),
+    ]));
+    save.mutate({ data: { walletFxCurrencySpreads } }, { onSuccess: () => { void invalidate(); } });
+  }
+
+  return <Card title="Wallet conversion spreads" subtitle="Per-target-currency spreads are added to the active fee schedule's FX markup.">
+    <form className="form-stack" onSubmit={submit}>
+      <Note>Quotes use a configured CurrencyAPI key when available, then fall back to public exchange-rate feeds. Add or replace the optional key in <a className="text-link" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/admin/credentials`}>Provider credentials</a>. Combined markup must stay below 10,000 bps. SLL conversion remains disabled.</Note>
+      <Async q={settings}>
+        <div className="form-grid">
+          {currencies.map((currency) => <Field key={currency} label={`${currency} target spread`} hint="Basis points added to schedule markup">
+            <input
+              type="number"
+              min="0"
+              max="10000"
+              step="1"
+              required
+              value={spreads[currency] ?? ""}
+              onChange={(event) => setSpreads((current) => ({ ...current, [currency]: event.target.value }))}
+              data-testid={`input-wallet-fx-spread-${currency}`}
+            />
+          </Field>)}
+        </div>
+      </Async>
+      <Err error={save.error} />
+      <Btn type="submit" disabled={!settings.data || save.isPending} testId="button-save-wallet-fx-spreads">
+        {save.isPending && <LoaderCircle size={14} className="spin" />}Save wallet FX spreads
+      </Btn>
+    </form>
+  </Card>;
+}
+
 const CRED_FIELDS: Record<string, string[]> = {
   paystack: ['PAYSTACK_SECRET_KEY'], payhero: ['PAYHERO_BASIC_AUTH', 'PAYHERO_CHANNEL_ID'], payzaapi: ['PAYZAAPI_API_KEY', 'PAYZA_PUBLIC_KEY', 'PAYZA_SECRET_KEY', 'PAYZA_WEBHOOK_SECRET'],
+  currencyapi: ['CURRENCYAPI_API_KEY'],
   didit: ['DIDIT_API_KEY', 'DIDIT_WEBHOOK_SECRET', 'DIDIT_WORKFLOW_ID', 'DIDIT_KYB_WORKFLOW_ID'],
   cloudinary: ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'],
 };

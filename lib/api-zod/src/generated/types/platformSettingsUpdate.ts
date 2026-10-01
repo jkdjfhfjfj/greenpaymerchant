@@ -5,6 +5,7 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { PlatformSettingsUpdateWalletFxCurrencySpreads } from './platformSettingsUpdateWalletFxCurrencySpreads';
 
 export interface PlatformSettingsUpdate {
   newMerchantSignups?: boolean;
@@ -35,4 +36,5 @@ export interface PlatformSettingsUpdate {
   logoUrl?: string | null;
   /** @nullable */
   faviconUrl?: string | null;
+  walletFxCurrencySpreads?: PlatformSettingsUpdateWalletFxCurrencySpreads;
 }

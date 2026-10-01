@@ -165,7 +165,7 @@ function WalletInner() {
 
   return <>
     <Heading eyebrow="MERCHANT / WALLET" title="Funded balances" subtitle="Only administrator-confirmed provider settlements are withdrawable. Payment success and T+3 forecasts are not wallet funds." />
-    <Async q={wallets} empty={!accounts.length} emptyTitle="No currency wallets" emptyBody="A zero-balance wallet is created for your merchant base currency. Other currency wallets appear only after an administrator confirms settlement evidence.">
+    <Async q={wallets} empty={!accounts.length} emptyTitle="No currency wallets" emptyBody="Supported zero-balance wallets are created automatically. Confirmed settlement evidence is still required to fund them.">
       <div className="metric-grid">
         {accounts.map((account) => <section className="metric-card tone-mint" key={account.currency}>
           <div className="metric-top"><span>{account.currency} available</span><span className="metric-icon"><WalletCards size={17} /></span></div>
@@ -176,7 +176,7 @@ function WalletInner() {
     </Async>
 
     <div className="split" style={{ marginTop: 16 }}>
-      <Card title="Convert wallet funds" subtitle="Fresh public market rate, existing platform markup and fee schedule. Conversion is an internal allocation—not external bank FX.">
+      <Card title="Convert wallet funds" subtitle="Fresh public market rate, platform markup, target-currency spread and fee schedule. Conversion is an internal allocation—not external bank FX.">
         <form className="form-stack" onSubmit={submitConversion}>
           <div className="form-grid">
             <Field label="From wallet"><select value={from} onChange={(event) => { setFromCurrency(event.target.value); setToCurrency(''); }} required data-testid="select-wallet-from">{accounts.map((account) => <option key={account.currency}>{account.currency}</option>)}</select></Field>
@@ -186,7 +186,7 @@ function WalletInner() {
             <input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required data-testid="input-wallet-conversion-amount" />
           </Field>
           <Async q={quote} empty={!quoteEnabled} emptyTitle="Enter a source amount" emptyBody="A current market rate will be requested after both wallets and an amount are selected.">
-            {quote.data && <div className="route-hint"><ArrowLeftRight size={15} /><span>{money(quote.data.sourceAmount, quote.data.fromCurrency)} at {quote.data.effectiveRate} → <strong>{money(quote.data.targetAmount, quote.data.toCurrency)}</strong>. Fee {money(quote.data.feeAmount, quote.data.toCurrency)}; rate dated {quote.data.quotedAt.toLocaleString()}.</span></div>}
+            {quote.data && <div className="route-hint"><ArrowLeftRight size={15} /><span>{money(quote.data.sourceAmount, quote.data.fromCurrency)} at {quote.data.effectiveRate} → <strong>{money(quote.data.targetAmount, quote.data.toCurrency)}</strong>. Fee {money(quote.data.feeAmount, quote.data.toCurrency)}; schedule markup {quote.data.scheduleMarkupBps} bps + {quote.data.currencySpreadBps} bps {quote.data.toCurrency} spread. Rate from {quote.data.source}, dated {quote.data.quotedAt.toLocaleString()}.</span></div>}
           </Async>
           {quote.isError && <Note tone="danger">{(quote.error as Error)?.message || 'A fresh market quote is unavailable; conversion is disabled.'}</Note>}
           {message && <Note>{message}</Note>}
@@ -199,7 +199,7 @@ function WalletInner() {
       <Card title="Balance policy" subtitle="Funding and payout safeguards">
         <div className="form-stack">
           <Note tone="warn">New wallets start at zero. Successful payment transactions, projected settlements, and expected T+3 dates never increase an available balance.</Note>
-          <Note>Wallet movements use integer minor units and a balanced, append-only journal. Conversion quotes retain their rate date, execution rate, markup and fee.</Note>
+          <Note>Wallet movements use integer minor units and a balanced, append-only journal. Conversion quotes retain their rate date, execution rate, schedule markup, target-currency spread and fee.</Note>
           <Note tone="warn">Payout requests reserve funds for administrator review. Provider configuration and approval are required before submission; uncertain outcomes stay held.</Note>
         </div>
       </Card>

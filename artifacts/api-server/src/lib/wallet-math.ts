@@ -40,6 +40,18 @@ export function roundDivide(numerator: bigint, denominator: bigint): bigint {
   return (numerator + denominator / 2n) / denominator;
 }
 
+export function combineWalletFxMarkupBps(scheduleMarkupBps: number, currencySpreadBps: number): number {
+  if (!Number.isInteger(scheduleMarkupBps) || scheduleMarkupBps < 0 || scheduleMarkupBps > 10_000 ||
+      !Number.isInteger(currencySpreadBps) || currencySpreadBps < 0 || currencySpreadBps > 10_000) {
+    throw new Error("Wallet FX markup and currency spread must be integer basis points from 0 to 10,000.");
+  }
+  const combined = scheduleMarkupBps + currencySpreadBps;
+  if (combined >= 10_000) {
+    throw new Error("The combined fee-schedule markup and target-currency spread must be below 10,000 bps.");
+  }
+  return combined;
+}
+
 export function calculateWalletConversion(input: {
   sourceMinor: bigint;
   sourceRate: number | string;

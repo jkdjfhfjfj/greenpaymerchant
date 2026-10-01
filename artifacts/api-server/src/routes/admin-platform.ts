@@ -45,7 +45,7 @@ import {
 } from "../lib/platform-admin";
 
 const router: IRouter = Router();
-const providers = ["paystack", "payhero", "payzaapi", "didit", "cloudinary"] as const;
+const providers = ["paystack", "payhero", "payzaapi", "didit", "cloudinary", "currencyapi"] as const;
 
 function collectionCurrencyAvailabilityDto(row: typeof collectionCurrencyAvailabilityTable.$inferSelect) {
   return {
@@ -363,6 +363,7 @@ function settingsDto(row: typeof platformSettingsTable.$inferSelect) {
     contactWhatsapp: row.contactWhatsapp,
     logoUrl: row.logoUrl,
     faviconUrl: row.faviconUrl,
+    walletFxCurrencySpreads: row.walletFxCurrencySpreads ?? {},
   };
 }
 
@@ -372,6 +373,7 @@ const defaultSettings = {
   platformName: "Greenpay", baseCurrency: "USD",
   contactEmail: "support@greenpay.africa", contactPhone: "",
   contactAddress: "", contactWhatsapp: "", logoUrl: null, faviconUrl: null,
+  walletFxCurrencySpreads: {},
 };
 
 async function credentialDto(provider: typeof providers[number]) {
@@ -392,6 +394,8 @@ async function credentialDto(provider: typeof providers[number]) {
         ? fields.some((field) => field.name === "DIDIT_API_KEY" && field.present) &&
           fields.some((field) => field.name === "DIDIT_WORKFLOW_ID" && field.present) &&
           fields.some((field) => field.name === "DIDIT_KYB_WORKFLOW_ID" && field.present)
+        : provider === "currencyapi"
+          ? fields.some((field) => field.name === "CURRENCYAPI_API_KEY" && field.present)
         : provider === "cloudinary"
           ? fields.some((field) => field.name === "CLOUDINARY_CLOUD_NAME" && field.present) &&
             fields.some((field) => field.name === "CLOUDINARY_API_KEY" && field.present) &&
@@ -737,6 +741,22 @@ router.patch("/admin/platform-settings", async (req, res): Promise<void> => {
       const { assertSupportedCurrency } = await import("../lib/greenpay-provider");
       assertSupportedCurrency(updates.baseCurrency);
     }
+    if (updates.walletFxCurrencySpreads !== undefined) {
+      const normalized: Record<string, number> = {};
+      for (const [rawCurrency, spreadBps] of Object.entries(updates.walletFxCurrencySpreads)) {
+        const currency = supportedCollectionCurrencyCode(rawCurrency);
+        if (!currency || currency === "SLL" || !Number.isInteger(spreadBps) || spreadBps < 0 || spreadBps > 10_000) {
+          res.status(400).json({ error: "Wallet FX spreads must use a supported non-SLL currency and integer basis points from 0 to 10,000." });
+          return;
+        }
+        if (normalized[currency] !== undefined) {
+          res.status(400).json({ error: "Wallet FX spread currencies must be unique." });
+          return;
+        }
+        normalized[currency] = spreadBps;
+      }
+      updates.walletFxCurrencySpreads = normalized;
+    }
     for (const key of ["contactEmail", "contactPhone", "contactAddress", "contactWhatsapp"] as const) {
       if (updates[key] !== undefined) updates[key] = updates[key]!.trim();
     }
@@ -754,7 +774,10 @@ router.patch("/admin/platform-settings", async (req, res): Promise<void> => {
   const [row] = existing.length
     ? await db.update(platformSettingsTable).set({ ...updates, updatedAt: new Date() }).where(eq(platformSettingsTable.id, 1)).returning()
     : await db.insert(platformSettingsTable).values({ id: 1, ...updates }).returning();
-  await audit(req, "platform_settings.updated", "platform", `Changed ${Object.keys(parsed.data).join(", ")}. The base currency is a display and onboarding default; existing balances were not converted.`);
+  const spreadAudit = updates.walletFxCurrencySpreads
+    ? ` Target-currency wallet FX spreads (bps): ${Object.entries(updates.walletFxCurrencySpreads).map(([currency, bps]) => `${currency}=${bps}`).join(", ") || "none"}.`
+    : "";
+  await audit(req, "platform_settings.updated", "platform", `Changed ${Object.keys(parsed.data).join(", ")}.${spreadAudit} The base currency is a display and onboarding default; existing balances were not converted.`);
   res.json(UpdateAdminPlatformSettingsResponse.parse(settingsDto(row)));
 });
 

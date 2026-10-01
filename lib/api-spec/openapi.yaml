@@ -2408,7 +2408,7 @@ paths:
         - name: provider
           in: path
           required: true
-          schema: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary] }
+          schema: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary, currencyapi] }
       requestBody:
         required: true
         content:
@@ -2428,7 +2428,7 @@ paths:
         - name: provider
           in: path
           required: true
-          schema: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary] }
+          schema: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary, currencyapi] }
       responses:
         "204": { description: Provider credentials deleted }
   /admin/platform-settings:
@@ -3110,7 +3110,7 @@ components:
           items: { $ref: "#/components/schemas/WalletLedgerEntry" }
     WalletFxQuote:
       type: object
-      required: [quoteId, fromCurrency, toCurrency, sourceAmount, sourceRate, effectiveRate, feeAmount, targetAmount, markupBps, source, quotedAt, expiresAt, note]
+      required: [quoteId, fromCurrency, toCurrency, sourceAmount, sourceRate, effectiveRate, feeAmount, targetAmount, markupBps, scheduleMarkupBps, currencySpreadBps, source, quotedAt, expiresAt, note]
       properties:
         quoteId: { type: string }
         fromCurrency: { type: string }
@@ -3121,6 +3121,8 @@ components:
         feeAmount: { type: number }
         targetAmount: { type: number }
         markupBps: { type: integer }
+        scheduleMarkupBps: { type: integer }
+        currencySpreadBps: { type: integer }
         source: { type: string }
         quotedAt: { type: string, format: date-time }
         expiresAt: { type: string, format: date-time }
@@ -4487,7 +4489,7 @@ components:
       type: object
       required: [provider, configured, enabled, fields, updatedAt, storage]
       properties:
-        provider: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary] }
+        provider: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary, currencyapi] }
         configured: { type: boolean }
         enabled: { type: boolean }
         fields:
@@ -4519,7 +4521,7 @@ components:
           additionalProperties: { type: string }
     PlatformSettings:
       type: object
-      required: [newMerchantSignups, paymentsEnabled, payoutsEnabled, refundsEnabled, apiAccessEnabled, kycRequired, platformName, baseCurrency, contactEmail, contactPhone, contactAddress, contactWhatsapp]
+      required: [newMerchantSignups, paymentsEnabled, payoutsEnabled, refundsEnabled, apiAccessEnabled, kycRequired, platformName, baseCurrency, contactEmail, contactPhone, contactAddress, contactWhatsapp, walletFxCurrencySpreads]
       properties:
         newMerchantSignups: { type: boolean }
         paymentsEnabled: { type: boolean }
@@ -4535,6 +4537,9 @@ components:
         contactWhatsapp: { type: string, maxLength: 100 }
         logoUrl: { type: ["string", "null"], format: uri }
         faviconUrl: { type: ["string", "null"], format: uri }
+        walletFxCurrencySpreads:
+          type: object
+          additionalProperties: { type: integer, minimum: 0, maximum: 10000 }
     PlatformSettingsUpdate:
       type: object
       properties:
@@ -4552,6 +4557,9 @@ components:
         contactWhatsapp: { type: string, maxLength: 100 }
         logoUrl: { type: ["string", "null"], format: uri }
         faviconUrl: { type: ["string", "null"], format: uri }
+        walletFxCurrencySpreads:
+          type: object
+          additionalProperties: { type: integer, minimum: 0, maximum: 10000 }
     CloudinaryUploadStatus:
       type: object
       required: [configured, cloudName]

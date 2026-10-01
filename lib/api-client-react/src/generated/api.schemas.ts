@@ -877,6 +877,8 @@ export interface WalletFxQuote {
   feeAmount: number;
   targetAmount: number;
   markupBps: number;
+  scheduleMarkupBps: number;
+  currencySpreadBps: number;
   source: string;
   quotedAt: string;
   expiresAt: string;
@@ -3049,6 +3051,7 @@ export const ProviderCredentialProvider = {
   payzaapi: 'payzaapi',
   didit: 'didit',
   cloudinary: 'cloudinary',
+  currencyapi: 'currencyapi',
 } as const;
 
 export type ProviderCredentialFieldsItem = {
@@ -3088,6 +3091,8 @@ export interface SaveProviderCredentialsInput {
   credentials: SaveProviderCredentialsInputCredentials;
 }
 
+export type PlatformSettingsWalletFxCurrencySpreads = {[key: string]: number};
+
 export interface PlatformSettings {
   newMerchantSignups: boolean;
   paymentsEnabled: boolean;
@@ -3117,7 +3122,10 @@ export interface PlatformSettings {
   logoUrl?: string | null;
   /** @nullable */
   faviconUrl?: string | null;
+  walletFxCurrencySpreads: PlatformSettingsWalletFxCurrencySpreads;
 }
+
+export type PlatformSettingsUpdateWalletFxCurrencySpreads = {[key: string]: number};
 
 export interface PlatformSettingsUpdate {
   newMerchantSignups?: boolean;
@@ -3148,6 +3156,7 @@ export interface PlatformSettingsUpdate {
   logoUrl?: string | null;
   /** @nullable */
   faviconUrl?: string | null;
+  walletFxCurrencySpreads?: PlatformSettingsUpdateWalletFxCurrencySpreads;
 }
 
 export interface CloudinaryUploadStatus {

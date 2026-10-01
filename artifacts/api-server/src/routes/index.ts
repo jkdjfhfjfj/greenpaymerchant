@@ -12,12 +12,15 @@ import publicBrandingRouter from "./public-branding";
 import merchantTeamRouter from "./merchant-team";
 import merchantBusinessToolsRouter from "./merchant-business-tools";
 import { merchantWalletRouter, adminWalletRouter } from "./wallets";
+import adminEmailDeliveryRouter from "./admin-email-delivery";
+import { contentApiRouter } from "./public-content";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(publicPaymentsRouter);
 router.use(publicBrandingRouter);
+router.use(contentApiRouter);
 router.use(platformStatusRouter);
 router.use(supportRouter);
 router.use(merchantTeamRouter);
@@ -25,6 +28,7 @@ router.use(merchantBusinessToolsRouter);
 router.use(merchantWalletRouter);
 router.use(merchantPlatformRouter);
 router.use(requireAdmin);
+router.use(adminEmailDeliveryRouter);
 router.use(adminWalletRouter);
 router.use(adminPaymentsRouter);
 router.use(adminOperationsRouter);

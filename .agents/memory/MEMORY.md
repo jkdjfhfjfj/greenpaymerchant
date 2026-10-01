@@ -2,3 +2,5 @@
 - [Public payment branding](public-payment-branding.md) — customer pages use Greenpay branding; review response fields and errors, not only visible gateway labels.
 - [Drizzle BigInt defaults](drizzle-bigint-defaults.md) — native BigInt defaults break drizzle-kit schema serialization; retain runtime BigInt types with SQL defaults.
 - [Sierra Leone denomination](sierra-leone-denomination.md) — SLL request codes do not prove numeric units; preserve amounts and block FX until provider confirmation.
+- [Historical cash dates](historical-cash-dates.md) — never invent confirmation dates for legacy rows; distinguish fallback dates from authoritative cash dates.
+- [Monorepo test bundles](monorepo-test-bundles.md) — bundling workspace sources changes where external dependencies resolve; preserve declaring-package resolution.

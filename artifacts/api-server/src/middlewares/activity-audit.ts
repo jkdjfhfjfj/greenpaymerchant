@@ -54,7 +54,9 @@ export function activityAction(type: "user" | "api", method: string, route: stri
 }
 
 function safeRoute(req: Request, mountedBaseUrl: string): string | null {
-  const baseUrl = req.baseUrl.length >= mountedBaseUrl.length ? req.baseUrl : mountedBaseUrl;
+  // Express can restore/clear baseUrl before the response finish event.
+  const currentBaseUrl = typeof req.baseUrl === "string" ? req.baseUrl : "";
+  const baseUrl = currentBaseUrl.length >= mountedBaseUrl.length ? currentBaseUrl : mountedBaseUrl;
   return safeRoutePattern(baseUrl, req.route?.path);
 }
 
@@ -74,7 +76,7 @@ function actorFor(req: Request, res: Response): { actor: string; type: "user" | 
 }
 
 export const activityAuditMiddleware: RequestHandler = (req, res, next) => {
-  const mountedBaseUrl = req.baseUrl;
+  const mountedBaseUrl = typeof req.baseUrl === "string" ? req.baseUrl : "";
   res.once("finish", () => {
     const route = safeRoute(req, mountedBaseUrl);
     if (!route || !shouldAuditActivity(req.method, route)) return;

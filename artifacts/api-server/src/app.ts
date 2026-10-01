@@ -15,6 +15,7 @@ import { ApiError } from "./lib/greenpay-provider";
 import { requireSameOriginForCookieMutations, trustedBrowserOrigins } from "./middlewares/csrf";
 import { originIsAllowed } from "./lib/origin-policy";
 import { activityAuditMiddleware } from "./middlewares/activity-audit";
+import { noindexApiResponses, publicSeoRouter } from "./routes/public-content";
 
 const app: Express = express();
 
@@ -39,6 +40,8 @@ app.use(
 );
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
+app.use("/api", noindexApiResponses);
+app.use(publicSeoRouter);
 app.use(cors({
   credentials: true,
   origin(origin, callback) {

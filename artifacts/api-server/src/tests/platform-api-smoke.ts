@@ -8,8 +8,9 @@ import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import {
-  db, pool, merchantsTable, merchantApiKeysTable, paymentLinksTable,
+  db, pool, merchantsTable, merchantApiKeysTable, merchantInvoicesTable, paymentLinksTable, transactionsTable,
 } from "@workspace/db";
+import { DEFAULT_MERCHANT_ACTION_CONTROLS } from "../lib/merchant-access-policy";
 
 const url = process.env.PAYRAIL_SMOKE_API_URL;
 if (!url || process.env.NODE_ENV === "production") {
@@ -38,6 +39,20 @@ async function request(secret: string, path: string, method = "GET", data?: unkn
     error?: string;
     schedule?: unknown;
   };
+  return { status: response.status, body };
+}
+
+async function publicRequest(path: string, method = "GET", data?: unknown) {
+  const response = await fetch(`${base}${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      Origin: process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : target.origin,
+    },
+    body: data === undefined ? undefined : JSON.stringify(data),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const body = await response.json().catch(() => null) as Record<string, unknown> | null;
   return { status: response.status, body };
 }
 
@@ -70,6 +85,51 @@ async function main() {
   const keyB = await makeKey(b.id, ["read", "payment_links:write"]);
   const readOnlyB = await makeKey(b.id, ["read"]);
 
+  const invoiceReference = `${marker}_invoice`;
+  const pendingReference = `${marker}_pending_invoice`;
+  const [invoiceLink] = await db.insert(paymentLinksTable).values({
+    slug: `${marker}_invoice_link`,
+    name: `${marker} invoice link`,
+    amountType: "fixed",
+    amount: 100,
+    currency: "USD",
+    merchantId: a.id,
+    status: "active",
+  }).returning({ id: paymentLinksTable.id, slug: paymentLinksTable.slug });
+  await db.insert(merchantInvoicesTable).values({
+    merchantId: a.id,
+    reference: invoiceReference,
+    customerName: "Smoke Test Customer",
+    customerEmail: "smoke@example.test",
+    currency: "USD",
+    dueDate: "2030-01-01",
+    lines: [{ description: "Smoke invoice", quantity: 1, unitAmount: 100, total: 100 }],
+    subtotal: 100,
+    total: 100,
+    paymentLinkAmount: 100,
+    status: "sent",
+    paymentLinkId: invoiceLink.id,
+  });
+  await db.insert(transactionsTable).values({
+    reference: pendingReference,
+    provider: "paystack",
+    amount: 100,
+    currency: "USD",
+    customerEmail: "smoke@example.test",
+    merchantId: a.id,
+    paymentLinkId: invoiceLink.id,
+    status: "pending",
+  });
+  const invoicePage = await publicRequest(`/public/payment-links/${invoiceLink.slug}`);
+  check(invoicePage.status, 200, "an invoice link remains readable while an existing collection awaits confirmation");
+  check(invoicePage.body?.invoiceOutstandingAmount, 100,
+    "invoice checkout exposes the outstanding amount even while a prior collection is pending");
+  const duplicateInvoiceCheckout = await publicRequest(`/public/payment-links/${invoiceLink.slug}/checkout`, "POST", {
+    customerEmail: "smoke@example.test", amount: 25,
+  });
+  check(duplicateInvoiceCheckout.status, 409,
+    `a pending invoice collection blocks duplicate checkout before any provider call (${duplicateInvoiceCheckout.body?.error ?? "no error"})`);
+
   const profile = await request(keyA.secret, "/v1/merchant");
   check(profile.status, 200, "developer key authenticates without a Clerk session");
   check(profile.body.merchant?.id, a.id, "profile belongs to the key's merchant");
@@ -85,7 +145,8 @@ async function main() {
 
   const listA = await request(keyA.secret, "/v1/payment-links");
   const listB = await request(keyB.secret, "/v1/payment-links");
-  check(listA.body.items?.map((link) => link.id), [linkA.body.id], "merchant A cannot read merchant B or legacy links");
+  check(listA.body.items?.map((link) => link.id), [linkA.body.id, invoiceLink.id],
+    "merchant A reads its own invoice and payment links but cannot read merchant B or legacy links");
   check(listB.body.items?.map((link) => link.id), [linkB.body.id], "merchant B cannot read merchant A or legacy links");
   const stored = await db.select({ merchantId: paymentLinksTable.merchantId })
     .from(paymentLinksTable).where(eq(paymentLinksTable.id, linkA.body.id!));
@@ -95,6 +156,23 @@ async function main() {
     name: `${marker} prohibited`, amountType: "fixed", amount: 5, currency: "USD",
   });
   check(denied.status, 403, "read-only keys cannot create links");
+  await db.update(merchantsTable).set({
+    merchantActionControls: { ...DEFAULT_MERCHANT_ACTION_CONTROLS, createLinks: false },
+  }).where(eq(merchantsTable.id, b.id));
+  const granularDenied = await request(keyB.secret, "/v1/payment-links", "POST", {
+    name: `${marker} action-disabled`, amountType: "fixed", amount: 5, currency: "USD",
+  });
+  check(granularDenied.status, 403, "direct API requests cannot bypass a disabled per-merchant create-links action");
+  check((await request(keyB.secret, "/v1/payment-links")).status, 200,
+    "disabled create-links actions preserve historical read access");
+  await db.update(merchantsTable).set({
+    merchantActionControls: { ...DEFAULT_MERCHANT_ACTION_CONTROLS, createLinks: true },
+    paymentsEnabled: false,
+  }).where(eq(merchantsTable.id, b.id));
+  check((await request(keyB.secret, "/v1/payment-links", "POST", {
+    name: `${marker} legacy-flag-disabled`, amountType: "fixed", amount: 5, currency: "USD",
+  })).status, 403, "a granular allow cannot bypass the legacy merchant payments switch");
+  await db.update(merchantsTable).set({ paymentsEnabled: true }).where(eq(merchantsTable.id, b.id));
   check((await request(readOnlyB.secret, "/v1/transactions/nonexistent/verify", "POST")).status, 403,
     "provider verification requires payment-write scope");
   check((await request(keyA.secret, "/v1/transactions/nonexistent")).status, 404,
@@ -118,6 +196,8 @@ main().catch((error: unknown) => {
 }).finally(async () => {
   try {
     if (fixtureIds.length) {
+      await db.delete(transactionsTable).where(eq(transactionsTable.reference, `${marker}_pending_invoice`));
+      await db.delete(merchantInvoicesTable).where(eq(merchantInvoicesTable.reference, `${marker}_invoice`));
       await db.delete(paymentLinksTable).where(inArray(paymentLinksTable.merchantId, fixtureIds));
       await db.delete(merchantApiKeysTable).where(inArray(merchantApiKeysTable.merchantId, fixtureIds));
       await db.delete(merchantsTable).where(inArray(merchantsTable.id, fixtureIds));

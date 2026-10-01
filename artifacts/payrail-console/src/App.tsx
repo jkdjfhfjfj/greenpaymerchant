@@ -40,7 +40,9 @@ import { MerchantTeamPage, AcceptTeamInvitePage } from '@/pages/team';
 import { MerchantPage, KycPage, MerchantLinksPage, MerchantTransactionsPage, MerchantPayoutsPage } from '@/pages/merchant';
 import { DevelopersPage, ExchangePage } from '@/pages/developers';
 import { StatusPage, AuthSetupScreen } from '@/pages/status';
-import { AdminSummaryPage, AdminMerchantsPage, AdminFeesPage, AdminExchangePage, AdminCredentialsPage, AdminSettingsPage, AdminAuditPage } from '@/pages/admin';
+import { AdminSummaryPage, AdminMerchantsPage, AdminMerchantControlsPage, AdminFeesPage, AdminExchangePage, AdminCredentialsPage, AdminSettingsPage, AdminAuditPage } from '@/pages/admin';
+import { AdminEmailDeliveryPage } from '@/pages/admin-email-delivery';
+import { AdminContentPage, PublicHelpPage, PublicContentPage, PublicContentIndexPage } from '@/pages/content';
 import { Route, Switch, Redirect, useLocation, Router as WouterRouter } from 'wouter';
 
 const queryClient = new QueryClient();
@@ -155,8 +157,12 @@ const adminSection: { title: string; items: NavItem[] } = { title: 'PLATFORM ADM
   { label: 'Payout approvals', href: '/admin/payout-requests', icon: Send },
   { label: 'Refund & dispute cases', href: '/admin/cases', icon: CircleHelp },
   { label: 'Support inbox', href: '/admin/support', icon: Headphones },
+  { label: 'Email delivery', href: '/admin/email-delivery', icon: Send },
+  { label: 'Public content', href: '/admin/content', icon: FileClock },
 ] };
 const pageInfo: Record<string, { title: string; subtitle: string }> = {
+  '/admin/email-delivery': { title: 'Email delivery', subtitle: '' },
+  '/admin/content': { title: 'Public content', subtitle: '' },
   '/wallets': { title: 'Wallets & conversion', subtitle: '' }, '/payout-requests': { title: 'Payout requests', subtitle: '' },
   '/invoices': { title: 'Invoices', subtitle: '' }, '/statements': { title: 'Monthly statements', subtitle: '' },
   '/cases': { title: 'Refunds & disputes', subtitle: '' }, '/team': { title: 'Team access', subtitle: '' },
@@ -655,17 +661,22 @@ function PublicCheckout() {
   const [error, setError] = useState('');
   const [checkoutResult, setCheckoutResult] = useState<{ url: string | null; reference: string; nextAction: 'redirect' | 'mobile_prompt' | 'check_status' } | null>(null);
   const link = query.data;
+  const invoiceBalance = typeof link?.invoiceOutstandingAmount === 'number' ? link.invoiceOutstandingAmount : null;
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
     if (!link) return;
     const form = new FormData(event.currentTarget);
     const amount = Number(form.get('amount'));
-    if (link.amountType === 'customer_choice' && !isCurrencyAmountValid(amount, link.currency)) {
+    if ((link.amountType === 'customer_choice' || invoiceBalance !== null) && !isCurrencyAmountValid(amount, link.currency)) {
       setError(`Enter a positive ${link.currency} amount with at most ${currencyMinorUnits(link.currency)} decimal places.`);
       return;
     }
-    checkout.mutate({ slug, data: { customerEmail: String(form.get('email')), customerName: String(form.get('name') || ''), customerPhone: String(form.get('phone') || ''), ...(link.amountType === 'customer_choice' ? { amount } : {}) } }, {
+    if (invoiceBalance !== null && amount > invoiceBalance) {
+      setError('The payment cannot exceed the outstanding invoice balance. Refresh this page if another payment has been made.');
+      return;
+    }
+    checkout.mutate({ slug, data: { customerEmail: String(form.get('email')), customerName: String(form.get('name') || ''), customerPhone: String(form.get('phone') || ''), ...(link.amountType === 'customer_choice' || invoiceBalance !== null ? { amount } : {}) } }, {
       onSuccess: (result) => setCheckoutResult({ url: result.checkoutUrl, reference: result.reference, nextAction: result.nextAction }),
       onError: () => setError('We could not start checkout. Please confirm your details and try again.'),
     });
@@ -695,9 +706,9 @@ function PublicCheckout() {
               <span className="eyebrow">PAYMENT REQUEST</span>
               <h1>{link.name}</h1>
               <p className="checkout-description">{link.description || 'Complete your details to continue to secure payment.'}</p>
-              <div className="checkout-price">{link.amountType === 'fixed' ? currency(link.amount, link.currency) : 'Pay what you choose'}<span>{link.amountType === 'customer_choice' ? link.currency : `${link.currency} · one-time payment`}</span></div>
+               <div className="checkout-price">{invoiceBalance !== null ? currency(invoiceBalance, link.currency) : link.amountType === 'fixed' ? currency(link.amount, link.currency) : 'Pay what you choose'}<span>{invoiceBalance !== null ? 'Outstanding invoice balance · full or partial payment' : link.amountType === 'customer_choice' ? link.currency : `${link.currency} · one-time payment`}</span></div>
               <form className="form-stack checkout-form" onSubmit={submit}>
-                {link.amountType === 'customer_choice' && <Field label={`Amount (${link.currency})`}><input name="amount" type="number" min={currencyMinorUnits(link.currency) === 0 ? '1' : '0.01'} step={currencyAmountStep(link.currency)} placeholder="0.00" required data-testid="input-checkout-amount" /></Field>}
+                 {(link.amountType === 'customer_choice' || invoiceBalance !== null) && <Field label={invoiceBalance !== null ? `Payment amount (${link.currency}), up to ${currency(invoiceBalance, link.currency)}` : `Amount (${link.currency})`}><input name="amount" type="number" min={currencyMinorUnits(link.currency) === 0 ? '1' : '0.01'} max={invoiceBalance ?? undefined} defaultValue={invoiceBalance ?? undefined} step={currencyAmountStep(link.currency)} placeholder="0.00" required data-testid="input-checkout-amount" /></Field>}
                 <Field label="Email address"><input type="email" name="email" placeholder="you@example.com" autoComplete="email" required data-testid="input-checkout-email" /></Field>
                 <Field label="Full name"><input name="name" placeholder="Name on payment" autoComplete="name" required data-testid="input-checkout-name" /></Field>
                 <Field label={link.currency === 'KES' ? 'Phone (required for mobile payment)' : 'Phone (optional)'}><input name="phone" type="tel" placeholder="+254…" autoComplete="tel" required={link.currency === 'KES'} data-testid="input-checkout-phone" /></Field>
@@ -716,6 +727,8 @@ function PublicCheckout() {
 
 const wrap = (C: () => ReactNode) => () => <Protected><AppShell><C /></AppShell></Protected>;
 const protectedRoutes: [string, () => ReactNode][] = [
+  ['/admin/merchants/:merchantId/controls', AdminMerchantControlsPage],
+  ['/admin/email-delivery', AdminEmailDeliveryPage], ['/admin/content', AdminContentPage],
   ['/merchant', MerchantPage], ['/merchant/kyc', KycPage], ['/merchant/payment-links', MerchantLinksPage], ['/merchant/transactions', MerchantTransactionsPage], ['/merchant/payouts', MerchantPayoutsPage],
   ['/developers', DevelopersPage], ['/exchange', ExchangePage], ['/admin', AdminSummaryPage], ['/admin/merchants', AdminMerchantsPage], ['/admin/fees', AdminFeesPage],
   ['/admin/exchange', AdminExchangePage], ['/admin/credentials', AdminCredentialsPage], ['/admin/settings', AdminSettingsPage], ['/admin/audit', AdminAuditPage],
@@ -726,10 +739,19 @@ const protectedRoutes: [string, () => ReactNode][] = [
   ['/team', MerchantTeamPage],
 ];
 protectedRoutes.push(['/operations', () => <Gate need="admin"><Dashboard /></Gate>]);
-const extraRoutes = protectedRoutes.map(([path, C]) => <Route key={path} path={path} component={wrap(() => path.startsWith('/admin') ? <Gate need="admin"><C /></Gate> : <C />)} />);
+const protectedRouteElements = protectedRoutes.map(([path, C]) => <Route key={path} path={path} component={wrap(() => path.startsWith('/admin') ? <Gate need="admin"><C /></Gate> : <C />)} />);
+const publicContentRoutes = [
+  <Route key="learn" path="/learn" component={PublicHelpPage} />,
+  <Route key="learn-detail" path="/learn/:slug" component={() => <PublicContentPage kind="faq" />} />,
+  <Route key="guides" path="/guides" component={() => <PublicContentIndexPage kind="guide" />} />,
+  <Route key="guide-detail" path="/guides/:slug" component={() => <PublicContentPage kind="guide" />} />,
+  <Route key="articles" path="/articles" component={() => <PublicContentIndexPage kind="article" />} />,
+  <Route key="article-detail" path="/articles/:slug" component={() => <PublicContentPage kind="article" />} />,
+];
+const extraRoutes = [...publicContentRoutes, ...protectedRouteElements];
 
 function PublicOnlyApp() {
-  return <TooltipProvider><Switch><Route path="/" component={HomePage} /><Route path="/contact" component={ContactPage} /><Route path="/platform-status" component={PlatformStatusPage} /><Route path="/receipt/:reference" component={PublicReceiptPage} /><Route path="/pay/:slug" component={PublicCheckout} /><Route path="/status/:reference" component={StatusPage} /><Route component={AuthSetupScreen} /></Switch><Toaster /></TooltipProvider>;
+  return <TooltipProvider><Switch>{publicContentRoutes}<Route path="/" component={HomePage} /><Route path="/contact" component={ContactPage} /><Route path="/platform-status" component={PlatformStatusPage} /><Route path="/receipt/:reference" component={PublicReceiptPage} /><Route path="/pay/:slug" component={PublicCheckout} /><Route path="/status/:reference" component={StatusPage} /><Route component={AuthSetupScreen} /></Switch><Toaster /></TooltipProvider>;
 }
 
 function ClerkProviderWithRoutes() {
@@ -743,6 +765,11 @@ function PageMetadata() {
   const [location] = useLocation();
   const { platformName } = usePlatformBranding();
   useEffect(() => {
+    const publicContent = /^\/(?:learn|guides|articles)(?:\/|$)/.test(location);
+    if (publicContent) return;
+    let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    if (!robots) { robots = document.createElement('meta'); robots.name = 'robots'; document.head.appendChild(robots); }
+    robots.content = location === '/' || location === '/contact' ? 'index, follow' : 'noindex, nofollow';
     const title = pageInfo[location]?.title
       || (location.startsWith('/invoices/') ? 'Invoice details' : location.startsWith('/receipt/') ? 'Payment receipt'
       : location.startsWith('/pay/') ? 'Secure checkout' : location.startsWith('/status/') ? 'Payment status'

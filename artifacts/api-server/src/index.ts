@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { startTransactionalEmailWorker, stopTransactionalEmailWorker } from "./lib/transactional-email-worker";
 import {
   startMerchantWebhookOutboxWorker,
   stopMerchantWebhookOutboxWorker,
@@ -27,15 +28,18 @@ const server = app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   startMerchantWebhookOutboxWorker();
+  startTransactionalEmailWorker();
 });
 
 server.once("close", stopMerchantWebhookOutboxWorker);
+server.once("close", stopTransactionalEmailWorker);
 
 let shuttingDown = false;
 const shutdown = () => {
   if (shuttingDown) return;
   shuttingDown = true;
   stopMerchantWebhookOutboxWorker();
+  stopTransactionalEmailWorker();
   server.close((error) => {
     if (error) {
       logger.error({ errorKind: error.name }, "HTTP server failed during graceful shutdown");

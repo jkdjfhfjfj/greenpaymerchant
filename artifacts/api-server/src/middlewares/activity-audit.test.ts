@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { test } from "node:test";
-import { activityAction, safeRoutePattern, shouldAuditActivity } from "./activity-audit";
+import type { Request, Response } from "express";
+import { activityAction, activityAuditMiddleware, safeRoutePattern, shouldAuditActivity } from "./activity-audit";
 
 test("activity audit skips health, auth SDK, polling, and audit-log reads", () => {
   for (const route of [
@@ -53,4 +55,21 @@ test("audit actions include the operation and HTTP intent without recording dyna
   assert.equal(activityAction("api", "GET", "/api/v1/transactions/:reference"), "api.read.api.v1.transactions.param");
   assert.equal(activityAction("user", "PATCH", "/api/admin/merchants/:id"), "user.update.api.admin.merchants.param");
   assert.equal(activityAction("user", "DELETE", "/api/merchant/api-keys/:id").length <= 100, true);
+});
+
+test("an unmatched response cannot crash when Express clears baseUrl before finish", () => {
+  const request: { baseUrl: string | undefined; method: string } = {
+    baseUrl: "/api",
+    method: "GET",
+  };
+  const response = Object.assign(new EventEmitter(), { locals: {}, statusCode: 404 });
+  let continued = false;
+  activityAuditMiddleware(
+    request as unknown as Request,
+    response as unknown as Response,
+    () => { continued = true; },
+  );
+  request.baseUrl = undefined;
+  assert.equal(continued, true);
+  assert.doesNotThrow(() => response.emit("finish"));
 });

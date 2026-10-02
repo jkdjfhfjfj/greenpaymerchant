@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { ArrowRight, ArrowUpRight, BadgeCheck, Banknote, CalendarClock, FileClock, KeyRound, Link2, Percent, Send } from 'lucide-react';
-import { useGetPublicPricing, useListSupportedCurrencies } from '@workspace/api-client-react';
+import { useGetPublicPricing, useListPublicFxRates, useListSupportedCurrencies } from '@workspace/api-client-react';
 import '@/home.css';
 import { money } from '@/components/kit';
 import { PlatformBrand, usePlatformBranding } from '@/components/platform-brand';
@@ -49,8 +49,13 @@ const MARKET_COUNTRIES: Record<string, string[]> = {
 };
 
 function collectionMethodLabel(currency: string, method: { id: string; label: string }) {
-  if (currency === 'KES' && method.id === 'mobile_prompt') return 'M-Pesa mobile prompt';
+  if (currency === 'KES' && method.id === 'mobile_prompt') return 'M-Pesa mobile money';
+  if (method.id === 'hosted_checkout') return 'Payment options shown at checkout';
   return method.label;
+}
+
+function formatFxRate(rate: number) {
+  return new Intl.NumberFormat('en-US', { maximumSignificantDigits: 7 }).format(rate);
 }
 
 const steps = [
@@ -64,22 +69,33 @@ export default function HomePage() {
   const branding = usePlatformBranding();
   const supportedCurrencies = useListSupportedCurrencies();
   const publicPricing = useGetPublicPricing();
-  const activeCurrencies = (supportedCurrencies.data?.items ?? [])
-    .filter((currency) =>
-      currency.collectionReady && !currency.comingSoon && currency.paymentMethods.some((method) => method.ready),
-    );
-  const marketRows = activeCurrencies.flatMap((currency) => {
-    const countries = MARKET_COUNTRIES[currency.code] ?? [];
-    const methods = currency.paymentMethods
-      .filter((method) => method.ready)
-      .map((method) => collectionMethodLabel(currency.code, method))
-      .join(', ');
-    return countries.map((country) => ({
-      country,
-      currency: currency.code,
-      method: methods || 'No active method',
-    }));
+  const publicFxRates = useListPublicFxRates({
+    query: { queryKey: ['public-fx-rates'], refetchInterval: 5 * 60 * 1000, staleTime: 60 * 1000, retry: false },
   });
+  const currencies = supportedCurrencies.data?.items ?? [];
+  const fxRatesByCurrency = new Map((publicFxRates.data?.items ?? []).map((item) => [item.currency, item]));
+  const marketRows = currencies.map((currency) => ({
+    countries: MARKET_COUNTRIES[currency.code] ?? ['International'],
+    currency: currency.code,
+    name: currency.name,
+    methods: currency.paymentMethods.map((method) => ({
+      label: collectionMethodLabel(currency.code, method),
+      ready: method.ready,
+    })),
+    comingSoon: currency.comingSoon,
+    collectionReady: currency.collectionReady,
+  }));
+  const rateRows = currencies.map((currency) => ({
+    currency: currency.code,
+    name: currency.name,
+    rate: currency.code === 'USD' ? 1 : fxRatesByCurrency.get(currency.code)?.rate ?? null,
+    source: currency.code === 'USD'
+      ? 'Base currency'
+      : currency.code === 'SLL'
+        ? 'Withheld pending denomination verification'
+        : fxRatesByCurrency.get(currency.code)?.source ?? 'Unavailable',
+    sourceDate: fxRatesByCurrency.get(currency.code)?.sourceDate,
+  }));
   useEffect(() => {
     const title = `${branding.platformName} | Payment collection and business finance records`;
     const description = `${branding.platformName} helps businesses collect payments with links and review confirmed transactions, settlement evidence, invoices, refunds and payout records.`;
@@ -173,21 +189,27 @@ export default function HomePage() {
       <section className="hp-section hp-coverage" id="coverage-pricing">
         <Reveal>
           <span className="hp-eyebrow dark"><i />Coverage and pricing</span>
-          <h2>See where customers can pay and what the default fees are.</h2>
-          <p className="hp-section-intro">Markets below are shown only when the collection currency and its payment route are active. Hosted checkout choices and account eligibility can vary by market and verification limits.</p>
+          <h2>Supported currencies, current exchange rates and default fees.</h2>
+          <p className="hp-section-intro">Every supported currency is listed below, including currencies that are not currently enabled for collections. Availability depends on provider configuration and merchant verification.</p>
         </Reveal>
         <div className="hp-coverage-layout">
           <div className="hp-coverage-card">
-            <div className="hp-coverage-card-head"><div><span className="hp-eyebrow dark"><i />Live collection routes</span><h3>Countries, currencies and methods</h3></div></div>
-            {supportedCurrencies.isLoading && <p className="hp-muted">Loading currently enabled routes…</p>}
+            <div className="hp-coverage-card-head"><div><span className="hp-eyebrow dark"><i />Supported catalog</span><h3>Countries, currencies and methods</h3></div></div>
+            {supportedCurrencies.isLoading && <p className="hp-muted">Loading the supported currency catalog…</p>}
             {supportedCurrencies.isError && <p className="hp-error">Coverage is temporarily unavailable. Please try again later.</p>}
-            {!supportedCurrencies.isLoading && !supportedCurrencies.isError && marketRows.length === 0 && <p className="hp-muted">No collection routes are currently enabled.</p>}
+            {!supportedCurrencies.isLoading && !supportedCurrencies.isError && marketRows.length === 0 && <p className="hp-muted">No supported currencies are currently listed.</p>}
             {!!marketRows.length && <div className="hp-market-list" data-testid="list-live-collection-markets">
-              {marketRows.map((row) => <div className="hp-market-row" key={`${row.country}-${row.currency}`}>
-                <strong>{row.country}</strong><span>{row.currency}</span><span>{row.method}</span>
+              <div className="hp-market-row hp-market-header" aria-hidden="true"><span>Market</span><span>Currency</span><span>Payment method</span><span>Status</span></div>
+              {marketRows.map((row) => <div className="hp-market-row" key={row.currency}>
+                <div className="hp-market-country"><strong>{row.countries.join(', ')}</strong><small>{row.name}</small></div>
+                <span className="hp-market-code">{row.currency}</span>
+                <div className="hp-market-methods">{row.methods.map((method) => <span className={`hp-method-tag${method.ready ? ' ready' : ''}`} key={method.label}>{method.label}</span>)}</div>
+                <span className={`hp-market-status ${row.comingSoon ? 'soon' : row.collectionReady ? 'ready' : 'inactive'}`}>
+                  {row.comingSoon ? 'Coming soon' : row.collectionReady ? 'Available' : 'Not active'}
+                </span>
               </div>)}
             </div>}
-            <p className="hp-footnote">Only active methods are listed for each currency. Merchant verification and transaction limits can affect account-level availability.</p>
+            <p className="hp-footnote">All catalog currencies are included. M-Pesa mobile money is the explicit prompt method for KES; other payment choices are presented by the provider at checkout. Merchant verification and transaction limits can also affect availability.</p>
           </div>
 
           <div className="hp-coverage-card hp-pricing-card">
@@ -201,6 +223,22 @@ export default function HomePage() {
               <div className="hp-price-line"><span>Default FX schedule markup</span><strong>{publicPricing.data.globalSchedule.fxMarkupBps} bps</strong></div>
               <p className="hp-footnote">This is the global default. {publicPricing.data.customSchedulesMayDiffer ? 'Merchant-specific pricing may differ; your account schedule is shown before you collect.' : ''} Wallet conversions show their system margin and fee before confirmation.</p>
             </> : publicPricing.data && <p className="hp-muted">A public default fee schedule has not been published. Sign in or contact the Greenpay team for your account pricing.</p>}
+          </div>
+
+          <div className="hp-coverage-card hp-rates-card">
+            <span className="hp-eyebrow dark"><i />Live reference rates</span>
+            <h3>Currency rates against USD</h3>
+            {publicFxRates.isLoading && <p className="hp-muted">Loading current reference rates…</p>}
+            {publicFxRates.isError && <p className="hp-error">Live reference rates are temporarily unavailable. The currency catalog remains available above.</p>}
+            {publicFxRates.data && <div className="hp-rate-list" data-testid="list-live-fx-rates">
+              <div className="hp-rate-row hp-rate-header" aria-hidden="true"><span>Currency</span><span>Units per 1 USD</span><span>Rate source</span></div>
+              {rateRows.map((row) => <div className="hp-rate-row" key={row.currency}>
+                <span className="hp-rate-code">{row.currency}</span>
+                <strong>{row.rate === null ? '—' : formatFxRate(row.rate)}</strong>
+                <span className="hp-rate-source"><span>{row.source}</span>{row.sourceDate && <small>{row.sourceDate}</small>}</span>
+              </div>)}
+            </div>}
+            <p className="hp-footnote">Indicative market references, not a payment or settlement quote. Rates are refreshed from their sources and may differ from wallet conversion rates after margin and fees. SLL is withheld until its denomination scale is verified.</p>
           </div>
         </div>
       </section>

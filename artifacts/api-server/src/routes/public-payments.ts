@@ -9,6 +9,7 @@ import {
   GetPublicTransactionStatusParams,
   GetPublicTransactionStatusResponse,
   GetPublicPricingResponse,
+  ListMerchantWalletFxRatesResponse,
   ListSupportedCurrenciesResponse,
 } from "@workspace/api-zod";
 import { createCollection } from "../lib/greenpay-collection";
@@ -21,6 +22,7 @@ import {
   getPaymentLinkBySlug,
   markTransactionStatus,
 } from "../lib/greenpay-ledger";
+import { listMerchantWalletFxRates } from "../lib/wallet-service";
 import {
   db, feeSchedulesTable, merchantInvoicesTable, merchantsTable, paymentLinksTable, refundsTable, transactionsTable,
   verificationTierLimitsTable, collectionCurrencyAvailabilityTable,
@@ -165,6 +167,12 @@ router.get("/pricing", async (_req, res): Promise<void> => {
     globalSchedule: schedule ?? null,
     customSchedulesMayDiffer: true,
   }));
+});
+
+router.get("/public/fx-rates", async (_req, res): Promise<void> => {
+  const rates = await listMerchantWalletFxRates("USD");
+  res.setHeader("Cache-Control", "public, max-age=300");
+  res.json(ListMerchantWalletFxRatesResponse.parse(rates));
 });
 
 router.get("/public/payment-links/:slug", async (req, res): Promise<void> => {

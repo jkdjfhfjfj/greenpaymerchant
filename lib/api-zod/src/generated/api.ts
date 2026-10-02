@@ -4139,6 +4139,33 @@ export const GetPublicPricingResponse = zod.object({
 
 
 /**
+ * Rates are indicative market references, not collection, settlement, or wallet conversion quotes. SLL is omitted until its legacy amount scale is verified.
+ * @summary List current public reference rates against USD
+ */
+export const listPublicFxRatesResponseBaseCurrencyMin = 3;
+export const listPublicFxRatesResponseBaseCurrencyMax = 3;
+
+export const listPublicFxRatesResponseItemsItemCurrencyMin = 3;
+export const listPublicFxRatesResponseItemsItemCurrencyMax = 3;
+
+export const listPublicFxRatesResponseItemsItemRateExclusiveMin = 0;
+
+
+
+export const ListPublicFxRatesResponse = zod.object({
+  "baseCurrency": zod.string().min(listPublicFxRatesResponseBaseCurrencyMin).max(listPublicFxRatesResponseBaseCurrencyMax),
+  "items": zod.array(zod.object({
+  "currency": zod.string().min(listPublicFxRatesResponseItemsItemCurrencyMin).max(listPublicFxRatesResponseItemsItemCurrencyMax),
+  "rate": zod.number().gt(listPublicFxRatesResponseItemsItemRateExclusiveMin),
+  "source": zod.string(),
+  "sourceDate": zod.coerce.date(),
+  "fetchedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date()
+}))
+})
+
+
+/**
  * @summary Read the merchant tied to the supplied developer API key
  */
 export const getDeveloperMerchantResponseMerchantShopNameMax = 100;

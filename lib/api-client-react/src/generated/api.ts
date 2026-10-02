@@ -9714,6 +9714,84 @@ export function useGetPublicPricing<TData = Awaited<ReturnType<typeof getPublicP
 
 
 
+export const getListPublicFxRatesUrl = () => {
+
+
+
+
+  return `/api/public/fx-rates`
+}
+
+/**
+ * Rates are indicative market references, not collection, settlement, or wallet conversion quotes. SLL is omitted until its legacy amount scale is verified.
+ * @summary List current public reference rates against USD
+ */
+export const listPublicFxRates = async ( options?: Parameters<typeof customFetch>[1]): Promise<WalletFxRateList> => {
+
+  return customFetch<WalletFxRateList>(getListPublicFxRatesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPublicFxRatesQueryKey = () => {
+    return [
+    `/api/public/fx-rates`
+    ] as const;
+    }
+
+
+export const getListPublicFxRatesQueryOptions = <TData = Awaited<ReturnType<typeof listPublicFxRates>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPublicFxRates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPublicFxRatesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPublicFxRates>>> = ({ signal }) => listPublicFxRates({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPublicFxRates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPublicFxRatesQueryResult = NonNullable<Awaited<ReturnType<typeof listPublicFxRates>>>
+export type ListPublicFxRatesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List current public reference rates against USD
+ */
+
+export function useListPublicFxRates<TData = Awaited<ReturnType<typeof listPublicFxRates>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPublicFxRates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPublicFxRatesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetDeveloperMerchantUrl = () => {
 
 

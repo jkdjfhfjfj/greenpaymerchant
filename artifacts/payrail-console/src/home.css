@@ -51,10 +51,22 @@
 .hp-coverage-layout{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,.8fr);gap:18px;margin-top:34px}
 .hp-coverage-card{background:var(--paper);border:1px solid #e4e1d7;border-radius:20px;padding:26px}
 .hp-coverage-card h3{font-size:20px;letter-spacing:-.02em;margin:8px 0 18px}
-.hp-market-list{max-height:510px;overflow:auto;border-top:1px solid #e4e1d7}
-.hp-market-row{display:grid;grid-template-columns:minmax(150px,1fr) 64px minmax(170px,1.2fr);gap:12px;align-items:center;padding:12px 4px;border-bottom:1px solid #e4e1d7;font-size:13px}
-.hp-market-row strong{font-weight:700}.hp-market-row span:nth-child(2){font:600 12px 'IBM Plex Mono',monospace;color:var(--g2)}
-.hp-market-row span:last-child{color:var(--mute)}
+.hp-market-list{border-top:1px solid #e4e1d7}
+.hp-market-row{display:grid;grid-template-columns:minmax(140px,1fr) 64px minmax(170px,1.2fr) 96px;gap:12px;align-items:center;padding:12px 4px;border-bottom:1px solid #e4e1d7;font-size:13px}
+.hp-market-header,.hp-rate-header{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);font-weight:700}
+.hp-market-country{min-width:0}.hp-market-country strong{display:block;font-weight:700}.hp-market-country small{display:block;color:var(--mute);font-size:11px;margin-top:3px;line-height:1.4}
+.hp-market-code,.hp-rate-code{font:600 12px 'IBM Plex Mono',monospace;color:var(--g2)}
+.hp-market-methods{display:flex;gap:6px;flex-wrap:wrap}
+.hp-method-tag,.hp-market-status{display:inline-flex;align-items:center;border-radius:999px;padding:5px 8px;background:#efeee9;color:#6e706b;font-size:11px;line-height:1.2}
+.hp-method-tag.ready,.hp-market-status.ready{background:#e3f0e8;color:#246240}
+.hp-market-status.soon{background:#fbf0d8;color:#815c15}
+.hp-market-status.inactive{background:#f0eeea;color:#686b65}
+.hp-rates-card{grid-column:1/-1}
+.hp-rate-list{border-top:1px solid #e4e1d7}
+.hp-rate-row{display:grid;grid-template-columns:90px minmax(140px,.8fr) minmax(180px,1.2fr);gap:12px;align-items:center;padding:10px 4px;border-bottom:1px solid #e4e1d7;font-size:13px}
+.hp-rate-row strong{font:600 13px 'IBM Plex Mono',monospace;color:var(--ink)}
+.hp-rate-source{display:flex;flex-direction:column;gap:2px;color:var(--mute);font-size:11px}
+.hp-rate-source small{font-size:10px}
 .hp-footnote,.hp-muted,.hp-error{font-size:13px;line-height:1.55;color:var(--mute);margin:18px 0 0}
 .hp-error{color:#9b2d22}
 .hp-price-line{display:flex;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid #e4e1d7;font-size:14px}
@@ -73,7 +85,15 @@
 .hp-coverage-layout{grid-template-columns:1fr}.hp-market-list{max-height:420px}
 .hp-signin{display:none}
 }
-@media(max-width:560px){.hp-coverage-card{padding:18px}.hp-market-row{grid-template-columns:minmax(100px,1fr) 48px minmax(130px,1.2fr);gap:8px;font-size:12px}}
+@media(max-width:560px){
+  .hp-coverage-card{padding:18px}
+  .hp-market-header{display:none}
+  .hp-market-row{grid-template-columns:minmax(0,1fr) auto;gap:7px 8px;font-size:12px}
+  .hp-market-country{grid-column:1}.hp-market-code{grid-column:2;grid-row:1}
+  .hp-market-methods{grid-column:1}.hp-market-status{grid-column:2;grid-row:2;justify-self:end}
+  .hp-rate-row{grid-template-columns:54px minmax(82px,1fr) minmax(92px,1.2fr);gap:7px;font-size:11px}
+  .hp-rate-source{font-size:10px;overflow-wrap:anywhere}.hp-rate-source small{font-size:9px}
+}
 @media(prefers-reduced-motion:reduce){.hp *,.hp *::before{animation:none!important;transition:none!important}.hp-reveal{opacity:1;transform:none}}
 .hp a.hp-btn-gold{color:var(--paper)}
 .hp .hp-cta a.hp-btn-gold{color:var(--ink)}

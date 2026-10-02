@@ -1895,6 +1895,19 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PublicPricingResponse" }
+  /public/fx-rates:
+    get:
+      operationId: listPublicFxRates
+      tags: [public, fx]
+      summary: List current public reference rates against USD
+      description: Rates are indicative market references, not collection, settlement, or wallet conversion quotes. SLL is omitted until its legacy amount scale is verified.
+      responses:
+        "200":
+          description: Current USD reference rates, their sources, and timestamps
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalletFxRateList" }
+        "503": { description: A complete current reference-rate table is unavailable }
   /v1/merchant:
     get:
       operationId: getDeveloperMerchant

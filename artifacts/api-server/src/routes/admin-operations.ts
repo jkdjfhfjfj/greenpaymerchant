@@ -401,10 +401,19 @@ router.get("/settlements", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const { expectedFrom, expectedTo, settledFrom, settledTo } = parsed.data;
+  const dateFilters = [expectedFrom, expectedTo, settledFrom, settledTo].filter((value): value is string => Boolean(value));
+  const hasInvalidDate = dateFilters.some((value) => {
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value;
+  });
+  if (hasInvalidDate || (expectedFrom && expectedTo && expectedFrom > expectedTo)
+    || (settledFrom && settledTo && settledFrom > settledTo)) {
+    res.status(400).json({ error: "Settlement date filters must be valid calendar dates in ascending order." });
+    return;
+  }
   await updateDueSettlements();
-  res.json(ListSettlementsResponse.parse({
-    items: await filterSettlements(parsed.data.status, parsed.data.currency),
-  }));
+  res.json(ListSettlementsResponse.parse(await filterSettlements(parsed.data)));
 });
 
 router.get("/customers", async (req, res): Promise<void> => {

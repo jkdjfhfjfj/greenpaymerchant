@@ -4726,7 +4726,7 @@ export const getListSettlementsUrl = (params?: ListSettlementsParams,) => {
 }
 
 /**
- * @summary List T+3 expected settlements
+ * @summary Search the full T+3 settlement history
  */
 export const listSettlements = async (params?: ListSettlementsParams, options?: Parameters<typeof customFetch>[1]): Promise<SettlementList> => {
 
@@ -4773,7 +4773,7 @@ export type ListSettlementsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List T+3 expected settlements
+ * @summary Search the full T+3 settlement history
  */
 
 export function useListSettlements<TData = Awaited<ReturnType<typeof listSettlements>>, TError = ErrorType<unknown>>(

@@ -1615,8 +1615,44 @@ export interface Settlement {
   payoutMethod?: string | null;
 }
 
+export interface SettlementSummary {
+  /**
+     * Pending
+     * @minimum 0
+     */
+  open: number;
+  /**
+     * Due records across the complete settlement history.
+     * @minimum 0
+     */
+  due: number;
+  /**
+     * Confirmed settled records across the complete settlement history.
+     * @minimum 0
+     */
+  settled: number;
+}
+
 export interface SettlementList {
   items: Settlement[];
+  /** @minimum 1 */
+  page: number;
+  /**
+     * @minimum 1
+     * @maximum 100
+     */
+  perPage: number;
+  /** @minimum 0 */
+  total: number;
+  /** @minimum 0 */
+  totalPages: number;
+  /**
+     * All currency codes present in the full settlement history.
+     * @items.minLength 3
+     * @items.maxLength 3
+     */
+  currencies: string[];
+  summary: SettlementSummary;
 }
 
 export interface InvoiceLineInput {
@@ -3746,8 +3782,47 @@ country?: string;
 };
 
 export type ListSettlementsParams = {
+/**
+ * Case-insensitive search across reference, provider, currency, and payout method.
+ * @maxLength 100
+ */
+search?: string;
 status?: ListSettlementsStatus;
+/**
+ * @minLength 3
+ * @maxLength 3
+ * @pattern ^[A-Za-z]{3}$
+ */
 currency?: string;
+/**
+ * Include settlements expected on or after this UTC calendar date.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+expectedFrom?: string;
+/**
+ * Include settlements expected on or before this UTC calendar date.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+expectedTo?: string;
+/**
+ * Include confirmed settlements settled on or after this UTC calendar date.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+settledFrom?: string;
+/**
+ * Include confirmed settlements settled on or before this UTC calendar date.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+settledTo?: string;
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+perPage?: number;
 };
 
 export type ListSettlementsStatus = typeof ListSettlementsStatus[keyof typeof ListSettlementsStatus];

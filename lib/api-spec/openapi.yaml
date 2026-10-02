@@ -989,8 +989,12 @@ paths:
     get:
       operationId: listSettlements
       tags: [settlements]
-      summary: List T+3 expected settlements
+      summary: Search the full T+3 settlement history
       parameters:
+        - name: search
+          in: query
+          description: Case-insensitive search across reference, provider, currency, and payout method.
+          schema: { type: string, maxLength: 100 }
         - name: status
           in: query
           schema:
@@ -998,7 +1002,29 @@ paths:
             enum: [pending, due, settled, held]
         - name: currency
           in: query
-          schema: { type: string }
+          schema: { type: string, minLength: 3, maxLength: 3, pattern: "^[A-Za-z]{3}$" }
+        - name: expectedFrom
+          in: query
+          description: Include settlements expected on or after this UTC calendar date.
+          schema: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        - name: expectedTo
+          in: query
+          description: Include settlements expected on or before this UTC calendar date.
+          schema: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        - name: settledFrom
+          in: query
+          description: Include confirmed settlements settled on or after this UTC calendar date.
+          schema: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        - name: settledTo
+          in: query
+          description: Include confirmed settlements settled on or before this UTC calendar date.
+          schema: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: perPage
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
       responses:
         "200":
           description: Settlement ledger
@@ -3879,11 +3905,27 @@ components:
         payoutMethod: { type: ["string", "null"] }
     SettlementList:
       type: object
-      required: [items]
+      required: [items, page, perPage, total, totalPages, currencies, summary]
       properties:
         items:
           type: array
           items: { $ref: "#/components/schemas/Settlement" }
+        page: { type: integer, minimum: 1 }
+        perPage: { type: integer, minimum: 1, maximum: 100 }
+        total: { type: integer, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+        currencies:
+          type: array
+          description: All currency codes present in the full settlement history.
+          items: { type: string, minLength: 3, maxLength: 3 }
+        summary: { $ref: "#/components/schemas/SettlementSummary" }
+    SettlementSummary:
+      type: object
+      required: [open, due, settled]
+      properties:
+        open: { type: integer, minimum: 0, description: Pending, due, and held records across the complete settlement history. }
+        due: { type: integer, minimum: 0, description: Due records across the complete settlement history. }
+        settled: { type: integer, minimum: 0, description: Confirmed settled records across the complete settlement history. }
     InvoiceLineInput:
       type: object
       required: [description, quantity, unitAmount]

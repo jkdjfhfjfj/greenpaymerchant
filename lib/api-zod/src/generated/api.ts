@@ -2028,12 +2028,55 @@ export const ListBanksResponse = zod.object({
 
 
 /**
- * @summary List T+3 expected settlements
+ * @summary Search the full T+3 settlement history
  */
+export const listSettlementsQuerySearchMax = 100;
+
+export const listSettlementsQueryCurrencyMin = 3;
+export const listSettlementsQueryCurrencyMax = 3;
+
+
+export const listSettlementsQueryCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
+export const listSettlementsQueryExpectedFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listSettlementsQueryExpectedToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listSettlementsQuerySettledFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listSettlementsQuerySettledToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listSettlementsQueryPageDefault = 1;
+
+export const listSettlementsQueryPerPageDefault = 50;
+export const listSettlementsQueryPerPageMax = 100;
+
+
+
 export const ListSettlementsQueryParams = zod.object({
+  "search": zod.coerce.string().max(listSettlementsQuerySearchMax).optional().describe('Case-insensitive search across reference, provider, currency, and payout method.'),
   "status": zod.enum(['pending', 'due', 'settled', 'held']).optional(),
-  "currency": zod.coerce.string().optional()
+  "currency": zod.coerce.string().min(listSettlementsQueryCurrencyMin).max(listSettlementsQueryCurrencyMax).regex(listSettlementsQueryCurrencyRegExp).optional(),
+  "expectedFrom": zod.coerce.string().regex(listSettlementsQueryExpectedFromRegExp).optional().describe('Include settlements expected on or after this UTC calendar date.'),
+  "expectedTo": zod.coerce.string().regex(listSettlementsQueryExpectedToRegExp).optional().describe('Include settlements expected on or before this UTC calendar date.'),
+  "settledFrom": zod.coerce.string().regex(listSettlementsQuerySettledFromRegExp).optional().describe('Include confirmed settlements settled on or after this UTC calendar date.'),
+  "settledTo": zod.coerce.string().regex(listSettlementsQuerySettledToRegExp).optional().describe('Include confirmed settlements settled on or before this UTC calendar date.'),
+  "page": zod.coerce.number().int().min(1).default(listSettlementsQueryPageDefault),
+  "perPage": zod.coerce.number().int().min(1).max(listSettlementsQueryPerPageMax).default(listSettlementsQueryPerPageDefault)
 })
+
+
+export const listSettlementsResponsePerPageMax = 100;
+
+export const listSettlementsResponseTotalMin = 0;
+
+export const listSettlementsResponseTotalPagesMin = 0;
+
+export const listSettlementsResponseCurrenciesItemMin = 3;
+export const listSettlementsResponseCurrenciesItemMax = 3;
+
+export const listSettlementsResponseSummaryOpenMin = 0;
+
+export const listSettlementsResponseSummaryDueMin = 0;
+
+export const listSettlementsResponseSummarySettledMin = 0;
+
+
 
 export const ListSettlementsResponse = zod.object({
   "items": zod.array(zod.object({
@@ -2047,7 +2090,17 @@ export const ListSettlementsResponse = zod.object({
   "expectedAt": zod.coerce.date(),
   "settledAt": zod.coerce.date().nullish(),
   "payoutMethod": zod.string().nullish()
-}))
+})),
+  "page": zod.number().int().min(1),
+  "perPage": zod.number().int().min(1).max(listSettlementsResponsePerPageMax),
+  "total": zod.number().int().min(listSettlementsResponseTotalMin),
+  "totalPages": zod.number().int().min(listSettlementsResponseTotalPagesMin),
+  "currencies": zod.array(zod.string().min(listSettlementsResponseCurrenciesItemMin).max(listSettlementsResponseCurrenciesItemMax)).describe('All currency codes present in the full settlement history.'),
+  "summary": zod.object({
+  "open": zod.number().int().min(listSettlementsResponseSummaryOpenMin).describe('Pending'),
+  "due": zod.number().int().min(listSettlementsResponseSummaryDueMin).describe('Due records across the complete settlement history.'),
+  "settled": zod.number().int().min(listSettlementsResponseSummarySettledMin).describe('Confirmed settled records across the complete settlement history.')
+})
 })
 
 

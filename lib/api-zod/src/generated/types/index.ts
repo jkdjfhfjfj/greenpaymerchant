@@ -310,6 +310,7 @@ export * from './settlement';
 export * from './settlementList';
 export * from './settlementProvider';
 export * from './settlementStatus';
+export * from './settlementSummary';
 export * from './statement';
 export * from './statementCurrencySummariesItem';
 export * from './statementCurrencySummariesItemForecast';

@@ -728,27 +728,42 @@ function Settlements() {
   const [status, setStatus] = useState('');
   const [currencyCode, setCurrencyCode] = useState('');
   const [search, setSearch] = useState('');
-  const params = useMemo(() => ({ status: (status || undefined) as any, currency: currencyCode || undefined }), [status, currencyCode]);
+  const [expectedFrom, setExpectedFrom] = useState('');
+  const [expectedTo, setExpectedTo] = useState('');
+  const [settledFrom, setSettledFrom] = useState('');
+  const [settledTo, setSettledTo] = useState('');
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(50);
+  const params = useMemo(() => ({
+    search: search.trim() || undefined,
+    status: (status || undefined) as any,
+    currency: currencyCode || undefined,
+    expectedFrom: expectedFrom || undefined,
+    expectedTo: expectedTo || undefined,
+    settledFrom: settledFrom || undefined,
+    settledTo: settledTo || undefined,
+    page,
+    perPage,
+  }), [search, status, currencyCode, expectedFrom, expectedTo, settledFrom, settledTo, page, perPage]);
   const query = useListSettlements(params);
   const rows = query.data?.items || [];
-  const normalizedSearch = search.trim().toLowerCase();
-  const visibleRows = useMemo(() => {
-    if (!normalizedSearch) return rows;
-    return rows.filter((item) => [
-      item.reference,
-      item.provider,
-      item.payoutMethod || '',
-      item.currency,
-    ].some((value) => value.toLowerCase().includes(normalizedSearch)));
-  }, [rows, normalizedSearch]);
-  const openCount = rows.filter((item) => item.status !== 'settled').length;
-  const dueCount = rows.filter((item) => item.status === 'due').length;
-  const settledCount = rows.filter((item) => item.status === 'settled').length;
+  const total = query.data?.total ?? 0;
+  const resultPage = query.data?.page ?? page;
+  const totalPages = query.data?.totalPages ?? 0;
+
+  useEffect(() => {
+    if (query.data && query.data.page !== page) setPage(query.data.page);
+  }, [query.data?.page, page]);
 
   function clearFilters() {
     setStatus('');
     setCurrencyCode('');
     setSearch('');
+    setExpectedFrom('');
+    setExpectedTo('');
+    setSettledFrom('');
+    setSettledTo('');
+    setPage(1);
   }
 
   return <div className="settlements-page">
@@ -757,15 +772,15 @@ function Settlements() {
     <section className="settlement-summary" aria-label="Settlement overview">
       <article className="settlement-stat">
         <span className="settlement-stat-icon"><Clock3 size={17} /></span>
-        <div><span>Open items</span><strong>{openCount}</strong><small>Not yet marked settled</small></div>
+        <div><span>Open items</span><strong>{query.data?.summary.open ?? (query.isLoading ? '—' : 0)}</strong><small>Across full history</small></div>
       </article>
       <article className="settlement-stat settlement-stat-due">
         <span className="settlement-stat-icon"><CircleAlert size={17} /></span>
-        <div><span>Due for review</span><strong>{dueCount}</strong><small>Expected date reached</small></div>
+        <div><span>Due for review</span><strong>{query.data?.summary.due ?? (query.isLoading ? '—' : 0)}</strong><small>Across full history</small></div>
       </article>
       <article className="settlement-stat settlement-stat-settled">
         <span className="settlement-stat-icon"><CheckCircle2 size={17} /></span>
-        <div><span>Settled</span><strong>{settledCount}</strong><small>Marked as settled</small></div>
+        <div><span>Settled</span><strong>{query.data?.summary.settled ?? (query.isLoading ? '—' : 0)}</strong><small>Confirmed in full history</small></div>
       </article>
       <aside className="settlement-caveat">
         <FileClock size={17} />
@@ -775,19 +790,25 @@ function Settlements() {
 
     <div className="settlement-toolbar" aria-label="Settlement filters">
       <div className="settlement-filter-group">
-        <label className="settlement-filter"><Filter size={14} /><span className="sr-only">Filter by status</span><select value={status} onChange={(event) => setStatus(event.target.value)} data-testid="select-settlement-status" aria-label="Filter by status"><option value="">All statuses</option><option value="pending">Pending</option><option value="due">Due</option><option value="settled">Settled</option><option value="held">Held</option></select></label>
-        <label className="settlement-filter"><Globe2 size={14} /><span className="sr-only">Filter by currency</span><select value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value)} data-testid="select-settlement-currency" aria-label="Filter by currency"><option value="">All currencies</option>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
+        <label className="settlement-filter"><Filter size={14} /><span className="sr-only">Filter by status</span><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} data-testid="select-settlement-status" aria-label="Filter by status"><option value="">All statuses</option><option value="pending">Pending</option><option value="due">Due</option><option value="settled">Settled</option><option value="held">Held</option></select></label>
+        <label className="settlement-filter"><Globe2 size={14} /><span className="sr-only">Filter by currency</span><select value={currencyCode} onChange={(event) => { setCurrencyCode(event.target.value); setPage(1); }} data-testid="select-settlement-currency" aria-label="Filter by currency"><option value="">All currencies</option>{(query.data?.currencies ?? CURRENCIES).map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
       </div>
-      <label className="settlement-search"><Search size={15} /><span className="sr-only">Search loaded settlement records by reference, provider, currency or method</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search loaded records" data-testid="input-settlement-search" aria-label="Search loaded records by reference, provider, currency or method" /></label>
+      <div className="settlement-date-filters" aria-label="Filter by settlement dates">
+        <label className="settlement-date-filter"><span>Expected from</span><input type="date" max={expectedTo || undefined} value={expectedFrom} onChange={(event) => { setExpectedFrom(event.target.value); setPage(1); }} data-testid="input-settlement-expected-from" /></label>
+        <label className="settlement-date-filter"><span>Expected to</span><input type="date" min={expectedFrom || undefined} value={expectedTo} onChange={(event) => { setExpectedTo(event.target.value); setPage(1); }} data-testid="input-settlement-expected-to" /></label>
+        <label className="settlement-date-filter"><span>Settled from</span><input type="date" max={settledTo || undefined} value={settledFrom} onChange={(event) => { setSettledFrom(event.target.value); setPage(1); }} data-testid="input-settlement-settled-from" /></label>
+        <label className="settlement-date-filter"><span>Settled to</span><input type="date" min={settledFrom || undefined} value={settledTo} onChange={(event) => { setSettledTo(event.target.value); setPage(1); }} data-testid="input-settlement-settled-to" /></label>
+      </div>
+      <label className="settlement-search"><Search size={15} /><span className="sr-only">Search full settlement history by reference, provider, currency or method</span><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search full history" data-testid="input-settlement-search" aria-label="Search full settlement history by reference, provider, currency or method" /></label>
     </div>
 
-    <Panel title="Settlement ledger" subtitle="Provider-level view of collection proceeds" action={<span className="settlement-record-count">{visibleRows.length} {visibleRows.length === 1 ? 'record' : 'records'}</span>} className="table-panel settlement-panel">
+    <Panel title="Settlement ledger" subtitle="Provider-level view of collection proceeds" action={<span className="settlement-record-count">{total} {total === 1 ? 'record' : 'records'}</span>} className="table-panel settlement-panel">
       <QueryState loading={query.isLoading} error={query.isError} retry={() => { void query.refetch(); }}>
-        {visibleRows.length ? <>
+        {rows.length ? <>
           <div className="table-scroll settlement-table-wrap">
             <table className="data-table settlement-table">
               <thead><tr><th>Reference</th><th>Provider</th><th>Gross</th><th>Net to settle</th><th>Expected by</th><th>Settled on</th><th>Method</th><th>Status</th></tr></thead>
-              <tbody>{visibleRows.map((item) => <tr key={item.id} data-testid={`row-settlement-${item.id}`}>
+              <tbody>{rows.map((item) => <tr key={item.id} data-testid={`row-settlement-${item.id}`}>
                 <td><strong className="mono ref-cell">{item.reference}</strong><small>Collection proceeds</small></td>
                 <td><span className="provider-cell"><span className={`provider-mini provider-${item.provider}`} />{label(item.provider)}</span></td>
                 <td><span className="settlement-amount">{currency(item.amount, item.currency)}</span></td>
@@ -800,7 +821,7 @@ function Settlements() {
             </table>
           </div>
           <div className="settlement-mobile-list">
-            {visibleRows.map((item) => <article className="settlement-mobile-row" key={item.id}>
+            {rows.map((item) => <article className="settlement-mobile-row" key={item.id}>
               <div className="settlement-mobile-top">
                 <div><span className="provider-cell"><span className={`provider-mini provider-${item.provider}`} />{label(item.provider)}</span><strong className="mono">{item.reference}</strong></div>
                 <div className="settlement-mobile-net"><strong>{currency(item.netAmount, item.currency)}</strong><small>Net to settle</small></div>
@@ -815,13 +836,22 @@ function Settlements() {
               </div>
             </article>)}
           </div>
+          <div className="settlement-pagination">
+            <span>Showing {(resultPage - 1) * (query.data?.perPage ?? perPage) + 1}–{Math.min(resultPage * (query.data?.perPage ?? perPage), total)} of {total}</span>
+            <div className="settlement-pagination-controls">
+              <label className="settlement-page-size">Rows <select value={perPage} onChange={(event) => { setPerPage(Number(event.target.value)); setPage(1); }} aria-label="Rows per page"><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select></label>
+              <span>Page {resultPage} of {Math.max(totalPages, 1)}</span>
+              <Button variant="secondary" disabled={resultPage <= 1 || query.isFetching} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</Button>
+              <Button variant="secondary" disabled={!query.data || resultPage >= totalPages || query.isFetching} onClick={() => setPage((current) => current + 1)}>Next <ArrowRight size={13} /></Button>
+            </div>
+          </div>
         </> : <div className="settlement-empty" role="status">
-          <strong>{rows.length ? 'No records match these filters' : 'No settlement records yet'}</strong>
-          <span>{rows.length ? 'Try another search term or clear the filters.' : 'Settlement records will appear here as providers report them.'}</span>
-          {(status || currencyCode || search) && <Button variant="secondary" onClick={clearFilters}>Clear filters</Button>}
+          <strong>{total === 0 && (status || currencyCode || search || expectedFrom || expectedTo || settledFrom || settledTo) ? 'No records match these filters' : 'No settlement records yet'}</strong>
+          <span>{total === 0 && (status || currencyCode || search || expectedFrom || expectedTo || settledFrom || settledTo) ? 'Try another search term or clear the filters.' : 'Settlement records will appear here as providers report them.'}</span>
+          {(status || currencyCode || search || expectedFrom || expectedTo || settledFrom || settledTo) && <Button variant="secondary" onClick={clearFilters}>Clear filters</Button>}
         </div>}
       </QueryState>
-      <div className="settlement-ledger-note"><CircleHelp size={15} /><span>Expected dates are calculated from the provider route and bank holidays can affect final timing. A settled date appears only when settlement is recorded.</span></div>
+      <div className="settlement-ledger-note"><CircleHelp size={15} /><span>Date filters use UTC calendar dates; dates in the ledger are shown in your device timezone. Expected dates are calculated from the provider route and bank holidays can affect final timing. A settled date appears only when settlement is recorded.</span></div>
     </Panel>
   </div>;
 }

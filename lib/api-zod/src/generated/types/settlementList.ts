@@ -6,7 +6,26 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Settlement } from './settlement';
+import type { SettlementSummary } from './settlementSummary';
 
 export interface SettlementList {
   items: Settlement[];
+  /** @minimum 1 */
+  page: number;
+  /**
+     * @minimum 1
+     * @maximum 100
+     */
+  perPage: number;
+  /** @minimum 0 */
+  total: number;
+  /** @minimum 0 */
+  totalPages: number;
+  /**
+     * All currency codes present in the full settlement history.
+     * @items.minLength 3
+     * @items.maxLength 3
+     */
+  currencies: string[];
+  summary: SettlementSummary;
 }

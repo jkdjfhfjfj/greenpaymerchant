@@ -1,4 +1,4 @@
-import { and, eq, gte, ilike, inArray, isNotNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, gte, ilike, inArray, isNotNull, lt, lte, or, sql } from "drizzle-orm";
 import {
   db,
   paymentLinksTable,
@@ -294,15 +294,81 @@ export async function updateDueSettlements(now = new Date()): Promise<void> {
   ));
 }
 
-export async function filterSettlements(status?: string, currency?: string) {
+export type SettlementFilters = {
+  status?: string;
+  currency?: string;
+  search?: string;
+  expectedFrom?: string;
+  expectedTo?: string;
+  settledFrom?: string;
+  settledTo?: string;
+  page?: number;
+  perPage?: number;
+};
+
+function utcSettlementDateBoundary(value?: string, nextDay = false): Date | undefined {
+  if (!value) return undefined;
+  const boundary = new Date(`${value}T00:00:00.000Z`);
+  if (nextDay) boundary.setUTCDate(boundary.getUTCDate() + 1);
+  return boundary;
+}
+
+export async function filterSettlements(filters: SettlementFilters = {}) {
   const conditions = [];
-  if (status) conditions.push(eq(settlementsTable.status, status));
-  if (currency) conditions.push(eq(settlementsTable.currency, currency.toUpperCase()));
+  if (filters.status) conditions.push(eq(settlementsTable.status, filters.status));
+  if (filters.currency) conditions.push(eq(settlementsTable.currency, filters.currency.toUpperCase()));
+  const search = filters.search?.trim();
+  if (search) {
+    const pattern = `%${search.replace(/[\\%_]/g, "\\$&")}%`;
+    conditions.push(or(
+      ilike(settlementsTable.reference, pattern),
+      ilike(settlementsTable.provider, pattern),
+      ilike(settlementsTable.currency, pattern),
+      ilike(settlementsTable.payoutMethod, pattern),
+    ));
+  }
+  const expectedFrom = utcSettlementDateBoundary(filters.expectedFrom);
+  const expectedTo = utcSettlementDateBoundary(filters.expectedTo, true);
+  const settledFrom = utcSettlementDateBoundary(filters.settledFrom);
+  const settledTo = utcSettlementDateBoundary(filters.settledTo, true);
+  if (expectedFrom) conditions.push(gte(settlementsTable.expectedAt, expectedFrom));
+  if (expectedTo) conditions.push(lt(settlementsTable.expectedAt, expectedTo));
+  if (settledFrom) conditions.push(gte(settlementsTable.settledAt, settledFrom));
+  if (settledTo) conditions.push(lt(settlementsTable.settledAt, settledTo));
+
+  const where = conditions.length ? and(...conditions) : undefined;
+  const perPage = filters.perPage ?? 50;
+  const requestedPage = filters.page ?? 1;
+  const [countRow, summaryRows, currencyRows] = await Promise.all([
+    db.select({ total: sql<number>`count(*)::int` }).from(settlementsTable).where(where),
+    db.select({
+      status: settlementsTable.status,
+      count: sql<number>`count(*)::int`,
+    }).from(settlementsTable).groupBy(settlementsTable.status),
+    db.selectDistinct({ currency: settlementsTable.currency }).from(settlementsTable).orderBy(settlementsTable.currency),
+  ]);
+  const total = Number(countRow[0]?.total ?? 0);
+  const totalPages = Math.ceil(total / perPage);
+  const page = totalPages ? Math.min(requestedPage, totalPages) : 1;
   const rows = await db.select().from(settlementsTable)
-    .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(sql`${settlementsTable.expectedAt} ASC`)
-    .limit(1000);
-  return rows.map(settlementDto);
+    .where(where)
+    .orderBy(sql`${settlementsTable.expectedAt} ASC`, sql`${settlementsTable.id} ASC`)
+    .limit(perPage)
+    .offset((page - 1) * perPage);
+  const counts = new Map(summaryRows.map((row) => [row.status, Number(row.count)]));
+  return {
+    items: rows.map(settlementDto),
+    page,
+    perPage,
+    total,
+    totalPages,
+    currencies: currencyRows.map((row) => row.currency),
+    summary: {
+      open: (counts.get("pending") ?? 0) + (counts.get("due") ?? 0) + (counts.get("held") ?? 0),
+      due: counts.get("due") ?? 0,
+      settled: counts.get("settled") ?? 0,
+    },
+  };
 }
 
 export async function recordWebhookEvent(input: {

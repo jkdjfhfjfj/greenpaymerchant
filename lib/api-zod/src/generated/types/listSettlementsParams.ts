@@ -8,6 +8,45 @@
 import type { ListSettlementsStatus } from './listSettlementsStatus';
 
 export type ListSettlementsParams = {
+/**
+ * Case-insensitive search across reference, provider, currency, and payout method.
+ * @maxLength 100
+ */
+search?: string;
 status?: ListSettlementsStatus;
+/**
+ * @minLength 3
+ * @maxLength 3
+ * @pattern ^[A-Za-z]{3}$
+ */
 currency?: string;
+/**
+ * Include settlements expected on or after this UTC calendar date.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+expectedFrom?: string;
+/**
+ * Include settlements expected on or before this UTC calendar date.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+expectedTo?: string;
+/**
+ * Include confirmed settlements settled on or after this UTC calendar date.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+settledFrom?: string;
+/**
+ * Include confirmed settlements settled on or before this UTC calendar date.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+settledTo?: string;
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+perPage?: number;
 };

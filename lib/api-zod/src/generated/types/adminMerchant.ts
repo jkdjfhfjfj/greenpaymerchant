@@ -13,4 +13,11 @@ export type AdminMerchant = MerchantProfile & ({
   riskNote?: string | null;
   /** @nullable */
   diditSessionId?: string | null;
+  /** @nullable */
+  diditKybSessionId?: string | null;
+  /** @nullable */
+  verificationUpdatedAt?: Date | null;
+  /** @nullable */
+  kybVerificationUpdatedAt?: Date | null;
+  updatedAt?: Date;
 });

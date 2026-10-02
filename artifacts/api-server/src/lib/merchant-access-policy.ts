@@ -70,6 +70,7 @@ export function merchantActionPolicyDenial(input: {
 }): string | undefined {
   if (input.merchant.status !== "active") return "This merchant account is not active.";
   if (!normalizeMerchantActionControls(input.controls)[input.action]) {
+    if (input.action === "teamManagement") return "Team management is disabled in platform controls.";
     return `This merchant has disabled ${input.action} actions.`;
   }
   const legacy: Partial<Record<MerchantActionKey, {

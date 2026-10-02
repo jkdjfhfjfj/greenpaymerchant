@@ -40,7 +40,7 @@ import {
   assertMerchantActionEnabled,
   assertMerchantMayTransact,
   assertPlatformEnabled,
-  getMerchantActionControls,
+  getMerchantActionControlState,
 } from "../lib/platform";
 import { apiKeyHash, encryptSecret, validateWebhookUrl } from "../lib/secure-storage";
 import {
@@ -216,9 +216,13 @@ router.get("/merchant/action-controls", requireSignedIn, async (req, res): Promi
   const userId = res.locals.clerkUserId as string;
   const access = await findMerchantAccessForUser(userId, selectedMerchantWorkspaceId(req));
   if (!access) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  const state = await getMerchantActionControlState(access.merchant.id);
   res.json({
     merchantId: access.merchant.id,
-    controls: await getMerchantActionControls(access.merchant.id),
+    businessName: state.businessName,
+    merchantStatus: state.merchantStatus,
+    controls: state.controls,
+    disabledReasons: state.disabledReasons,
     role: access.role,
   });
 });

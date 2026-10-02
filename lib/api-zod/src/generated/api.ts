@@ -1383,6 +1383,50 @@ export const ListAdminWalletsResponse = zod.object({
 
 
 /**
+ * @summary Post an audited credit or debit to a merchant's available wallet balance
+ */
+export const adjustAdminWalletBalanceHeaderIdempotencyKeyMin = 8;
+export const adjustAdminWalletBalanceHeaderIdempotencyKeyMax = 128;
+
+
+
+export const AdjustAdminWalletBalanceHeader = zod.object({
+  "Idempotency-Key": zod.string().min(adjustAdminWalletBalanceHeaderIdempotencyKeyMin).max(adjustAdminWalletBalanceHeaderIdempotencyKeyMax)
+})
+
+
+export const adjustAdminWalletBalanceBodyCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
+export const adjustAdminWalletBalanceBodyAmountExclusiveMin = 0;
+
+export const adjustAdminWalletBalanceBodyReasonMin = 3;
+export const adjustAdminWalletBalanceBodyReasonMax = 1000;
+
+
+
+export const AdjustAdminWalletBalanceBody = zod.object({
+  "merchantId": zod.number().int().min(1),
+  "currency": zod.string().regex(adjustAdminWalletBalanceBodyCurrencyRegExp),
+  "direction": zod.enum(['credit', 'debit']),
+  "amount": zod.number().gt(adjustAdminWalletBalanceBodyAmountExclusiveMin),
+  "reason": zod.string().min(adjustAdminWalletBalanceBodyReasonMin).max(adjustAdminWalletBalanceBodyReasonMax)
+})
+
+export const AdjustAdminWalletBalanceResponse = zod.object({
+  "journalId": zod.number().int(),
+  "reference": zod.string(),
+  "merchantId": zod.number().int(),
+  "businessName": zod.string(),
+  "currency": zod.string(),
+  "direction": zod.enum(['credit', 'debit']),
+  "amount": zod.number(),
+  "reason": zod.string(),
+  "availableBalance": zod.number(),
+  "reservedBalance": zod.number(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Confirm settlement with evidence and fund only eligible net collections
  */
 export const confirmWalletSettlementBodySettlementReferenceMax = 150;
@@ -3494,6 +3538,8 @@ export const CreateMerchantCloudinaryUploadSignatureResponse = zod.object({
  */
 export const GetMerchantActionControlsResponse = zod.object({
   "merchantId": zod.number().int(),
+  "businessName": zod.string(),
+  "merchantStatus": zod.enum(['pending', 'active', 'suspended', 'closed']),
   "controls": zod.object({
   "collect": zod.boolean(),
   "createLinks": zod.boolean(),
@@ -3507,6 +3553,7 @@ export const GetMerchantActionControlsResponse = zod.object({
   "teamManagement": zod.boolean(),
   "apiAccess": zod.boolean()
 }),
+  "disabledReasons": zod.record(zod.string(), zod.string()).describe('Server-reported policy reasons for actions that are currently unavailable.'),
   "role": zod.enum(['owner', 'finance', 'viewer'])
 })
 
@@ -4935,8 +4982,64 @@ export const ListAdminMerchantsResponse = zod.object({
 }).and(zod.object({
   "ownerUserId": zod.string(),
   "riskNote": zod.string().nullish(),
-  "diditSessionId": zod.string().nullish()
+  "diditSessionId": zod.string().nullish(),
+  "diditKybSessionId": zod.string().nullish(),
+  "verificationUpdatedAt": zod.coerce.date().nullish(),
+  "kybVerificationUpdatedAt": zod.coerce.date().nullish(),
+  "updatedAt": zod.coerce.date().optional()
 })))
+})
+
+
+/**
+ * @summary Retrieve a merchant profile and the owner's verified contact details
+ */
+export const GetAdminMerchantDetailsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const getAdminMerchantDetailsResponseMerchantOneShopNameMax = 100;
+
+
+
+export const GetAdminMerchantDetailsResponse = zod.object({
+  "merchant": zod.object({
+  "id": zod.number().int(),
+  "businessName": zod.string(),
+  "shopName": zod.string().max(getAdminMerchantDetailsResponseMerchantOneShopNameMax).nullable().describe('Optional public-facing merchant display name; separate from the verified legal business name.'),
+  "shopLogoUrl": zod.string().url().nullable().describe('Optional public-facing merchant shop image.'),
+  "country": zod.string(),
+  "baseCurrency": zod.string(),
+  "registrationNumber": zod.string().nullish(),
+  "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "paymentsEnabled": zod.boolean().optional(),
+  "payoutsEnabled": zod.boolean().optional(),
+  "refundsEnabled": zod.boolean().optional(),
+  "apiAccessEnabled": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+}).and(zod.object({
+  "ownerUserId": zod.string(),
+  "riskNote": zod.string().nullish(),
+  "diditSessionId": zod.string().nullish(),
+  "diditKybSessionId": zod.string().nullish(),
+  "verificationUpdatedAt": zod.coerce.date().nullish(),
+  "kybVerificationUpdatedAt": zod.coerce.date().nullish(),
+  "updatedAt": zod.coerce.date().optional()
+})),
+  "owner": zod.object({
+  "userId": zod.string(),
+  "lookupStatus": zod.enum(['available', 'not_found']),
+  "firstName": zod.string().nullable(),
+  "lastName": zod.string().nullable(),
+  "primaryEmail": zod.string().email().nullable(),
+  "verifiedEmails": zod.array(zod.string().email()),
+  "primaryPhone": zod.string().nullable(),
+  "verifiedPhones": zod.array(zod.string()),
+  "createdAt": zod.coerce.date().nullable(),
+  "lastSignInAt": zod.coerce.date().nullable()
+})
 })
 
 
@@ -4991,7 +5094,11 @@ export const UpdateAdminMerchantResponse = zod.object({
 }).and(zod.object({
   "ownerUserId": zod.string(),
   "riskNote": zod.string().nullish(),
-  "diditSessionId": zod.string().nullish()
+  "diditSessionId": zod.string().nullish(),
+  "diditKybSessionId": zod.string().nullish(),
+  "verificationUpdatedAt": zod.coerce.date().nullish(),
+  "kybVerificationUpdatedAt": zod.coerce.date().nullish(),
+  "updatedAt": zod.coerce.date().optional()
 }))
 
 

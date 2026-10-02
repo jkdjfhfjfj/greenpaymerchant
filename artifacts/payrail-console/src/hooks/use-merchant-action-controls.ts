@@ -16,7 +16,10 @@ export type MerchantActionKey =
 export type MerchantActionControls = Record<MerchantActionKey, boolean>;
 type MerchantActionControlsResponse = {
   merchantId: number;
+  businessName: string;
+  merchantStatus: 'pending' | 'active' | 'suspended' | 'closed';
   controls: MerchantActionControls;
+  disabledReasons: Partial<Record<MerchantActionKey, string>>;
   role: 'owner' | 'finance' | 'viewer';
 };
 
@@ -56,7 +59,10 @@ export function useMerchantActionCapability() {
     if (!query.data) return 'Merchant permissions are unavailable.';
     if (query.data.role === 'viewer') return 'Your read-only accountant role cannot make changes.';
     if (OWNER_ONLY.has(action) && query.data.role !== 'owner') return 'Only the merchant owner can perform this action.';
-    if (!query.data.controls[action]) return 'This action is disabled by the merchant administrator.';
+    if (!query.data.controls[action]) {
+      return query.data.disabledReasons[action] ??
+        'This action is currently unavailable. Refresh permissions or contact platform support.';
+    }
     return null;
   }
   return { ...query, role: query.data?.role ?? null, controls: query.data?.controls, can, disabledReason };

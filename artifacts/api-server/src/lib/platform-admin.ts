@@ -7,12 +7,22 @@ type ClerkEmailAddress = {
   verification?: { status?: string };
 };
 
+type ClerkPhoneNumber = {
+  id?: string;
+  phone_number?: string;
+  verification?: { status?: string };
+};
+
 export type ClerkUserRecord = {
   id: string;
   primary_email_address_id?: string | null;
   email_addresses?: ClerkEmailAddress[];
+  primary_phone_number_id?: string | null;
+  phone_numbers?: ClerkPhoneNumber[];
   first_name?: string | null;
   last_name?: string | null;
+  created_at?: number;
+  last_sign_in_at?: number | null;
 };
 
 export class ClerkApiError extends Error {
@@ -64,6 +74,19 @@ export function verifiedEmailAddresses(user: ClerkUserRecord): string[] {
   return [...new Set((user.email_addresses ?? [])
     .filter((item) => item.verification?.status === "verified" && item.email_address)
     .map((item) => item.email_address!.toLowerCase().trim())
+    .filter(Boolean))];
+}
+
+export function verifiedPrimaryPhoneNumber(user: ClerkUserRecord): string | null {
+  const primary = user.phone_numbers?.find((item) => item.id === user.primary_phone_number_id);
+  if (primary?.verification?.status !== "verified" || !primary.phone_number) return null;
+  return primary.phone_number.trim() || null;
+}
+
+export function verifiedPhoneNumbers(user: ClerkUserRecord): string[] {
+  return [...new Set((user.phone_numbers ?? [])
+    .filter((item) => item.verification?.status === "verified" && item.phone_number)
+    .map((item) => item.phone_number!.trim())
     .filter(Boolean))];
 }
 

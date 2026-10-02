@@ -736,6 +736,27 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AdminWalletList" }
+  /admin/wallets/adjustments:
+    post:
+      operationId: adjustAdminWalletBalance
+      tags: [wallets, admin]
+      summary: Post an audited credit or debit to a merchant's available wallet balance
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminWalletAdjustmentRequest" }
+      responses:
+        "201":
+          description: Balanced wallet adjustment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminWalletAdjustmentResponse" }
   /admin/wallets/settlements/confirm:
     post:
       operationId: confirmWalletSettlement
@@ -2295,6 +2316,21 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AdminMerchantList" }
   /admin/merchants/{id}:
+    get:
+      operationId: getAdminMerchantDetails
+      tags: [admin]
+      summary: Retrieve a merchant profile and the owner's verified contact details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Merchant profile and owner contact details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminMerchantDetailsResponse" }
     patch:
       operationId: updateAdminMerchant
       tags: [admin]
@@ -3154,6 +3190,31 @@ components:
         items:
           type: array
           items: { $ref: "#/components/schemas/AdminWallet" }
+    AdminWalletAdjustmentRequest:
+      type: object
+      required: [merchantId, currency, direction, amount, reason]
+      properties:
+        merchantId: { type: integer, minimum: 1 }
+        currency: { type: string, pattern: "^[A-Za-z]{3}$" }
+        direction: { type: string, enum: [credit, debit] }
+        amount: { type: number, exclusiveMinimum: 0 }
+        reason: { type: string, minLength: 3, maxLength: 1000 }
+      additionalProperties: false
+    AdminWalletAdjustmentResponse:
+      type: object
+      required: [journalId, reference, merchantId, businessName, currency, direction, amount, reason, availableBalance, reservedBalance, updatedAt]
+      properties:
+        journalId: { type: integer }
+        reference: { type: string }
+        merchantId: { type: integer }
+        businessName: { type: string }
+        currency: { type: string }
+        direction: { type: string, enum: [credit, debit] }
+        amount: { type: number }
+        reason: { type: string }
+        availableBalance: { type: number }
+        reservedBalance: { type: number }
+        updatedAt: { type: string, format: date-time }
     WalletLedgerEntry:
       type: object
       required: [id, currency, amount, direction, kind, reference, createdAt]
@@ -4228,10 +4289,16 @@ components:
       enum: [owner, finance, viewer]
     MerchantActionControlsResponse:
       type: object
-      required: [merchantId, controls, role]
+      required: [merchantId, businessName, merchantStatus, controls, disabledReasons, role]
       properties:
         merchantId: { type: integer }
+        businessName: { type: string }
+        merchantStatus: { type: string, enum: [pending, active, suspended, closed] }
         controls: { $ref: "#/components/schemas/MerchantActionControls" }
+        disabledReasons:
+          type: object
+          description: Server-reported policy reasons for actions that are currently unavailable.
+          additionalProperties: { type: string }
         role: { $ref: "#/components/schemas/MerchantActionRole" }
     PayoutSafetySettings:
       type: object
@@ -4553,6 +4620,10 @@ components:
             ownerUserId: { type: string }
             riskNote: { type: ["string", "null"] }
             diditSessionId: { type: ["string", "null"] }
+            diditKybSessionId: { type: ["string", "null"] }
+            verificationUpdatedAt: { type: ["string", "null"], format: date-time }
+            kybVerificationUpdatedAt: { type: ["string", "null"], format: date-time }
+            updatedAt: { type: string, format: date-time }
     AdminMerchantList:
       type: object
       required: [items]
@@ -4560,6 +4631,30 @@ components:
         items:
           type: array
           items: { $ref: "#/components/schemas/AdminMerchant" }
+    AdminMerchantOwnerContact:
+      type: object
+      required: [userId, lookupStatus, firstName, lastName, primaryEmail, verifiedEmails, primaryPhone, verifiedPhones, createdAt, lastSignInAt]
+      properties:
+        userId: { type: string }
+        lookupStatus: { type: string, enum: [available, not_found] }
+        firstName: { type: ["string", "null"] }
+        lastName: { type: ["string", "null"] }
+        primaryEmail: { type: ["string", "null"], format: email }
+        verifiedEmails:
+          type: array
+          items: { type: string, format: email }
+        primaryPhone: { type: ["string", "null"] }
+        verifiedPhones:
+          type: array
+          items: { type: string }
+        createdAt: { type: ["string", "null"], format: date-time }
+        lastSignInAt: { type: ["string", "null"], format: date-time }
+    AdminMerchantDetailsResponse:
+      type: object
+      required: [merchant, owner]
+      properties:
+        merchant: { $ref: "#/components/schemas/AdminMerchant" }
+        owner: { $ref: "#/components/schemas/AdminMerchantOwnerContact" }
     AdminMerchantUpdate:
       type: object
       properties:

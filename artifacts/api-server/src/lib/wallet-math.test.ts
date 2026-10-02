@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  calculateAvailableWalletAdjustment,
   calculateWalletConversion,
   canApplyWalletRefundAdjustment,
   canReserveWalletFunds,
@@ -68,6 +69,21 @@ test("atomic wallet reservations must cover the entire hold", () => {
   assert.equal(canReserveWalletFunds(10_000n, 5_000n), true);
   assert.equal(canReserveWalletFunds(4_999n, 5_000n), false);
   assert.equal(canReserveWalletFunds(10_000n, 0n), false);
+});
+
+test("manual wallet adjustments change only available funds and fail closed on overdraw or overflow", () => {
+  assert.deepEqual(calculateAvailableWalletAdjustment(1_000n, 250n, "credit"), {
+    ok: true, availableMinor: 1_250n,
+  });
+  assert.deepEqual(calculateAvailableWalletAdjustment(1_000n, 250n, "debit"), {
+    ok: true, availableMinor: 750n,
+  });
+  assert.deepEqual(calculateAvailableWalletAdjustment(249n, 250n, "debit"), {
+    ok: false, reason: "insufficient_available",
+  });
+  assert.deepEqual(calculateAvailableWalletAdjustment((1n << 63n) - 1n, 1n, "credit"), {
+    ok: false, reason: "balance_overflow",
+  });
 });
 
 test("large payout approval threshold is per currency, fail-closed when missing, and retains cents", () => {

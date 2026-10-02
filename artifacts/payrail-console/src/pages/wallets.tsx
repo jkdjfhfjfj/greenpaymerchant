@@ -4,11 +4,12 @@ import { ArrowDownRight, ArrowLeftRight, ArrowUpRight, CheckCircle2, LoaderCircl
 import {
   confirmWalletSettlement, convertMerchantWalletFunds,
   reconcilePayoutRequest, rejectPayoutRequest,
-  useGetMerchantWalletFxQuote, useListAdminPayoutRequests, useListAdminWallets,
+  useGetMerchantWalletFxQuote, useListAdminPayoutRequests, useListAdminWallets, useListAdminMerchants,
   useListMerchantPayoutRequests, useListMerchantWalletLedger,
   useListMerchantWalletPayoutMethods, useListMerchantWallets, useListSettlements,
+  type AdminWalletAdjustmentResponse,
 } from '@workspace/api-client-react';
-import { Async, Btn, Card, CURRENCIES, Err, Field, Gate, Heading, Modal, Note, Pill, fmtDate, money, nice, useInvalidateAll } from '@/components/kit';
+import { Async, Btn, Card, CURRENCIES, Err, Field, Gate, Heading, Modal, Note, Pill, currencyAmountStep, fmtDate, money, nice, useInvalidateAll } from '@/components/kit';
 import { useMerchantActionCapability } from '@/hooks/use-merchant-action-controls';
 
 function requestKey() {
@@ -463,10 +464,17 @@ export function AdminWalletsPage() {
 function AdminWalletsInner() {
   const wallets = useListAdminWallets({ query: { queryKey: ['admin-wallets'], refetchOnMount: 'always', refetchInterval: 30_000 } });
   const settlements = useListSettlements(undefined, { query: { queryKey: ['admin-settlements'], refetchOnMount: 'always', refetchInterval: 30_000 } });
+  const merchants = useListAdminMerchants(undefined, { query: { queryKey: ['admin-wallet-adjustment-merchants'], staleTime: 30_000 } });
   const invalidate = useInvalidateAll();
   const [error, setError] = useState<unknown>(null);
   const [message, setMessage] = useState('');
+  const [adjustmentError, setAdjustmentError] = useState<unknown>(null);
+  const [adjustmentMessage, setAdjustmentMessage] = useState('');
+  const [adjustmentPending, setAdjustmentPending] = useState(false);
+  const [adjustmentCurrency, setAdjustmentCurrency] = useState(CURRENCIES[0] ?? 'USD');
+  const adjustmentKey = useRef<{ signature: string; key: string } | null>(null);
   const items = wallets.data?.items ?? [];
+  const merchantItems = merchants.data?.items ?? [];
   const candidates = (settlements.data?.items ?? []).filter((item) => ['pending', 'due'].includes(item.status));
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -482,6 +490,45 @@ function AdminWalletsInner() {
       await invalidate();
     } catch (failure) {
       setError(failure);
+    }
+  }
+  async function submitAdjustment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const payload = {
+      merchantId: Number(form.get('merchantId')),
+      currency: String(form.get('currency') || '').toUpperCase(),
+      direction: String(form.get('direction') || ''),
+      amount: Number(form.get('amount')),
+      reason: String(form.get('reason') || '').trim(),
+    };
+    setAdjustmentError(null);
+    setAdjustmentMessage('');
+    const signature = JSON.stringify(payload);
+    if (!adjustmentKey.current || adjustmentKey.current.signature !== signature) {
+      adjustmentKey.current = { signature, key: requestKey() };
+    }
+    setAdjustmentPending(true);
+    try {
+      const result = await walletApi<AdminWalletAdjustmentResponse>('/admin/wallets/adjustments', {
+        method: 'POST',
+        body: payload,
+        idempotencyKey: adjustmentKey.current.key,
+      });
+      setAdjustmentMessage(
+        `Posted ${result.direction} of ${money(result.amount, result.currency)} for ${result.businessName}. ` +
+        `Available: ${money(result.availableBalance, result.currency)}; reserved: ${money(result.reservedBalance, result.currency)}. ` +
+        `Journal ${result.reference}.`,
+      );
+      adjustmentKey.current = null;
+      formElement.reset();
+      setAdjustmentCurrency(CURRENCIES[0] ?? 'USD');
+      await invalidate();
+    } catch (failure) {
+      setAdjustmentError(failure);
+    } finally {
+      setAdjustmentPending(false);
     }
   }
   return <>
@@ -501,10 +548,39 @@ function AdminWalletsInner() {
         <div className="form-stack">
           <Note>Every funding credit is bound to a successful merchant collection's settlement row and provider evidence. A source settlement can be credited once.</Note>
           <Note tone="warn">Confirmed customer refunds reduce eligible net proceeds. If credited funds have already been spent or reserved, the refund cannot consume more wallet proceeds.</Note>
-          <Note tone="warn">No automatic or arbitrary balance adjustment endpoint exists. Funding starts at zero until this confirmation workflow posts a balanced journal.</Note>
+          <Note>Manual corrections use a separate balanced adjustment journal; they do not change settlement or payment history.</Note>
         </div>
       </Card>
     </div>
+    <Card title="Manual wallet adjustment" subtitle="Available balance only; every adjustment requires a reason and is recorded in the admin audit log.">
+      <Note tone="warn">Credits and debits create append-only, balanced journal entries. Debits cannot use reserved funds. Use this for documented corrections, not provider settlement funding.</Note>
+      <Async q={merchants} empty={!merchantItems.length} emptyTitle="No merchants available" emptyBody="A merchant must exist before its wallet can be adjusted.">
+        <form className="form-stack" onSubmit={submitAdjustment}>
+          <Field label="Merchant"><select name="merchantId" required defaultValue="" data-testid="select-adjust-wallet-merchant">
+            <option value="" disabled>Select a merchant</option>
+            {merchantItems.map((merchant) => <option key={merchant.id} value={merchant.id}>{merchant.businessName} · #{merchant.id}</option>)}
+          </select></Field>
+          <div className="split">
+            <Field label="Currency"><select name="currency" value={adjustmentCurrency} onChange={(event) => setAdjustmentCurrency(event.target.value as (typeof CURRENCIES)[number])} data-testid="select-adjust-wallet-currency">
+              {CURRENCIES.map((currency) => <option key={currency} value={currency}>{currency}</option>)}
+            </select></Field>
+            <Field label="Direction"><select name="direction" defaultValue="credit" data-testid="select-adjust-wallet-direction">
+              <option value="credit">Credit available balance</option>
+              <option value="debit">Debit available balance</option>
+            </select></Field>
+          </div>
+          <Field label="Amount" hint={`Precision: ${currencyAmountStep(adjustmentCurrency)} for ${adjustmentCurrency}.`}>
+            <input type="number" name="amount" min="0" step={currencyAmountStep(adjustmentCurrency)} required data-testid="input-adjust-wallet-amount" />
+          </Field>
+          <Field label="Required audit reason"><textarea name="reason" minLength={3} maxLength={1000} required placeholder="Explain the documented correction" data-testid="input-adjust-wallet-reason" /></Field>
+          {adjustmentMessage && <Note>{adjustmentMessage}</Note>}
+          <Err error={adjustmentError} />
+          <Btn type="submit" disabled={adjustmentPending || !merchantItems.length} testId="button-adjust-wallet-balance">
+            {adjustmentPending && <LoaderCircle size={14} className="spin" />}Post audited adjustment
+          </Btn>
+        </form>
+      </Async>
+    </Card>
     <Card title="Per-currency balances" subtitle="Available balances exclude payout and refund reservations.">
       <Async q={wallets} empty={!items.length} emptyTitle="No funded merchant wallets" emptyBody="Wallets appear here only after their first confirmed settlement.">
         <div className="table-wrap"><table className="dt"><thead><tr><th>Merchant</th><th>Currency</th><th className="num">Available</th><th className="num">Reserved</th><th>Updated</th></tr></thead><tbody>

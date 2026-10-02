@@ -28,7 +28,8 @@ import {
 } from "./merchant-action-controls";
 import { CUSTOMER_REIMBURSED_REFUND_STATUSES, OPEN_REFUND_RESERVATION_STATUSES } from "./payment-safety";
 import {
-  calculateWalletConversion, canApplyWalletRefundAdjustment, canReserveWalletFunds,
+  calculateAvailableWalletAdjustment, calculateWalletConversion,
+  canApplyWalletRefundAdjustment, canReserveWalletFunds,
   combineWalletFxMarkupBps, decimalToMinor, decimalToScaled, eligibleSettlementFunding,
   minorToDecimal, minorToNumber, roundDivide, WALLET_RATE_SCALE,
   payoutNeedsSecondApproval, payoutProviderOutcome, proportionalNetRefundReversal, shouldReleasePayoutHold,
@@ -427,7 +428,7 @@ async function postJournal(tx: FinancialTx, input: {
   metadata?: Record<string, unknown>;
   merchantAccount: "merchant_available" | "merchant_reserved";
   merchantDirection: "debit" | "credit";
-  externalAccount?: "platform_settlement" | "platform_payout" | "fx_clearing";
+  externalAccount?: "platform_settlement" | "platform_payout" | "fx_clearing" | "platform_manual_adjustment";
   externalAmountMinor?: bigint;
   platformFxRevenueMinor?: bigint;
   platformFeeRevenueMinor?: bigint;
@@ -558,6 +559,146 @@ export async function listAdminWallets() {
     reservedBalance: minorToNumber(row.reservedMinor),
     updatedAt: row.updatedAt,
   }));
+}
+
+export async function adjustAdminWalletBalance(input: {
+  merchantId: number;
+  currency: string;
+  direction: "credit" | "debit";
+  amount: number;
+  reason: string;
+  idempotencyKey: string;
+  actor: string;
+}) {
+  const currency = input.currency.trim().toUpperCase();
+  const currencyInfo = COLLECTION_CURRENCIES.find((item) => item.code === currency);
+  if (!currencyInfo) throw new ApiError(400, "Choose a supported wallet currency.");
+  const reason = input.reason.trim();
+  if (reason.length < 3 || reason.length > 1000) {
+    throw new ApiError(400, "Enter an audit reason between 3 and 1000 characters.");
+  }
+  if (input.idempotencyKey.length < 8 || input.idempotencyKey.length > 128) {
+    throw new ApiError(400, "A valid Idempotency-Key header is required.");
+  }
+
+  let amountMinor: bigint;
+  try {
+    amountMinor = decimalToMinor(input.amount, currencyInfo.minorUnits);
+  } catch (error) {
+    throw new ApiError(400, error instanceof Error ? error.message : "Enter a valid wallet adjustment amount.");
+  }
+  const maxMinor = (1n << 63n) - 1n;
+  if (amountMinor <= 0n || amountMinor > maxMinor) {
+    throw new ApiError(400, "The adjustment amount is outside the supported wallet range.");
+  }
+
+  const kind = "admin_adjustment";
+  const metadata = {
+    amountMinor: amountMinor.toString(),
+    direction: input.direction,
+    reason,
+    actorUserId: input.actor,
+  };
+  const reference = `WA-ADJ-${createHash("sha256")
+    .update(`${input.merchantId}:${currency}:${input.idempotencyKey}`)
+    .digest("hex").slice(0, 32)}`;
+  const idempotencyKey = `admin_wallet_adjustment:${input.merchantId}:${currency}:${input.idempotencyKey}`;
+  const expectedRequestHash = requestHash({
+    merchantId: input.merchantId,
+    currency,
+    kind,
+    reference,
+    sourceReference: null,
+    evidenceReference: null,
+    metadata,
+    merchantAccount: "merchant_available",
+    merchantDirection: input.direction,
+    externalAccount: "platform_manual_adjustment",
+    externalAmountMinor: null,
+    platformFxRevenueMinor: null,
+    platformFeeRevenueMinor: null,
+    secondMerchantAccount: undefined,
+  });
+
+  const result = await db.transaction(async (tx) => {
+    const [merchant] = await tx.select({
+      id: merchantsTable.id,
+      businessName: merchantsTable.businessName,
+    }).from(merchantsTable)
+      .where(eq(merchantsTable.id, input.merchantId)).for("update").limit(1);
+    if (!merchant) throw new ApiError(404, "Merchant account not found.");
+
+    const wallet = await lockWallet(tx, input.merchantId, currency);
+    const [existing] = await tx.select().from(walletJournalsTable)
+      .where(eq(walletJournalsTable.idempotencyKey, idempotencyKey)).limit(1);
+    if (existing) {
+      if (existing.requestHash !== expectedRequestHash) {
+        throw new ApiError(409, "This idempotency key was already used for a different wallet adjustment.");
+      }
+      return { journal: existing, wallet, businessName: merchant.businessName };
+    }
+
+    const adjustment = calculateAvailableWalletAdjustment(wallet.availableMinor, amountMinor, input.direction);
+    if (!adjustment.ok) {
+      if (adjustment.reason === "insufficient_available") {
+        throw new ApiError(409, "Available balance is insufficient; reserved funds cannot be debited.");
+      }
+      if (adjustment.reason === "balance_overflow") {
+        throw new ApiError(409, "The resulting wallet balance exceeds the supported range.");
+      }
+      throw new ApiError(400, "The wallet balance or adjustment amount is invalid.");
+    }
+    const nextAvailable = adjustment.availableMinor;
+
+    const journal = await postJournal(tx, {
+      merchantId: input.merchantId,
+      currency,
+      kind,
+      reference,
+      idempotencyKey,
+      metadata,
+      merchantAccount: "merchant_available",
+      merchantDirection: input.direction,
+      externalAccount: "platform_manual_adjustment",
+    });
+    const now = new Date();
+    const [updatedWallet] = await tx.update(merchantWalletsTable).set({
+      availableMinor: nextAvailable,
+      updatedAt: now,
+    }).where(and(
+      eq(merchantWalletsTable.merchantId, input.merchantId),
+      eq(merchantWalletsTable.currency, currency),
+    )).returning();
+    if (!updatedWallet) throw new ApiError(500, "The merchant wallet balance could not be updated.");
+
+    await tx.insert(adminAuditLogTable).values({
+      actor: input.actor,
+      action: "wallet.admin_adjustment_posted",
+      target: `merchant:${input.merchantId}/wallet:${currency}`,
+      details: JSON.stringify({
+        journalId: journal.id,
+        reference,
+        direction: input.direction,
+        amount: minorToNumber(amountMinor, currencyInfo.minorUnits),
+        reason,
+      }),
+    });
+    return { journal, wallet: updatedWallet, businessName: merchant.businessName };
+  });
+
+  return {
+    journalId: result.journal.id,
+    reference: result.journal.reference,
+    merchantId: input.merchantId,
+    businessName: result.businessName,
+    currency,
+    direction: input.direction,
+    amount: minorToNumber(amountMinor, currencyInfo.minorUnits),
+    reason,
+    availableBalance: minorToNumber(result.wallet.availableMinor, currencyInfo.minorUnits),
+    reservedBalance: minorToNumber(result.wallet.reservedMinor, currencyInfo.minorUnits),
+    updatedAt: result.wallet.updatedAt,
+  };
 }
 
 export async function listWalletLedger(merchantId: number, currency?: string) {

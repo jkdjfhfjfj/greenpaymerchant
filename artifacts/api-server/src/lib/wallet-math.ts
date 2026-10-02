@@ -25,6 +25,26 @@ export function minorToNumber(minor: bigint, fractionDigits = 2): number {
   return Number(minorToDecimal(minor, fractionDigits));
 }
 
+export type AvailableWalletAdjustmentResult =
+  | { ok: true; availableMinor: bigint }
+  | { ok: false; reason: "invalid_amount" | "insufficient_available" | "balance_overflow" };
+
+export function calculateAvailableWalletAdjustment(
+  currentAvailableMinor: bigint,
+  amountMinor: bigint,
+  direction: "credit" | "debit",
+): AvailableWalletAdjustmentResult {
+  if (currentAvailableMinor < 0n || amountMinor <= 0n) return { ok: false, reason: "invalid_amount" };
+  if (direction === "debit" && currentAvailableMinor < amountMinor) {
+    return { ok: false, reason: "insufficient_available" };
+  }
+  const availableMinor = direction === "credit"
+    ? currentAvailableMinor + amountMinor
+    : currentAvailableMinor - amountMinor;
+  if (availableMinor > (1n << 63n) - 1n) return { ok: false, reason: "balance_overflow" };
+  return { ok: true, availableMinor };
+}
+
 export function decimalToScaled(value: number | string, scaleDigits: number): bigint {
   const text = String(value).trim();
   const match = /^(0|[1-9]\d*)(?:\.(\d+))?$/.exec(text);

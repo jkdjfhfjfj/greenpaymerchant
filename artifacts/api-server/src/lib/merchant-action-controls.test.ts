@@ -57,6 +57,21 @@ test("granular controls compose with merchant and platform flags without bypassi
   }) ?? "", /currently disabled/);
 });
 
+test("team-management denials distinguish an explicit platform-control setting", () => {
+  assert.equal(merchantActionPolicyDenial({
+    action: "teamManagement",
+    controls: { teamManagement: false },
+    merchant: activeMerchant,
+    platform: enabledPlatform,
+  }), "Team management is disabled in platform controls.");
+  assert.equal(merchantActionPolicyDenial({
+    action: "teamManagement",
+    controls: { teamManagement: true },
+    merchant: { ...activeMerchant, status: "suspended" },
+    platform: enabledPlatform,
+  }), "This merchant account is not active.");
+});
+
 test("suspended merchants cannot mutate while accountant historical reads stay allowed", () => {
   assert.match(merchantActionPolicyDenial({
     action: "refundRequests",

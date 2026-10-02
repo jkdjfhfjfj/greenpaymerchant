@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Search, LoaderCircle, Pencil, Trash2, Plus, ShieldCheck } from 'lucide-react';
+import { Search, LoaderCircle, Pencil, Trash2, Plus, ShieldCheck, Eye } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRoute } from 'wouter';
 import {
-  useGetAdminSummary, useListAdminMerchants, useUpdateAdminMerchant, useGetAdminPlatformSettings, useUpdateAdminPlatformSettings,
+  useGetAdminSummary, useListAdminMerchants, useGetAdminMerchantDetails, useUpdateAdminMerchant, useGetAdminPlatformSettings, useUpdateAdminPlatformSettings,
   useListAdminAuditLog, useListAdminFeeSchedules, useUpdateAdminFeeSchedule, useListAdminFxRates, useCreateAdminFxRate, useUpdateAdminFxRate,
   useListAdminProviderCredentials, useSaveAdminProviderCredentials, useDeleteAdminProviderCredentials,
   useGetAdminCloudinaryUploadStatus, useCreateAdminCloudinaryUploadSignature,
@@ -117,15 +117,17 @@ function MerchantsInner() {
   const params: ListAdminMerchantsParams = { ...(search ? { search } : {}), ...(status ? { status: status as never } : {}), ...(kyc ? { kycStatus: kyc as never } : {}) };
   const q = useListAdminMerchants(params);
   const [edit, setEdit] = useState<AdminMerchant | null>(null);
+  const [details, setDetails] = useState<AdminMerchant | null>(null);
   const items = q.data?.items ?? [];
   return <><Heading eyebrow="ADMIN" title="Merchants" subtitle="Review, activate, suspend and annotate merchant accounts." />
     <div className="toolbar"><div className="search-box"><Search size={14} /><input placeholder="Search business name" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-merchant-search" /></div>
       <select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="select-merchant-status"><option value="">Any status</option>{['pending', 'active', 'suspended', 'closed'].map((s) => <option key={s} value={s}>{nice(s)}</option>)}</select>
       <select value={kyc} onChange={(e) => setKyc(e.target.value)} data-testid="select-merchant-kyc"><option value="">Any verification</option>{['not_started', 'pending', 'in_review', 'approved', 'declined', 'expired'].map((s) => <option key={s} value={s}>{nice(s)}</option>)}</select></div>
     <Async q={q} empty={!items.length} emptyTitle="No merchants match" emptyBody="Adjust the search or filters."><div className="table-wrap"><table className="dt"><thead><tr><th>Business</th><th>Country</th><th>Base</th><th>Status</th><th>Verification</th><th>Created</th><th /></tr></thead><tbody>
-      {items.map((m) => <tr key={m.id} data-testid={`row-merchant-${m.id}`}><td><strong>{m.businessName}</strong><span className="sub">{m.riskNote || m.ownerUserId}</span></td><td>{m.country}</td><td>{m.baseCurrency}</td><td><Pill value={m.status} /></td><td><Pill value={m.kycStatus} /></td><td>{fmtDate(m.createdAt)}</td><td><div className="row-actions"><a className="btn btn-secondary btn-sm" href={`/admin/merchants/${m.id}/controls`}>Controls</a><Btn variant="secondary" small onClick={() => setEdit(m)}><Pencil size={13} />Edit</Btn></div></td></tr>)}
+      {items.map((m) => <tr key={m.id} data-testid={`row-merchant-${m.id}`}><td><strong>{m.businessName}</strong><span className="sub">{m.riskNote || m.ownerUserId}</span></td><td>{m.country}</td><td>{m.baseCurrency}</td><td><Pill value={m.status} /></td><td><Pill value={m.kycStatus} /></td><td>{fmtDate(m.createdAt)}</td><td><div className="row-actions"><Btn variant="secondary" small onClick={() => setDetails(m)}><Eye size={13} />Details</Btn><a className="btn btn-secondary btn-sm" href={`/admin/merchants/${m.id}/controls`}>Controls</a><Btn variant="secondary" small onClick={() => setEdit(m)}><Pencil size={13} />Edit</Btn></div></td></tr>)}
     </tbody></table></div></Async>
-    {edit && <MerchantEdit m={edit} onClose={() => setEdit(null)} />}</>;
+    {edit && <MerchantEdit m={edit} onClose={() => setEdit(null)} />}
+    {details && <MerchantDetails m={details} onClose={() => setDetails(null)} />}</>;
 }
 function MerchantEdit({ m, onClose }: { m: AdminMerchant; onClose: () => void }) {
   const up = useUpdateAdminMerchant();
@@ -144,6 +146,69 @@ function MerchantEdit({ m, onClose }: { m: AdminMerchant; onClose: () => void })
     <Field label="Risk notes" hint="Internal only, 1000 characters"><textarea name="risk" defaultValue={m.riskNote ?? ''} maxLength={1000} data-testid="input-edit-risk" /></Field>
     <Field label="Capabilities">{([['paymentsEnabled', 'Payments'], ['payoutsEnabled', 'Payouts'], ['refundsEnabled', 'Refunds'], ['apiAccessEnabled', 'API access']] as const).map(([k, t]) => <div className="setting-row" key={k} style={{ padding: '7px 0' }}><span>{t}</span><Switch on={flags[k]} label={`merchant ${t}`} onChange={(v) => setFlags({ ...flags, [k]: v })} /></div>)}</Field>
     <Err error={up.error} /><Btn type="submit" disabled={up.isPending} testId="button-save-merchant">{up.isPending && <LoaderCircle size={14} className="spin" />}Save changes</Btn></form></Modal>;
+}
+
+function MerchantDetails({ m, onClose }: { m: AdminMerchant; onClose: () => void }) {
+  const q = useGetAdminMerchantDetails(m.id, {
+    query: { queryKey: ['admin-merchant-details', m.id], refetchOnMount: 'always', staleTime: 30_000 },
+  });
+  const merchant = q.data?.merchant;
+  const owner = q.data?.owner;
+  const verifiedEmails = owner?.verifiedEmails.join(' · ') || '—';
+  const verifiedPhones = owner?.verifiedPhones.join(' · ') || '—';
+  const ownerName = [owner?.firstName, owner?.lastName].filter(Boolean).join(' ') || 'Name not provided';
+  return <Modal title={`Merchant details — ${merchant?.businessName ?? m.businessName}`} onClose={onClose}>
+    <Async q={q}>
+      {merchant && owner && <div className="form-stack">
+        {owner.lookupStatus === 'not_found' && <Note tone="warn">The merchant record is available, but the owner account was not found in Clerk.</Note>}
+        <Card title="Business profile">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>
+            <div><span className="sub">Legal business name</span><strong>{merchant.businessName}</strong></div>
+            <div><span className="sub">Public shop name</span><strong>{merchant.shopName || '—'}</strong></div>
+            <div><span className="sub">Country</span><strong>{merchant.country}</strong></div>
+            <div><span className="sub">Base currency</span><strong>{merchant.baseCurrency}</strong></div>
+            <div><span className="sub">Registration number</span><strong>{merchant.registrationNumber || '—'}</strong></div>
+            {merchant.shopLogoUrl && <div><span className="sub">Shop logo</span><a href={merchant.shopLogoUrl} target="_blank" rel="noreferrer">Open image</a></div>}
+          </div>
+        </Card>
+        <Card title="Owner contact">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>
+            <div><span className="sub">Name</span><strong>{ownerName}</strong></div>
+            <div><span className="sub">Primary verified email</span><strong>{owner.primaryEmail || '—'}</strong></div>
+            <div><span className="sub">All verified email addresses</span><strong>{verifiedEmails}</strong></div>
+            <div><span className="sub">Primary verified phone</span><strong>{owner.primaryPhone || '—'}</strong></div>
+            <div><span className="sub">All verified phone numbers</span><strong>{verifiedPhones}</strong></div>
+            <div><span className="sub">Clerk user ID</span><strong className="mono">{owner.userId}</strong></div>
+            <div><span className="sub">Account created</span><strong>{fmtDate(owner.createdAt)}</strong></div>
+            <div><span className="sub">Last sign-in</span><strong>{fmtDate(owner.lastSignInAt)}</strong></div>
+          </div>
+        </Card>
+        <Card title="Account and verification">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>
+            <div><span className="sub">Account status</span><Pill value={merchant.status} /></div>
+            <div><span className="sub">KYC</span><Pill value={merchant.kycStatus} /></div>
+            <div><span className="sub">KYB</span><Pill value={merchant.kybStatus} /></div>
+            <div><span className="sub">Registered</span><strong>{fmtDate(merchant.createdAt)}</strong></div>
+            <div><span className="sub">Last updated</span><strong>{fmtDate(merchant.updatedAt)}</strong></div>
+            <div><span className="sub">KYC updated</span><strong>{fmtDate(merchant.verificationUpdatedAt)}</strong></div>
+            <div><span className="sub">KYB updated</span><strong>{fmtDate(merchant.kybVerificationUpdatedAt)}</strong></div>
+            <div><span className="sub">KYC session ID</span><strong className="mono">{merchant.diditSessionId || '—'}</strong></div>
+            <div><span className="sub">KYB session ID</span><strong className="mono">{merchant.diditKybSessionId || '—'}</strong></div>
+          </div>
+        </Card>
+        <Card title="Platform capabilities and internal notes">
+          <div className="form-stack">
+            <div className="setting-row"><span>Payments</span><Pill value={merchant.paymentsEnabled ? 'enabled' : 'disabled'} /></div>
+            <div className="setting-row"><span>Payouts</span><Pill value={merchant.payoutsEnabled ? 'enabled' : 'disabled'} /></div>
+            <div className="setting-row"><span>Refunds</span><Pill value={merchant.refundsEnabled ? 'enabled' : 'disabled'} /></div>
+            <div className="setting-row"><span>API access</span><Pill value={merchant.apiAccessEnabled ? 'enabled' : 'disabled'} /></div>
+            <div><span className="sub">Risk notes</span><p>{merchant.riskNote || 'No internal notes.'}</p></div>
+            <a className="btn btn-secondary btn-sm" href={`/admin/merchants/${merchant.id}/controls`}>Open merchant controls</a>
+          </div>
+        </Card>
+      </div>}
+    </Async>
+  </Modal>;
 }
 
 type MerchantActionKey =

@@ -6,7 +6,8 @@ import {
   GrantPlatformAdminBody, GrantPlatformAdminParams, GrantPlatformAdminResponse,
   RevokePlatformAdminBody, RevokePlatformAdminParams, RevokePlatformAdminResponse,
   CreateAdminFxRateBody, CreateAdminFxRateResponse, DeleteAdminProviderCredentialsParams,
-  DeleteAdminProviderCredentialsResponse, GetAdminPlatformSettingsResponse, GetAdminSummaryResponse,
+  DeleteAdminProviderCredentialsResponse, GetAdminMerchantDetailsParams, GetAdminMerchantDetailsResponse,
+  GetAdminPlatformSettingsResponse, GetAdminSummaryResponse,
   GetAdminCloudinaryUploadStatusResponse, CreateAdminCloudinaryUploadSignatureResponse,
   ListAdminAuditLogQueryParams, ListAdminAuditLogResponse, ListAdminFeeSchedulesResponse,
   ListAdminFxRatesResponse, ListAdminMerchantsQueryParams, ListAdminMerchantsResponse,
@@ -41,7 +42,8 @@ import {
 import { verificationTierForMerchant } from "../lib/platform";
 import {
   allowlistedAdminEmails, ClerkApiError, emailIsBootstrapAdmin, existingClerkUserIds, fetchClerkUser, findVerifiedClerkUsersByEmail,
-  platformAdminAuditDetails, remainingEffectiveAdminCount, verifiedPrimaryEmail, type ClerkUserRecord,
+  platformAdminAuditDetails, remainingEffectiveAdminCount, verifiedEmailAddresses,
+  verifiedPhoneNumbers, verifiedPrimaryEmail, verifiedPrimaryPhoneNumber, type ClerkUserRecord,
 } from "../lib/platform-admin";
 
 const router: IRouter = Router();
@@ -320,8 +322,29 @@ async function adminMerchantControlsDto(merchant: typeof merchantsTable.$inferSe
   };
 }
 
-type AdminMerchantDtoRow = Omit<typeof merchantsTable.$inferSelect, "kybStatus"> & {
+type AdminMerchantDtoRow = {
+  id: number;
+  businessName: string;
+  shopName: string | null;
+  shopLogoUrl: string | null;
+  country: string;
+  baseCurrency: string;
+  registrationNumber: string | null;
+  status: string;
+  kycStatus: string;
   kybStatus: string;
+  paymentsEnabled: boolean;
+  apiAccessEnabled: boolean;
+  payoutsEnabled: boolean;
+  refundsEnabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  ownerClerkId: string;
+  riskNote: string | null;
+  diditSessionId: string | null;
+  diditKybSessionId: string | null;
+  verificationUpdatedAt: Date | null;
+  kybVerificationUpdatedAt: Date | null;
 };
 
 function safeShopLogoUrl(value: string | null): string | null {
@@ -346,7 +369,45 @@ function merchantDto(row: AdminMerchantDtoRow) {
     ownerUserId: row.ownerClerkId, riskNote: row.riskNote, diditSessionId: row.diditSessionId,
     paymentsEnabled: row.paymentsEnabled, apiAccessEnabled: row.apiAccessEnabled,
     payoutsEnabled: row.payoutsEnabled, refundsEnabled: row.refundsEnabled,
+    diditKybSessionId: row.diditKybSessionId,
+    verificationUpdatedAt: row.verificationUpdatedAt,
+    kybVerificationUpdatedAt: row.kybVerificationUpdatedAt,
+    updatedAt: row.updatedAt,
   };
+}
+
+function adminMerchantSelect() {
+  return {
+    id: merchantsTable.id,
+    businessName: merchantsTable.businessName,
+    shopName: merchantsTable.shopName,
+    shopLogoUrl: merchantsTable.shopLogoUrl,
+    country: merchantsTable.country,
+    baseCurrency: merchantsTable.baseCurrency,
+    registrationNumber: merchantsTable.registrationNumber,
+    status: merchantsTable.status,
+    kycStatus: merchantsTable.kycStatus,
+    // Keep compatibility with databases that have not yet added these columns.
+    kybStatus: sql<string>`coalesce(to_jsonb(${merchantsTable})->>'kyb_status', 'not_started')`,
+    diditKybSessionId: sql<string | null>`to_jsonb(${merchantsTable})->>'didit_kyb_session_id'`,
+    verificationUpdatedAt: sql<Date | null>`nullif(to_jsonb(${merchantsTable})->>'verification_updated_at', '')::timestamptz`,
+    kybVerificationUpdatedAt: sql<Date | null>`nullif(to_jsonb(${merchantsTable})->>'kyb_verification_updated_at', '')::timestamptz`,
+    paymentsEnabled: merchantsTable.paymentsEnabled,
+    apiAccessEnabled: merchantsTable.apiAccessEnabled,
+    payoutsEnabled: merchantsTable.payoutsEnabled,
+    refundsEnabled: merchantsTable.refundsEnabled,
+    createdAt: merchantsTable.createdAt,
+    updatedAt: merchantsTable.updatedAt,
+    ownerClerkId: merchantsTable.ownerClerkId,
+    riskNote: merchantsTable.riskNote,
+    diditSessionId: merchantsTable.diditSessionId,
+  };
+}
+
+function clerkTimestamp(value: number | null | undefined): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 function fxDto(row: typeof fxRatesTable.$inferSelect) {
@@ -459,28 +520,7 @@ router.get("/admin/merchants", async (req, res): Promise<void> => {
   if (parsed.data.kycStatus) conditions.push(eq(merchantsTable.kycStatus, parsed.data.kycStatus));
   if (parsed.data.search) conditions.push(ilike(merchantsTable.businessName, `%${parsed.data.search}%`));
   try {
-    const rows = await db.select({
-      id: merchantsTable.id,
-      businessName: merchantsTable.businessName,
-      shopName: merchantsTable.shopName,
-      shopLogoUrl: merchantsTable.shopLogoUrl,
-      country: merchantsTable.country,
-      baseCurrency: merchantsTable.baseCurrency,
-      registrationNumber: merchantsTable.registrationNumber,
-      status: merchantsTable.status,
-      kycStatus: merchantsTable.kycStatus,
-      // Read the recently added field through the row JSON so this endpoint
-      // remains usable against databases that have not yet added kyb_status.
-      kybStatus: sql<string>`coalesce(to_jsonb(${merchantsTable})->>'kyb_status', 'not_started')`,
-      paymentsEnabled: merchantsTable.paymentsEnabled,
-      apiAccessEnabled: merchantsTable.apiAccessEnabled,
-      payoutsEnabled: merchantsTable.payoutsEnabled,
-      refundsEnabled: merchantsTable.refundsEnabled,
-      createdAt: merchantsTable.createdAt,
-      ownerClerkId: merchantsTable.ownerClerkId,
-      riskNote: merchantsTable.riskNote,
-      diditSessionId: merchantsTable.diditSessionId,
-    }).from(merchantsTable)
+    const rows = await db.select(adminMerchantSelect()).from(merchantsTable)
       .where(conditions.length ? and(...conditions) : undefined)
       .orderBy(desc(merchantsTable.createdAt))
       .limit(1000);
@@ -495,6 +535,52 @@ router.get("/admin/merchants", async (req, res): Promise<void> => {
     req.log.error({ err: error }, "Could not load admin merchant list");
     res.status(500).json({ error: "Merchant records could not be loaded. Try again shortly." });
   }
+});
+
+router.get("/admin/merchants/:id", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  const params = GetAdminMerchantDetailsParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const [row] = await db.select(adminMerchantSelect()).from(merchantsTable)
+    .where(eq(merchantsTable.id, params.data.id)).limit(1);
+  if (!row) { res.status(404).json({ error: "Merchant not found." }); return; }
+
+  let owner: ClerkUserRecord | null;
+  try {
+    owner = await fetchClerkUser(row.ownerClerkId);
+  } catch (error) {
+    if (error instanceof ClerkApiError && error.status === 404) {
+      owner = null;
+      req.log.warn({ merchantId: row.id }, "Merchant owner was not found in Clerk");
+    } else {
+      req.log.error({ err: error, merchantId: row.id }, "Could not load merchant owner contact details");
+      res.status(503).json({ error: "Owner contact details could not be verified. Try again shortly." });
+      return;
+    }
+  }
+
+  const verifiedPhones = owner ? verifiedPhoneNumbers(owner) : [];
+  const response = GetAdminMerchantDetailsResponse.safeParse({
+    merchant: merchantDto(row),
+    owner: {
+      userId: row.ownerClerkId,
+      lookupStatus: owner ? "available" : "not_found",
+      firstName: owner?.first_name ?? null,
+      lastName: owner?.last_name ?? null,
+      primaryEmail: owner ? verifiedPrimaryEmail(owner) : null,
+      verifiedEmails: owner ? verifiedEmailAddresses(owner) : [],
+      primaryPhone: owner ? verifiedPrimaryPhoneNumber(owner) : null,
+      verifiedPhones,
+      createdAt: owner ? clerkTimestamp(owner.created_at) : null,
+      lastSignInAt: owner ? clerkTimestamp(owner.last_sign_in_at) : null,
+    },
+  });
+  if (!response.success) {
+    req.log.error({ issues: response.error.issues, merchantId: row.id }, "Admin merchant details failed response validation");
+    res.status(500).json({ error: "Merchant details could not be returned." });
+    return;
+  }
+  res.json(response.data);
 });
 
 router.get("/admin/merchants/:merchantId/controls", async (req, res): Promise<void> => {

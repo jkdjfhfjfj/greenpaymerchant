@@ -6,10 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MerchantActionControls } from './merchantActionControls';
+import type { MerchantActionControlsResponseDisabledReasons } from './merchantActionControlsResponseDisabledReasons';
+import type { MerchantActionControlsResponseMerchantStatus } from './merchantActionControlsResponseMerchantStatus';
 import type { MerchantActionRole } from './merchantActionRole';
 
 export interface MerchantActionControlsResponse {
   merchantId: number;
+  businessName: string;
+  merchantStatus: MerchantActionControlsResponseMerchantStatus;
   controls: MerchantActionControls;
+  /** Server-reported policy reasons for actions that are currently unavailable. */
+  disabledReasons: MerchantActionControlsResponseDisabledReasons;
   role: MerchantActionRole;
 }

@@ -1,6 +1,7 @@
 import { getAuth } from "@clerk/express";
 import { Router, type IRouter } from "express";
 import {
+  AdjustAdminWalletBalanceBody, AdjustAdminWalletBalanceHeader, AdjustAdminWalletBalanceResponse,
   ApprovePayoutRequestParams,
   ConfirmWalletSettlementBody, ConfirmWalletSettlementResponse,
   ConvertMerchantWalletFundsBody, ConvertMerchantWalletFundsHeader, ConvertMerchantWalletFundsResponse,
@@ -14,7 +15,7 @@ import {
   RejectPayoutRequestBody, RejectPayoutRequestParams, RejectPayoutRequestResponse,
 } from "@workspace/api-zod";
 import {
-  approveAndSubmitMerchantPayout, confirmWalletSettlement, convertWalletFunds,
+  adjustAdminWalletBalance, approveAndSubmitMerchantPayout, confirmWalletSettlement, convertWalletFunds,
   approveWalletPayoutDestinationChange, createMerchantWalletPayoutDestinationChange,
   createWalletPayoutRequest, listAdminPayoutRequests, listAdminWalletPayoutDestinationChanges, listAdminWallets,
   listMerchantWalletPayoutDestinations, listMerchantWalletPayoutDestinationChanges,
@@ -238,6 +239,25 @@ merchantWalletRouter.post("/wallets/payout-requests", requireSignedIn, async (re
 
 adminWalletRouter.get("/admin/wallets", async (_req, res): Promise<void> => {
   res.json(ListAdminWalletsResponse.parse({ items: await listAdminWallets() }));
+});
+
+adminWalletRouter.post("/admin/wallets/adjustments", async (req, res): Promise<void> => {
+  const header = AdjustAdminWalletBalanceHeader.safeParse({
+    "Idempotency-Key": req.get("Idempotency-Key"),
+  });
+  const body = AdjustAdminWalletBalanceBody.safeParse(req.body);
+  if (!header.success || !body.success) {
+    res.status(400).json({
+      error: !header.success ? header.error.message : body.error?.message ?? "Invalid wallet adjustment.",
+    });
+    return;
+  }
+  const result = await adjustAdminWalletBalance({
+    ...body.data,
+    idempotencyKey: header.data["Idempotency-Key"],
+    actor: getAuth(req).userId ?? "unknown-admin",
+  });
+  res.status(201).json(AdjustAdminWalletBalanceResponse.parse(result));
 });
 
 adminWalletRouter.post("/admin/wallets/settlements/confirm", async (req, res): Promise<void> => {

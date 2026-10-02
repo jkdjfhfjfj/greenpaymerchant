@@ -42,10 +42,13 @@ import type {
   AdminListSupportTicketsParams,
   AdminMerchant,
   AdminMerchantControlsResponse,
+  AdminMerchantDetailsResponse,
   AdminMerchantList,
   AdminMerchantStatusResponse,
   AdminMerchantUpdate,
   AdminSummary,
+  AdminWalletAdjustmentRequest,
+  AdminWalletAdjustmentResponse,
   AdminWalletList,
   ApiKeyList,
   BankList,
@@ -3579,6 +3582,94 @@ export function useListAdminWallets<TData = Awaited<ReturnType<typeof listAdminW
 
 
 
+
+export const getAdjustAdminWalletBalanceUrl = () => {
+
+
+
+
+  return `/api/admin/wallets/adjustments`
+}
+
+/**
+ * @summary Post an audited credit or debit to a merchant's available wallet balance
+ */
+export const adjustAdminWalletBalance = async (adminWalletAdjustmentRequest: AdminWalletAdjustmentRequest, options?: Parameters<typeof customFetch>[1]): Promise<AdminWalletAdjustmentResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminWalletAdjustmentResponse>(getAdjustAdminWalletBalanceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminWalletAdjustmentRequest)
+  }
+);}
+
+
+
+
+
+export const getAdjustAdminWalletBalanceMutationKey = () => ['adjustAdminWalletBalance'] as const;
+
+export const getAdjustAdminWalletBalanceMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adjustAdminWalletBalance>>, TError,AdjustAdminWalletBalanceMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adjustAdminWalletBalance>>, TError,AdjustAdminWalletBalanceMutationVariables, TContext> => {
+
+const mutationKey = getAdjustAdminWalletBalanceMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adjustAdminWalletBalance>>, AdjustAdminWalletBalanceMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  adjustAdminWalletBalance(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdjustAdminWalletBalanceMutationResult = NonNullable<Awaited<ReturnType<typeof adjustAdminWalletBalance>>>
+    export type AdjustAdminWalletBalanceMutationBody = BodyType<AdminWalletAdjustmentRequest>
+    export type AdjustAdminWalletBalanceMutationError = ErrorType<unknown>
+    export type AdjustAdminWalletBalanceMutationVariables = {data: BodyType<AdminWalletAdjustmentRequest>}
+
+    /**
+ * @summary Post an audited credit or debit to a merchant's available wallet balance
+ */
+export const useAdjustAdminWalletBalance = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adjustAdminWalletBalance>>, TError,AdjustAdminWalletBalanceMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adjustAdminWalletBalance>>,
+        TError,
+        AdjustAdminWalletBalanceMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAdjustAdminWalletBalanceMutationOptions(options));
+    }
 
 export const getConfirmWalletSettlementUrl = () => {
 
@@ -11504,6 +11595,83 @@ export function useListAdminMerchants<TData = Awaited<ReturnType<typeof listAdmi
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListAdminMerchantsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminMerchantDetailsUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/merchants/${id}`
+}
+
+/**
+ * @summary Retrieve a merchant profile and the owner's verified contact details
+ */
+export const getAdminMerchantDetails = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<AdminMerchantDetailsResponse> => {
+
+  return customFetch<AdminMerchantDetailsResponse>(getGetAdminMerchantDetailsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminMerchantDetailsQueryKey = (id: number,) => {
+    return [
+    `/api/admin/merchants/${id}`
+    ] as const;
+    }
+
+
+export const getGetAdminMerchantDetailsQueryOptions = <TData = Awaited<ReturnType<typeof getAdminMerchantDetails>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminMerchantDetails>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminMerchantDetailsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminMerchantDetails>>> = ({ signal }) => getAdminMerchantDetails(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminMerchantDetails>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminMerchantDetailsQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminMerchantDetails>>>
+export type GetAdminMerchantDetailsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Retrieve a merchant profile and the owner's verified contact details
+ */
+
+export function useGetAdminMerchantDetails<TData = Awaited<ReturnType<typeof getAdminMerchantDetails>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminMerchantDetails>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminMerchantDetailsQueryOptions(id,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

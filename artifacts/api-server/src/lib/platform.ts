@@ -106,10 +106,17 @@ export async function assertMerchantActionEnabled(
   if (denial) throw new ApiError(403, denial);
 }
 
-export async function getMerchantActionControls(
+export type MerchantActionControlState = {
+  controls: MerchantActionControls;
+  disabledReasons: Partial<Record<MerchantActionKey, string>>;
+  businessName: string;
+  merchantStatus: string;
+};
+
+export async function getMerchantActionControlState(
   merchantId: number,
   tx?: FinancialTransaction,
-): Promise<MerchantActionControls> {
+): Promise<MerchantActionControlState> {
   const executor = tx ?? db;
   const [merchant] = await executor.select().from(merchantsTable)
     .where(eq(merchantsTable.id, merchantId)).limit(1);
@@ -124,10 +131,27 @@ export async function getMerchantActionControls(
   const global = settings ?? {
     paymentsEnabled: true, payoutsEnabled: true, refundsEnabled: true, apiAccessEnabled: true,
   };
+  const disabledReasons: Partial<Record<MerchantActionKey, string>> = {};
   for (const action of MERCHANT_ACTION_KEYS) {
-    if (merchantActionPolicyDenial({ action, controls, merchant, platform: global })) controls[action] = false;
+    const denial = merchantActionPolicyDenial({ action, controls, merchant, platform: global });
+    if (denial) {
+      controls[action] = false;
+      disabledReasons[action] = denial;
+    }
   }
-  return controls;
+  return {
+    controls,
+    disabledReasons,
+    businessName: merchant.businessName,
+    merchantStatus: merchant.status,
+  };
+}
+
+export async function getMerchantActionControls(
+  merchantId: number,
+  tx?: FinancialTransaction,
+): Promise<MerchantActionControls> {
+  return (await getMerchantActionControlState(merchantId, tx)).controls;
 }
 
 export async function getMerchantPayoutSafetySettings(

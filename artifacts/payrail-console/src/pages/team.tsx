@@ -55,7 +55,11 @@ export function MerchantTeamPage() {
         {capabilities.isLoading && <Note>Loading current team-management permissions…</Note>}
         {capabilities.isError && <Note tone="danger">Team permissions could not be verified. Refresh before making changes.</Note>}
         {!capabilities.isLoading && !capabilities.isError && !capabilities.can("teamManagement") &&
-          <Note tone="warn">{capabilities.disabledReason("teamManagement")}</Note>}
+          <Note tone="warn">
+            Team changes are unavailable for {capabilities.data?.businessName ?? "this workspace"}
+            {capabilities.data ? ` (merchant #${capabilities.data.merchantId}, status ${nice(capabilities.data.merchantStatus)}). ` : ". "}
+            {capabilities.disabledReason("teamManagement")}
+          </Note>}
         <form className="form-stack" onSubmit={submit}>
           <Field label="Verified email address"><input name="email" type="email" autoComplete="email" maxLength={254} placeholder="finance@example.com" required data-testid="input-team-email" /></Field>
           <Field label="Role">

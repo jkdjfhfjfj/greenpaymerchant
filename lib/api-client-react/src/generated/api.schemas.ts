@@ -831,6 +831,51 @@ export interface AdminWalletList {
   items: AdminWallet[];
 }
 
+export type AdminWalletAdjustmentRequestDirection = typeof AdminWalletAdjustmentRequestDirection[keyof typeof AdminWalletAdjustmentRequestDirection];
+
+
+export const AdminWalletAdjustmentRequestDirection = {
+  credit: 'credit',
+  debit: 'debit',
+} as const;
+
+export interface AdminWalletAdjustmentRequest {
+  /** @minimum 1 */
+  merchantId: number;
+  /** @pattern ^[A-Za-z]{3}$ */
+  currency: string;
+  direction: AdminWalletAdjustmentRequestDirection;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /**
+     * @minLength 3
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export type AdminWalletAdjustmentResponseDirection = typeof AdminWalletAdjustmentResponseDirection[keyof typeof AdminWalletAdjustmentResponseDirection];
+
+
+export const AdminWalletAdjustmentResponseDirection = {
+  credit: 'credit',
+  debit: 'debit',
+} as const;
+
+export interface AdminWalletAdjustmentResponse {
+  journalId: number;
+  reference: string;
+  merchantId: number;
+  businessName: string;
+  currency: string;
+  direction: AdminWalletAdjustmentResponseDirection;
+  amount: number;
+  reason: string;
+  availableBalance: number;
+  reservedBalance: number;
+  updatedAt: string;
+}
+
 export type WalletLedgerEntryDirection = typeof WalletLedgerEntryDirection[keyof typeof WalletLedgerEntryDirection];
 
 
@@ -2577,9 +2622,28 @@ export const MerchantActionRole = {
   viewer: 'viewer',
 } as const;
 
+export type MerchantActionControlsResponseMerchantStatus = typeof MerchantActionControlsResponseMerchantStatus[keyof typeof MerchantActionControlsResponseMerchantStatus];
+
+
+export const MerchantActionControlsResponseMerchantStatus = {
+  pending: 'pending',
+  active: 'active',
+  suspended: 'suspended',
+  closed: 'closed',
+} as const;
+
+/**
+ * Server-reported policy reasons for actions that are currently unavailable.
+ */
+export type MerchantActionControlsResponseDisabledReasons = {[key: string]: string};
+
 export interface MerchantActionControlsResponse {
   merchantId: number;
+  businessName: string;
+  merchantStatus: MerchantActionControlsResponseMerchantStatus;
   controls: MerchantActionControls;
+  /** Server-reported policy reasons for actions that are currently unavailable. */
+  disabledReasons: MerchantActionControlsResponseDisabledReasons;
   role: MerchantActionRole;
 }
 
@@ -3088,10 +3152,49 @@ export type AdminMerchant = MerchantProfile & ({
   riskNote?: string | null;
   /** @nullable */
   diditSessionId?: string | null;
+  /** @nullable */
+  diditKybSessionId?: string | null;
+  /** @nullable */
+  verificationUpdatedAt?: string | null;
+  /** @nullable */
+  kybVerificationUpdatedAt?: string | null;
+  updatedAt?: string;
 });
 
 export interface AdminMerchantList {
   items: AdminMerchant[];
+}
+
+export type AdminMerchantOwnerContactLookupStatus = typeof AdminMerchantOwnerContactLookupStatus[keyof typeof AdminMerchantOwnerContactLookupStatus];
+
+
+export const AdminMerchantOwnerContactLookupStatus = {
+  available: 'available',
+  not_found: 'not_found',
+} as const;
+
+export interface AdminMerchantOwnerContact {
+  userId: string;
+  lookupStatus: AdminMerchantOwnerContactLookupStatus;
+  /** @nullable */
+  firstName: string | null;
+  /** @nullable */
+  lastName: string | null;
+  /** @nullable */
+  primaryEmail: string | null;
+  verifiedEmails: string[];
+  /** @nullable */
+  primaryPhone: string | null;
+  verifiedPhones: string[];
+  /** @nullable */
+  createdAt: string | null;
+  /** @nullable */
+  lastSignInAt: string | null;
+}
+
+export interface AdminMerchantDetailsResponse {
+  merchant: AdminMerchant;
+  owner: AdminMerchantOwnerContact;
 }
 
 export type AdminMerchantUpdateStatus = typeof AdminMerchantUpdateStatus[keyof typeof AdminMerchantUpdateStatus];

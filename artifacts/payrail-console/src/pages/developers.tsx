@@ -15,7 +15,7 @@ const SCOPES = ['read', 'payment_links:write', 'payments:write'] as const;
 const EVENTS = ['payment.success', 'payment.failed', 'payment.refunded'] as const;
 
 function Secret({ title, secret, hint, onClose }: { title: string; secret: string; hint: string; onClose: () => void }) {
-  return <Modal title={title} onClose={onClose}><div className="secret-box"><small>{hint}</small><code data-testid="text-secret">{secret}</code><div><CopyBtn text={secret} /></div></div><Btn onClick={onClose}>I have stored it</Btn></Modal>;
+  return <Modal title={title} onClose={onClose}><div className="secret-box"><small>{hint}</small><code data-testid="text-secret" style={{ userSelect: 'all', overflowWrap: 'anywhere' }}>{secret}</code><div><CopyBtn text={secret} /></div></div><Btn onClick={onClose}>I have stored it</Btn></Modal>;
 }
 
 export function DevelopersPage() { return <Gate need="merchant"><Inner /></Gate>; }
@@ -43,15 +43,30 @@ function Inner() {
   const toggle = (arr: string[], v: string, set: (a: string[]) => void) => set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
   const origin = window.location.origin;
 
-  function createKey(e: FormEvent<HTMLFormElement>) {
+  async function createKey(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const name = String(new FormData(e.currentTarget).get('name')).trim();
-    mk.mutate({ data: { name, scopes: scopes as never } }, { onSuccess: (r) => { void inv(); setKeyOpen(false); setSecret({ title: 'API key created', value: r.secret, hint: 'This secret is shown once. Copy it now; it cannot be retrieved later.' }); } });
+    try {
+      const r = await mk.mutateAsync({ data: { name, scopes: scopes as never } });
+      void inv();
+      setKeyOpen(false);
+      setSecret({ title: 'API key created', value: r.secret, hint: 'This secret is shown once. Copy it now; it cannot be retrieved later.' });
+    } catch {
+      // The mutation error is shown in the form; keep the dialog open for correction or retry.
+    }
   }
-  function createHook(e: FormEvent<HTMLFormElement>) {
+  async function createHook(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const url = String(new FormData(e.currentTarget).get('url')).trim();
-    mh.mutate({ data: { url, events: events as never } }, { onSuccess: (r) => { void invalidateWebhookData(); void inv(); setHookOpen(false); setSecret({ title: 'Webhook endpoint created', value: r.signingSecret, hint: 'Signing secret, shown once. Use it to verify delivery signatures.' }); } });
+    try {
+      const r = await mh.mutateAsync({ data: { url, events: events as never } });
+      void invalidateWebhookData();
+      void inv();
+      setHookOpen(false);
+      setSecret({ title: 'Webhook endpoint created', value: r.signingSecret, hint: 'Signing secret, shown once. Use it to verify delivery signatures.' });
+    } catch {
+      // The mutation error is shown in the form; keep the dialog open for correction or retry.
+    }
   }
   const kItems = keys.data?.items ?? [];
   const hItems = hooks.data?.items ?? [];

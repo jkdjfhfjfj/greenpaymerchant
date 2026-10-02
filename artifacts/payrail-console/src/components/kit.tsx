@@ -78,8 +78,35 @@ export function Switch({ on, onChange, disabled, label }: { on: boolean; onChang
   return <button type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled} className="switch" onClick={() => onChange(!on)} data-testid={`switch-${label.toLowerCase().replaceAll(' ', '-')}`} />;
 }
 export function CopyBtn({ text }: { text: string }) {
-  const [done, setDone] = useState(false);
-  return <Btn variant="secondary" small onClick={() => { void navigator.clipboard?.writeText(text); setDone(true); setTimeout(() => setDone(false), 1500); }}>{done ? <Check size={13} /> : <Copy size={13} />}{done ? 'Copied' : 'Copy'}</Btn>;
+  const [status, setStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  async function copyText() {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand('copy');
+        textarea.remove();
+        if (!copied) throw new Error('Clipboard access is unavailable.');
+      }
+      setStatus('copied');
+    } catch {
+      setStatus('failed');
+    }
+    window.setTimeout(() => setStatus('idle'), 2500);
+  }
+  return <span className="copy-action">
+    <Btn variant="secondary" small onClick={() => { void copyText(); }} aria-label={status === 'copied' ? 'Copied to clipboard' : 'Copy to clipboard'}>
+      {status === 'copied' ? <Check size={13} /> : <Copy size={13} />}{status === 'copied' ? 'Copied' : status === 'failed' ? 'Copy failed' : 'Copy'}
+    </Btn>
+    {status === 'failed' && <small role="status">Select the text and copy it manually.</small>}
+  </span>;
 }
 export function Pager({ page, total, perPage, onPage }: { page: number; total: number; perPage: number; onPage: (p: number) => void }) {
   const pages = Math.max(1, Math.ceil(total / perPage));

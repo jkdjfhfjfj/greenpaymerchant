@@ -521,6 +521,7 @@ function LinkCollectedTotals({ link, format }: {
 
 function PaymentLinks() {
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused'>('all');
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const params = useMemo(() => ({ search: search || undefined }), [search]);
@@ -528,15 +529,41 @@ function PaymentLinks() {
   const update = useUpdatePaymentLink();
   const remove = useDeletePaymentLink();
   const [notice, setNotice] = useState('');
+  const items = query.data?.items ?? [];
+  const visibleItems = items.filter((item) => statusFilter === 'all' || item.status === statusFilter);
+  const activeCount = items.filter((item) => item.status === 'active').length;
+  const paymentCount = items.reduce((total, item) => total + item.paidCount, 0);
   async function share(url: string) {
     try { await navigator.clipboard.writeText(url); setNotice('Payment link copied to clipboard.'); }
     catch { setNotice('Could not copy automatically. Open the link to copy it manually.'); }
   }
   return <><PageHeading eyebrow="COLLECTIONS / SELF-SERVE" title="Payment links" subtitle="Create a checkout page, then share it wherever customers are." action={<Button onClick={() => setCreateOpen(true)}><Plus size={16} /> Create payment link</Button>} />
-    <div className="link-summary-strip"><div><span className="strip-icon"><Link2 size={17} /></span><div><strong>Share a checkout that just works</strong><span>Fixed pricing or let customers choose the amount.</span></div></div><div className="strip-route"><span className="route-hint-dot" /> Currency-based routing <ArrowRight size={14} /></div></div>
+    <div className="link-summary-strip"><div className="link-summary-copy"><span className="strip-icon"><Link2 size={17} /></span><div><strong>One link, ready to share</strong><span>Set a fixed price or let customers choose the amount. Payments remain in the link’s selected currency.</span></div></div><div className="strip-route"><span className="route-hint-dot" /> Secure, currency-based checkout <ArrowRight size={14} /></div></div>
+    <div className="link-insights" aria-label="Payment link summary">
+      <article><span>Matching links</span><strong>{items.length}</strong><small>Based on the current search</small></article>
+      <article><span>Active links</span><strong>{activeCount}</strong><small>Ready to accept payments</small></article>
+      <article><span>Payments recorded</span><strong>{paymentCount}</strong><small>Across matching links</small></article>
+    </div>
     {notice && <div className="inline-notice"><CheckCircle2 size={15} />{notice}<button onClick={() => setNotice('')} aria-label="Dismiss notification"><X size={14} /></button></div>}
-    <div className="list-toolbar"><label className="search-box"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search links by name" data-testid="input-payment-link-search" /></label><span className="list-count">{query.data?.items?.length ?? 0} links</span></div>
-    <QueryState loading={query.isLoading} error={query.isError} retry={() => { void query.refetch(); }} empty={!query.data?.items?.length}><div className="links-grid">{(query.data?.items || []).map((item) => <article key={item.id} className="link-card" data-testid={`card-payment-link-${item.id}`}><div className="link-card-top"><span className="link-card-icon"><Link2 size={17} /></span><StatusPill value={item.status} /></div><h2>{item.name}</h2><p>{item.description || 'No description added'}</p><div className="link-price">{item.amountType === 'fixed' ? currency(item.amount, item.currency) : 'Customer chooses'}<small>{item.amountType === 'fixed' ? 'fixed amount' : item.currency}</small></div><div className="link-performance"><div><strong>{item.paidCount}</strong><span>payments</span></div><div><strong><LinkCollectedTotals link={item} format={currency} /></strong><span>collected</span></div><div><strong>{item.expiresAt ? dateOnly(item.expiresAt) : 'Never'}</strong><span>expires</span></div></div><div className="link-url"><span className="mono">{item.url}</span><button className="icon-button" title="Copy payment link" aria-label="Copy payment link" onClick={() => { void share(item.url); }} data-testid={`button-copy-link-${item.id}`}><Copy size={15} /></button></div><div className="link-card-actions"><Button variant="secondary" onClick={() => { void share(item.url); }}><Copy size={14} /> Share</Button><Button variant="quiet" onClick={() => setEditing(item)}><SlidersHorizontal size={14} /> Edit</Button>{item.status === 'active' ? <Button variant="quiet" disabled={update.isPending} onClick={() => update.mutate({ id: item.id, data: { status: 'paused' } }, { onSuccess: () => { setNotice('Payment link paused.'); void query.refetch(); }, onError: () => setNotice('Could not pause this payment link.') })}>Pause</Button> : item.status === 'paused' ? <Button variant="quiet" disabled={update.isPending} onClick={() => update.mutate({ id: item.id, data: { status: 'active' } }, { onSuccess: () => { setNotice('Payment link resumed.'); void query.refetch(); }, onError: () => setNotice('Could not resume this payment link.') })}>Resume</Button> : null}<Button variant="quiet" className="archive-action" disabled={remove.isPending} onClick={() => { if (window.confirm(`Archive “${item.name}”? Existing payment records will remain available.`)) remove.mutate({ id: item.id }, { onSuccess: () => { setNotice('Payment link archived.'); void query.refetch(); }, onError: () => setNotice('Could not archive this payment link.') }); }}>Archive</Button></div></article>)}</div></QueryState>
+    <div className="links-toolbar">
+      <label className="search-box"><Search size={16} /><input aria-label="Search payment links" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search links by name" data-testid="input-payment-link-search" /></label>
+      <div className="link-filter-group" role="group" aria-label="Filter payment links">
+        {(['all', 'active', 'paused'] as const).map((filter) => <button key={filter} type="button" className={`link-filter ${statusFilter === filter ? 'is-selected' : ''}`} aria-pressed={statusFilter === filter} onClick={() => setStatusFilter(filter)}>{filter === 'all' ? 'All links' : filter === 'active' ? 'Active' : 'Paused'}</button>)}
+      </div>
+      <span className="list-count">{visibleItems.length} of {items.length} links</span>
+    </div>
+    <QueryState loading={query.isLoading} error={query.isError} retry={() => { void query.refetch(); }} empty={!items.length}>
+      {visibleItems.length
+        ? <div className="links-grid">{visibleItems.map((item) => <article key={item.id} className="link-card" data-testid={`card-payment-link-${item.id}`}>
+          <div className="link-card-top"><span className="link-card-icon"><Link2 size={17} /></span><StatusPill value={item.status} /></div>
+          <div className="link-card-copy"><h2>{item.name}</h2><p>{item.description || 'No description added'}</p></div>
+          <div className="link-price">{item.amountType === 'fixed' ? currency(item.amount, item.currency) : 'Customer chooses'}<small>{item.amountType === 'fixed' ? `Fixed in ${item.currency}` : `Payer selects currency · ${item.currency} default`}</small></div>
+          <div className="link-performance"><div><strong>{item.paidCount}</strong><span>payments</span></div><div><strong><LinkCollectedTotals link={item} format={currency} /></strong><span>collected</span></div><div><strong>{item.expiresAt ? dateOnly(item.expiresAt) : 'Never'}</strong><span>expires</span></div></div>
+          <div className="link-url"><span className="mono" title={item.url}>{item.url}</span><button className="icon-button" title="Copy payment link" aria-label="Copy payment link" onClick={() => { void share(item.url); }} data-testid={`button-copy-link-${item.id}`}><Copy size={15} /></button></div>
+          <div className="link-card-actions"><Button variant="secondary" onClick={() => { void share(item.url); }}><Copy size={14} /> Share</Button><Button variant="quiet" onClick={() => setEditing(item)}><SlidersHorizontal size={14} /> Edit</Button>{item.status === 'active' ? <Button variant="quiet" disabled={update.isPending} onClick={() => update.mutate({ id: item.id, data: { status: 'paused' } }, { onSuccess: () => { setNotice('Payment link paused.'); void query.refetch(); }, onError: () => setNotice('Could not pause this payment link.') })}>Pause</Button> : item.status === 'paused' ? <Button variant="quiet" disabled={update.isPending} onClick={() => update.mutate({ id: item.id, data: { status: 'active' } }, { onSuccess: () => { setNotice('Payment link resumed.'); void query.refetch(); }, onError: () => setNotice('Could not resume this payment link.') })}>Resume</Button> : null}<Button variant="quiet" className="archive-action" disabled={remove.isPending} onClick={() => { if (window.confirm(`Archive “${item.name}”? Existing payment records will remain available.`)) remove.mutate({ id: item.id }, { onSuccess: () => { setNotice('Payment link archived.'); void query.refetch(); }, onError: () => setNotice('Could not archive this payment link.') }); }}>Archive</Button></div>
+        </article>)}</div>
+        : <div className="links-filter-empty"><strong>No links match this filter</strong><span>Choose another status or clear your search.</span><Button variant="secondary" onClick={() => { setStatusFilter('all'); setSearch(''); }}>Clear filters</Button></div>}
+    </QueryState>
     {createOpen && <PaymentLinkForm onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); void query.refetch(); }} />}
     {editing && <PaymentLinkEdit link={editing} onClose={() => setEditing(null)} onUpdated={() => { setEditing(null); void query.refetch(); }} />}
   </>;

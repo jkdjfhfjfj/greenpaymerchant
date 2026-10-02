@@ -4,6 +4,7 @@ import { useGetPublicPricing, useListPublicFxRates, useListSupportedCurrencies }
 import '@/home.css';
 import { money } from '@/components/kit';
 import { PlatformBrand, usePlatformBranding } from '@/components/platform-brand';
+import { collectionMethodDisplayOptions } from '@/lib/collection-method-display';
 
 function Mark() {
   return <PlatformBrand variant="home" />;
@@ -23,7 +24,7 @@ function Reveal({ children, className = '', delay = 0 }: { children: ReactNode; 
 }
 
 const features = [
-  { icon: Link2, title: 'Payment links', text: 'Create a link, share it anywhere, and let customers pay on a clean hosted page. No storefront needed.', id: 'payment-links' },
+  { icon: Link2, title: 'Payment links', text: 'Create a link, share it anywhere, and let customers pay with methods available in their currency. No storefront needed.', id: 'payment-links' },
   { icon: BadgeCheck, title: 'Confirmed tracking', text: 'A transaction is marked paid only once the payment is confirmed. Until then it stays pending, honestly.', id: 'confirmed-tracking' },
   { icon: KeyRound, title: 'Payments API', text: 'Create payment links, start collections, read transaction status, and receive signed webhooks through scoped API access.', id: 'developer-access' },
   { icon: Percent, title: 'Fees you can read', text: 'Fees are shown against each transaction so finance can reconcile what was charged and why.', id: 'fees' },
@@ -45,22 +46,22 @@ const MARKET_COUNTRIES: Record<string, string[]> = {
   CDF: ['Democratic Republic of the Congo'],
   MZN: ['Mozambique'],
   XAF: ['Cameroon', 'Central African Republic', 'Chad', 'Republic of the Congo', 'Equatorial Guinea', 'Gabon'],
-  USD: ['International (USD)'],
+  USD: ['Global'],
 };
-
-function collectionMethodLabel(currency: string, method: { id: string; label: string }) {
-  if (currency === 'KES' && method.id === 'mobile_prompt') return 'M-Pesa mobile money';
-  if (method.id === 'hosted_checkout') return 'Payment options shown at checkout';
-  return method.label;
-}
 
 function formatFxRate(rate: number) {
   return new Intl.NumberFormat('en-US', { maximumSignificantDigits: 7 }).format(rate);
 }
 
+function formatFxDate(value?: Date | string) {
+  const date = typeof value === 'string' ? new Date(value) : value;
+  if (!date || Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(date);
+}
+
 const steps = [
   { n: '01', t: 'Create a link', d: 'Set an amount and currency, or let the customer choose.' },
-  { n: '02', t: 'Customer pays', d: 'They complete payment on a hosted checkout page.' },
+  { n: '02', t: 'Customer chooses a method', d: 'They use an available local payment option, or pay in USD worldwide.' },
   { n: '03', t: 'Payment is confirmed', d: 'Status moves from pending only on confirmation.' },
   { n: '04', t: 'Record is kept', d: 'Reference, fee and status land in your transaction list.' },
 ];
@@ -79,7 +80,7 @@ export default function HomePage() {
     currency: currency.code,
     name: currency.name,
     methods: currency.paymentMethods.map((method) => ({
-      label: collectionMethodLabel(currency.code, method),
+      labels: collectionMethodDisplayOptions(currency.code, method.id),
       ready: method.ready,
     })),
     comingSoon: currency.comingSoon,
@@ -89,16 +90,11 @@ export default function HomePage() {
     currency: currency.code,
     name: currency.name,
     rate: currency.code === 'USD' ? 1 : fxRatesByCurrency.get(currency.code)?.rate ?? null,
-    source: currency.code === 'USD'
-      ? 'Base currency'
-      : currency.code === 'SLL'
-        ? 'Withheld pending denomination verification'
-        : fxRatesByCurrency.get(currency.code)?.source ?? 'Unavailable',
     sourceDate: fxRatesByCurrency.get(currency.code)?.sourceDate,
   }));
   useEffect(() => {
     const title = `${branding.platformName} | Payment collection and business finance records`;
-    const description = `${branding.platformName} helps businesses collect payments across African markets with hosted links and a developer API, then review confirmed transactions, fees and payout records.`;
+    const description = `${branding.platformName} helps businesses collect payments across African markets with payment links and a developer API, then review confirmed transactions, fees and payout records.`;
     const publicBase = import.meta.env.VITE_PUBLIC_SITE_URL?.trim() || 'https://empty-project.replit.app';
     const canonicalUrl = new URL('/', `${publicBase.replace(/\/$/, '')}/`).toString();
     document.title = title;
@@ -151,9 +147,9 @@ export default function HomePage() {
     <main>
       <section className="hp-hero">
         <div className="hp-hero-copy">
-          <span className="hp-eyebrow"><i />African markets. International USD. Developer API.</span>
+          <span className="hp-eyebrow"><i />African markets. Global USD. Developer API.</span>
           <h1>Collect across Africa.<br /><em>Build for global business.</em></h1>
-          <p>{branding.platformName}'s currency catalog spans 25 African country markets plus an international USD route. Create payment links or integrate through our API; live collection availability varies by currency and merchant verification.</p>
+          <p>{branding.platformName}'s currency catalog spans 25 African country markets plus global USD payments. Create payment links or integrate through our API; live collection availability varies by currency and merchant verification.</p>
           <div className="hp-actions">
             <a href="/sign-up" className="hp-btn hp-btn-gold hp-btn-lg" data-testid="link-sign-up-hero">Create your account <ArrowRight size={17} /></a>
             <a href="/api-docs" className="hp-btn hp-btn-ghost hp-btn-lg" data-testid="link-api-docs-hero">Explore API docs <ArrowUpRight size={17} /></a>
@@ -233,13 +229,13 @@ Content-Type: application/json
               {marketRows.map((row) => <div className="hp-market-row" key={row.currency}>
                 <div className="hp-market-country"><strong>{row.countries.join(', ')}</strong><small>{row.name}</small></div>
                 <span className="hp-market-code">{row.currency}</span>
-                <div className="hp-market-methods">{row.methods.map((method) => <span className={`hp-method-tag${method.ready ? ' ready' : ''}`} key={method.label}>{method.label}</span>)}</div>
+              <div className="hp-market-methods">{row.methods.flatMap((method) => method.labels.map((label) => <span className={`hp-method-tag${method.ready ? ' ready' : ''}`} key={`${row.currency}-${label}`}>{label}</span>))}</div>
                 <span className={`hp-market-status ${row.comingSoon ? 'soon' : row.collectionReady ? 'ready' : 'inactive'}`}>
                   {row.comingSoon ? 'Coming soon' : row.collectionReady ? 'Available' : 'Not active'}
                 </span>
               </div>)}
             </div>}
-            <p className="hp-footnote">All catalog currencies are included. M-Pesa mobile money is the explicit prompt method for KES; other payment choices are presented by the provider at checkout. Merchant verification and transaction limits can also affect availability.</p>
+            <p className="hp-footnote">USD is available globally. Local payment options vary by currency; merchant verification and transaction limits can also affect availability.</p>
           </div>
 
           <div className="hp-coverage-card hp-pricing-card">
@@ -261,11 +257,11 @@ Content-Type: application/json
             {publicFxRates.isLoading && <p className="hp-muted">Loading current reference rates…</p>}
             {publicFxRates.isError && <p className="hp-error">Live reference rates are temporarily unavailable. The currency catalog remains available above.</p>}
             {publicFxRates.data && <div className="hp-rate-list" data-testid="list-live-fx-rates">
-              <div className="hp-rate-row hp-rate-header" aria-hidden="true"><span>Currency</span><span>Units per 1 USD</span><span>Rate source</span></div>
+              <div className="hp-rate-row hp-rate-header" aria-hidden="true"><span>Currency</span><span>Units per 1 USD</span><span>Updated</span></div>
               {rateRows.map((row) => <div className="hp-rate-row" key={row.currency}>
                 <span className="hp-rate-code">{row.currency}</span>
                 <strong>{row.rate === null ? '—' : formatFxRate(row.rate)}</strong>
-                <span className="hp-rate-source"><span>{row.source}</span>{row.sourceDate && <small>{row.sourceDate}</small>}</span>
+                <span className="hp-rate-updated">{formatFxDate(row.sourceDate)}</span>
               </div>)}
             </div>}
             <p className="hp-footnote">Indicative market references, not a payment or settlement quote. Rates are refreshed from their sources and may differ from wallet conversion rates after margin and fees. SLL is withheld until its denomination scale is verified.</p>

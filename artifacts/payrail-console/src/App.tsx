@@ -25,6 +25,7 @@ import { formatFinancialAmount as currency } from '@/lib/money-format';
 import HomePage from '@/pages/home';
 import { useAccess, Gate, Async, errMsg, CURRENCIES, currencyAmountStep, currencyMinorUnits } from '@/components/kit';
 import { PlatformBrand, PlatformBrandingProvider, usePlatformBranding } from '@/components/platform-brand';
+import { collectionMethodDisplayOptions } from '@/lib/collection-method-display';
 import { NotificationBell } from '@/components/notification-bell';
 import { ContactPage } from '@/pages/contact';
 import { SupportPage } from '@/pages/support';
@@ -357,7 +358,7 @@ function CollectionModal({ onClose }: { onClose: () => void }) {
     });
     setWorking(true);
   }
-  return <Modal title={checkout ? 'Collection initiated' : 'Start a collection'} description={checkout ? 'The payment session is ready. Continue to payment or complete the prompt on your phone.' : 'Greenpay will route this payment using the configured currency path.'} onClose={onClose}>
+  return <Modal title={checkout ? 'Collection initiated' : 'Start a collection'} description={checkout ? 'The payment request is ready. Continue to payment or complete the prompt on your phone.' : 'Greenpay will route this payment by currency and show the available payment options.'} onClose={onClose}>
     {checkout ? <div className="form-stack"><div className="route-confirm"><CheckCircle2 size={20} /><div><strong>{checkout.provider === 'payhero' ? 'M-Pesa prompt requested' : 'Checkout session created'}</strong><span>{checkout.provider === 'payhero' ? `Check the customer’s phone to complete payment. Reference ${checkout.reference}.` : 'No payment is marked successful until the provider confirms it.'}</span></div></div>{checkout.url && <a href={checkout.url} target="_blank" rel="noreferrer" className="btn btn-primary btn-full">Open checkout <ExternalLink size={15} /></a>}<Button variant="secondary" className="btn-full" onClick={onClose}>Close</Button></div> : <form className="form-stack" onSubmit={submit}>
       <div className="form-grid">
         <Field label="Amount"><input name="amount" type="number" min={currencyMinorUnits(currencyCode) === 0 ? '1' : '0.01'} step={currencyAmountStep(currencyCode)} placeholder="0.00" required data-testid="input-collection-amount" /></Field>
@@ -365,13 +366,14 @@ function CollectionModal({ onClose }: { onClose: () => void }) {
           {supportedCurrencies.map((item) => <option key={item.code} value={item.code}>{item.code} · {item.name}{item.comingSoon ? ' · Coming soon' : item.collectionReady ? '' : ' · unavailable'}</option>)}
         </select></Field>
       </div>
-      <Field label="Payment method"><select value={selectedMethodId} onChange={(event) => setPaymentMethodId(event.target.value)} disabled={!paymentMethods.some((item) => item.ready)} data-testid="select-collection-payment-method">
-        {selectedMethodId === '' && <option value="">{currencyOption?.comingSoon ? 'Coming soon' : currencyOption?.collectionReady ? 'No payment method available' : 'Payment method unavailable'}</option>}
-        {paymentMethods.map((method) => <option key={method.id} value={method.id} disabled={!method.ready}>{method.label}{method.ready ? '' : currencyOption?.comingSoon ? ' · Coming soon' : ' · unavailable'}</option>)}
-      </select></Field>
+      <div className="field"><span>Payment options</span><div className="collection-method-options" data-testid="collection-payment-options">
+        {selectedMethod
+          ? collectionMethodDisplayOptions(currencyCode, selectedMethod.id).map((option) => <span className="collection-method-option" key={option}>{option}</span>)
+          : <span className="collection-method-empty">{currencyOption?.comingSoon ? 'Coming soon' : 'No payment options available'}</span>}
+      </div></div>
       {selectedMethod && <span className="sub">{selectedMethod.id === 'mobile_prompt'
-        ? 'Mobile money is requested through an M-Pesa prompt on the customer’s phone.'
-        : 'The secure hosted checkout shows the payment options supported for this currency. USD is not guaranteed to be card-only.'}</span>}
+        ? 'A mobile money prompt will be sent to the customer’s phone.'
+        : 'The customer can choose an available option when continuing to payment.'}</span>}
       {currencyCatalog.isLoading && <span className="sub">Loading supported currencies and payment options…</span>}
       {currencyCatalog.isError && <div className="provider-warning"><CircleAlert size={15} /><span>Payment availability could not be checked.</span><Button variant="secondary" disabled={currencyCatalog.isFetching} onClick={() => { void currencyCatalog.refetch(); }}>{currencyCatalog.isFetching ? 'Checking…' : 'Retry'}</Button></div>}
       {currencyOption && currencyOption.comingSoon && <div className="provider-warning"><CircleAlert size={15} /><span>Coming soon: new collections in {currencyOption.code} are disabled by the platform administrator.</span></div>}
@@ -397,11 +399,11 @@ function ErrorLine({ error }: { error: string }) {
 
 function RouteHint({ currencyCode, paymentMethodId }: { currencyCode: string; paymentMethodId: string }) {
   const selected = currencyCode.toUpperCase();
-  const hint = selected === 'USD' && paymentMethodId === 'hosted_checkout'
-    ? 'USD uses secure hosted checkout; available payment options appear on the next page.'
+  const hint = selected === 'USD'
+    ? 'USD payments are available globally.'
     : selected === 'KES' && paymentMethodId === 'mobile_prompt'
       ? 'A mobile money prompt will be sent to the customer’s phone.'
-      : `${selected} uses the secure payment method selected above.`;
+      : `Available payment options are shown above for ${selected}.`;
   return <div className="route-hint"><span className="route-hint-dot" /><span>{hint}</span></div>;
 }
 
@@ -845,13 +847,14 @@ function PublicCheckout() {
                       {availableCurrencies.map((item) => <option key={item.code} value={item.code} disabled={!item.collectionReady}>{item.code} · {item.name}{item.comingSoon ? ' · Coming soon' : item.collectionReady ? '' : ' · unavailable'}</option>)}
                   </select></Field>
                   : <Field label="Payment currency"><input value={`${link.currency} · ${invoiceBalance !== null ? 'invoice amount; currency locked' : 'fixed amount; currency locked'}`} readOnly /></Field>}
-                <Field label="Payment method"><select value={selectedMethodId} onChange={(event) => setPaymentMethodSelection(event.target.value)} disabled={!paymentMethods.some((item) => item.ready)} required data-testid="select-checkout-payment-method">
-                  {selectedMethodId === '' && <option value="">{currencyOption?.comingSoon ? 'Coming soon' : currencyOption?.collectionReady ? 'No payment method available' : 'No payment method available right now'}</option>}
-                  {paymentMethods.map((method) => <option key={method.id} value={method.id} disabled={!method.ready}>{method.label}{method.requiresPhone ? ' · phone required' : ''}{method.ready ? '' : currencyOption?.comingSoon ? ' · Coming soon' : ' · unavailable'}</option>)}
-                </select></Field>
+                <div className="field"><span>Payment options</span><div className="checkout-method-options" data-testid="checkout-payment-options">
+                  {(selectedMethod ?? paymentMethods[0])
+                    ? collectionMethodDisplayOptions(currencyCode, (selectedMethod ?? paymentMethods[0])!.id).map((option) => <span className={`checkout-method-option${(selectedMethod ?? paymentMethods[0])!.ready ? '' : ' unavailable'}`} key={option}>{option}</span>)
+                    : <span className="checkout-method-empty">{currencyOption?.comingSoon ? 'Coming soon' : 'No payment options available right now'}</span>}
+                </div></div>
                 {selectedMethod && <span className="checkout-trust">{selectedMethod.id === 'mobile_prompt'
-                  ? 'Mobile money is requested through a secure M-Pesa prompt on your phone.'
-                  : 'The secure checkout shows any card, mobile-money, or bank options available for this currency.'}</span>}
+                  ? 'A mobile money prompt will be sent to your phone.'
+                  : 'Continue to choose an available option and complete payment.'}</span>}
                 {(link.amountType === 'customer_choice' || invoiceBalance !== null) && <Field label={invoiceBalance !== null ? `Payment amount (${currencyCode}), up to ${currency(invoiceBalance, link.currency)}` : `Amount (${currencyCode})`}><input key={currencyCode} name="amount" type="number" min={currencyMinorUnits(currencyCode) === 0 ? '1' : '0.01'} max={invoiceBalance ?? undefined} defaultValue={invoiceBalance ?? undefined} step={currencyAmountStep(currencyCode)} placeholder="0.00" required data-testid="input-checkout-amount" /></Field>}
                 <Field label="Email address"><input type="email" name="email" placeholder="you@example.com" autoComplete="email" required data-testid="input-checkout-email" /></Field>
                 <Field label="Full name"><input name="name" placeholder="Name on payment" autoComplete="name" required data-testid="input-checkout-name" /></Field>

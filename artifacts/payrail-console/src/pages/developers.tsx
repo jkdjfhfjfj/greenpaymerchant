@@ -130,44 +130,44 @@ function Inner() {
         </tbody></table></div>
       </Async>
     </Card>
-    <Card title="Quick reference" subtitle="Replace PAYRAIL_KEY with a key secret">
+    <Card title="Quick reference" subtitle="Set greenpayupdate in your shell to your API key secret">
       <div className="form-stack">
         <Note>Read scope: GET /api/v1/merchant, /api/v1/transactions, /api/v1/transactions/:reference, /api/v1/fx-quote, /api/v1/fees. payment_links:write: POST /api/v1/payment-links. payments:write: POST /api/v1/transactions (requires an Idempotency-Key header of 8 to 128 characters) and POST /api/v1/transactions/:reference/verify.</Note>
         <pre className="code">{`# Merchant profile
 curl ${origin}/api/v1/merchant \\
-  -H "Authorization: Bearer PAYRAIL_KEY"
+  -H "Authorization: Bearer $greenpayupdate"
 
 # List payment links
 curl ${origin}/api/v1/payment-links \\
-  -H "Authorization: Bearer PAYRAIL_KEY"
+  -H "Authorization: Bearer $greenpayupdate"
 
 # Create a payment link (needs payment_links:write)
 curl -X POST ${origin}/api/v1/payment-links \\
-  -H "Authorization: Bearer PAYRAIL_KEY" \\
+  -H "Authorization: Bearer $greenpayupdate" \\
   -H "Content-Type: application/json" \\
   -d '{"name":"Invoice 1042","amountType":"fixed","amount":150,"currency":"USD"}'
 
 # Create a payment (needs payments:write; Idempotency-Key is required)
 curl -X POST ${origin}/api/v1/transactions \\
-  -H "Authorization: Bearer PAYRAIL_KEY" \\
+  -H "Authorization: Bearer $greenpayupdate" \\
   -H "Idempotency-Key: order-1042-attempt-1" \\
   -H "Content-Type: application/json" \\
   -d '{"amount":150,"currency":"USD","customerEmail":"buyer@example.com"}'
 
 # Read and verify a payment
 curl ${origin}/api/v1/transactions/REFERENCE \\
-  -H "Authorization: Bearer PAYRAIL_KEY"
+  -H "Authorization: Bearer $greenpayupdate"
 curl -X POST ${origin}/api/v1/transactions/REFERENCE/verify \\
-  -H "Authorization: Bearer PAYRAIL_KEY"
+  -H "Authorization: Bearer $greenpayupdate"
 
 # FX quote calculation and fee schedule
 curl "${origin}/api/v1/fx-quote?amount=100&from=USD&to=KES" \\
-  -H "Authorization: Bearer PAYRAIL_KEY"
-curl ${origin}/api/v1/fees -H "Authorization: Bearer PAYRAIL_KEY"
+  -H "Authorization: Bearer $greenpayupdate"
+curl ${origin}/api/v1/fees -H "Authorization: Bearer $greenpayupdate"
 
 # Transactions (paginated)
 curl "${origin}/api/v1/transactions?page=1&perPage=20" \\
-  -H "Authorization: Bearer PAYRAIL_KEY"`}</pre>
+  -H "Authorization: Bearer $greenpayupdate"`}</pre>
       </div>
     </Card>
     {keyOpen && <Modal title="New API key" onClose={() => setKeyOpen(false)}><form className="form-stack" onSubmit={createKey}>

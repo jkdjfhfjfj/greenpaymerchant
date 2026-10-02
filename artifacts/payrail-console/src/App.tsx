@@ -678,16 +678,103 @@ function PayoutForm({ currencyCode, methods, banks, onClose, onCreated }: { curr
 function Settlements() {
   const [status, setStatus] = useState('');
   const [currencyCode, setCurrencyCode] = useState('');
+  const [search, setSearch] = useState('');
   const params = useMemo(() => ({ status: (status || undefined) as any, currency: currencyCode || undefined }), [status, currencyCode]);
   const query = useListSettlements(params);
   const rows = query.data?.items || [];
-  const dueCount = rows.filter((item) => item.status === 'due').length;
-  const openCount = rows.filter((item) => item.status !== 'settled').length;
-  return <><PageHeading eyebrow="RECONCILIATION / T+3" title="Settlements" subtitle="Know what has landed, what is due and what needs a closer look." />
-    <div className="settlement-summary"><div><span className="summary-icon"><Clock3 size={17} /></span><div><span>Open settlement items</span><strong>{openCount}</strong></div></div><div><span className="summary-divider" /><div><span>Due for review</span><strong>{dueCount} <small>items</small></strong></div></div><div className="summary-explainer"><FileClock size={15} /><span>T+3 is a tracking target. Actual settlement timing is provider-controlled.</span></div></div>
-    <div className="toolbar-filters"><label className="select-wrap"><Filter size={14} /><select value={status} onChange={(event) => setStatus(event.target.value)} data-testid="select-settlement-status"><option value="">All statuses</option><option value="pending">Pending</option><option value="due">Due</option><option value="settled">Settled</option><option value="held">Held</option></select></label><label className="select-wrap"><Globe2 size={14} /><select value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value)} data-testid="select-settlement-currency"><option value="">All currencies</option>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></label></div>
-    <Panel title="Settlement ledger" subtitle="Provider-level view of collection proceeds" className="table-panel"><QueryState loading={query.isLoading} error={query.isError} retry={() => { void query.refetch(); }} empty={!rows.length}><div className="table-scroll"><table className="data-table"><thead><tr><th>Reference</th><th>Provider</th><th>Gross</th><th>Net to settle</th><th>Expected by</th><th>Settled on</th><th>Method</th><th>Status</th></tr></thead><tbody>{rows.map((item) => <tr key={item.id} data-testid={`row-settlement-${item.id}`}><td><strong className="mono ref-cell">{item.reference}</strong></td><td><span className="provider-cell"><span className={`provider-mini provider-${item.provider}`} />{label(item.provider)}</span></td><td>{currency(item.amount, item.currency)}</td><td><strong className="amount-cell">{currency(item.netAmount, item.currency)}</strong></td><td>{dateOnly(item.expectedAt)}</td><td>{dateOnly(item.settledAt)}</td><td>{item.payoutMethod || '—'}</td><td><StatusPill value={item.status} /></td></tr>)}</tbody></table></div><div className="ledger-note"><CircleHelp size={15} /><span>Expected dates are calculated by the provider route. Bank holidays can affect the final settlement time.</span></div></QueryState></Panel>
-  </>;
+  const normalizedSearch = search.trim().toLowerCase();
+  const visibleRows = useMemo(() => {
+    if (!normalizedSearch) return rows;
+    return rows.filter((item) => [
+      item.reference,
+      item.provider,
+      item.payoutMethod || '',
+      item.currency,
+    ].some((value) => value.toLowerCase().includes(normalizedSearch)));
+  }, [rows, normalizedSearch]);
+  const openCount = visibleRows.filter((item) => item.status !== 'settled').length;
+  const dueCount = visibleRows.filter((item) => item.status === 'due').length;
+  const settledCount = visibleRows.filter((item) => item.status === 'settled').length;
+
+  function clearFilters() {
+    setStatus('');
+    setCurrencyCode('');
+    setSearch('');
+  }
+
+  return <div className="settlements-page">
+    <PageHeading eyebrow="RECONCILIATION / T+3" title="Settlements" subtitle="Track provider proceeds from their expected timing through confirmed settlement." />
+
+    <section className="settlement-summary" aria-label="Settlement overview">
+      <article className="settlement-stat">
+        <span className="settlement-stat-icon"><Clock3 size={17} /></span>
+        <div><span>Open items</span><strong>{openCount}</strong><small>Not yet marked settled</small></div>
+      </article>
+      <article className="settlement-stat settlement-stat-due">
+        <span className="settlement-stat-icon"><CircleAlert size={17} /></span>
+        <div><span>Due for review</span><strong>{dueCount}</strong><small>Expected date reached</small></div>
+      </article>
+      <article className="settlement-stat settlement-stat-settled">
+        <span className="settlement-stat-icon"><CheckCircle2 size={17} /></span>
+        <div><span>Settled</span><strong>{settledCount}</strong><small>Marked as settled</small></div>
+      </article>
+      <aside className="settlement-caveat">
+        <FileClock size={17} />
+        <div><strong>T+3 is a tracking target, not a promise.</strong><span>Actual settlement timing is controlled by the provider. Amounts stay in their original currency.</span></div>
+      </aside>
+    </section>
+
+    <div className="settlement-toolbar" aria-label="Settlement filters">
+      <div className="settlement-filter-group">
+        <label className="settlement-filter"><Filter size={14} /><span className="sr-only">Filter by status</span><select value={status} onChange={(event) => setStatus(event.target.value)} data-testid="select-settlement-status" aria-label="Filter by status"><option value="">All statuses</option><option value="pending">Pending</option><option value="due">Due</option><option value="settled">Settled</option><option value="held">Held</option></select></label>
+        <label className="settlement-filter"><Globe2 size={14} /><span className="sr-only">Filter by currency</span><select value={currencyCode} onChange={(event) => setCurrencyCode(event.target.value)} data-testid="select-settlement-currency" aria-label="Filter by currency"><option value="">All currencies</option>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
+      </div>
+      <label className="settlement-search"><Search size={15} /><span className="sr-only">Search loaded settlement records by reference, provider, currency or method</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search loaded records" data-testid="input-settlement-search" aria-label="Search loaded records by reference, provider, currency or method" /></label>
+    </div>
+
+    <Panel title="Settlement ledger" subtitle="Provider-level view of collection proceeds" action={<span className="settlement-record-count">{visibleRows.length} {visibleRows.length === 1 ? 'record' : 'records'}</span>} className="table-panel settlement-panel">
+      <QueryState loading={query.isLoading} error={query.isError} retry={() => { void query.refetch(); }}>
+        {visibleRows.length ? <>
+          <div className="table-scroll settlement-table-wrap">
+            <table className="data-table settlement-table">
+              <thead><tr><th>Reference</th><th>Provider</th><th>Gross</th><th>Net to settle</th><th>Expected by</th><th>Settled on</th><th>Method</th><th>Status</th></tr></thead>
+              <tbody>{visibleRows.map((item) => <tr key={item.id} data-testid={`row-settlement-${item.id}`}>
+                <td><strong className="mono ref-cell">{item.reference}</strong><small>Collection proceeds</small></td>
+                <td><span className="provider-cell"><span className={`provider-mini provider-${item.provider}`} />{label(item.provider)}</span></td>
+                <td><span className="settlement-amount">{currency(item.amount, item.currency)}</span></td>
+                <td><strong className="amount-cell">{currency(item.netAmount, item.currency)}</strong></td>
+                <td><span className="settlement-date">{dateOnly(item.expectedAt)}</span><small>Expected</small></td>
+                <td><span className={`settlement-date ${item.settledAt ? '' : 'settlement-date-pending'}`}>{item.settledAt ? dateOnly(item.settledAt) : 'Not confirmed'}</span><small>{item.settledAt ? 'Confirmed date' : 'No settlement recorded'}</small></td>
+                <td>{item.payoutMethod || '—'}</td>
+                <td><StatusPill value={item.status} /></td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+          <div className="settlement-mobile-list">
+            {visibleRows.map((item) => <article className="settlement-mobile-row" key={item.id}>
+              <div className="settlement-mobile-top">
+                <div><span className="provider-cell"><span className={`provider-mini provider-${item.provider}`} />{label(item.provider)}</span><strong className="mono">{item.reference}</strong></div>
+                <div className="settlement-mobile-net"><strong>{currency(item.netAmount, item.currency)}</strong><small>Net to settle</small></div>
+              </div>
+              <div className="settlement-mobile-meta">
+                <div><span>Gross · {item.currency}</span><strong>{currency(item.amount, item.currency)}</strong></div>
+                <div><span>Status</span><StatusPill value={item.status} /></div>
+                <div><span>Expected by</span><strong>{dateOnly(item.expectedAt)}</strong></div>
+                <div><span>Settled on</span><strong>{item.settledAt ? dateOnly(item.settledAt) : 'Not confirmed'}</strong></div>
+                <div><span>Method</span><strong>{item.payoutMethod || '—'}</strong></div>
+                <div><span>Record type</span><strong>Collection proceeds</strong></div>
+              </div>
+            </article>)}
+          </div>
+        </> : <div className="settlement-empty" role="status">
+          <strong>{rows.length ? 'No records match these filters' : 'No settlement records yet'}</strong>
+          <span>{rows.length ? 'Try another search term or clear the filters.' : 'Settlement records will appear here as providers report them.'}</span>
+          {(status || currencyCode || search) && <Button variant="secondary" onClick={clearFilters}>Clear filters</Button>}
+        </div>}
+      </QueryState>
+      <div className="settlement-ledger-note"><CircleHelp size={15} /><span>Expected dates are calculated from the provider route and bank holidays can affect final timing. A settled date appears only when settlement is recorded.</span></div>
+    </Panel>
+  </div>;
 }
 
 function Customers() {

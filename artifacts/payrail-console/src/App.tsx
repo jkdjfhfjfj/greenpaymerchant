@@ -805,7 +805,7 @@ function PublicCheckout() {
   }
   return (
     <div className="checkout-page">
-      <header className="checkout-header"><Brand /><span><LockKeyhole size={14} /> Secure checkout</span></header>
+      <header className="checkout-header"><Brand /></header>
       <main className="checkout-card">
         {link && <div className="customer-shop-brand" data-testid="checkout-shop-brand">
           {link.shopLogoUrl
@@ -866,12 +866,14 @@ function PublicCheckout() {
                 <ErrorLine error={error} />
                 <Button type="submit" className="btn-full" disabled={checkout.isPending || query.isFetching || !currencyOption?.collectionReady || !selectedMethod} data-testid="button-checkout-submit">{checkout.isPending ? 'Preparing secure checkout…' : <>Continue to payment <ArrowRight size={15} /></>}</Button>
               </form>
-              <div className="checkout-footer"><LockKeyhole size={13} /> Secure checkout with {branding.platformName}</div>
             </>
           ))}
         </QueryState>
       </main>
-      <footer className="checkout-bottom"><a href={basePath || '/'} data-testid="link-checkout-home">Powered by <strong>{branding.platformName}</strong></a></footer>
+      <footer className="checkout-bottom">
+        <span className="checkout-security-note"><LockKeyhole size={13} /> Secure checkout</span>
+        <a href={basePath || '/'} data-testid="link-checkout-home">Powered by <strong>{branding.platformName}</strong></a>
+      </footer>
     </div>
   );
 }

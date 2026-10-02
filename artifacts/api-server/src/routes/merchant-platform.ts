@@ -1,3 +1,4 @@
+import { gte } from "drizzle-orm";
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, desc, eq, ilike, isNull, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
@@ -5,8 +6,11 @@ import {
   GetAdminVerificationLimitsResponse,
   CreateMerchantApiKeyBody, CreateMerchantApiKeyResponse, CreateMerchantKycSessionBody,
   CreateMerchantKycSessionResponse, CreateMerchantPaymentLinkBody, CreateMerchantPaymentLinkResponse,
-  CreateMerchantProfileBody, CreateMerchantProfileResponse, CreateMerchantWebhookEndpointBody,
-  CreateMerchantWebhookEndpointResponse, RevokeMerchantApiKeyResponse, DeleteMerchantPaymentLinkResponse,
+  CreateMerchantProfileBody, CreateMerchantProfileResponse, ResubmitMerchantApplicationBody,
+  ResubmitMerchantApplicationResponse, CreateMerchantWebhookEndpointBody,
+  CreateMerchantWebhookEndpointResponse, CreateMerchantWebhookTestDeliveryResponse,
+  ListMerchantWebhookDeliveriesResponse, ReplayMerchantWebhookDeliveryResponse,
+  RevokeMerchantApiKeyResponse, DeleteMerchantPaymentLinkResponse,
   CreateMerchantCloudinaryUploadSignatureResponse, UpdateMerchantShopProfileBody,
   UpdateMerchantShopProfileResponse,
   DeleteMerchantWebhookEndpointResponse, GetAccessProfileResponse, GetMerchantFeesResponse,
@@ -26,7 +30,7 @@ import {
 } from "@workspace/api-zod";
 import {
   adminAuditLogTable, db, developerIdempotencyTable, feeSchedulesTable, fxRatesTable, merchantApiKeysTable,
-  merchantWebhookEndpointsTable, merchantsTable, paymentLinksTable, payoutsTable, transactionsTable,
+  merchantWebhookEndpointsTable, merchantWebhookOutboxTable, merchantsTable, paymentLinksTable, payoutsTable, transactionsTable,
   verificationTierLimitsTable,
 } from "@workspace/db";
 import { assertCollectionAmountPrecision, createCollection } from "../lib/greenpay-collection";
@@ -75,6 +79,11 @@ function profile(row: typeof merchantsTable.$inferSelect) {
     baseCurrency: row.baseCurrency,
     registrationNumber: row.registrationNumber,
     status: row.status,
+    applicationDetails: row.applicationDetails,
+    applicationStatus: row.applicationStatus,
+    applicationRequestedInfo: row.applicationRequestedInfo,
+    applicationSubmittedAt: row.applicationSubmittedAt,
+    applicationReviewedAt: row.applicationReviewedAt,
     kycStatus: row.kycStatus,
     kybStatus: row.kybStatus,
     paymentsEnabled: row.paymentsEnabled,
@@ -236,6 +245,66 @@ router.get("/merchant", requireSignedIn, async (_req, res): Promise<void> => {
   res.json(GetMerchantProfileResponse.parse({ merchant: profile(merchant) }));
 });
 
+router.get("/merchant/collection-analytics", requireSignedIn, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "private, no-store");
+  const merchant = await resolveMerchantAccess(req, res);
+  if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  const windowDays = 90;
+  const windowStart = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  const filters = and(
+    eq(transactionsTable.merchantId, merchant.id),
+    gte(transactionsTable.createdAt, windowStart),
+  );
+  const averageSettlementHours = sql<number | null>`avg(extract(epoch from (${transactionsTable.settlementAt} - ${transactionsTable.paidAt})) / 3600)
+    filter (where ${transactionsTable.settlementAt} is not null and ${transactionsTable.paidAt} is not null)`;
+  const transactionCount = sql<number>`count(*)::int`;
+  const successfulCount = sql<number>`count(*) filter (where ${transactionsTable.status} = 'success')::int`;
+  const successRate = sql<number>`coalesce(count(*) filter (where ${transactionsTable.status} = 'success')::float / nullif(count(*), 0), 0)::float8`;
+
+  const countries = await db.select({
+    value: merchantsTable.country,
+    transactionCount,
+    successfulCount,
+    successRate,
+    grossVolume: sql<number | null>`null::float8`,
+    feeTotal: sql<number | null>`null::float8`,
+    currency: sql<string | null>`null::text`,
+    averageSettlementHours,
+  }).from(transactionsTable)
+    .innerJoin(merchantsTable, eq(transactionsTable.merchantId, merchantsTable.id))
+    .where(filters)
+    .groupBy(merchantsTable.country)
+    .orderBy(desc(transactionCount));
+  const currencies = await db.select({
+    value: transactionsTable.currency,
+    transactionCount,
+    successfulCount,
+    successRate,
+    grossVolume: sql<number>`coalesce(sum(${transactionsTable.amount}) filter (where ${transactionsTable.status} = 'success'), 0)::float8`,
+    feeTotal: sql<number>`coalesce(sum(coalesce(${transactionsTable.fee}, 0)) filter (where ${transactionsTable.status} = 'success'), 0)::float8`,
+    currency: transactionsTable.currency,
+    averageSettlementHours,
+  }).from(transactionsTable)
+    .where(filters)
+    .groupBy(transactionsTable.currency)
+    .orderBy(desc(transactionCount));
+  const rail = sql<string>`coalesce(nullif(${transactionsTable.paymentMethod}, ''), ${transactionsTable.provider})`;
+  const paymentRails = await db.select({
+    value: rail,
+    transactionCount,
+    successfulCount,
+    successRate,
+    grossVolume: sql<number | null>`null::float8`,
+    feeTotal: sql<number | null>`null::float8`,
+    currency: sql<string | null>`null::text`,
+    averageSettlementHours,
+  }).from(transactionsTable)
+    .where(filters)
+    .groupBy(rail)
+    .orderBy(desc(transactionCount));
+  res.json({ windowDays, windowStart, countries, currencies, paymentRails });
+});
+
 router.patch("/merchant/shop-profile", requireSignedIn, async (req, res): Promise<void> => {
   const merchant = await ownedMerchant(res);
   if (!merchant) {
@@ -309,11 +378,56 @@ router.post("/merchant", requireSignedIn, async (req, res): Promise<void> => {
       ownerClerkId: userId, businessName: parsed.data.businessName.trim(),
       country: parsed.data.country.toUpperCase(), baseCurrency: parsed.data.baseCurrency.toUpperCase(),
       registrationNumber: parsed.data.registrationNumber?.trim() || null,
+      applicationDetails: {
+        ...parsed.data.application,
+        expectedMonthlyVolumeCurrency: parsed.data.application.expectedMonthlyVolumeCurrency.toUpperCase(),
+        expectedCustomerCountries: parsed.data.application.expectedCustomerCountries.map((value) => value.toUpperCase()),
+        expectedCollectionCurrencies: parsed.data.application.expectedCollectionCurrencies.map((value) => value.toUpperCase()),
+      },
+      applicationStatus: "awaiting_review",
+      applicationSubmittedAt: new Date(),
     }).returning();
   });
   await ensureMerchantWalletAccounts(merchant.id, merchant.baseCurrency);
   setMerchantWorkspaceCookie(res, merchant.id);
   res.status(201).json(CreateMerchantProfileResponse.parse({ merchant: profile(merchant) }));
+});
+
+router.patch("/merchant/application", requireSignedIn, async (req, res): Promise<void> => {
+  const parsed = ResubmitMerchantApplicationBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const merchant = await ownedMerchant(res);
+  if (!merchant) {
+    res.status(404).json({ error: "Merchant onboarding is not complete." });
+    return;
+  }
+  if (merchant.applicationStatus !== "more_info_required") {
+    res.status(409).json({ error: "This application is not awaiting additional information." });
+    return;
+  }
+  const [updated] = await db.update(merchantsTable).set({
+    applicationDetails: {
+      ...parsed.data,
+      expectedMonthlyVolumeCurrency: parsed.data.expectedMonthlyVolumeCurrency.toUpperCase(),
+      expectedCustomerCountries: parsed.data.expectedCustomerCountries.map((value) => value.toUpperCase()),
+      expectedCollectionCurrencies: parsed.data.expectedCollectionCurrencies.map((value) => value.toUpperCase()),
+    },
+    applicationStatus: "awaiting_review",
+    applicationRequestedInfo: null,
+    applicationSubmittedAt: new Date(),
+    applicationReviewedAt: null,
+    applicationReviewedBy: null,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(merchantsTable.id, merchant.id),
+    eq(merchantsTable.ownerClerkId, res.locals.clerkUserId as string),
+    eq(merchantsTable.applicationStatus, "more_info_required"),
+  )).returning();
+  if (!updated) {
+    res.status(409).json({ error: "This application is no longer awaiting additional information." });
+    return;
+  }
+  res.json(ResubmitMerchantApplicationResponse.parse({ merchant: profile(updated) }));
 });
 
 function verificationLimitDto(row: typeof verificationTierLimitsTable.$inferSelect) {
@@ -404,7 +518,8 @@ async function refreshDiditVerification(
       const fields = kind === "kyc"
         ? {
             kycStatus: mapped, verificationUpdatedAt: now,
-            ...(mapped === "approved" && latest.status === "pending" ? { status: "active" } : {}),
+            ...(mapped === "approved" && latest.status === "pending" &&
+              ["approved", "not_submitted"].includes(latest.applicationStatus) ? { status: "active" } : {}),
             updatedAt: now,
           }
         : { kybStatus: mapped, kybVerificationUpdatedAt: now, updatedAt: now };
@@ -656,6 +771,68 @@ router.delete("/merchant/api-keys/:id", requireSignedIn, async (req, res): Promi
   res.status(204).send(RevokeMerchantApiKeyResponse.parse(undefined));
 });
 
+router.get("/merchant/webhook-deliveries", requireSignedIn, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "private, no-store");
+  const merchant = await resolveMerchantAccess(req, res);
+  if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  const rows = await db.select({
+    deliveryId: merchantWebhookOutboxTable.deliveryId,
+    endpointId: merchantWebhookOutboxTable.endpointId,
+    event: merchantWebhookOutboxTable.event,
+    status: merchantWebhookOutboxTable.status,
+    attempts: merchantWebhookOutboxTable.attempts,
+    lastStatusCode: merchantWebhookOutboxTable.lastStatusCode,
+    lastError: merchantWebhookOutboxTable.lastError,
+    nextAttemptAt: merchantWebhookOutboxTable.nextAttemptAt,
+    createdAt: merchantWebhookOutboxTable.createdAt,
+    updatedAt: merchantWebhookOutboxTable.updatedAt,
+  }).from(merchantWebhookOutboxTable)
+    .where(eq(merchantWebhookOutboxTable.merchantId, merchant.id))
+    .orderBy(desc(merchantWebhookOutboxTable.createdAt))
+    .limit(500);
+  res.json(ListMerchantWebhookDeliveriesResponse.parse({ items: rows }));
+});
+
+router.post("/merchant/webhook-deliveries/:deliveryId/replay", requireSignedIn, async (req, res): Promise<void> => {
+  const merchant = await resolveMerchantAccess(req, res, "owner");
+  if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  const deliveryId = typeof req.params.deliveryId === "string" ? req.params.deliveryId : "";
+  if (!deliveryId || deliveryId.length > 250) { res.status(400).json({ error: "Invalid webhook delivery ID." }); return; }
+  const [replayed] = await db.update(merchantWebhookOutboxTable).set({
+    status: "pending",
+    attempts: 0,
+    lockedAt: null,
+    nextAttemptAt: new Date(),
+    updatedAt: new Date(),
+  }).where(and(
+    eq(merchantWebhookOutboxTable.deliveryId, deliveryId),
+    eq(merchantWebhookOutboxTable.merchantId, merchant.id),
+    eq(merchantWebhookOutboxTable.status, "failed"),
+  )).returning();
+  if (!replayed) {
+    const [existing] = await db.select({ deliveryId: merchantWebhookOutboxTable.deliveryId })
+      .from(merchantWebhookOutboxTable).where(and(
+        eq(merchantWebhookOutboxTable.deliveryId, deliveryId),
+        eq(merchantWebhookOutboxTable.merchantId, merchant.id),
+      )).limit(1);
+    if (!existing) { res.status(404).json({ error: "Webhook delivery not found." }); return; }
+    res.status(409).json({ error: "Only failed webhook deliveries can be replayed." });
+    return;
+  }
+  res.json(ReplayMerchantWebhookDeliveryResponse.parse({
+    deliveryId: replayed.deliveryId,
+    endpointId: replayed.endpointId,
+    event: replayed.event,
+    status: replayed.status,
+    attempts: replayed.attempts,
+    lastStatusCode: replayed.lastStatusCode,
+    lastError: replayed.lastError,
+    nextAttemptAt: replayed.nextAttemptAt,
+    createdAt: replayed.createdAt,
+    updatedAt: replayed.updatedAt,
+  }));
+});
+
 router.get("/merchant/webhook-endpoints", requireSignedIn, async (_req, res): Promise<void> => {
   const merchant = await ownedMerchant(res);
   if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
@@ -679,6 +856,38 @@ router.post("/merchant/webhook-endpoints", requireSignedIn, async (req, res): Pr
     encryptedSecret: encryptSecret(signingSecret),
   }).returning();
   res.status(201).json(CreateMerchantWebhookEndpointResponse.parse({ endpoint: endpointDto(endpoint), signingSecret }));
+});
+
+router.post("/merchant/webhook-endpoints/:id/test", requireSignedIn, async (req, res): Promise<void> => {
+  const merchant = await resolveMerchantAccess(req, res, "owner");
+  if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) { res.status(400).json({ error: "Invalid webhook endpoint ID." }); return; }
+  const [endpoint] = await db.select().from(merchantWebhookEndpointsTable).where(and(
+    eq(merchantWebhookEndpointsTable.id, id),
+    eq(merchantWebhookEndpointsTable.merchantId, merchant.id),
+    eq(merchantWebhookEndpointsTable.active, true),
+  )).limit(1);
+  if (!endpoint) { res.status(404).json({ error: "Active webhook endpoint not found for this merchant." }); return; }
+  const now = new Date();
+  const deliveryId = `wh_test_${randomUUID()}`;
+  const transactionId = -(randomBytes(4).readUInt32BE(0) % 2_147_483_646 + 1);
+  const [delivery] = await db.insert(merchantWebhookOutboxTable).values({
+    transactionId,
+    merchantId: merchant.id,
+    endpointId: endpoint.id,
+    event: "webhook.test",
+    deliveryId,
+    destinationUrl: endpoint.url,
+    encryptedSecret: endpoint.encryptedSecret,
+    payload: JSON.stringify({
+      id: deliveryId,
+      type: "webhook.test",
+      createdAt: now.toISOString(),
+      data: { message: "This is a Greenpay test event. It does not represent a payment." },
+    }),
+  }).returning({ deliveryId: merchantWebhookOutboxTable.deliveryId, status: merchantWebhookOutboxTable.status, createdAt: merchantWebhookOutboxTable.createdAt });
+  res.status(202).json(CreateMerchantWebhookTestDeliveryResponse.parse(delivery));
 });
 
 router.delete("/merchant/webhook-endpoints/:id", requireSignedIn, async (req, res): Promise<void> => {

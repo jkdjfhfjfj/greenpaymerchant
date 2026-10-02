@@ -833,16 +833,19 @@ router.get("/merchant/statements/:month", requireSignedIn, async (req, res): Pro
   res.json(GetMerchantStatementResponse.parse({
     month: params.data.month,
     transactions: transactions.map((row) => ({
-      reference: row.reference, amount: row.amount, fee: row.fee ?? 0,
+      reference: row.reference, providerReference: row.providerReference,
+      amount: row.amount, fee: row.fee ?? 0,
       currency: row.currency, paidAt: row.paidAt,
     })),
     refunds: refunds.map((refund) => ({
-      reference: refund.reference, originalReference: refund.originalReference,
+      reference: refund.reference, providerReference: refund.providerReference,
+      originalReference: refund.originalReference,
       amount: refund.amount, currency: refund.currency, status: refund.status, createdAt: refund.createdAt,
       ...statementCashDate(refund),
     })),
     payouts: nonDuplicatePayouts.map((row) => ({
-      reference: row.reference, amount: row.amount, fee: row.fee ?? 0,
+      reference: row.reference, providerReference: row.providerReference,
+      amount: row.amount, fee: row.fee ?? 0,
       currency: row.currency, status: row.status, createdAt: row.createdAt,
       ...statementCashDate(row),
     })),

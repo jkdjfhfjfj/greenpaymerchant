@@ -29,6 +29,8 @@ import type {
   AdminCollectionCurrencyAvailabilityList,
   AdminContent,
   AdminContentList,
+  AdminEmailBroadcastRequest,
+  AdminEmailBroadcastResponse,
   AdminEmailDeliveryOutboxItem,
   AdminEmailDeliveryOutboxList,
   AdminEmailDeliverySettings,
@@ -41,6 +43,7 @@ import type {
   AdminFxRateList,
   AdminListSupportTicketsParams,
   AdminMerchant,
+  AdminMerchantApplicationReviewResponse,
   AdminMerchantControlsResponse,
   AdminMerchantDetailsResponse,
   AdminMerchantList,
@@ -52,6 +55,7 @@ import type {
   AdminWalletList,
   ApiKeyList,
   BankList,
+  BusinessApplicationDetails,
   BusinessContact,
   BusinessContactInput,
   CaseInput,
@@ -122,6 +126,7 @@ import type {
   MerchantActionControlsResponse,
   MerchantCaseAttachmentUploadIntent,
   MerchantCaseAttachmentUploadIntentInput,
+  MerchantCollectionAnalyticsResponse,
   MerchantProfileResponse,
   MerchantShopProfileUpdate,
   MerchantTeam,
@@ -132,6 +137,9 @@ import type {
   MerchantTeamMember,
   MerchantTeamRoleUpdate,
   MerchantWalletList,
+  MerchantWebhookDelivery,
+  MerchantWebhookDeliveryList,
+  MerchantWebhookTestDeliveryResponse,
   Notification,
   NotificationList,
   PaymentLink,
@@ -177,6 +185,7 @@ import type {
   Reminder,
   ReminderInput,
   ReminderList,
+  ReviewMerchantApplicationRequest,
   SaveProviderCredentialsInput,
   SecondApprovalInput,
   SetAdminMerchantStatusRequest,
@@ -1498,7 +1507,7 @@ export const getHealthCheckQueryKey = () => {
     }
 
 
-export const getHealthCheckQueryOptions = <TData = Awaited<ReturnType<typeof healthCheck>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof healthCheck>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getHealthCheckQueryOptions = <TData = Awaited<ReturnType<typeof healthCheck>>, TError = ErrorType<HealthStatus>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof healthCheck>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -1517,14 +1526,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type HealthCheckQueryResult = NonNullable<Awaited<ReturnType<typeof healthCheck>>>
-export type HealthCheckQueryError = ErrorType<unknown>
+export type HealthCheckQueryError = ErrorType<HealthStatus>
 
 
 /**
  * @summary Health check
  */
 
-export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, TError = ErrorType<unknown>>(
+export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, TError = ErrorType<HealthStatus>>(
   options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof healthCheck>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -7396,6 +7405,171 @@ export const useCreateMerchantProfile = <TError = ErrorType<void>,
       return useMutation(getCreateMerchantProfileMutationOptions(options));
     }
 
+export const getResubmitMerchantApplicationUrl = () => {
+
+
+
+
+  return `/api/merchant/application`
+}
+
+/**
+ * @summary Submit requested additional business application information
+ */
+export const resubmitMerchantApplication = async (businessApplicationDetails: BusinessApplicationDetails, options?: Parameters<typeof customFetch>[1]): Promise<MerchantProfileResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<MerchantProfileResponse>(getResubmitMerchantApplicationUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(businessApplicationDetails)
+  }
+);}
+
+
+
+
+
+export const getResubmitMerchantApplicationMutationKey = () => ['resubmitMerchantApplication'] as const;
+
+export const getResubmitMerchantApplicationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resubmitMerchantApplication>>, TError,ResubmitMerchantApplicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resubmitMerchantApplication>>, TError,ResubmitMerchantApplicationMutationVariables, TContext> => {
+
+const mutationKey = getResubmitMerchantApplicationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resubmitMerchantApplication>>, ResubmitMerchantApplicationMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  resubmitMerchantApplication(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResubmitMerchantApplicationMutationResult = NonNullable<Awaited<ReturnType<typeof resubmitMerchantApplication>>>
+    export type ResubmitMerchantApplicationMutationBody = BodyType<BusinessApplicationDetails>
+    export type ResubmitMerchantApplicationMutationError = ErrorType<void>
+    export type ResubmitMerchantApplicationMutationVariables = {data: BodyType<BusinessApplicationDetails>}
+
+    /**
+ * @summary Submit requested additional business application information
+ */
+export const useResubmitMerchantApplication = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resubmitMerchantApplication>>, TError,ResubmitMerchantApplicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resubmitMerchantApplication>>,
+        TError,
+        ResubmitMerchantApplicationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getResubmitMerchantApplicationMutationOptions(options));
+    }
+
+export const getGetMerchantCollectionAnalyticsUrl = () => {
+
+
+
+
+  return `/api/merchant/collection-analytics`
+}
+
+/**
+ * @summary Read aggregate collection outcomes for the last 90 days
+ */
+export const getMerchantCollectionAnalytics = async ( options?: Parameters<typeof customFetch>[1]): Promise<MerchantCollectionAnalyticsResponse> => {
+
+  return customFetch<MerchantCollectionAnalyticsResponse>(getGetMerchantCollectionAnalyticsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMerchantCollectionAnalyticsQueryKey = () => {
+    return [
+    `/api/merchant/collection-analytics`
+    ] as const;
+    }
+
+
+export const getGetMerchantCollectionAnalyticsQueryOptions = <TData = Awaited<ReturnType<typeof getMerchantCollectionAnalytics>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMerchantCollectionAnalytics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMerchantCollectionAnalyticsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMerchantCollectionAnalytics>>> = ({ signal }) => getMerchantCollectionAnalytics({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMerchantCollectionAnalytics>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMerchantCollectionAnalyticsQueryResult = NonNullable<Awaited<ReturnType<typeof getMerchantCollectionAnalytics>>>
+export type GetMerchantCollectionAnalyticsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Read aggregate collection outcomes for the last 90 days
+ */
+
+export function useGetMerchantCollectionAnalytics<TData = Awaited<ReturnType<typeof getMerchantCollectionAnalytics>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMerchantCollectionAnalytics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMerchantCollectionAnalyticsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getUpdateMerchantShopProfileUrl = () => {
 
 
@@ -9828,6 +10002,231 @@ export const useDeleteMerchantWebhookEndpoint = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteMerchantWebhookEndpointMutationOptions(options));
+    }
+
+export const getListMerchantWebhookDeliveriesUrl = () => {
+
+
+
+
+  return `/api/merchant/webhook-deliveries`
+}
+
+/**
+ * @summary Review outbound webhook delivery attempts for the current merchant
+ */
+export const listMerchantWebhookDeliveries = async ( options?: Parameters<typeof customFetch>[1]): Promise<MerchantWebhookDeliveryList> => {
+
+  return customFetch<MerchantWebhookDeliveryList>(getListMerchantWebhookDeliveriesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMerchantWebhookDeliveriesQueryKey = () => {
+    return [
+    `/api/merchant/webhook-deliveries`
+    ] as const;
+    }
+
+
+export const getListMerchantWebhookDeliveriesQueryOptions = <TData = Awaited<ReturnType<typeof listMerchantWebhookDeliveries>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMerchantWebhookDeliveries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMerchantWebhookDeliveriesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMerchantWebhookDeliveries>>> = ({ signal }) => listMerchantWebhookDeliveries({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMerchantWebhookDeliveries>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMerchantWebhookDeliveriesQueryResult = NonNullable<Awaited<ReturnType<typeof listMerchantWebhookDeliveries>>>
+export type ListMerchantWebhookDeliveriesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Review outbound webhook delivery attempts for the current merchant
+ */
+
+export function useListMerchantWebhookDeliveries<TData = Awaited<ReturnType<typeof listMerchantWebhookDeliveries>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMerchantWebhookDeliveries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMerchantWebhookDeliveriesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReplayMerchantWebhookDeliveryUrl = (deliveryId: string,) => {
+
+
+
+
+  return `/api/merchant/webhook-deliveries/${deliveryId}/replay`
+}
+
+/**
+ * @summary Retry a failed outbound webhook delivery
+ */
+export const replayMerchantWebhookDelivery = async (deliveryId: string, options?: Parameters<typeof customFetch>[1]): Promise<MerchantWebhookDelivery> => {
+
+  return customFetch<MerchantWebhookDelivery>(getReplayMerchantWebhookDeliveryUrl(deliveryId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReplayMerchantWebhookDeliveryMutationKey = () => ['replayMerchantWebhookDelivery'] as const;
+
+export const getReplayMerchantWebhookDeliveryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replayMerchantWebhookDelivery>>, TError,ReplayMerchantWebhookDeliveryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof replayMerchantWebhookDelivery>>, TError,ReplayMerchantWebhookDeliveryMutationVariables, TContext> => {
+
+const mutationKey = getReplayMerchantWebhookDeliveryMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof replayMerchantWebhookDelivery>>, ReplayMerchantWebhookDeliveryMutationVariables> = (props) => {
+          const {deliveryId} = props ?? {};
+
+          return  replayMerchantWebhookDelivery(deliveryId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReplayMerchantWebhookDeliveryMutationResult = NonNullable<Awaited<ReturnType<typeof replayMerchantWebhookDelivery>>>
+
+    export type ReplayMerchantWebhookDeliveryMutationError = ErrorType<void>
+    export type ReplayMerchantWebhookDeliveryMutationVariables = {deliveryId: string}
+
+    /**
+ * @summary Retry a failed outbound webhook delivery
+ */
+export const useReplayMerchantWebhookDelivery = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replayMerchantWebhookDelivery>>, TError,ReplayMerchantWebhookDeliveryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof replayMerchantWebhookDelivery>>,
+        TError,
+        ReplayMerchantWebhookDeliveryMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReplayMerchantWebhookDeliveryMutationOptions(options));
+    }
+
+export const getCreateMerchantWebhookTestDeliveryUrl = (id: number,) => {
+
+
+
+
+  return `/api/merchant/webhook-endpoints/${id}/test`
+}
+
+/**
+ * @summary Queue a signed test event for an owned webhook endpoint
+ */
+export const createMerchantWebhookTestDelivery = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<MerchantWebhookTestDeliveryResponse> => {
+
+  return customFetch<MerchantWebhookTestDeliveryResponse>(getCreateMerchantWebhookTestDeliveryUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateMerchantWebhookTestDeliveryMutationKey = () => ['createMerchantWebhookTestDelivery'] as const;
+
+export const getCreateMerchantWebhookTestDeliveryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMerchantWebhookTestDelivery>>, TError,CreateMerchantWebhookTestDeliveryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMerchantWebhookTestDelivery>>, TError,CreateMerchantWebhookTestDeliveryMutationVariables, TContext> => {
+
+const mutationKey = getCreateMerchantWebhookTestDeliveryMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMerchantWebhookTestDelivery>>, CreateMerchantWebhookTestDeliveryMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  createMerchantWebhookTestDelivery(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMerchantWebhookTestDeliveryMutationResult = NonNullable<Awaited<ReturnType<typeof createMerchantWebhookTestDelivery>>>
+
+    export type CreateMerchantWebhookTestDeliveryMutationError = ErrorType<void>
+    export type CreateMerchantWebhookTestDeliveryMutationVariables = {id: number}
+
+    /**
+ * @summary Queue a signed test event for an owned webhook endpoint
+ */
+export const useCreateMerchantWebhookTestDelivery = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMerchantWebhookTestDelivery>>, TError,CreateMerchantWebhookTestDeliveryMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMerchantWebhookTestDelivery>>,
+        TError,
+        CreateMerchantWebhookTestDeliveryMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateMerchantWebhookTestDeliveryMutationOptions(options));
     }
 
 export const getGetMerchantFeesUrl = () => {
@@ -12281,6 +12680,95 @@ export const useSetAdminMerchantStatus = <TError = ErrorType<void>,
       return useMutation(getSetAdminMerchantStatusMutationOptions(options));
     }
 
+export const getReviewAdminMerchantApplicationUrl = (merchantId: number,) => {
+
+
+
+
+  return `/api/admin/merchants/${merchantId}/application-review`
+}
+
+/**
+ * @summary Approve a business application or request additional information
+ */
+export const reviewAdminMerchantApplication = async (merchantId: number,
+    reviewMerchantApplicationRequest: ReviewMerchantApplicationRequest, options?: Parameters<typeof customFetch>[1]): Promise<AdminMerchantApplicationReviewResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminMerchantApplicationReviewResponse>(getReviewAdminMerchantApplicationUrl(merchantId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(reviewMerchantApplicationRequest)
+  }
+);}
+
+
+
+
+
+export const getReviewAdminMerchantApplicationMutationKey = () => ['reviewAdminMerchantApplication'] as const;
+
+export const getReviewAdminMerchantApplicationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewAdminMerchantApplication>>, TError,ReviewAdminMerchantApplicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviewAdminMerchantApplication>>, TError,ReviewAdminMerchantApplicationMutationVariables, TContext> => {
+
+const mutationKey = getReviewAdminMerchantApplicationMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviewAdminMerchantApplication>>, ReviewAdminMerchantApplicationMutationVariables> = (props) => {
+          const {merchantId,data} = props ?? {};
+
+          return  reviewAdminMerchantApplication(merchantId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviewAdminMerchantApplicationMutationResult = NonNullable<Awaited<ReturnType<typeof reviewAdminMerchantApplication>>>
+    export type ReviewAdminMerchantApplicationMutationBody = BodyType<ReviewMerchantApplicationRequest>
+    export type ReviewAdminMerchantApplicationMutationError = ErrorType<void>
+    export type ReviewAdminMerchantApplicationMutationVariables = {merchantId: number;data: BodyType<ReviewMerchantApplicationRequest>}
+
+    /**
+ * @summary Approve a business application or request additional information
+ */
+export const useReviewAdminMerchantApplication = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewAdminMerchantApplication>>, TError,ReviewAdminMerchantApplicationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reviewAdminMerchantApplication>>,
+        TError,
+        ReviewAdminMerchantApplicationMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReviewAdminMerchantApplicationMutationOptions(options));
+    }
+
 export const getListAdminFeeSchedulesUrl = () => {
 
 
@@ -13512,6 +14000,95 @@ export const useSendAdminEmailDeliveryTest = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getSendAdminEmailDeliveryTestMutationOptions(options));
+    }
+
+export const getSendAdminEmailBroadcastUrl = () => {
+
+
+
+
+  return `/api/admin/email-delivery/broadcast`
+}
+
+/**
+ * Bulk broadcasts require explicit confirmation and include only verified account email addresses.
+ * @summary Queue a branded email to all verified users or one selected account
+ */
+export const sendAdminEmailBroadcast = async (adminEmailBroadcastRequest: AdminEmailBroadcastRequest, options?: Parameters<typeof customFetch>[1]): Promise<AdminEmailBroadcastResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminEmailBroadcastResponse>(getSendAdminEmailBroadcastUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminEmailBroadcastRequest)
+  }
+);}
+
+
+
+
+
+export const getSendAdminEmailBroadcastMutationKey = () => ['sendAdminEmailBroadcast'] as const;
+
+export const getSendAdminEmailBroadcastMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendAdminEmailBroadcast>>, TError,SendAdminEmailBroadcastMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendAdminEmailBroadcast>>, TError,SendAdminEmailBroadcastMutationVariables, TContext> => {
+
+const mutationKey = getSendAdminEmailBroadcastMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendAdminEmailBroadcast>>, SendAdminEmailBroadcastMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendAdminEmailBroadcast(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendAdminEmailBroadcastMutationResult = NonNullable<Awaited<ReturnType<typeof sendAdminEmailBroadcast>>>
+    export type SendAdminEmailBroadcastMutationBody = BodyType<AdminEmailBroadcastRequest>
+    export type SendAdminEmailBroadcastMutationError = ErrorType<void>
+    export type SendAdminEmailBroadcastMutationVariables = {data: BodyType<AdminEmailBroadcastRequest>}
+
+    /**
+ * @summary Queue a branded email to all verified users or one selected account
+ */
+export const useSendAdminEmailBroadcast = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendAdminEmailBroadcast>>, TError,SendAdminEmailBroadcastMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendAdminEmailBroadcast>>,
+        TError,
+        SendAdminEmailBroadcastMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendAdminEmailBroadcastMutationOptions(options));
     }
 
 export const getListAdminEmailDeliveryOutboxUrl = (params?: ListAdminEmailDeliveryOutboxParams,) => {

@@ -1,8 +1,11 @@
 import { useState, type FormEvent } from 'react';
-import { CheckCircle2, KeyRound, LoaderCircle, Plus, Trash2, Webhook } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { CheckCircle2, Clock3, KeyRound, LoaderCircle, Plus, RotateCcw, Send, Trash2, Webhook } from 'lucide-react';
 import {
   useListMerchantApiKeys, useCreateMerchantApiKey, useRevokeMerchantApiKey,
   useListMerchantWebhookEndpoints, useCreateMerchantWebhookEndpoint, useDeleteMerchantWebhookEndpoint,
+  useListMerchantWebhookDeliveries, useCreateMerchantWebhookTestDelivery, useReplayMerchantWebhookDelivery,
+  getListMerchantWebhookDeliveriesQueryKey, getListMerchantWebhookEndpointsQueryKey,
   useGetMerchantFxQuote, useGetMerchantFees, useListMerchantWalletFxRates,
 } from '@workspace/api-client-react';
 import { Async, Btn, Card, CopyBtn, CURRENCIES, Confirm, Err, Field, Gate, Heading, Modal, Note, Pill, fmtDate, money, useInvalidateAll } from '@/components/kit';
@@ -18,14 +21,18 @@ function Secret({ title, secret, hint, onClose }: { title: string; secret: strin
 export function DevelopersPage() { return <Gate need="merchant"><Inner /></Gate>; }
 function Inner() {
   const inv = useInvalidateAll();
+  const queryClient = useQueryClient();
   const capabilities = useMerchantActionCapability();
   const mayManageApi = capabilities.can('apiAccess');
   const keys = useListMerchantApiKeys();
   const hooks = useListMerchantWebhookEndpoints();
+  const deliveries = useListMerchantWebhookDeliveries();
   const mk = useCreateMerchantApiKey();
   const rk = useRevokeMerchantApiKey();
   const mh = useCreateMerchantWebhookEndpoint();
   const dh = useDeleteMerchantWebhookEndpoint();
+  const testDelivery = useCreateMerchantWebhookTestDelivery();
+  const replayDelivery = useReplayMerchantWebhookDelivery();
   const [keyOpen, setKeyOpen] = useState(false);
   const [hookOpen, setHookOpen] = useState(false);
   const [secret, setSecret] = useState<{ title: string; value: string; hint: string } | null>(null);
@@ -44,10 +51,17 @@ function Inner() {
   function createHook(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const url = String(new FormData(e.currentTarget).get('url')).trim();
-    mh.mutate({ data: { url, events: events as never } }, { onSuccess: (r) => { void inv(); setHookOpen(false); setSecret({ title: 'Webhook endpoint created', value: r.signingSecret, hint: 'Signing secret, shown once. Use it to verify delivery signatures.' }); } });
+    mh.mutate({ data: { url, events: events as never } }, { onSuccess: (r) => { void invalidateWebhookData(); void inv(); setHookOpen(false); setSecret({ title: 'Webhook endpoint created', value: r.signingSecret, hint: 'Signing secret, shown once. Use it to verify delivery signatures.' }); } });
   }
   const kItems = keys.data?.items ?? [];
   const hItems = hooks.data?.items ?? [];
+  const deliveryItems = deliveries.data?.items ?? [];
+  async function invalidateWebhookData() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: getListMerchantWebhookEndpointsQueryKey() }),
+      queryClient.invalidateQueries({ queryKey: getListMerchantWebhookDeliveriesQueryKey() }),
+    ]);
+  }
   return <>
     <Heading eyebrow="DEVELOPERS" title="API access" subtitle="Keys, webhook destinations and the endpoints they unlock." action={<a className="btn btn-secondary" href="/developers/docs">API docs &amp; playground</a>} />
     {capabilities.isLoading && <Note>Loading current API-access permissions…</Note>}
@@ -60,8 +74,22 @@ function Inner() {
     </Card>
     <Card title="Webhook destinations" subtitle="Receive signed payment events" action={<Btn small disabled={!mayManageApi} onClick={() => { setEvents(['payment.success']); mh.reset(); setHookOpen(true); }} testId="button-new-webhook"><Webhook size={14} />Add endpoint</Btn>}>
       <Async q={hooks} empty={!hItems.length} emptyTitle="No webhook endpoints" emptyBody="Add an HTTPS URL to be notified of payment events."><div className="table-wrap"><table className="dt"><thead><tr><th>URL</th><th>Events</th><th>State</th><th /></tr></thead><tbody>
-        {hItems.map((h) => <tr key={h.id} data-testid={`row-webhook-${h.id}`}><td className="mono" style={{ fontSize: 12 }}>{h.url}<span className="sub">Added {fmtDate(h.createdAt)}</span></td><td>{h.events.join(', ')}</td><td><Pill value={h.active ? 'active' : 'disabled'} /></td><td><div className="row-actions"><Btn variant="danger" small onClick={() => setRmHook(h.id)}><Trash2 size={13} />Delete</Btn></div></td></tr>)}
+       {hItems.map((h) => <tr key={h.id} data-testid={`row-webhook-${h.id}`}><td className="mono" style={{ fontSize: 12 }}>{h.url}<span className="sub">Added {fmtDate(h.createdAt)}</span></td><td>{h.events.join(', ')}</td><td><Pill value={h.active ? 'active' : 'disabled'} /></td><td><div className="row-actions"><Btn variant="secondary" small testId={`button-test-webhook-${h.id}`} disabled={!mayManageApi || !h.active || testDelivery.isPending} onClick={() => testDelivery.mutate({ id: h.id }, { onSuccess: () => { void invalidateWebhookData(); } })}><Send size={13} />Test</Btn><Btn variant="danger" small testId={`button-delete-webhook-${h.id}`} disabled={!mayManageApi} onClick={() => setRmHook(h.id)}><Trash2 size={13} />Delete</Btn></div></td></tr>)}
       </tbody></table></div></Async>
+    </Card>
+    <Err error={testDelivery.error || replayDelivery.error} />
+    {(testDelivery.data || replayDelivery.data) && <Note>{testDelivery.data ? 'Signed test event queued. Delivery evidence will appear in the history below.' : `Delivery ${replayDelivery.data?.deliveryId} has been queued for replay.`}</Note>}
+    <Card title="Delivery evidence" subtitle="Recent delivery attempts from your webhook endpoints. Failed deliveries can be replayed; delivered or pending events cannot.">
+      <Async q={deliveries} empty={!deliveryItems.length} emptyTitle="No webhook deliveries yet" emptyBody="A delivery record appears after a subscribed payment event or a signed test is queued.">
+        <div className="table-wrap"><table className="dt"><thead><tr><th>Event</th><th>Delivery ID</th><th>Status</th><th>Attempts</th><th>Last response</th><th>Next attempt</th><th>Updated</th><th /></tr></thead><tbody>
+          {deliveryItems.map((delivery) => <tr key={delivery.deliveryId} data-testid={`row-webhook-delivery-${delivery.deliveryId}`}>
+            <td><strong>{delivery.event}</strong><span className="sub">Endpoint {delivery.endpointId}</span>{delivery.lastError && <span className="sub" style={{ color: '#9b5348' }}>{delivery.lastError}</span>}</td>
+            <td className="mono">{delivery.deliveryId}</td><td><Pill value={delivery.status} /></td><td>{delivery.attempts}</td>
+            <td>{delivery.lastStatusCode ?? '—'}</td><td>{fmtDate(delivery.nextAttemptAt)}</td><td>{fmtDate(delivery.updatedAt)}</td>
+            <td>{delivery.status === 'failed' ? <Btn variant="secondary" small testId={`button-replay-webhook-${delivery.deliveryId}`} disabled={!mayManageApi || replayDelivery.isPending} onClick={() => replayDelivery.mutate({ deliveryId: delivery.deliveryId }, { onSuccess: () => { void invalidateWebhookData(); } })}><RotateCcw size={13} />Replay</Btn> : <span className="sub">{delivery.status === 'pending' || delivery.status === 'processing' ? <><Clock3 size={12} /> In progress</> : 'No action'}</span>}</td>
+          </tr>)}
+        </tbody></table></div>
+      </Async>
     </Card>
     <Card title="Quick reference" subtitle="Replace PAYRAIL_KEY with a key secret">
       <div className="form-stack">
@@ -117,7 +145,7 @@ curl "${origin}/api/v1/transactions?page=1&perPage=20" \\
     </form></Modal>}
     {secret && <Secret title={secret.title} secret={secret.value} hint={secret.hint} onClose={() => setSecret(null)} />}
     {revoke !== null && <Confirm title="Revoke API key" body="Requests using this key will be rejected immediately. This cannot be undone." confirmLabel="Revoke key" pending={rk.isPending} error={rk.error} onClose={() => { setRevoke(null); rk.reset(); }} onConfirm={() => rk.mutate({ id: revoke }, { onSuccess: () => { void inv(); setRevoke(null); } })} />}
-    {rmHook !== null && <Confirm title="Delete webhook endpoint" body="Events will no longer be delivered to this URL." confirmLabel="Delete endpoint" pending={dh.isPending} error={dh.error} onClose={() => { setRmHook(null); dh.reset(); }} onConfirm={() => dh.mutate({ id: rmHook }, { onSuccess: () => { void inv(); setRmHook(null); } })} />}
+    {rmHook !== null && <Confirm title="Delete webhook endpoint" body="Events will no longer be delivered to this URL." confirmLabel="Delete endpoint" pending={dh.isPending} error={dh.error} onClose={() => { setRmHook(null); dh.reset(); }} onConfirm={() => dh.mutate({ id: rmHook }, { onSuccess: () => { void invalidateWebhookData(); void inv(); setRmHook(null); } })} />}
   </>;
 }
 

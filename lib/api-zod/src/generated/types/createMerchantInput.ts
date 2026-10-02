@@ -5,6 +5,7 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { BusinessApplicationDetails } from './businessApplicationDetails';
 
 export interface CreateMerchantInput {
   /**
@@ -24,4 +25,5 @@ export interface CreateMerchantInput {
   baseCurrency: string;
   /** @maxLength 150 */
   registrationNumber?: string;
+  application: BusinessApplicationDetails;
 }

@@ -8,6 +8,8 @@
 
 export interface StatementTransaction {
   reference: string;
+  /** @nullable */
+  providerReference: string | null;
   amount: number;
   fee: number;
   currency: string;

@@ -1,13 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'wouter';
 import { Activity, ArrowRight, CheckCircle2, Clock3, ExternalLink, Link2, LoaderCircle, Plus, Trash2, Pause, Play, ShieldCheck, Send } from 'lucide-react';
 import {
-  useCreateMerchantProfile, useGetMerchantFees, useGetMerchantKyc, getGetMerchantKycQueryKey, useCreateMerchantKycSession,
+  useCreateMerchantProfile, useGetMerchantProfile, getGetMerchantProfileQueryKey, useResubmitMerchantApplication,
+  useGetMerchantFees, useGetMerchantKyc, getGetMerchantKycQueryKey, useCreateMerchantKycSession,
   useCreateMerchantCloudinaryUploadSignature, useUpdateMerchantShopProfile,
   useListMerchantPaymentLinks, useCreateMerchantPaymentLink, useUpdateMerchantPaymentLink, useDeleteMerchantPaymentLink,
   useListMerchantTransactions, useListMerchantPayouts, useListSupportedCurrencies,
   useCreateMerchantPaymentLinkReminder, useListMerchantPaymentLinkReminders,
   useCreateMerchantTransactionRecoveryLink,
+  type BusinessApplicationDetails,
 } from '@workspace/api-client-react';
 import { Async, Btn, Card, COUNTRIES, CURRENCIES, Confirm, CopyBtn, Err, Field, Gate, Heading, Modal, Note, Pager, Pill, currencyAmountStep, currencyMinorUnits, fmtDate, money, nice, useAccess, useInvalidateAll } from '@/components/kit';
 import { usePlatformBranding } from '@/components/platform-brand';
@@ -83,44 +86,30 @@ function MerchantDashboardInner() {
 
 export function MerchantPage({ addBusiness = false }: { addBusiness?: boolean } = {}) {
   const access = useAccess();
-  const branding = usePlatformBranding();
   const create = useCreateMerchantProfile();
-  const inv = useInvalidateAll();
+  const profileQuery = useGetMerchantProfile({ query: { queryKey: getGetMerchantProfileQueryKey(), enabled: !addBusiness && !!access.merchant } });
+  const queryClient = useQueryClient();
+  const resubmit = useResubmitMerchantApplication();
   const [, setLocation] = useLocation();
   const capacity = access.data?.businessCapacity;
   const canCreateBusiness = !!capacity && capacity.businessCount < capacity.businessLimit;
   const fees = useGetMerchantFees({ query: { enabled: !!access.merchant && !addBusiness } as never });
-  function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const f = new FormData(e.currentTarget);
-    const reg = String(f.get('reg') || '').trim();
-    create.mutate({ data: { businessName: String(f.get('name')).trim(), country: String(f.get('country')), baseCurrency: String(f.get('cur')), ...(reg ? { registrationNumber: reg } : {}) } }, { onSuccess: () => { void inv(); if (addBusiness) setLocation('/merchant/dashboard'); } });
-  }
   const m = access.merchant;
-  const createBusinessForm = <Card title={m ? 'Register another business' : 'Register your business'} subtitle={m ? `Your account can manage ${capacity?.businessLimit ?? 1} owned businesses at its current verification level.` : 'Takes a minute. Verification is a separate step.'}>
-    <form className="form-stack" onSubmit={submit}>
-      <Field label="Business name"><input name="name" required minLength={2} maxLength={150} data-testid="input-business-name" /></Field>
-      <div className="form-grid">
-        <Field label="Country"><select name="country" defaultValue="KE" data-testid="select-country">{COUNTRIES.map(([c, n]) => <option key={c} value={c}>{n}</option>)}</select></Field>
-        <Field label="Base currency"><select key={branding.baseCurrency} name="cur" defaultValue={branding.baseCurrency} data-testid="select-base-currency">{[...new Set([branding.baseCurrency, ...CURRENCIES])].map((c) => <option key={c}>{c}</option>)}</select></Field>
-      </div>
-      <Field label="Registration number" hint="Optional"><input name="reg" maxLength={150} data-testid="input-registration" /></Field>
-      <Err error={create.error} />
-      <Btn type="submit" disabled={create.isPending} testId="button-create-merchant">{create.isPending ? <LoaderCircle size={15} className="spin" /> : <Plus size={15} />}{m ? 'Create business' : 'Create merchant profile'}</Btn>
-    </form>
-  </Card>;
   const businessLimitNotice = <Card title="Business limit reached" subtitle={`Your current ${capacity?.tier === 'kyc' ? 'KYC' : 'unverified'} level allows ${capacity?.businessLimit ?? 1} owned business${capacity?.businessLimit === 1 ? '' : 'es'}.`}>
     <Note tone="warn">Complete {capacity?.tier === 'kyc' ? 'KYB' : 'KYC'} verification to increase your business limit.</Note>
     <Link href="/merchant/kyc" className="btn btn-primary">Open verification <ArrowRight size={14} /></Link>
   </Card>;
   return <>
-    <Heading eyebrow="MERCHANT" title={addBusiness ? (m ? 'Add another business' : 'Register your business') : m ? m.businessName : 'Merchant onboarding'} subtitle="Your business profile, verification state and the fees that apply to you." action={m && canCreateBusiness && !addBusiness ? <Link href="/merchant/new" className="btn btn-primary"><Plus size={15} />Add a business</Link> : undefined} />
+    <Heading eyebrow="MERCHANT" title={addBusiness ? 'Add another business' : m ? m.businessName : 'Business application'} subtitle="Your business profile, application status and the information needed to collect with Greenpay." action={m && canCreateBusiness && !addBusiness ? <Link href="/merchant/new" className="btn btn-primary"><Plus size={15} />Add a business</Link> : undefined} />
     <Async q={access}>
-      {!m ? createBusinessForm : addBusiness ? canCreateBusiness ? createBusinessForm : businessLimitNotice : <div className="split">
+      {!m ? <ApplicationWizard create={create} queryClient={queryClient} onCreated={addBusiness ? () => setLocation('/merchant/dashboard') : undefined} /> : addBusiness ? canCreateBusiness ? <ApplicationWizard create={create} queryClient={queryClient} addBusiness onCreated={() => setLocation('/merchant/dashboard')} /> : businessLimitNotice : <div className="split">
         <div>
           <Card title="Profile">
             <div className="kv">
               <div><span>Status</span><Pill value={m.status} /></div>
+              <div><span>Business application</span><Pill value={m.applicationStatus} /></div>
+              <div><span>Submitted</span><strong>{fmtDate(m.applicationSubmittedAt)}</strong></div>
+              <div><span>Reviewed</span><strong>{fmtDate(m.applicationReviewedAt)}</strong></div>
               <div><span>Verification</span><Pill value={m.kycStatus} /></div>
               <div><span>Country</span><strong>{m.country}</strong></div>
               <div><span>Base currency</span><strong>{m.baseCurrency}</strong></div>
@@ -129,6 +118,23 @@ export function MerchantPage({ addBusiness = false }: { addBusiness?: boolean } 
               <div><span>Created</span><strong>{fmtDate(m.createdAt)}</strong></div>
             </div>
           </Card>
+          {m.applicationDetails && <Card title="Submitted business application" subtitle="These are the business and collection details attached to your current application.">
+            <div className="application-review-grid">
+              <div><span>Business type</span><strong>{nice(m.applicationDetails.businessType)}</strong></div>
+              <div><span>Nature of business</span><p>{m.applicationDetails.natureOfBusiness}</p></div>
+              <div><span>Registered address</span><p>{m.applicationDetails.registeredAddress}</p></div>
+              <div><span>Website</span><strong>{m.applicationDetails.website || '—'}</strong></div>
+              <div><span>Expected monthly volume</span><strong>{money(m.applicationDetails.expectedMonthlyVolume, m.applicationDetails.expectedMonthlyVolumeCurrency)} / month</strong></div>
+              <div><span>Expected monthly transactions</span><strong>{m.applicationDetails.expectedMonthlyTransactions.toLocaleString()}</strong></div>
+              <div><span>Average transaction value</span><strong>{money(m.applicationDetails.expectedAverageTransactionValue, m.applicationDetails.expectedMonthlyVolumeCurrency)}</strong></div>
+              <div><span>Customer countries</span><strong>{m.applicationDetails.expectedCustomerCountries.join(', ')}</strong></div>
+              <div><span>Collection currencies</span><strong>{m.applicationDetails.expectedCollectionCurrencies.join(', ')}</strong></div>
+              <div><span>Source of funds</span><p>{m.applicationDetails.sourceOfFunds}</p></div>
+            </div>
+          </Card>}
+          {m.applicationStatus === 'more_info_required' && <ApplicationResubmission merchant={profileQuery.data?.merchant ?? m} mutation={resubmit} queryClient={queryClient} />}
+          {m.applicationRequestedInfo && <Note tone="warn"><strong>Information requested:</strong> {m.applicationRequestedInfo}</Note>}
+          {profileQuery.isError && <Note tone="warn">Application details could not be refreshed. <Btn variant="secondary" small onClick={() => { void profileQuery.refetch(); }}>Retry</Btn></Note>}
           <ShopProfileEditor merchant={m} isOwner={access.data?.role === 'owner'} />
           {m.kycStatus !== 'approved' && <Note tone="warn">Verification is {nice(m.kycStatus).toLowerCase()}. <Link href="/merchant/kyc" className="text-link">Open verification <ArrowRight size={13} /></Link></Note>}
         </div>
@@ -140,6 +146,122 @@ export function MerchantPage({ addBusiness = false }: { addBusiness?: boolean } 
       </div>}
     </Async>
   </>;
+}
+
+function ApplicationWizard({ create, queryClient, addBusiness = false, onCreated }: { create: ReturnType<typeof useCreateMerchantProfile>; queryClient: ReturnType<typeof useQueryClient>; addBusiness?: boolean; onCreated?: () => void }) {
+  const branding = usePlatformBranding();
+  const [step, setStep] = useState(1);
+  const [error, setError] = useState('');
+  const [businessValues, setBusinessValues] = useState<Record<string, string>>({});
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError('');
+    const form = new FormData(event.currentTarget);
+    const value = (key: string) => businessValues[key] ?? String(form.get(key) || '');
+    const parseList = (key: string) => String(form.get(key) || '').split(',').map((item) => item.trim().toUpperCase()).filter(Boolean);
+    const application: BusinessApplicationDetails = {
+      businessType: value('businessType') as BusinessApplicationDetails['businessType'],
+      natureOfBusiness: value('natureOfBusiness').trim(),
+      registeredAddress: value('registeredAddress').trim(),
+      website: value('website').trim() || null,
+      expectedMonthlyVolume: Number(form.get('expectedMonthlyVolume')),
+      expectedMonthlyVolumeCurrency: String(form.get('expectedMonthlyVolumeCurrency')).toUpperCase(),
+      expectedMonthlyTransactions: Number(form.get('expectedMonthlyTransactions')),
+      expectedAverageTransactionValue: Number(form.get('expectedAverageTransactionValue')),
+      expectedCustomerCountries: parseList('expectedCustomerCountries'),
+      expectedCollectionCurrencies: parseList('expectedCollectionCurrencies'),
+      sourceOfFunds: String(form.get('sourceOfFunds')).trim(),
+    };
+    if (!application.expectedCustomerCountries.length || !application.expectedCollectionCurrencies.length) {
+      setError('Enter at least one country and one collection currency.');
+      return;
+    }
+    create.mutate({ data: {
+      businessName: value('businessName').trim(),
+      country: value('country'),
+      baseCurrency: value('baseCurrency'),
+      ...(value('registrationNumber').trim() ? { registrationNumber: value('registrationNumber').trim() } : {}),
+      application,
+    } }, { onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getGetMerchantProfileQueryKey() }),
+        queryClient.invalidateQueries(),
+      ]);
+      onCreated?.();
+    }, onError: (failure) => setError(String((failure as Error).message || 'The application could not be submitted.')) });
+  }
+  return <Card title={addBusiness ? 'Register another business' : 'Start your business application'} subtitle="Two short steps. Greenpay will review the details before collection access is enabled.">
+    <form className="form-stack application-wizard" onSubmit={submit}>
+      <div className="application-steps" aria-label="Application progress"><span className={step === 1 ? 'current' : 'complete'}>01 <b>Business</b></span><i /><span className={step === 2 ? 'current' : ''}>02 <b>Activity</b></span></div>
+      {step === 1 ? <div className="form-stack">
+        <div className="form-grid"><Field label="Legal business name"><input name="businessName" required minLength={2} maxLength={150} data-testid="input-business-name" /></Field><Field label="Business type"><select name="businessType" defaultValue="" required data-testid="select-business-type"><option value="" disabled>Select business type</option><option value="sole_proprietor">Sole proprietor</option><option value="limited_company">Limited company</option><option value="partnership">Partnership</option><option value="nonprofit">Nonprofit</option><option value="other">Other</option></select></Field></div>
+        <div className="form-grid"><Field label="Country of registration"><select name="country" defaultValue="" required data-testid="select-country"><option value="" disabled>Select country</option>{COUNTRIES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select></Field><Field label="Base currency"><select name="baseCurrency" defaultValue="" required data-testid="select-base-currency"><option value="" disabled>Select currency</option>{[...new Set([branding.baseCurrency, ...CURRENCIES])].map((code) => <option key={code}>{code}</option>)}</select></Field></div>
+        <Field label="Registration number" hint="Optional"><input name="registrationNumber" maxLength={150} data-testid="input-registration" /></Field>
+        <Field label="Nature of business" hint="Describe the products or services offered"><textarea name="natureOfBusiness" required minLength={10} maxLength={2000} data-testid="input-nature-of-business" /></Field>
+        <Field label="Registered address"><textarea name="registeredAddress" required minLength={5} maxLength={500} data-testid="input-registered-address" /></Field>
+        <Field label="Website" hint="Optional"><input name="website" type="url" maxLength={500} placeholder="https://" data-testid="input-business-website" /></Field>
+        <Btn testId="button-application-continue" onClick={() => {
+          const form = document.querySelector<HTMLFormElement>('.application-wizard');
+          if (form?.reportValidity()) {
+            const values = new FormData(form);
+            setBusinessValues(Object.fromEntries(Array.from(values.entries()).map(([key, value]) => [key, String(value)])));
+            setStep(2);
+          }
+        }}>Continue to activity <ArrowRight size={14} /></Btn>
+      </div> : <div className="form-stack">
+        <div className="form-grid"><Field label="Expected monthly volume"><input name="expectedMonthlyVolume" type="number" min="0" max="1000000000000" step="any" required data-testid="input-monthly-volume" /></Field><Field label="Volume currency"><select name="expectedMonthlyVolumeCurrency" defaultValue="" required data-testid="select-volume-currency"><option value="" disabled>Select currency</option>{CURRENCIES.map((code) => <option key={code}>{code}</option>)}</select></Field></div>
+        <div className="form-grid"><Field label="Expected monthly transactions"><input name="expectedMonthlyTransactions" type="number" min="0" max="1000000000" step="1" required data-testid="input-monthly-transactions" /></Field><Field label="Average transaction value"><input name="expectedAverageTransactionValue" type="number" min="0" max="1000000000000" step="any" required data-testid="input-average-value" /></Field></div>
+        <Field label="Customer countries" hint="Comma-separated ISO country codes, for example KE, UG"><input name="expectedCustomerCountries" required data-testid="input-customer-countries" /></Field>
+        <Field label="Collection currencies" hint="Comma-separated three-letter codes"><input name="expectedCollectionCurrencies" required data-testid="input-collection-currencies" /></Field>
+        <Field label="Source of funds" hint="Explain where the business funds originate"><textarea name="sourceOfFunds" required minLength={10} maxLength={1000} data-testid="input-source-of-funds" /></Field>
+        {error && <Err error={error} />}
+        <div className="row-actions"><Btn variant="secondary" testId="button-application-back" onClick={() => setStep(1)}>Back</Btn><Btn type="submit" disabled={create.isPending} testId="button-submit-application">{create.isPending ? <LoaderCircle size={14} className="spin" /> : <ShieldCheck size={14} />}Submit application</Btn></div>
+      </div>}
+    </form>
+  </Card>;
+}
+
+function ApplicationResubmission({ merchant, mutation, queryClient }: {
+  merchant: NonNullable<ReturnType<typeof useAccess>['merchant']>;
+  mutation: ReturnType<typeof useResubmitMerchantApplication>;
+  queryClient: ReturnType<typeof useQueryClient>;
+}) {
+  const prior = merchant.applicationDetails;
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const details: BusinessApplicationDetails = {
+      businessType: String(form.get('businessType')) as BusinessApplicationDetails['businessType'],
+      natureOfBusiness: String(form.get('natureOfBusiness')).trim(),
+      registeredAddress: String(form.get('registeredAddress')).trim(),
+      website: String(form.get('website') || '').trim() || null,
+      expectedMonthlyVolume: Number(form.get('expectedMonthlyVolume')),
+      expectedMonthlyVolumeCurrency: String(form.get('expectedMonthlyVolumeCurrency')).toUpperCase(),
+      expectedMonthlyTransactions: Number(form.get('expectedMonthlyTransactions')),
+      expectedAverageTransactionValue: Number(form.get('expectedAverageTransactionValue')),
+      expectedCustomerCountries: String(form.get('expectedCustomerCountries')).split(',').map((v) => v.trim().toUpperCase()).filter(Boolean),
+      expectedCollectionCurrencies: String(form.get('expectedCollectionCurrencies')).split(',').map((v) => v.trim().toUpperCase()).filter(Boolean),
+      sourceOfFunds: String(form.get('sourceOfFunds')).trim(),
+    };
+    mutation.mutate({ data: details }, { onSuccess: async () => {
+      await Promise.all([queryClient.invalidateQueries({ queryKey: getGetMerchantProfileQueryKey() }), queryClient.invalidateQueries()]);
+    } });
+  }
+  return <Card title="Resubmit your application" subtitle="Update the requested information and send the application back for review.">
+    {merchant.applicationRequestedInfo && <Note tone="warn"><strong>Requested:</strong> {merchant.applicationRequestedInfo}</Note>}
+    {prior && <form className="form-stack application-wizard" onSubmit={submit}>
+      <div className="form-grid"><Field label="Business type"><select name="businessType" defaultValue={prior.businessType}><option value="sole_proprietor">Sole proprietor</option><option value="limited_company">Limited company</option><option value="partnership">Partnership</option><option value="nonprofit">Nonprofit</option><option value="other">Other</option></select></Field><Field label="Website"><input name="website" type="url" defaultValue={prior.website ?? ''} /></Field></div>
+      <Field label="Nature of business"><textarea name="natureOfBusiness" required minLength={10} defaultValue={prior.natureOfBusiness} /></Field>
+      <Field label="Registered address"><textarea name="registeredAddress" required minLength={5} defaultValue={prior.registeredAddress} /></Field>
+      <div className="form-grid"><Field label="Expected monthly volume"><input name="expectedMonthlyVolume" type="number" min="0" step="any" required defaultValue={prior.expectedMonthlyVolume} /></Field><Field label="Volume currency"><input name="expectedMonthlyVolumeCurrency" required minLength={3} maxLength={3} defaultValue={prior.expectedMonthlyVolumeCurrency} /></Field></div>
+      <div className="form-grid"><Field label="Expected monthly transactions"><input name="expectedMonthlyTransactions" type="number" min="0" step="1" required defaultValue={prior.expectedMonthlyTransactions} /></Field><Field label="Average transaction value"><input name="expectedAverageTransactionValue" type="number" min="0" step="any" required defaultValue={prior.expectedAverageTransactionValue} /></Field></div>
+      <Field label="Customer countries" hint="Comma-separated country codes"><input name="expectedCustomerCountries" required defaultValue={prior.expectedCustomerCountries.join(', ')} /></Field>
+      <Field label="Collection currencies" hint="Comma-separated currency codes"><input name="expectedCollectionCurrencies" required defaultValue={prior.expectedCollectionCurrencies.join(', ')} /></Field>
+      <Field label="Source of funds"><textarea name="sourceOfFunds" required minLength={10} defaultValue={prior.sourceOfFunds} /></Field>
+      <Err error={mutation.error} />
+      <Btn type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Submitting…' : 'Resubmit application'}</Btn>
+    </form>}
+  </Card>;
 }
 
 type MerchantShopProfile = NonNullable<ReturnType<typeof useAccess>['merchant']>;

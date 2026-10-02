@@ -125,7 +125,8 @@ router.post("/didit", async (req, res): Promise<void> => {
         const changes = kind === "kyc"
           ? {
               kycStatus: mapped, verificationUpdatedAt: now,
-              ...(mapped === "approved" && activeMerchant.status === "pending" ? { status: "active" } : {}),
+              ...(mapped === "approved" && activeMerchant.status === "pending" &&
+                ["approved", "not_submitted"].includes(activeMerchant.applicationStatus) ? { status: "active" } : {}),
               updatedAt: now,
             }
           : { kybStatus: mapped, kybVerificationUpdatedAt: now, updatedAt: now };

@@ -95,7 +95,8 @@ export async function dispatchPendingMerchantWebhooks(): Promise<void> {
         );
         if (statusCode >= 200 && statusCode < 300) {
           await db.update(merchantWebhookOutboxTable).set({
-            status: "delivered", lockedAt: null, lastStatusCode: statusCode, updatedAt: new Date(),
+            status: "delivered", lockedAt: null, lastStatusCode: statusCode,
+            lastError: null, updatedAt: new Date(),
           }).where(eq(merchantWebhookOutboxTable.id, delivery.id));
         } else {
           const exhausted = delivery.attempts >= MAX_DELIVERY_ATTEMPTS;
@@ -103,6 +104,7 @@ export async function dispatchPendingMerchantWebhooks(): Promise<void> {
             status: exhausted ? "failed" : "pending",
             lockedAt: null,
             lastStatusCode: statusCode || null,
+            lastError: `HTTP ${statusCode}`,
             nextAttemptAt: new Date(Date.now() + Math.min(60 * 60_000, 1000 * 2 ** Math.min(delivery.attempts, 12))),
             updatedAt: new Date(),
           }).where(eq(merchantWebhookOutboxTable.id, delivery.id));
@@ -113,6 +115,7 @@ export async function dispatchPendingMerchantWebhooks(): Promise<void> {
         await db.update(merchantWebhookOutboxTable).set({
           status: exhausted ? "failed" : "pending",
           lockedAt: null,
+          lastError: "Network or TLS delivery error.",
           nextAttemptAt: new Date(Date.now() + Math.min(60 * 60_000, 1000 * 2 ** Math.min(delivery.attempts, 12))),
           updatedAt: new Date(),
         }).where(eq(merchantWebhookOutboxTable.id, delivery.id));

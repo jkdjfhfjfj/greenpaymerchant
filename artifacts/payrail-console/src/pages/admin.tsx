@@ -3,11 +3,12 @@ import { Search, LoaderCircle, Pencil, Trash2, Plus, ShieldCheck, Eye } from 'lu
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRoute } from 'wouter';
 import {
-  useGetAdminSummary, useListAdminMerchants, useGetAdminMerchantDetails, useUpdateAdminMerchant, useGetAdminPlatformSettings, useUpdateAdminPlatformSettings,
+  useGetAdminSummary, useListAdminMerchants, useGetAdminMerchantDetails, getGetAdminMerchantDetailsQueryKey, useUpdateAdminMerchant, useGetAdminPlatformSettings, useUpdateAdminPlatformSettings,
   useListAdminAuditLog, useListAdminFeeSchedules, useUpdateAdminFeeSchedule, useListAdminFxRates, useCreateAdminFxRate, useUpdateAdminFxRate,
   useListAdminProviderCredentials, useSaveAdminProviderCredentials, useDeleteAdminProviderCredentials,
   useGetAdminCloudinaryUploadStatus, useCreateAdminCloudinaryUploadSignature,
   useFindAdminPlatformUsers, useGrantPlatformAdmin, useRevokePlatformAdmin, getFindAdminPlatformUsersQueryKey, getGetAccessProfileQueryKey,
+  useReviewAdminMerchantApplication, getListAdminMerchantsQueryKey,
   useListAdminCollectionCurrencyAvailability, useUpdateAdminCollectionCurrencyAvailability,
   getListAdminCollectionCurrencyAvailabilityQueryKey, useListSupportedCurrencies,
   type AdminMerchant, type AdminFxRate, type AdminFeeSchedule, type ProviderCredential, type ListAdminMerchantsParams, type PlatformSettings,
@@ -118,16 +119,73 @@ function MerchantsInner() {
   const q = useListAdminMerchants(params);
   const [edit, setEdit] = useState<AdminMerchant | null>(null);
   const [details, setDetails] = useState<AdminMerchant | null>(null);
+  const [review, setReview] = useState<AdminMerchant | null>(null);
   const items = q.data?.items ?? [];
   return <><Heading eyebrow="ADMIN" title="Merchants" subtitle="Review, activate, suspend and annotate merchant accounts." />
     <div className="toolbar"><div className="search-box"><Search size={14} /><input placeholder="Search business name" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-merchant-search" /></div>
       <select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="select-merchant-status"><option value="">Any status</option>{['pending', 'active', 'suspended', 'closed'].map((s) => <option key={s} value={s}>{nice(s)}</option>)}</select>
       <select value={kyc} onChange={(e) => setKyc(e.target.value)} data-testid="select-merchant-kyc"><option value="">Any verification</option>{['not_started', 'pending', 'in_review', 'approved', 'declined', 'expired'].map((s) => <option key={s} value={s}>{nice(s)}</option>)}</select></div>
-    <Async q={q} empty={!items.length} emptyTitle="No merchants match" emptyBody="Adjust the search or filters."><div className="table-wrap"><table className="dt"><thead><tr><th>Business</th><th>Country</th><th>Base</th><th>Status</th><th>Verification</th><th>Created</th><th /></tr></thead><tbody>
-      {items.map((m) => <tr key={m.id} data-testid={`row-merchant-${m.id}`}><td><strong>{m.businessName}</strong><span className="sub">{m.riskNote || m.ownerUserId}</span></td><td>{m.country}</td><td>{m.baseCurrency}</td><td><Pill value={m.status} /></td><td><Pill value={m.kycStatus} /></td><td>{fmtDate(m.createdAt)}</td><td><div className="row-actions"><Btn variant="secondary" small onClick={() => setDetails(m)}><Eye size={13} />Details</Btn><a className="btn btn-secondary btn-sm" href={`/admin/merchants/${m.id}/controls`}>Controls</a><Btn variant="secondary" small onClick={() => setEdit(m)}><Pencil size={13} />Edit</Btn></div></td></tr>)}
+    <Async q={q} empty={!items.length} emptyTitle="No merchants match" emptyBody="Adjust the search or filters."><div className="table-wrap"><table className="dt"><thead><tr><th>Business</th><th>Country</th><th>Base</th><th>Account</th><th>Application</th><th>Verification</th><th>Created</th><th /></tr></thead><tbody>
+      {items.map((m) => <tr key={m.id} data-testid={`row-merchant-${m.id}`}><td><strong>{m.businessName}</strong><span className="sub">{m.riskNote || m.ownerUserId}</span></td><td>{m.country}</td><td>{m.baseCurrency}</td><td><Pill value={m.status} /></td><td><Pill value={m.applicationStatus} />{m.applicationSubmittedAt && <span className="sub">Submitted {fmtDate(m.applicationSubmittedAt)}</span>}</td><td><Pill value={m.kycStatus} /></td><td>{fmtDate(m.createdAt)}</td><td><div className="row-actions">{['awaiting_review', 'more_info_required'].includes(m.applicationStatus) && m.applicationDetails && <Btn small onClick={() => setReview(m)}><ShieldCheck size={13} />Review</Btn>}<Btn variant="secondary" small onClick={() => setDetails(m)}><Eye size={13} />Details</Btn><a className="btn btn-secondary btn-sm" href={`/admin/merchants/${m.id}/controls`}>Controls</a><Btn variant="secondary" small onClick={() => setEdit(m)}><Pencil size={13} />Edit</Btn></div></td></tr>)}
     </tbody></table></div></Async>
     {edit && <MerchantEdit m={edit} onClose={() => setEdit(null)} />}
-    {details && <MerchantDetails m={details} onClose={() => setDetails(null)} />}</>;
+    {details && <MerchantDetails m={details} onClose={() => setDetails(null)} />}
+    {review && <MerchantApplicationReview m={review} onClose={() => setReview(null)} />}</>;
+}
+
+function MerchantApplicationReview({ m, onClose }: { m: AdminMerchant; onClose: () => void }) {
+  const mutation = useReviewAdminMerchantApplication();
+  const queryClient = useQueryClient();
+  const [reason, setReason] = useState('');
+  const application = m.applicationDetails;
+  if (!application) return null;
+  const canSubmit = reason.trim().length >= 5 && reason.trim().length <= 2000 && !mutation.isPending;
+  function decide(decision: 'approve' | 'request_information') {
+    mutation.mutate({ merchantId: m.id, data: { decision, reason: reason.trim() } }, { onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: getListAdminMerchantsQueryKey() });
+      await queryClient.invalidateQueries({ queryKey: getGetAdminMerchantDetailsQueryKey(m.id) });
+      onClose();
+    } });
+  }
+  return <Modal title={`Review · ${m.businessName}`} description="Review the submitted business details and record a reason for the decision." onClose={() => { if (!mutation.isPending) onClose(); }} wide>
+    <div className="form-stack">
+      <div className="kv">
+        <div><span>Application status</span><Pill value={m.applicationStatus} /></div>
+        <div><span>Submitted</span><strong>{fmtDate(m.applicationSubmittedAt)}</strong></div>
+        <div><span>Last reviewed</span><strong>{fmtDate(m.applicationReviewedAt)}</strong></div>
+      </div>
+      <Card title="Business details">
+        <div className="application-review-grid">
+          <div><span>Business type</span><strong>{application.businessType.replaceAll('_', ' ')}</strong></div>
+          <div><span>Country and base currency</span><strong>{m.country} · {m.baseCurrency}</strong></div>
+          <div><span>Registration number</span><strong>{m.registrationNumber || '—'}</strong></div>
+          <div><span>Nature of business</span><p>{application.natureOfBusiness}</p></div>
+          <div><span>Registered address</span><p>{application.registeredAddress}</p></div>
+          <div><span>Website</span><strong>{application.website || '—'}</strong></div>
+        </div>
+      </Card>
+      <Card title="Expected activity">
+        <div className="application-review-grid">
+          <div><span>Monthly volume</span><strong>{money(application.expectedMonthlyVolume, application.expectedMonthlyVolumeCurrency)} / month</strong></div>
+          <div><span>Monthly transactions</span><strong>{application.expectedMonthlyTransactions.toLocaleString()}</strong></div>
+          <div><span>Average transaction value</span><strong>{money(application.expectedAverageTransactionValue, application.expectedMonthlyVolumeCurrency)}</strong></div>
+          <div><span>Customer countries</span><strong>{application.expectedCustomerCountries.join(', ')}</strong></div>
+          <div><span>Collection currencies</span><strong>{application.expectedCollectionCurrencies.join(', ')}</strong></div>
+          <div><span>Source of funds</span><p>{application.sourceOfFunds}</p></div>
+        </div>
+      </Card>
+      {m.applicationRequestedInfo && <Note tone="warn">Previously requested: {m.applicationRequestedInfo}</Note>}
+      <Field label="Decision reason" hint="Required · at least 5 characters · visible in the application decision record">
+        <textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={5} maxLength={2000} required placeholder="Record the reason for this decision" data-testid={`input-application-review-reason-${m.id}`} />
+      </Field>
+      <Err error={mutation.error} />
+      <div className="row-actions application-review-actions">
+        <Btn variant="secondary" disabled={mutation.isPending} onClick={onClose}>Cancel</Btn>
+        <Btn variant="secondary" disabled={!canSubmit} onClick={() => decide('request_information')} testId={`button-request-information-${m.id}`}>Request information</Btn>
+        <Btn disabled={!canSubmit} onClick={() => decide('approve')} testId={`button-approve-application-${m.id}`}><ShieldCheck size={14} />Approve application</Btn>
+      </div>
+    </div>
+  </Modal>;
 }
 function MerchantEdit({ m, onClose }: { m: AdminMerchant; onClose: () => void }) {
   const up = useUpdateAdminMerchant();
@@ -170,6 +228,26 @@ function MerchantDetails({ m, onClose }: { m: AdminMerchant; onClose: () => void
             <div><span className="sub">Registration number</span><strong>{merchant.registrationNumber || '—'}</strong></div>
             {merchant.shopLogoUrl && <div><span className="sub">Shop logo</span><a href={merchant.shopLogoUrl} target="_blank" rel="noreferrer">Open image</a></div>}
           </div>
+        </Card>
+        <Card title="Business application" subtitle="Submitted business activity and source-of-funds information, with the current decision timeline.">
+          {merchant.applicationDetails ? <div className="form-stack">
+            <div className="application-review-grid">
+              <div><span>Application status</span><Pill value={merchant.applicationStatus} /></div>
+              <div><span>Submitted</span><strong>{fmtDate(merchant.applicationSubmittedAt)}</strong></div>
+              <div><span>Reviewed</span><strong>{fmtDate(merchant.applicationReviewedAt)}</strong></div>
+              <div><span>Business type</span><strong>{merchant.applicationDetails.businessType.replaceAll('_', ' ')}</strong></div>
+              <div><span>Nature of business</span><p>{merchant.applicationDetails.natureOfBusiness}</p></div>
+              <div><span>Registered address</span><p>{merchant.applicationDetails.registeredAddress}</p></div>
+              <div><span>Website</span><strong>{merchant.applicationDetails.website || '—'}</strong></div>
+              <div><span>Expected monthly volume</span><strong>{money(merchant.applicationDetails.expectedMonthlyVolume, merchant.applicationDetails.expectedMonthlyVolumeCurrency)} / month</strong></div>
+              <div><span>Expected monthly transactions</span><strong>{merchant.applicationDetails.expectedMonthlyTransactions.toLocaleString()}</strong></div>
+              <div><span>Average transaction value</span><strong>{money(merchant.applicationDetails.expectedAverageTransactionValue, merchant.applicationDetails.expectedMonthlyVolumeCurrency)}</strong></div>
+              <div><span>Customer countries</span><strong>{merchant.applicationDetails.expectedCustomerCountries.join(', ')}</strong></div>
+              <div><span>Collection currencies</span><strong>{merchant.applicationDetails.expectedCollectionCurrencies.join(', ')}</strong></div>
+              <div><span>Source of funds</span><p>{merchant.applicationDetails.sourceOfFunds}</p></div>
+              <div><span>Information requested</span><p>{merchant.applicationRequestedInfo || '—'}</p></div>
+            </div>
+          </div> : <div className="empty-state"><strong>No business application details</strong><span>The merchant has not submitted an application.</span></div>}
         </Card>
         <Card title="Owner contact">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>

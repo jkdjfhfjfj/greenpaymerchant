@@ -87,6 +87,7 @@ export const TransactionalEmailPurpose = {
   support_receipt: 'support_receipt',
   team_invitation: 'team_invitation',
   admin_test: 'admin_test',
+  admin_broadcast: 'admin_broadcast',
 } as const;
 
 export interface ContactTicketReceipt {
@@ -273,6 +274,51 @@ export interface AdminEmailDeliveryTestResult {
   detail: string;
 }
 
+export type AdminEmailBroadcastRequestAudience = typeof AdminEmailBroadcastRequestAudience[keyof typeof AdminEmailBroadcastRequestAudience];
+
+
+export const AdminEmailBroadcastRequestAudience = {
+  all: 'all',
+  user: 'user',
+} as const;
+
+export interface AdminEmailBroadcastRequest {
+  audience: AdminEmailBroadcastRequestAudience;
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  userId?: string;
+  /**
+     * @minLength 2
+     * @maxLength 160
+     */
+  subject: string;
+  /**
+     * @minLength 2
+     * @maxLength 12000
+     */
+  message: string;
+  confirmAll: boolean;
+}
+
+export type AdminEmailBroadcastResponseAudience = typeof AdminEmailBroadcastResponseAudience[keyof typeof AdminEmailBroadcastResponseAudience];
+
+
+export const AdminEmailBroadcastResponseAudience = {
+  all: 'all',
+  user: 'user',
+} as const;
+
+export interface AdminEmailBroadcastResponse {
+  broadcastId: string;
+  audience: AdminEmailBroadcastResponseAudience;
+  /** @minimum 0 */
+  queuedRecipients: number;
+  /** @minimum 0 */
+  skippedUnverified: number;
+}
+
 export interface AdminEmailDeliveryOutboxItem {
   id: number;
   eventKey: string;
@@ -386,8 +432,25 @@ export interface PlatformOperationalStatus {
   services: PlatformOperationalStatusServicesItem[];
 }
 
+export type HealthStatusStatus = typeof HealthStatusStatus[keyof typeof HealthStatusStatus];
+
+
+export const HealthStatusStatus = {
+  ok: 'ok',
+  unavailable: 'unavailable',
+} as const;
+
+export type HealthStatusDatabase = typeof HealthStatusDatabase[keyof typeof HealthStatusDatabase];
+
+
+export const HealthStatusDatabase = {
+  ready: 'ready',
+  unavailable: 'unavailable',
+} as const;
+
 export interface HealthStatus {
-  status: string;
+  status: HealthStatusStatus;
+  database: HealthStatusDatabase;
 }
 
 export interface CurrencyVolume {
@@ -1817,6 +1880,8 @@ export interface ReminderList {
 
 export interface StatementTransaction {
   reference: string;
+  /** @nullable */
+  providerReference: string | null;
   amount: number;
   fee: number;
   currency: string;
@@ -1848,6 +1913,8 @@ export const StatementRefundCashDateBasis = {
 
 export interface StatementRefund {
   reference: string;
+  /** @nullable */
+  providerReference: string | null;
   originalReference: string;
   amount: number;
   currency: string;
@@ -1885,6 +1952,8 @@ export const StatementPayoutCashDateBasis = {
 
 export interface StatementPayout {
   reference: string;
+  /** @nullable */
+  providerReference: string | null;
   amount: number;
   fee: number;
   currency: string;
@@ -2520,6 +2589,89 @@ export const MerchantProfileStatus = {
   closed: 'closed',
 } as const;
 
+export type BusinessApplicationDetailsBusinessType = typeof BusinessApplicationDetailsBusinessType[keyof typeof BusinessApplicationDetailsBusinessType];
+
+
+export const BusinessApplicationDetailsBusinessType = {
+  sole_proprietor: 'sole_proprietor',
+  limited_company: 'limited_company',
+  partnership: 'partnership',
+  nonprofit: 'nonprofit',
+  other: 'other',
+} as const;
+
+export interface BusinessApplicationDetails {
+  businessType: BusinessApplicationDetailsBusinessType;
+  /**
+     * @minLength 10
+     * @maxLength 2000
+     */
+  natureOfBusiness: string;
+  /**
+     * @minLength 5
+     * @maxLength 500
+     */
+  registeredAddress: string;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  website: string | null;
+  /**
+     * @minimum 0
+     * @maximum 1000000000000
+     */
+  expectedMonthlyVolume: number;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     * @pattern ^[A-Za-z]{3}$
+     */
+  expectedMonthlyVolumeCurrency: string;
+  /**
+     * @minimum 0
+     * @maximum 1000000000
+     */
+  expectedMonthlyTransactions: number;
+  /**
+     * @minimum 0
+     * @maximum 1000000000000
+     */
+  expectedAverageTransactionValue: number;
+  /**
+     * @minItems 1
+     * @maxItems 30
+     * @items.minLength 2
+     * @items.maxLength 2
+     * @items.pattern ^[A-Za-z]{2}$
+     */
+  expectedCustomerCountries: string[];
+  /**
+     * @minItems 1
+     * @maxItems 30
+     * @items.minLength 3
+     * @items.maxLength 3
+     * @items.pattern ^[A-Za-z]{3}$
+     */
+  expectedCollectionCurrencies: string[];
+  /**
+     * @minLength 10
+     * @maxLength 1000
+     */
+  sourceOfFunds: string;
+}
+
+export type MerchantProfileApplicationStatus = typeof MerchantProfileApplicationStatus[keyof typeof MerchantProfileApplicationStatus];
+
+
+export const MerchantProfileApplicationStatus = {
+  not_submitted: 'not_submitted',
+  awaiting_review: 'awaiting_review',
+  more_info_required: 'more_info_required',
+  approved: 'approved',
+  declined: 'declined',
+} as const;
+
 export type MerchantProfileKycStatus = typeof MerchantProfileKycStatus[keyof typeof MerchantProfileKycStatus];
 
 
@@ -2563,6 +2715,17 @@ export interface MerchantProfile {
   /** @nullable */
   registrationNumber?: string | null;
   status: MerchantProfileStatus;
+  applicationDetails: BusinessApplicationDetails | null;
+  applicationStatus: MerchantProfileApplicationStatus;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  applicationRequestedInfo: string | null;
+  /** @nullable */
+  applicationSubmittedAt: string | null;
+  /** @nullable */
+  applicationReviewedAt: string | null;
   kycStatus: MerchantProfileKycStatus;
   kybStatus: MerchantProfileKybStatus;
   paymentsEnabled?: boolean;
@@ -3021,6 +3184,88 @@ export interface CreateMerchantInput {
   baseCurrency: string;
   /** @maxLength 150 */
   registrationNumber?: string;
+  application: BusinessApplicationDetails;
+}
+
+export type ReviewMerchantApplicationRequestDecision = typeof ReviewMerchantApplicationRequestDecision[keyof typeof ReviewMerchantApplicationRequestDecision];
+
+
+export const ReviewMerchantApplicationRequestDecision = {
+  approve: 'approve',
+  request_information: 'request_information',
+} as const;
+
+export interface ReviewMerchantApplicationRequest {
+  decision: ReviewMerchantApplicationRequestDecision;
+  /**
+     * @minLength 5
+     * @maxLength 2000
+     */
+  reason: string;
+}
+
+export type AdminMerchantApplicationReviewResponseApplicationStatus = typeof AdminMerchantApplicationReviewResponseApplicationStatus[keyof typeof AdminMerchantApplicationReviewResponseApplicationStatus];
+
+
+export const AdminMerchantApplicationReviewResponseApplicationStatus = {
+  awaiting_review: 'awaiting_review',
+  more_info_required: 'more_info_required',
+  approved: 'approved',
+  declined: 'declined',
+} as const;
+
+export type AdminMerchantApplicationReviewResponseMerchantStatus = typeof AdminMerchantApplicationReviewResponseMerchantStatus[keyof typeof AdminMerchantApplicationReviewResponseMerchantStatus];
+
+
+export const AdminMerchantApplicationReviewResponseMerchantStatus = {
+  pending: 'pending',
+  active: 'active',
+  suspended: 'suspended',
+  closed: 'closed',
+} as const;
+
+export interface AdminMerchantApplicationReviewResponse {
+  merchantId: number;
+  applicationStatus: AdminMerchantApplicationReviewResponseApplicationStatus;
+  merchantStatus: AdminMerchantApplicationReviewResponseMerchantStatus;
+  /** @nullable */
+  applicationRequestedInfo: string | null;
+  /** @nullable */
+  applicationReviewedAt: string | null;
+}
+
+export interface MerchantCollectionAnalyticsGroup {
+  value: string;
+  transactionCount: number;
+  successfulCount: number;
+  /**
+     * @minimum 0
+     * @maximum 1
+     */
+  successRate: number;
+  /** @nullable */
+  grossVolume: number | null;
+  /** @nullable */
+  feeTotal: number | null;
+  /** @nullable */
+  currency: string | null;
+  /** @nullable */
+  averageSettlementHours: number | null;
+}
+
+export type MerchantCollectionAnalyticsResponseWindowDays = typeof MerchantCollectionAnalyticsResponseWindowDays[keyof typeof MerchantCollectionAnalyticsResponseWindowDays];
+
+
+export const MerchantCollectionAnalyticsResponseWindowDays = {
+  NUMBER_90: 90,
+} as const;
+
+export interface MerchantCollectionAnalyticsResponse {
+  windowDays: MerchantCollectionAnalyticsResponseWindowDays;
+  windowStart: string;
+  countries: MerchantCollectionAnalyticsGroup[];
+  currencies: MerchantCollectionAnalyticsGroup[];
+  paymentRails: MerchantCollectionAnalyticsGroup[];
 }
 
 export interface VerificationLimitsResponse {
@@ -3247,6 +3492,52 @@ export interface WebhookEndpoint {
   url: string;
   events: WebhookEndpointEventsItem[];
   active: boolean;
+  createdAt: string;
+}
+
+export type MerchantWebhookDeliveryStatus = typeof MerchantWebhookDeliveryStatus[keyof typeof MerchantWebhookDeliveryStatus];
+
+
+export const MerchantWebhookDeliveryStatus = {
+  pending: 'pending',
+  processing: 'processing',
+  delivered: 'delivered',
+  failed: 'failed',
+} as const;
+
+export interface MerchantWebhookDelivery {
+  deliveryId: string;
+  endpointId: number;
+  event: string;
+  status: MerchantWebhookDeliveryStatus;
+  /** @minimum 0 */
+  attempts: number;
+  /** @nullable */
+  lastStatusCode: number | null;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  lastError: string | null;
+  nextAttemptAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MerchantWebhookDeliveryList {
+  items: MerchantWebhookDelivery[];
+}
+
+export type MerchantWebhookTestDeliveryResponseStatus = typeof MerchantWebhookTestDeliveryResponseStatus[keyof typeof MerchantWebhookTestDeliveryResponseStatus];
+
+
+export const MerchantWebhookTestDeliveryResponseStatus = {
+  pending: 'pending',
+} as const;
+
+export interface MerchantWebhookTestDeliveryResponse {
+  deliveryId: string;
+  status: MerchantWebhookTestDeliveryResponseStatus;
   createdAt: string;
 }
 

@@ -1,6 +1,20 @@
 import { sql } from "drizzle-orm";
 import { boolean, index, integer, jsonb, numeric, pgTable, serial, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 
+export type MerchantApplicationDetails = {
+  businessType: "sole_proprietor" | "limited_company" | "partnership" | "nonprofit" | "other";
+  natureOfBusiness: string;
+  registeredAddress: string;
+  website: string | null;
+  expectedMonthlyVolume: number;
+  expectedMonthlyVolumeCurrency: string;
+  expectedMonthlyTransactions: number;
+  expectedAverageTransactionValue: number;
+  expectedCustomerCountries: string[];
+  expectedCollectionCurrencies: string[];
+  sourceOfFunds: string;
+};
+
 export const merchantsTable = pgTable("greenpay_merchants", {
   id: serial("id").primaryKey(),
   ownerClerkId: varchar("owner_clerk_id", { length: 128 }).notNull(),
@@ -10,6 +24,12 @@ export const merchantsTable = pgTable("greenpay_merchants", {
   country: varchar("country", { length: 2 }).notNull(),
   baseCurrency: varchar("base_currency", { length: 3 }).notNull(),
   registrationNumber: varchar("registration_number", { length: 150 }),
+  applicationDetails: jsonb("application_details").$type<MerchantApplicationDetails | null>(),
+  applicationStatus: varchar("application_status", { length: 32 }).notNull().default("not_submitted"),
+  applicationRequestedInfo: text("application_requested_info"),
+  applicationSubmittedAt: timestamp("application_submitted_at", { withTimezone: true }),
+  applicationReviewedAt: timestamp("application_reviewed_at", { withTimezone: true }),
+  applicationReviewedBy: varchar("application_reviewed_by", { length: 128 }),
   status: varchar("status", { length: 24 }).notNull().default("pending"),
   paymentsEnabled: boolean("payments_enabled").notNull().default(true),
   apiAccessEnabled: boolean("api_access_enabled").notNull().default(true),
@@ -36,6 +56,7 @@ export const merchantsTable = pgTable("greenpay_merchants", {
 }, (table) => [
   index("greenpay_merchants_owner_idx").on(table.ownerClerkId),
   index("greenpay_merchants_status_idx").on(table.status),
+  index("greenpay_merchants_application_status_idx").on(table.applicationStatus),
   index("greenpay_merchants_kyc_status_idx").on(table.kycStatus),
   index("greenpay_merchants_kyb_status_idx").on(table.kybStatus),
 ]);
@@ -156,6 +177,7 @@ export const merchantWebhookOutboxTable = pgTable("greenpay_merchant_webhook_out
   nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
   lockedAt: timestamp("locked_at", { withTimezone: true }),
   lastStatusCode: integer("last_status_code"),
+  lastError: text("last_error"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [

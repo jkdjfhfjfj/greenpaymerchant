@@ -41,6 +41,7 @@ import { WalletPage, PayoutRequestsPage, AdminWalletsPage, AdminPayoutRequestsPa
 import { InvoicePage, InvoiceDetailPage, StatementsPage, CasesPage, AdminCasesPage, PublicReceiptPage } from '@/pages/business-tools';
 import { MerchantTeamPage, AcceptTeamInvitePage } from '@/pages/team';
 import { MerchantDashboardPage, MerchantPage, KycPage, MerchantLinksPage, MerchantTransactionsPage, MerchantPayoutsPage } from '@/pages/merchant';
+import { MerchantAnalyticsPage } from '@/pages/merchant-analytics';
 import { DevelopersPage, ExchangePage } from '@/pages/developers';
 import { StatusPage, AuthSetupScreen } from '@/pages/status';
 import { AdminSummaryPage, AdminMerchantsPage, AdminMerchantControlsPage, AdminFeesPage, AdminExchangePage, AdminCredentialsPage, AdminSettingsPage, AdminAuditPage, AdminPlatformAdminsPage } from '@/pages/admin';
@@ -133,6 +134,7 @@ const navSections: { title: string; items: NavItem[] }[] = [
   { title: 'MERCHANT', items: [
     { label: 'Overview', href: '/merchant/dashboard', icon: LayoutDashboard },
     { label: 'Profile', href: '/merchant', icon: WalletCards },
+    { label: 'Collection analytics', href: '/merchant/analytics', icon: Activity },
     { label: 'Verification', href: '/merchant/kyc', icon: ShieldCheck },
     { label: 'My links', href: '/merchant/payment-links', icon: Link2 },
     { label: 'My transactions', href: '/merchant/transactions', icon: ArrowDownLeft },
@@ -190,6 +192,7 @@ const pageInfo: Record<string, { title: string; subtitle: string }> = {
   '/admin/verification-limits': { title: 'Verification limits', subtitle: '' },
   '/contact': { title: 'Contact', subtitle: '' }, '/platform-status': { title: 'Platform status', subtitle: '' },
   '/merchant': { title: 'Merchant profile', subtitle: '' }, '/merchant/kyc': { title: 'Verification', subtitle: '' },
+  '/merchant/analytics': { title: 'Collection analytics', subtitle: '' },
   '/merchant/dashboard': { title: 'Overview', subtitle: 'A clear view of collections and links for your business.' },
   '/merchant/payment-links': { title: 'My payment links', subtitle: '' }, '/merchant/transactions': { title: 'My transactions', subtitle: '' }, '/merchant/payouts': { title: 'Admin-operated payouts', subtitle: '' },
   '/developers': { title: 'API access', subtitle: '' }, '/exchange': { title: 'Exchange quotes', subtitle: '' },
@@ -1033,7 +1036,7 @@ const wrap = (C: () => ReactNode) => () => <Protected><AppShell><C /></AppShell>
 const protectedRoutes: [string, () => ReactNode][] = [
   ['/admin/merchants/:merchantId/controls', AdminMerchantControlsPage],
   ['/admin/email-delivery', AdminEmailDeliveryPage], ['/admin/content', AdminContentPage], ['/admin/legal-policies', AdminLegalPoliciesPage],
-  ['/merchant/dashboard', MerchantDashboardPage], ['/merchant/new', () => <MerchantPage addBusiness />], ['/merchant', () => <MerchantPage />], ['/merchant/kyc', KycPage], ['/merchant/payment-links', MerchantLinksPage], ['/merchant/transactions', MerchantTransactionsPage], ['/merchant/payouts', MerchantPayoutsPage],
+  ['/merchant/dashboard', MerchantDashboardPage], ['/merchant/new', () => <MerchantPage addBusiness />], ['/merchant', () => <MerchantPage />], ['/merchant/analytics', MerchantAnalyticsPage], ['/merchant/kyc', KycPage], ['/merchant/payment-links', MerchantLinksPage], ['/merchant/transactions', MerchantTransactionsPage], ['/merchant/payouts', MerchantPayoutsPage],
   ['/developers', DevelopersPage], ['/exchange', ExchangePage], ['/admin', AdminSummaryPage], ['/admin/merchants', AdminMerchantsPage], ['/admin/fees', AdminFeesPage],
   ['/admin/exchange', AdminExchangePage], ['/admin/credentials', AdminCredentialsPage], ['/admin/settings', AdminSettingsPage], ['/admin/audit', AdminAuditPage],
   ['/admin/administrators', AdminPlatformAdminsPage],

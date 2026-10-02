@@ -9,7 +9,8 @@ export type TransactionalTemplate =
   | "support_reply"
   | "support_receipt"
   | "team_invitation"
-  | "admin_test";
+  | "admin_test"
+  | "admin_broadcast";
 
 export type TransactionalEmailContent = {
   subject: string;
@@ -52,14 +53,40 @@ function approvedDeploymentUrl(input: string): string | null {
   }
 }
 
+function approvedAppPath(path: string): string | null {
+  const configured = process.env.PUBLIC_APP_URL?.trim();
+  if (!configured) return null;
+  try {
+    return approvedDeploymentUrl(new URL(path, configured).toString());
+  } catch {
+    return null;
+  }
+}
+
 function branded(subject: string, paragraphs: string[], link?: { label: string; href: string }): TransactionalEmailContent {
   const safeSubject = escapeHtml(subject);
   const safeParagraphs = paragraphs.map((paragraph) => `<p style="margin:0 0 16px;color:#40564e;line-height:1.65">${escapeHtml(paragraph)}</p>`).join("");
   const linkMarkup = link
     ? `<p style="margin:24px 0"><a href="${escapeHtml(link.href)}" style="display:inline-block;background:#294c43;color:#fffdf8;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">${escapeHtml(link.label)}</a></p>`
     : "";
-  const text = ["Greenpay", "", subject, "", ...paragraphs, ...(link ? ["", `${link.label}: ${link.href}`] : []), "", "Greenpay · Payments with clarity"].join("\n");
-  const html = `<!doctype html><html><body style="margin:0;background:#f5f3eb;font-family:Arial,sans-serif"><main style="max-width:600px;margin:32px auto;background:#fffdf8;border:1px solid #e4e1d7;border-radius:16px;overflow:hidden"><header style="padding:24px 32px;background:#294c43;color:#fffdf8;font-size:22px;font-weight:700;letter-spacing:-.03em">greenpay<span style="color:#dfbd79">.</span></header><section style="padding:32px"><h1 style="margin:0 0 22px;color:#263d37;font-size:24px">${safeSubject}</h1>${safeParagraphs}${linkMarkup}<p style="margin:28px 0 0;color:#71817b;font-size:12px">Greenpay · Payments with clarity</p></section></main></body></html>`;
+  const contactUrl = approvedAppPath("/contact");
+  const privacyUrl = approvedAppPath("/privacy");
+  const termsUrl = approvedAppPath("/terms");
+  const footerLinks = [
+    contactUrl ? `<a href="${escapeHtml(contactUrl)}" style="color:#294c43">Contact Greenpay</a>` : "",
+    privacyUrl ? `<a href="${escapeHtml(privacyUrl)}" style="color:#294c43">Privacy</a>` : "",
+    termsUrl ? `<a href="${escapeHtml(termsUrl)}" style="color:#294c43">Terms</a>` : "",
+  ].filter(Boolean).join(" &nbsp;·&nbsp; ");
+  const text = [
+    "Greenpay", "", subject, "", ...paragraphs,
+    ...(link ? ["", `${link.label}: ${link.href}`] : []),
+    "", "Need help? Contact Greenpay through the app.",
+    ...(contactUrl ? [`Contact: ${contactUrl}`] : []),
+    ...(privacyUrl ? [`Privacy: ${privacyUrl}`] : []),
+    ...(termsUrl ? [`Terms: ${termsUrl}`] : []),
+    "", "Greenpay · Payments with clarity",
+  ].join("\n");
+  const html = `<!doctype html><html><body style="margin:0;background:#f5f3eb;font-family:Arial,sans-serif"><main style="max-width:600px;margin:32px auto;background:#fffdf8;border:1px solid #e4e1d7;border-radius:16px;overflow:hidden"><header style="padding:24px 32px;background:#294c43;color:#fffdf8;font-size:22px;font-weight:700;letter-spacing:-.03em">greenpay<span style="color:#dfbd79">.</span></header><section style="padding:32px"><h1 style="margin:0 0 22px;color:#263d37;font-size:24px">${safeSubject}</h1>${safeParagraphs}${linkMarkup}<footer style="margin-top:32px;padding-top:20px;border-top:1px solid #e4e1d7;color:#71817b;font-size:12px;line-height:1.7"><p style="margin:0 0 8px">Need help? Contact Greenpay through the app.</p>${footerLinks ? `<p style="margin:0 0 8px">${footerLinks}</p>` : ""}<p style="margin:0">Greenpay · Payments with clarity</p></footer></section></main></body></html>`;
   return { subject, text, html };
 }
 
@@ -146,6 +173,11 @@ export function renderTransactionalEmail(
       "This message confirms that a user-triggered Greenpay Mailtrap test send was accepted.",
       `Requested at ${value(payload, "requestedAt")}.`,
     ]);
+  }
+  if (template === "admin_broadcast") {
+    const message = value(payload, "message").replace(/\r\n?/g, "\n").trim();
+    const paragraphs = message.split(/\n\s*\n/).map((part) => part.replace(/\n/g, " ").trim()).filter(Boolean);
+    return branded(value(payload, "subject", "A message from Greenpay"), paragraphs.length ? paragraphs : [message]);
   }
   throw new Error(`Unsupported transactional email template: ${template}`);
 }

@@ -18,7 +18,8 @@ import {
   UpdateAdminMerchantParams, UpdateAdminMerchantResponse, UpdateAdminPlatformSettingsBody,
   UpdateAdminPlatformSettingsResponse,
   ListAdminCollectionCurrencyAvailabilityResponse, UpdateAdminCollectionCurrencyAvailabilityBody,
-  UpdateAdminCollectionCurrencyAvailabilityResponse,
+  UpdateAdminCollectionCurrencyAvailabilityResponse, ReviewAdminMerchantApplicationBody,
+  ReviewAdminMerchantApplicationResponse,
 } from "@workspace/api-zod";
 import {
   adminAuditLogTable, db, feeSchedulesTable, fxRatesTable, merchantApiKeysTable,
@@ -26,6 +27,7 @@ import {
   platformAdminAssignmentsTable, verificationTierLimitsTable, verificationUsageReservationsTable,
   collectionCurrencyAvailabilityTable,
 } from "@workspace/db";
+import type { MerchantApplicationDetails } from "@workspace/db";
 import { encryptProviderCredentials, readProviderCredentials } from "../lib/secure-storage";
 import { credentialVaultReady } from "../lib/secret-crypto";
 import { collectionCurrencyAvailabilityAudit, supportedCollectionCurrencyCode } from "../lib/collection-currency-availability";
@@ -331,6 +333,11 @@ type AdminMerchantDtoRow = {
   baseCurrency: string;
   registrationNumber: string | null;
   status: string;
+  applicationDetails: MerchantApplicationDetails | null;
+  applicationStatus: string;
+  applicationRequestedInfo: string | null;
+  applicationSubmittedAt: Date | null;
+  applicationReviewedAt: Date | null;
   kycStatus: string;
   kybStatus: string;
   paymentsEnabled: boolean;
@@ -366,6 +373,11 @@ function merchantDto(row: AdminMerchantDtoRow) {
     shopLogoUrl: safeShopLogoUrl(row.shopLogoUrl), country: row.country,
     baseCurrency: row.baseCurrency, registrationNumber: row.registrationNumber,
     status: row.status, kycStatus: row.kycStatus, kybStatus: row.kybStatus, createdAt: row.createdAt,
+    applicationDetails: row.applicationDetails,
+    applicationStatus: row.applicationStatus,
+    applicationRequestedInfo: row.applicationRequestedInfo,
+    applicationSubmittedAt: row.applicationSubmittedAt,
+    applicationReviewedAt: row.applicationReviewedAt,
     ownerUserId: row.ownerClerkId, riskNote: row.riskNote, diditSessionId: row.diditSessionId,
     paymentsEnabled: row.paymentsEnabled, apiAccessEnabled: row.apiAccessEnabled,
     payoutsEnabled: row.payoutsEnabled, refundsEnabled: row.refundsEnabled,
@@ -386,6 +398,11 @@ function adminMerchantSelect() {
     baseCurrency: merchantsTable.baseCurrency,
     registrationNumber: merchantsTable.registrationNumber,
     status: merchantsTable.status,
+    applicationDetails: merchantsTable.applicationDetails,
+    applicationStatus: merchantsTable.applicationStatus,
+    applicationRequestedInfo: merchantsTable.applicationRequestedInfo,
+    applicationSubmittedAt: merchantsTable.applicationSubmittedAt,
+    applicationReviewedAt: merchantsTable.applicationReviewedAt,
     kycStatus: merchantsTable.kycStatus,
     // Keep compatibility with databases that have not yet added these columns.
     kybStatus: sql<string>`coalesce(to_jsonb(${merchantsTable})->>'kyb_status', 'not_started')`,
@@ -715,7 +732,10 @@ router.post("/admin/merchants/:merchantId/status", async (req, res): Promise<voi
   const saved = await db.transaction(async (tx) => {
     const [current] = await tx.select().from(merchantsTable)
       .where(eq(merchantsTable.id, merchantId)).for("update").limit(1);
-    if (!current) return null;
+    if (!current) return { kind: "not_found" as const };
+    if (status === "active" && ["awaiting_review", "more_info_required"].includes(current.applicationStatus)) {
+      return { kind: "application_pending" as const };
+    }
     const [updated] = await tx.update(merchantsTable).set({ status, updatedAt: new Date() })
       .where(eq(merchantsTable.id, merchantId)).returning();
     await tx.insert(adminAuditLogTable).values({
@@ -724,10 +744,61 @@ router.post("/admin/merchants/:merchantId/status", async (req, res): Promise<voi
       target: `merchant:${merchantId}`,
       details: `Status changed from ${current.status} to ${status}. Reason: ${reason}`,
     });
-    return updated;
+    return { kind: "saved" as const, updated };
   });
-  if (!saved) { res.status(404).json({ error: "Merchant not found." }); return; }
-  res.json({ merchantId: saved.id, status: saved.status, reason, updatedAt: saved.updatedAt });
+  if (saved.kind === "not_found") { res.status(404).json({ error: "Merchant not found." }); return; }
+  if (saved.kind === "application_pending") {
+    res.status(409).json({ error: "A submitted business application must be approved before activating the merchant." });
+    return;
+  }
+  res.json({ merchantId: saved.updated.id, status: saved.updated.status, reason, updatedAt: saved.updated.updatedAt });
+});
+
+router.post("/admin/merchants/:merchantId/application-review", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  const merchantId = routeMerchantId(req.params.merchantId ?? "");
+  if (merchantId === null) { res.status(400).json({ error: "A valid merchant ID is required." }); return; }
+  const parsed = ReviewAdminMerchantApplicationBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const reviewedAt = new Date();
+  const result = await db.transaction(async (tx) => {
+    const [current] = await tx.select().from(merchantsTable)
+      .where(eq(merchantsTable.id, merchantId)).for("update").limit(1);
+    if (!current) return { kind: "not_found" as const };
+    if (current.applicationStatus !== "awaiting_review") return { kind: "not_reviewable" as const };
+
+    const approved = parsed.data.decision === "approve";
+    const [updated] = await tx.update(merchantsTable).set({
+      applicationStatus: approved ? "approved" : "more_info_required",
+      applicationRequestedInfo: approved ? null : parsed.data.reason.trim(),
+      applicationReviewedAt: reviewedAt,
+      applicationReviewedBy: actor(req),
+      status: approved ? "active" : current.status,
+      updatedAt: reviewedAt,
+    }).where(eq(merchantsTable.id, merchantId)).returning();
+    await tx.insert(adminAuditLogTable).values({
+      actor: actor(req),
+      action: approved ? "merchant.application_approved" : "merchant.application_information_requested",
+      target: `merchant:${merchantId}`,
+      details: parsed.data.reason.trim(),
+    });
+    return { kind: "saved" as const, updated };
+  });
+  if (result.kind === "not_found") { res.status(404).json({ error: "Merchant not found." }); return; }
+  if (result.kind === "not_reviewable") {
+    res.status(409).json({ error: "Only applications awaiting review can be approved or sent back for information." });
+    return;
+  }
+  res.json(ReviewAdminMerchantApplicationResponse.parse({
+    merchantId: result.updated.id,
+    applicationStatus: result.updated.applicationStatus,
+    merchantStatus: result.updated.status,
+    applicationRequestedInfo: result.updated.applicationRequestedInfo,
+    applicationReviewedAt: result.updated.applicationReviewedAt,
+  }));
 });
 
 router.patch("/admin/merchants/:id", async (req, res): Promise<void> => {

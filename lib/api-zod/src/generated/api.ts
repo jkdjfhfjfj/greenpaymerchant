@@ -381,7 +381,8 @@ export const GetPlatformStatusResponse = zod.object({
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
-  "status": zod.string()
+  "status": zod.enum(['ok', 'unavailable']),
+  "database": zod.enum(['ready', 'unavailable'])
 })
 
 
@@ -2610,6 +2611,7 @@ export const GetMerchantStatementResponse = zod.object({
   "month": zod.string(),
   "transactions": zod.array(zod.object({
   "reference": zod.string(),
+  "providerReference": zod.string().nullable(),
   "amount": zod.number(),
   "fee": zod.number(),
   "currency": zod.string(),
@@ -2617,6 +2619,7 @@ export const GetMerchantStatementResponse = zod.object({
 })),
   "refunds": zod.array(zod.object({
   "reference": zod.string(),
+  "providerReference": zod.string().nullable(),
   "originalReference": zod.string(),
   "amount": zod.number(),
   "currency": zod.string(),
@@ -2627,6 +2630,7 @@ export const GetMerchantStatementResponse = zod.object({
 })),
   "payouts": zod.array(zod.object({
   "reference": zod.string(),
+  "providerReference": zod.string().nullable(),
   "amount": zod.number(),
   "fee": zod.number(),
   "currency": zod.string(),
@@ -3367,6 +3371,47 @@ export const GetProviderStatusResponse = zod.object({
  */
 export const getAccessProfileResponseMerchantOneShopNameMax = 100;
 
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneNatureOfBusinessMin = 10;
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneNatureOfBusinessMax = 2000;
+
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneRegisteredAddressMin = 5;
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneRegisteredAddressMax = 500;
+
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneWebsiteMax = 500;
+
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeMin = 0;
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeMax = 1000000000000;
+
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin = 3;
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax = 3;
+
+
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedMonthlyTransactionsMin = 0;
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedMonthlyTransactionsMax = 1000000000;
+
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedAverageTransactionValueMin = 0;
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedAverageTransactionValueMax = 1000000000000;
+
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemMin = 2;
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemMax = 2;
+
+
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemRegExp = new RegExp('^[A-Za-z]{2}$');
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesMax = 30;
+
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemMin = 3;
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemMax = 3;
+
+
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp = new RegExp('^[A-Za-z]{3}$');
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesMax = 30;
+
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneSourceOfFundsMin = 10;
+export const getAccessProfileResponseMerchantOneApplicationDetailsOneSourceOfFundsMax = 1000;
+
+export const getAccessProfileResponseMerchantOneApplicationRequestedInfoMax = 2000;
+
 export const getAccessProfileResponseBusinessCapacityBusinessCountMin = 0;
 
 
@@ -3384,6 +3429,23 @@ export const GetAccessProfileResponse = zod.object({
   "baseCurrency": zod.string(),
   "registrationNumber": zod.string().nullish(),
   "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "applicationDetails": zod.union([zod.object({
+  "businessType": zod.enum(['sole_proprietor', 'limited_company', 'partnership', 'nonprofit', 'other']),
+  "natureOfBusiness": zod.string().min(getAccessProfileResponseMerchantOneApplicationDetailsOneNatureOfBusinessMin).max(getAccessProfileResponseMerchantOneApplicationDetailsOneNatureOfBusinessMax),
+  "registeredAddress": zod.string().min(getAccessProfileResponseMerchantOneApplicationDetailsOneRegisteredAddressMin).max(getAccessProfileResponseMerchantOneApplicationDetailsOneRegisteredAddressMax),
+  "website": zod.string().url().max(getAccessProfileResponseMerchantOneApplicationDetailsOneWebsiteMax).nullable(),
+  "expectedMonthlyVolume": zod.number().min(getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeMin).max(getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeMax),
+  "expectedMonthlyVolumeCurrency": zod.string().min(getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin).max(getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax).regex(getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp),
+  "expectedMonthlyTransactions": zod.number().int().min(getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedMonthlyTransactionsMin).max(getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedMonthlyTransactionsMax),
+  "expectedAverageTransactionValue": zod.number().min(getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedAverageTransactionValueMin).max(getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedAverageTransactionValueMax),
+  "expectedCustomerCountries": zod.array(zod.string().min(getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemMin).max(getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemMax).regex(getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemRegExp)).min(1).max(getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesMax),
+  "expectedCollectionCurrencies": zod.array(zod.string().min(getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemMin).max(getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemMax).regex(getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp)).min(1).max(getAccessProfileResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesMax),
+  "sourceOfFunds": zod.string().min(getAccessProfileResponseMerchantOneApplicationDetailsOneSourceOfFundsMin).max(getAccessProfileResponseMerchantOneApplicationDetailsOneSourceOfFundsMax)
+}),zod.null()]),
+  "applicationStatus": zod.enum(['not_submitted', 'awaiting_review', 'more_info_required', 'approved', 'declined']),
+  "applicationRequestedInfo": zod.string().max(getAccessProfileResponseMerchantOneApplicationRequestedInfoMax).nullable(),
+  "applicationSubmittedAt": zod.coerce.date().nullable(),
+  "applicationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "paymentsEnabled": zod.boolean().optional(),
@@ -3421,6 +3483,47 @@ export const SelectMerchantWorkspaceBody = zod.object({
 
 export const selectMerchantWorkspaceResponseMerchantOneShopNameMax = 100;
 
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneNatureOfBusinessMin = 10;
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneNatureOfBusinessMax = 2000;
+
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneRegisteredAddressMin = 5;
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneRegisteredAddressMax = 500;
+
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneWebsiteMax = 500;
+
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeMin = 0;
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeMax = 1000000000000;
+
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin = 3;
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax = 3;
+
+
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedMonthlyTransactionsMin = 0;
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedMonthlyTransactionsMax = 1000000000;
+
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedAverageTransactionValueMin = 0;
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedAverageTransactionValueMax = 1000000000000;
+
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemMin = 2;
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemMax = 2;
+
+
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemRegExp = new RegExp('^[A-Za-z]{2}$');
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesMax = 30;
+
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemMin = 3;
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemMax = 3;
+
+
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp = new RegExp('^[A-Za-z]{3}$');
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesMax = 30;
+
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneSourceOfFundsMin = 10;
+export const selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneSourceOfFundsMax = 1000;
+
+export const selectMerchantWorkspaceResponseMerchantOneApplicationRequestedInfoMax = 2000;
+
 export const selectMerchantWorkspaceResponseBusinessCapacityBusinessCountMin = 0;
 
 
@@ -3438,6 +3541,23 @@ export const SelectMerchantWorkspaceResponse = zod.object({
   "baseCurrency": zod.string(),
   "registrationNumber": zod.string().nullish(),
   "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "applicationDetails": zod.union([zod.object({
+  "businessType": zod.enum(['sole_proprietor', 'limited_company', 'partnership', 'nonprofit', 'other']),
+  "natureOfBusiness": zod.string().min(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneNatureOfBusinessMin).max(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneNatureOfBusinessMax),
+  "registeredAddress": zod.string().min(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneRegisteredAddressMin).max(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneRegisteredAddressMax),
+  "website": zod.string().url().max(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneWebsiteMax).nullable(),
+  "expectedMonthlyVolume": zod.number().min(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeMin).max(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeMax),
+  "expectedMonthlyVolumeCurrency": zod.string().min(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin).max(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax).regex(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp),
+  "expectedMonthlyTransactions": zod.number().int().min(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedMonthlyTransactionsMin).max(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedMonthlyTransactionsMax),
+  "expectedAverageTransactionValue": zod.number().min(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedAverageTransactionValueMin).max(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedAverageTransactionValueMax),
+  "expectedCustomerCountries": zod.array(zod.string().min(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemMin).max(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemMax).regex(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemRegExp)).min(1).max(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesMax),
+  "expectedCollectionCurrencies": zod.array(zod.string().min(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemMin).max(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemMax).regex(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp)).min(1).max(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesMax),
+  "sourceOfFunds": zod.string().min(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneSourceOfFundsMin).max(selectMerchantWorkspaceResponseMerchantOneApplicationDetailsOneSourceOfFundsMax)
+}),zod.null()]),
+  "applicationStatus": zod.enum(['not_submitted', 'awaiting_review', 'more_info_required', 'approved', 'declined']),
+  "applicationRequestedInfo": zod.string().max(selectMerchantWorkspaceResponseMerchantOneApplicationRequestedInfoMax).nullable(),
+  "applicationSubmittedAt": zod.coerce.date().nullable(),
+  "applicationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "paymentsEnabled": zod.boolean().optional(),
@@ -3468,6 +3588,47 @@ export const SelectMerchantWorkspaceResponse = zod.object({
  */
 export const getMerchantProfileResponseMerchantShopNameMax = 100;
 
+export const getMerchantProfileResponseMerchantApplicationDetailsOneNatureOfBusinessMin = 10;
+export const getMerchantProfileResponseMerchantApplicationDetailsOneNatureOfBusinessMax = 2000;
+
+export const getMerchantProfileResponseMerchantApplicationDetailsOneRegisteredAddressMin = 5;
+export const getMerchantProfileResponseMerchantApplicationDetailsOneRegisteredAddressMax = 500;
+
+export const getMerchantProfileResponseMerchantApplicationDetailsOneWebsiteMax = 500;
+
+export const getMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMin = 0;
+export const getMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMax = 1000000000000;
+
+export const getMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin = 3;
+export const getMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax = 3;
+
+
+export const getMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
+export const getMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMin = 0;
+export const getMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMax = 1000000000;
+
+export const getMerchantProfileResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMin = 0;
+export const getMerchantProfileResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMax = 1000000000000;
+
+export const getMerchantProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMin = 2;
+export const getMerchantProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMax = 2;
+
+
+export const getMerchantProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemRegExp = new RegExp('^[A-Za-z]{2}$');
+export const getMerchantProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesMax = 30;
+
+export const getMerchantProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMin = 3;
+export const getMerchantProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMax = 3;
+
+
+export const getMerchantProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp = new RegExp('^[A-Za-z]{3}$');
+export const getMerchantProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesMax = 30;
+
+export const getMerchantProfileResponseMerchantApplicationDetailsOneSourceOfFundsMin = 10;
+export const getMerchantProfileResponseMerchantApplicationDetailsOneSourceOfFundsMax = 1000;
+
+export const getMerchantProfileResponseMerchantApplicationRequestedInfoMax = 2000;
+
 
 
 export const GetMerchantProfileResponse = zod.object({
@@ -3480,6 +3641,23 @@ export const GetMerchantProfileResponse = zod.object({
   "baseCurrency": zod.string(),
   "registrationNumber": zod.string().nullish(),
   "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "applicationDetails": zod.union([zod.object({
+  "businessType": zod.enum(['sole_proprietor', 'limited_company', 'partnership', 'nonprofit', 'other']),
+  "natureOfBusiness": zod.string().min(getMerchantProfileResponseMerchantApplicationDetailsOneNatureOfBusinessMin).max(getMerchantProfileResponseMerchantApplicationDetailsOneNatureOfBusinessMax),
+  "registeredAddress": zod.string().min(getMerchantProfileResponseMerchantApplicationDetailsOneRegisteredAddressMin).max(getMerchantProfileResponseMerchantApplicationDetailsOneRegisteredAddressMax),
+  "website": zod.string().url().max(getMerchantProfileResponseMerchantApplicationDetailsOneWebsiteMax).nullable(),
+  "expectedMonthlyVolume": zod.number().min(getMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMin).max(getMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMax),
+  "expectedMonthlyVolumeCurrency": zod.string().min(getMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin).max(getMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax).regex(getMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp),
+  "expectedMonthlyTransactions": zod.number().int().min(getMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMin).max(getMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMax),
+  "expectedAverageTransactionValue": zod.number().min(getMerchantProfileResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMin).max(getMerchantProfileResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMax),
+  "expectedCustomerCountries": zod.array(zod.string().min(getMerchantProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMin).max(getMerchantProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMax).regex(getMerchantProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemRegExp)).min(1).max(getMerchantProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesMax),
+  "expectedCollectionCurrencies": zod.array(zod.string().min(getMerchantProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMin).max(getMerchantProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMax).regex(getMerchantProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp)).min(1).max(getMerchantProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesMax),
+  "sourceOfFunds": zod.string().min(getMerchantProfileResponseMerchantApplicationDetailsOneSourceOfFundsMin).max(getMerchantProfileResponseMerchantApplicationDetailsOneSourceOfFundsMax)
+}),zod.null()]),
+  "applicationStatus": zod.enum(['not_submitted', 'awaiting_review', 'more_info_required', 'approved', 'declined']),
+  "applicationRequestedInfo": zod.string().max(getMerchantProfileResponseMerchantApplicationRequestedInfoMax).nullable(),
+  "applicationSubmittedAt": zod.coerce.date().nullable(),
+  "applicationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "paymentsEnabled": zod.boolean().optional(),
@@ -3505,16 +3683,109 @@ export const createMerchantProfileBodyBaseCurrencyMax = 3;
 
 export const createMerchantProfileBodyRegistrationNumberMax = 150;
 
+export const createMerchantProfileBodyApplicationNatureOfBusinessMin = 10;
+export const createMerchantProfileBodyApplicationNatureOfBusinessMax = 2000;
+
+export const createMerchantProfileBodyApplicationRegisteredAddressMin = 5;
+export const createMerchantProfileBodyApplicationRegisteredAddressMax = 500;
+
+export const createMerchantProfileBodyApplicationWebsiteMax = 500;
+
+export const createMerchantProfileBodyApplicationExpectedMonthlyVolumeMin = 0;
+export const createMerchantProfileBodyApplicationExpectedMonthlyVolumeMax = 1000000000000;
+
+export const createMerchantProfileBodyApplicationExpectedMonthlyVolumeCurrencyMin = 3;
+export const createMerchantProfileBodyApplicationExpectedMonthlyVolumeCurrencyMax = 3;
+
+
+export const createMerchantProfileBodyApplicationExpectedMonthlyVolumeCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
+export const createMerchantProfileBodyApplicationExpectedMonthlyTransactionsMin = 0;
+export const createMerchantProfileBodyApplicationExpectedMonthlyTransactionsMax = 1000000000;
+
+export const createMerchantProfileBodyApplicationExpectedAverageTransactionValueMin = 0;
+export const createMerchantProfileBodyApplicationExpectedAverageTransactionValueMax = 1000000000000;
+
+export const createMerchantProfileBodyApplicationExpectedCustomerCountriesItemMin = 2;
+export const createMerchantProfileBodyApplicationExpectedCustomerCountriesItemMax = 2;
+
+
+export const createMerchantProfileBodyApplicationExpectedCustomerCountriesItemRegExp = new RegExp('^[A-Za-z]{2}$');
+export const createMerchantProfileBodyApplicationExpectedCustomerCountriesMax = 30;
+
+export const createMerchantProfileBodyApplicationExpectedCollectionCurrenciesItemMin = 3;
+export const createMerchantProfileBodyApplicationExpectedCollectionCurrenciesItemMax = 3;
+
+
+export const createMerchantProfileBodyApplicationExpectedCollectionCurrenciesItemRegExp = new RegExp('^[A-Za-z]{3}$');
+export const createMerchantProfileBodyApplicationExpectedCollectionCurrenciesMax = 30;
+
+export const createMerchantProfileBodyApplicationSourceOfFundsMin = 10;
+export const createMerchantProfileBodyApplicationSourceOfFundsMax = 1000;
+
 
 
 export const CreateMerchantProfileBody = zod.object({
   "businessName": zod.string().min(createMerchantProfileBodyBusinessNameMin).max(createMerchantProfileBodyBusinessNameMax),
   "country": zod.string().min(createMerchantProfileBodyCountryMin).max(createMerchantProfileBodyCountryMax),
   "baseCurrency": zod.string().min(createMerchantProfileBodyBaseCurrencyMin).max(createMerchantProfileBodyBaseCurrencyMax),
-  "registrationNumber": zod.string().max(createMerchantProfileBodyRegistrationNumberMax).optional()
+  "registrationNumber": zod.string().max(createMerchantProfileBodyRegistrationNumberMax).optional(),
+  "application": zod.object({
+  "businessType": zod.enum(['sole_proprietor', 'limited_company', 'partnership', 'nonprofit', 'other']),
+  "natureOfBusiness": zod.string().min(createMerchantProfileBodyApplicationNatureOfBusinessMin).max(createMerchantProfileBodyApplicationNatureOfBusinessMax),
+  "registeredAddress": zod.string().min(createMerchantProfileBodyApplicationRegisteredAddressMin).max(createMerchantProfileBodyApplicationRegisteredAddressMax),
+  "website": zod.string().url().max(createMerchantProfileBodyApplicationWebsiteMax).nullable(),
+  "expectedMonthlyVolume": zod.number().min(createMerchantProfileBodyApplicationExpectedMonthlyVolumeMin).max(createMerchantProfileBodyApplicationExpectedMonthlyVolumeMax),
+  "expectedMonthlyVolumeCurrency": zod.string().min(createMerchantProfileBodyApplicationExpectedMonthlyVolumeCurrencyMin).max(createMerchantProfileBodyApplicationExpectedMonthlyVolumeCurrencyMax).regex(createMerchantProfileBodyApplicationExpectedMonthlyVolumeCurrencyRegExp),
+  "expectedMonthlyTransactions": zod.number().int().min(createMerchantProfileBodyApplicationExpectedMonthlyTransactionsMin).max(createMerchantProfileBodyApplicationExpectedMonthlyTransactionsMax),
+  "expectedAverageTransactionValue": zod.number().min(createMerchantProfileBodyApplicationExpectedAverageTransactionValueMin).max(createMerchantProfileBodyApplicationExpectedAverageTransactionValueMax),
+  "expectedCustomerCountries": zod.array(zod.string().min(createMerchantProfileBodyApplicationExpectedCustomerCountriesItemMin).max(createMerchantProfileBodyApplicationExpectedCustomerCountriesItemMax).regex(createMerchantProfileBodyApplicationExpectedCustomerCountriesItemRegExp)).min(1).max(createMerchantProfileBodyApplicationExpectedCustomerCountriesMax),
+  "expectedCollectionCurrencies": zod.array(zod.string().min(createMerchantProfileBodyApplicationExpectedCollectionCurrenciesItemMin).max(createMerchantProfileBodyApplicationExpectedCollectionCurrenciesItemMax).regex(createMerchantProfileBodyApplicationExpectedCollectionCurrenciesItemRegExp)).min(1).max(createMerchantProfileBodyApplicationExpectedCollectionCurrenciesMax),
+  "sourceOfFunds": zod.string().min(createMerchantProfileBodyApplicationSourceOfFundsMin).max(createMerchantProfileBodyApplicationSourceOfFundsMax)
+})
 })
 
 export const createMerchantProfileResponseMerchantShopNameMax = 100;
+
+export const createMerchantProfileResponseMerchantApplicationDetailsOneNatureOfBusinessMin = 10;
+export const createMerchantProfileResponseMerchantApplicationDetailsOneNatureOfBusinessMax = 2000;
+
+export const createMerchantProfileResponseMerchantApplicationDetailsOneRegisteredAddressMin = 5;
+export const createMerchantProfileResponseMerchantApplicationDetailsOneRegisteredAddressMax = 500;
+
+export const createMerchantProfileResponseMerchantApplicationDetailsOneWebsiteMax = 500;
+
+export const createMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMin = 0;
+export const createMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMax = 1000000000000;
+
+export const createMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin = 3;
+export const createMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax = 3;
+
+
+export const createMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
+export const createMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMin = 0;
+export const createMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMax = 1000000000;
+
+export const createMerchantProfileResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMin = 0;
+export const createMerchantProfileResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMax = 1000000000000;
+
+export const createMerchantProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMin = 2;
+export const createMerchantProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMax = 2;
+
+
+export const createMerchantProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemRegExp = new RegExp('^[A-Za-z]{2}$');
+export const createMerchantProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesMax = 30;
+
+export const createMerchantProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMin = 3;
+export const createMerchantProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMax = 3;
+
+
+export const createMerchantProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp = new RegExp('^[A-Za-z]{3}$');
+export const createMerchantProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesMax = 30;
+
+export const createMerchantProfileResponseMerchantApplicationDetailsOneSourceOfFundsMin = 10;
+export const createMerchantProfileResponseMerchantApplicationDetailsOneSourceOfFundsMax = 1000;
+
+export const createMerchantProfileResponseMerchantApplicationRequestedInfoMax = 2000;
 
 
 
@@ -3528,6 +3799,23 @@ export const CreateMerchantProfileResponse = zod.object({
   "baseCurrency": zod.string(),
   "registrationNumber": zod.string().nullish(),
   "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "applicationDetails": zod.union([zod.object({
+  "businessType": zod.enum(['sole_proprietor', 'limited_company', 'partnership', 'nonprofit', 'other']),
+  "natureOfBusiness": zod.string().min(createMerchantProfileResponseMerchantApplicationDetailsOneNatureOfBusinessMin).max(createMerchantProfileResponseMerchantApplicationDetailsOneNatureOfBusinessMax),
+  "registeredAddress": zod.string().min(createMerchantProfileResponseMerchantApplicationDetailsOneRegisteredAddressMin).max(createMerchantProfileResponseMerchantApplicationDetailsOneRegisteredAddressMax),
+  "website": zod.string().url().max(createMerchantProfileResponseMerchantApplicationDetailsOneWebsiteMax).nullable(),
+  "expectedMonthlyVolume": zod.number().min(createMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMin).max(createMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMax),
+  "expectedMonthlyVolumeCurrency": zod.string().min(createMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin).max(createMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax).regex(createMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp),
+  "expectedMonthlyTransactions": zod.number().int().min(createMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMin).max(createMerchantProfileResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMax),
+  "expectedAverageTransactionValue": zod.number().min(createMerchantProfileResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMin).max(createMerchantProfileResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMax),
+  "expectedCustomerCountries": zod.array(zod.string().min(createMerchantProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMin).max(createMerchantProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMax).regex(createMerchantProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemRegExp)).min(1).max(createMerchantProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesMax),
+  "expectedCollectionCurrencies": zod.array(zod.string().min(createMerchantProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMin).max(createMerchantProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMax).regex(createMerchantProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp)).min(1).max(createMerchantProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesMax),
+  "sourceOfFunds": zod.string().min(createMerchantProfileResponseMerchantApplicationDetailsOneSourceOfFundsMin).max(createMerchantProfileResponseMerchantApplicationDetailsOneSourceOfFundsMax)
+}),zod.null()]),
+  "applicationStatus": zod.enum(['not_submitted', 'awaiting_review', 'more_info_required', 'approved', 'declined']),
+  "applicationRequestedInfo": zod.string().max(createMerchantProfileResponseMerchantApplicationRequestedInfoMax).nullable(),
+  "applicationSubmittedAt": zod.coerce.date().nullable(),
+  "applicationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "paymentsEnabled": zod.boolean().optional(),
@@ -3536,6 +3824,197 @@ export const CreateMerchantProfileResponse = zod.object({
   "apiAccessEnabled": zod.boolean().optional(),
   "createdAt": zod.coerce.date()
 })
+})
+
+
+/**
+ * @summary Submit requested additional business application information
+ */
+export const resubmitMerchantApplicationBodyNatureOfBusinessMin = 10;
+export const resubmitMerchantApplicationBodyNatureOfBusinessMax = 2000;
+
+export const resubmitMerchantApplicationBodyRegisteredAddressMin = 5;
+export const resubmitMerchantApplicationBodyRegisteredAddressMax = 500;
+
+export const resubmitMerchantApplicationBodyWebsiteMax = 500;
+
+export const resubmitMerchantApplicationBodyExpectedMonthlyVolumeMin = 0;
+export const resubmitMerchantApplicationBodyExpectedMonthlyVolumeMax = 1000000000000;
+
+export const resubmitMerchantApplicationBodyExpectedMonthlyVolumeCurrencyMin = 3;
+export const resubmitMerchantApplicationBodyExpectedMonthlyVolumeCurrencyMax = 3;
+
+
+export const resubmitMerchantApplicationBodyExpectedMonthlyVolumeCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
+export const resubmitMerchantApplicationBodyExpectedMonthlyTransactionsMin = 0;
+export const resubmitMerchantApplicationBodyExpectedMonthlyTransactionsMax = 1000000000;
+
+export const resubmitMerchantApplicationBodyExpectedAverageTransactionValueMin = 0;
+export const resubmitMerchantApplicationBodyExpectedAverageTransactionValueMax = 1000000000000;
+
+export const resubmitMerchantApplicationBodyExpectedCustomerCountriesItemMin = 2;
+export const resubmitMerchantApplicationBodyExpectedCustomerCountriesItemMax = 2;
+
+
+export const resubmitMerchantApplicationBodyExpectedCustomerCountriesItemRegExp = new RegExp('^[A-Za-z]{2}$');
+export const resubmitMerchantApplicationBodyExpectedCustomerCountriesMax = 30;
+
+export const resubmitMerchantApplicationBodyExpectedCollectionCurrenciesItemMin = 3;
+export const resubmitMerchantApplicationBodyExpectedCollectionCurrenciesItemMax = 3;
+
+
+export const resubmitMerchantApplicationBodyExpectedCollectionCurrenciesItemRegExp = new RegExp('^[A-Za-z]{3}$');
+export const resubmitMerchantApplicationBodyExpectedCollectionCurrenciesMax = 30;
+
+export const resubmitMerchantApplicationBodySourceOfFundsMin = 10;
+export const resubmitMerchantApplicationBodySourceOfFundsMax = 1000;
+
+
+
+export const ResubmitMerchantApplicationBody = zod.object({
+  "businessType": zod.enum(['sole_proprietor', 'limited_company', 'partnership', 'nonprofit', 'other']),
+  "natureOfBusiness": zod.string().min(resubmitMerchantApplicationBodyNatureOfBusinessMin).max(resubmitMerchantApplicationBodyNatureOfBusinessMax),
+  "registeredAddress": zod.string().min(resubmitMerchantApplicationBodyRegisteredAddressMin).max(resubmitMerchantApplicationBodyRegisteredAddressMax),
+  "website": zod.string().url().max(resubmitMerchantApplicationBodyWebsiteMax).nullable(),
+  "expectedMonthlyVolume": zod.number().min(resubmitMerchantApplicationBodyExpectedMonthlyVolumeMin).max(resubmitMerchantApplicationBodyExpectedMonthlyVolumeMax),
+  "expectedMonthlyVolumeCurrency": zod.string().min(resubmitMerchantApplicationBodyExpectedMonthlyVolumeCurrencyMin).max(resubmitMerchantApplicationBodyExpectedMonthlyVolumeCurrencyMax).regex(resubmitMerchantApplicationBodyExpectedMonthlyVolumeCurrencyRegExp),
+  "expectedMonthlyTransactions": zod.number().int().min(resubmitMerchantApplicationBodyExpectedMonthlyTransactionsMin).max(resubmitMerchantApplicationBodyExpectedMonthlyTransactionsMax),
+  "expectedAverageTransactionValue": zod.number().min(resubmitMerchantApplicationBodyExpectedAverageTransactionValueMin).max(resubmitMerchantApplicationBodyExpectedAverageTransactionValueMax),
+  "expectedCustomerCountries": zod.array(zod.string().min(resubmitMerchantApplicationBodyExpectedCustomerCountriesItemMin).max(resubmitMerchantApplicationBodyExpectedCustomerCountriesItemMax).regex(resubmitMerchantApplicationBodyExpectedCustomerCountriesItemRegExp)).min(1).max(resubmitMerchantApplicationBodyExpectedCustomerCountriesMax),
+  "expectedCollectionCurrencies": zod.array(zod.string().min(resubmitMerchantApplicationBodyExpectedCollectionCurrenciesItemMin).max(resubmitMerchantApplicationBodyExpectedCollectionCurrenciesItemMax).regex(resubmitMerchantApplicationBodyExpectedCollectionCurrenciesItemRegExp)).min(1).max(resubmitMerchantApplicationBodyExpectedCollectionCurrenciesMax),
+  "sourceOfFunds": zod.string().min(resubmitMerchantApplicationBodySourceOfFundsMin).max(resubmitMerchantApplicationBodySourceOfFundsMax)
+})
+
+export const resubmitMerchantApplicationResponseMerchantShopNameMax = 100;
+
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneNatureOfBusinessMin = 10;
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneNatureOfBusinessMax = 2000;
+
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneRegisteredAddressMin = 5;
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneRegisteredAddressMax = 500;
+
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneWebsiteMax = 500;
+
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMin = 0;
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMax = 1000000000000;
+
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin = 3;
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax = 3;
+
+
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMin = 0;
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMax = 1000000000;
+
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMin = 0;
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMax = 1000000000000;
+
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMin = 2;
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMax = 2;
+
+
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemRegExp = new RegExp('^[A-Za-z]{2}$');
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedCustomerCountriesMax = 30;
+
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMin = 3;
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMax = 3;
+
+
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp = new RegExp('^[A-Za-z]{3}$');
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesMax = 30;
+
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneSourceOfFundsMin = 10;
+export const resubmitMerchantApplicationResponseMerchantApplicationDetailsOneSourceOfFundsMax = 1000;
+
+export const resubmitMerchantApplicationResponseMerchantApplicationRequestedInfoMax = 2000;
+
+
+
+export const ResubmitMerchantApplicationResponse = zod.object({
+  "merchant": zod.object({
+  "id": zod.number().int(),
+  "businessName": zod.string(),
+  "shopName": zod.string().max(resubmitMerchantApplicationResponseMerchantShopNameMax).nullable().describe('Optional public-facing merchant display name; separate from the verified legal business name.'),
+  "shopLogoUrl": zod.string().url().nullable().describe('Optional public-facing merchant shop image.'),
+  "country": zod.string(),
+  "baseCurrency": zod.string(),
+  "registrationNumber": zod.string().nullish(),
+  "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "applicationDetails": zod.union([zod.object({
+  "businessType": zod.enum(['sole_proprietor', 'limited_company', 'partnership', 'nonprofit', 'other']),
+  "natureOfBusiness": zod.string().min(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneNatureOfBusinessMin).max(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneNatureOfBusinessMax),
+  "registeredAddress": zod.string().min(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneRegisteredAddressMin).max(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneRegisteredAddressMax),
+  "website": zod.string().url().max(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneWebsiteMax).nullable(),
+  "expectedMonthlyVolume": zod.number().min(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMin).max(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMax),
+  "expectedMonthlyVolumeCurrency": zod.string().min(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin).max(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax).regex(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp),
+  "expectedMonthlyTransactions": zod.number().int().min(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMin).max(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMax),
+  "expectedAverageTransactionValue": zod.number().min(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMin).max(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMax),
+  "expectedCustomerCountries": zod.array(zod.string().min(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMin).max(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMax).regex(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemRegExp)).min(1).max(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedCustomerCountriesMax),
+  "expectedCollectionCurrencies": zod.array(zod.string().min(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMin).max(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMax).regex(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp)).min(1).max(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesMax),
+  "sourceOfFunds": zod.string().min(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneSourceOfFundsMin).max(resubmitMerchantApplicationResponseMerchantApplicationDetailsOneSourceOfFundsMax)
+}),zod.null()]),
+  "applicationStatus": zod.enum(['not_submitted', 'awaiting_review', 'more_info_required', 'approved', 'declined']),
+  "applicationRequestedInfo": zod.string().max(resubmitMerchantApplicationResponseMerchantApplicationRequestedInfoMax).nullable(),
+  "applicationSubmittedAt": zod.coerce.date().nullable(),
+  "applicationReviewedAt": zod.coerce.date().nullable(),
+  "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "paymentsEnabled": zod.boolean().optional(),
+  "payoutsEnabled": zod.boolean().optional(),
+  "refundsEnabled": zod.boolean().optional(),
+  "apiAccessEnabled": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+})
+})
+
+
+/**
+ * @summary Read aggregate collection outcomes for the last 90 days
+ */
+export const getMerchantCollectionAnalyticsResponseCountriesItemSuccessRateMin = 0;
+export const getMerchantCollectionAnalyticsResponseCountriesItemSuccessRateMax = 1;
+
+export const getMerchantCollectionAnalyticsResponseCurrenciesItemSuccessRateMin = 0;
+export const getMerchantCollectionAnalyticsResponseCurrenciesItemSuccessRateMax = 1;
+
+export const getMerchantCollectionAnalyticsResponsePaymentRailsItemSuccessRateMin = 0;
+export const getMerchantCollectionAnalyticsResponsePaymentRailsItemSuccessRateMax = 1;
+
+
+
+export const GetMerchantCollectionAnalyticsResponse = zod.object({
+  "windowDays": zod.literal(90),
+  "windowStart": zod.coerce.date(),
+  "countries": zod.array(zod.object({
+  "value": zod.string(),
+  "transactionCount": zod.number().int(),
+  "successfulCount": zod.number().int(),
+  "successRate": zod.number().min(getMerchantCollectionAnalyticsResponseCountriesItemSuccessRateMin).max(getMerchantCollectionAnalyticsResponseCountriesItemSuccessRateMax),
+  "grossVolume": zod.number().nullable(),
+  "feeTotal": zod.number().nullable(),
+  "currency": zod.string().nullable(),
+  "averageSettlementHours": zod.number().nullable()
+})),
+  "currencies": zod.array(zod.object({
+  "value": zod.string(),
+  "transactionCount": zod.number().int(),
+  "successfulCount": zod.number().int(),
+  "successRate": zod.number().min(getMerchantCollectionAnalyticsResponseCurrenciesItemSuccessRateMin).max(getMerchantCollectionAnalyticsResponseCurrenciesItemSuccessRateMax),
+  "grossVolume": zod.number().nullable(),
+  "feeTotal": zod.number().nullable(),
+  "currency": zod.string().nullable(),
+  "averageSettlementHours": zod.number().nullable()
+})),
+  "paymentRails": zod.array(zod.object({
+  "value": zod.string(),
+  "transactionCount": zod.number().int(),
+  "successfulCount": zod.number().int(),
+  "successRate": zod.number().min(getMerchantCollectionAnalyticsResponsePaymentRailsItemSuccessRateMin).max(getMerchantCollectionAnalyticsResponsePaymentRailsItemSuccessRateMax),
+  "grossVolume": zod.number().nullable(),
+  "feeTotal": zod.number().nullable(),
+  "currency": zod.string().nullable(),
+  "averageSettlementHours": zod.number().nullable()
+}))
 })
 
 
@@ -3554,6 +4033,47 @@ export const UpdateMerchantShopProfileBody = zod.object({
 
 export const updateMerchantShopProfileResponseMerchantShopNameMax = 100;
 
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneNatureOfBusinessMin = 10;
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneNatureOfBusinessMax = 2000;
+
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneRegisteredAddressMin = 5;
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneRegisteredAddressMax = 500;
+
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneWebsiteMax = 500;
+
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMin = 0;
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMax = 1000000000000;
+
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin = 3;
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax = 3;
+
+
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMin = 0;
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMax = 1000000000;
+
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMin = 0;
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMax = 1000000000000;
+
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMin = 2;
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMax = 2;
+
+
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemRegExp = new RegExp('^[A-Za-z]{2}$');
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesMax = 30;
+
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMin = 3;
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMax = 3;
+
+
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp = new RegExp('^[A-Za-z]{3}$');
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesMax = 30;
+
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneSourceOfFundsMin = 10;
+export const updateMerchantShopProfileResponseMerchantApplicationDetailsOneSourceOfFundsMax = 1000;
+
+export const updateMerchantShopProfileResponseMerchantApplicationRequestedInfoMax = 2000;
+
 
 
 export const UpdateMerchantShopProfileResponse = zod.object({
@@ -3566,6 +4086,23 @@ export const UpdateMerchantShopProfileResponse = zod.object({
   "baseCurrency": zod.string(),
   "registrationNumber": zod.string().nullish(),
   "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "applicationDetails": zod.union([zod.object({
+  "businessType": zod.enum(['sole_proprietor', 'limited_company', 'partnership', 'nonprofit', 'other']),
+  "natureOfBusiness": zod.string().min(updateMerchantShopProfileResponseMerchantApplicationDetailsOneNatureOfBusinessMin).max(updateMerchantShopProfileResponseMerchantApplicationDetailsOneNatureOfBusinessMax),
+  "registeredAddress": zod.string().min(updateMerchantShopProfileResponseMerchantApplicationDetailsOneRegisteredAddressMin).max(updateMerchantShopProfileResponseMerchantApplicationDetailsOneRegisteredAddressMax),
+  "website": zod.string().url().max(updateMerchantShopProfileResponseMerchantApplicationDetailsOneWebsiteMax).nullable(),
+  "expectedMonthlyVolume": zod.number().min(updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMin).max(updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMax),
+  "expectedMonthlyVolumeCurrency": zod.string().min(updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin).max(updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax).regex(updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp),
+  "expectedMonthlyTransactions": zod.number().int().min(updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMin).max(updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMax),
+  "expectedAverageTransactionValue": zod.number().min(updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMin).max(updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMax),
+  "expectedCustomerCountries": zod.array(zod.string().min(updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMin).max(updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMax).regex(updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemRegExp)).min(1).max(updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedCustomerCountriesMax),
+  "expectedCollectionCurrencies": zod.array(zod.string().min(updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMin).max(updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMax).regex(updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp)).min(1).max(updateMerchantShopProfileResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesMax),
+  "sourceOfFunds": zod.string().min(updateMerchantShopProfileResponseMerchantApplicationDetailsOneSourceOfFundsMin).max(updateMerchantShopProfileResponseMerchantApplicationDetailsOneSourceOfFundsMax)
+}),zod.null()]),
+  "applicationStatus": zod.enum(['not_submitted', 'awaiting_review', 'more_info_required', 'approved', 'declined']),
+  "applicationRequestedInfo": zod.string().max(updateMerchantShopProfileResponseMerchantApplicationRequestedInfoMax).nullable(),
+  "applicationSubmittedAt": zod.coerce.date().nullable(),
+  "applicationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "paymentsEnabled": zod.boolean().optional(),
@@ -4279,6 +4816,79 @@ export const DeleteMerchantWebhookEndpointResponse = zod.void()
 
 
 /**
+ * @summary Review outbound webhook delivery attempts for the current merchant
+ */
+export const listMerchantWebhookDeliveriesResponseItemsItemAttemptsMin = 0;
+
+export const listMerchantWebhookDeliveriesResponseItemsItemLastErrorMax = 1000;
+
+
+
+export const ListMerchantWebhookDeliveriesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "deliveryId": zod.string(),
+  "endpointId": zod.number().int(),
+  "event": zod.string(),
+  "status": zod.enum(['pending', 'processing', 'delivered', 'failed']),
+  "attempts": zod.number().int().min(listMerchantWebhookDeliveriesResponseItemsItemAttemptsMin),
+  "lastStatusCode": zod.number().int().nullable(),
+  "lastError": zod.string().max(listMerchantWebhookDeliveriesResponseItemsItemLastErrorMax).nullable(),
+  "nextAttemptAt": zod.coerce.date(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Retry a failed outbound webhook delivery
+ */
+export const replayMerchantWebhookDeliveryPathDeliveryIdMax = 250;
+
+
+
+export const ReplayMerchantWebhookDeliveryParams = zod.object({
+  "deliveryId": zod.coerce.string().min(1).max(replayMerchantWebhookDeliveryPathDeliveryIdMax)
+})
+
+export const replayMerchantWebhookDeliveryResponseAttemptsMin = 0;
+
+export const replayMerchantWebhookDeliveryResponseLastErrorMax = 1000;
+
+
+
+export const ReplayMerchantWebhookDeliveryResponse = zod.object({
+  "deliveryId": zod.string(),
+  "endpointId": zod.number().int(),
+  "event": zod.string(),
+  "status": zod.enum(['pending', 'processing', 'delivered', 'failed']),
+  "attempts": zod.number().int().min(replayMerchantWebhookDeliveryResponseAttemptsMin),
+  "lastStatusCode": zod.number().int().nullable(),
+  "lastError": zod.string().max(replayMerchantWebhookDeliveryResponseLastErrorMax).nullable(),
+  "nextAttemptAt": zod.coerce.date(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Queue a signed test event for an owned webhook endpoint
+ */
+
+
+
+export const CreateMerchantWebhookTestDeliveryParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const CreateMerchantWebhookTestDeliveryResponse = zod.object({
+  "deliveryId": zod.string(),
+  "status": zod.enum(['pending']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Read the active merchant fee schedule
  */
 export const getMerchantFeesResponseSchedulePercentageMin = 0;
@@ -4428,6 +5038,47 @@ export const ListPublicFxRatesResponse = zod.object({
  */
 export const getDeveloperMerchantResponseMerchantShopNameMax = 100;
 
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneNatureOfBusinessMin = 10;
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneNatureOfBusinessMax = 2000;
+
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneRegisteredAddressMin = 5;
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneRegisteredAddressMax = 500;
+
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneWebsiteMax = 500;
+
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMin = 0;
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMax = 1000000000000;
+
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin = 3;
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax = 3;
+
+
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMin = 0;
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMax = 1000000000;
+
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMin = 0;
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMax = 1000000000000;
+
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMin = 2;
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMax = 2;
+
+
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemRegExp = new RegExp('^[A-Za-z]{2}$');
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedCustomerCountriesMax = 30;
+
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMin = 3;
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMax = 3;
+
+
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp = new RegExp('^[A-Za-z]{3}$');
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesMax = 30;
+
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneSourceOfFundsMin = 10;
+export const getDeveloperMerchantResponseMerchantApplicationDetailsOneSourceOfFundsMax = 1000;
+
+export const getDeveloperMerchantResponseMerchantApplicationRequestedInfoMax = 2000;
+
 
 
 export const GetDeveloperMerchantResponse = zod.object({
@@ -4440,6 +5091,23 @@ export const GetDeveloperMerchantResponse = zod.object({
   "baseCurrency": zod.string(),
   "registrationNumber": zod.string().nullish(),
   "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "applicationDetails": zod.union([zod.object({
+  "businessType": zod.enum(['sole_proprietor', 'limited_company', 'partnership', 'nonprofit', 'other']),
+  "natureOfBusiness": zod.string().min(getDeveloperMerchantResponseMerchantApplicationDetailsOneNatureOfBusinessMin).max(getDeveloperMerchantResponseMerchantApplicationDetailsOneNatureOfBusinessMax),
+  "registeredAddress": zod.string().min(getDeveloperMerchantResponseMerchantApplicationDetailsOneRegisteredAddressMin).max(getDeveloperMerchantResponseMerchantApplicationDetailsOneRegisteredAddressMax),
+  "website": zod.string().url().max(getDeveloperMerchantResponseMerchantApplicationDetailsOneWebsiteMax).nullable(),
+  "expectedMonthlyVolume": zod.number().min(getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMin).max(getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeMax),
+  "expectedMonthlyVolumeCurrency": zod.string().min(getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin).max(getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax).regex(getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp),
+  "expectedMonthlyTransactions": zod.number().int().min(getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMin).max(getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedMonthlyTransactionsMax),
+  "expectedAverageTransactionValue": zod.number().min(getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMin).max(getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedAverageTransactionValueMax),
+  "expectedCustomerCountries": zod.array(zod.string().min(getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMin).max(getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemMax).regex(getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedCustomerCountriesItemRegExp)).min(1).max(getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedCustomerCountriesMax),
+  "expectedCollectionCurrencies": zod.array(zod.string().min(getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMin).max(getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemMax).regex(getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp)).min(1).max(getDeveloperMerchantResponseMerchantApplicationDetailsOneExpectedCollectionCurrenciesMax),
+  "sourceOfFunds": zod.string().min(getDeveloperMerchantResponseMerchantApplicationDetailsOneSourceOfFundsMin).max(getDeveloperMerchantResponseMerchantApplicationDetailsOneSourceOfFundsMax)
+}),zod.null()]),
+  "applicationStatus": zod.enum(['not_submitted', 'awaiting_review', 'more_info_required', 'approved', 'declined']),
+  "applicationRequestedInfo": zod.string().max(getDeveloperMerchantResponseMerchantApplicationRequestedInfoMax).nullable(),
+  "applicationSubmittedAt": zod.coerce.date().nullable(),
+  "applicationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "paymentsEnabled": zod.boolean().optional(),
@@ -5101,6 +5769,47 @@ export const ListAdminMerchantsQueryParams = zod.object({
 
 export const listAdminMerchantsResponseItemsItemOneShopNameMax = 100;
 
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneNatureOfBusinessMin = 10;
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneNatureOfBusinessMax = 2000;
+
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneRegisteredAddressMin = 5;
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneRegisteredAddressMax = 500;
+
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneWebsiteMax = 500;
+
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedMonthlyVolumeMin = 0;
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedMonthlyVolumeMax = 1000000000000;
+
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin = 3;
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax = 3;
+
+
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedMonthlyTransactionsMin = 0;
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedMonthlyTransactionsMax = 1000000000;
+
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedAverageTransactionValueMin = 0;
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedAverageTransactionValueMax = 1000000000000;
+
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedCustomerCountriesItemMin = 2;
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedCustomerCountriesItemMax = 2;
+
+
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedCustomerCountriesItemRegExp = new RegExp('^[A-Za-z]{2}$');
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedCustomerCountriesMax = 30;
+
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedCollectionCurrenciesItemMin = 3;
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedCollectionCurrenciesItemMax = 3;
+
+
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp = new RegExp('^[A-Za-z]{3}$');
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedCollectionCurrenciesMax = 30;
+
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneSourceOfFundsMin = 10;
+export const listAdminMerchantsResponseItemsItemOneApplicationDetailsOneSourceOfFundsMax = 1000;
+
+export const listAdminMerchantsResponseItemsItemOneApplicationRequestedInfoMax = 2000;
+
 
 
 export const ListAdminMerchantsResponse = zod.object({
@@ -5113,6 +5822,23 @@ export const ListAdminMerchantsResponse = zod.object({
   "baseCurrency": zod.string(),
   "registrationNumber": zod.string().nullish(),
   "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "applicationDetails": zod.union([zod.object({
+  "businessType": zod.enum(['sole_proprietor', 'limited_company', 'partnership', 'nonprofit', 'other']),
+  "natureOfBusiness": zod.string().min(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneNatureOfBusinessMin).max(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneNatureOfBusinessMax),
+  "registeredAddress": zod.string().min(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneRegisteredAddressMin).max(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneRegisteredAddressMax),
+  "website": zod.string().url().max(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneWebsiteMax).nullable(),
+  "expectedMonthlyVolume": zod.number().min(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedMonthlyVolumeMin).max(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedMonthlyVolumeMax),
+  "expectedMonthlyVolumeCurrency": zod.string().min(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin).max(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax).regex(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp),
+  "expectedMonthlyTransactions": zod.number().int().min(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedMonthlyTransactionsMin).max(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedMonthlyTransactionsMax),
+  "expectedAverageTransactionValue": zod.number().min(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedAverageTransactionValueMin).max(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedAverageTransactionValueMax),
+  "expectedCustomerCountries": zod.array(zod.string().min(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedCustomerCountriesItemMin).max(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedCustomerCountriesItemMax).regex(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedCustomerCountriesItemRegExp)).min(1).max(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedCustomerCountriesMax),
+  "expectedCollectionCurrencies": zod.array(zod.string().min(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedCollectionCurrenciesItemMin).max(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedCollectionCurrenciesItemMax).regex(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp)).min(1).max(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneExpectedCollectionCurrenciesMax),
+  "sourceOfFunds": zod.string().min(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneSourceOfFundsMin).max(listAdminMerchantsResponseItemsItemOneApplicationDetailsOneSourceOfFundsMax)
+}),zod.null()]),
+  "applicationStatus": zod.enum(['not_submitted', 'awaiting_review', 'more_info_required', 'approved', 'declined']),
+  "applicationRequestedInfo": zod.string().max(listAdminMerchantsResponseItemsItemOneApplicationRequestedInfoMax).nullable(),
+  "applicationSubmittedAt": zod.coerce.date().nullable(),
+  "applicationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "paymentsEnabled": zod.boolean().optional(),
@@ -5141,6 +5867,47 @@ export const GetAdminMerchantDetailsParams = zod.object({
 
 export const getAdminMerchantDetailsResponseMerchantOneShopNameMax = 100;
 
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneNatureOfBusinessMin = 10;
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneNatureOfBusinessMax = 2000;
+
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneRegisteredAddressMin = 5;
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneRegisteredAddressMax = 500;
+
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneWebsiteMax = 500;
+
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeMin = 0;
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeMax = 1000000000000;
+
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin = 3;
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax = 3;
+
+
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedMonthlyTransactionsMin = 0;
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedMonthlyTransactionsMax = 1000000000;
+
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedAverageTransactionValueMin = 0;
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedAverageTransactionValueMax = 1000000000000;
+
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemMin = 2;
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemMax = 2;
+
+
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemRegExp = new RegExp('^[A-Za-z]{2}$');
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesMax = 30;
+
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemMin = 3;
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemMax = 3;
+
+
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp = new RegExp('^[A-Za-z]{3}$');
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesMax = 30;
+
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneSourceOfFundsMin = 10;
+export const getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneSourceOfFundsMax = 1000;
+
+export const getAdminMerchantDetailsResponseMerchantOneApplicationRequestedInfoMax = 2000;
+
 
 
 export const GetAdminMerchantDetailsResponse = zod.object({
@@ -5153,6 +5920,23 @@ export const GetAdminMerchantDetailsResponse = zod.object({
   "baseCurrency": zod.string(),
   "registrationNumber": zod.string().nullish(),
   "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "applicationDetails": zod.union([zod.object({
+  "businessType": zod.enum(['sole_proprietor', 'limited_company', 'partnership', 'nonprofit', 'other']),
+  "natureOfBusiness": zod.string().min(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneNatureOfBusinessMin).max(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneNatureOfBusinessMax),
+  "registeredAddress": zod.string().min(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneRegisteredAddressMin).max(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneRegisteredAddressMax),
+  "website": zod.string().url().max(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneWebsiteMax).nullable(),
+  "expectedMonthlyVolume": zod.number().min(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeMin).max(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeMax),
+  "expectedMonthlyVolumeCurrency": zod.string().min(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin).max(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax).regex(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp),
+  "expectedMonthlyTransactions": zod.number().int().min(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedMonthlyTransactionsMin).max(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedMonthlyTransactionsMax),
+  "expectedAverageTransactionValue": zod.number().min(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedAverageTransactionValueMin).max(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedAverageTransactionValueMax),
+  "expectedCustomerCountries": zod.array(zod.string().min(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemMin).max(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemMax).regex(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesItemRegExp)).min(1).max(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedCustomerCountriesMax),
+  "expectedCollectionCurrencies": zod.array(zod.string().min(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemMin).max(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemMax).regex(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp)).min(1).max(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneExpectedCollectionCurrenciesMax),
+  "sourceOfFunds": zod.string().min(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneSourceOfFundsMin).max(getAdminMerchantDetailsResponseMerchantOneApplicationDetailsOneSourceOfFundsMax)
+}),zod.null()]),
+  "applicationStatus": zod.enum(['not_submitted', 'awaiting_review', 'more_info_required', 'approved', 'declined']),
+  "applicationRequestedInfo": zod.string().max(getAdminMerchantDetailsResponseMerchantOneApplicationRequestedInfoMax).nullable(),
+  "applicationSubmittedAt": zod.coerce.date().nullable(),
+  "applicationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "paymentsEnabled": zod.boolean().optional(),
@@ -5214,6 +5998,47 @@ export const UpdateAdminMerchantBody = zod.object({
 
 export const updateAdminMerchantResponseOneShopNameMax = 100;
 
+export const updateAdminMerchantResponseOneApplicationDetailsOneNatureOfBusinessMin = 10;
+export const updateAdminMerchantResponseOneApplicationDetailsOneNatureOfBusinessMax = 2000;
+
+export const updateAdminMerchantResponseOneApplicationDetailsOneRegisteredAddressMin = 5;
+export const updateAdminMerchantResponseOneApplicationDetailsOneRegisteredAddressMax = 500;
+
+export const updateAdminMerchantResponseOneApplicationDetailsOneWebsiteMax = 500;
+
+export const updateAdminMerchantResponseOneApplicationDetailsOneExpectedMonthlyVolumeMin = 0;
+export const updateAdminMerchantResponseOneApplicationDetailsOneExpectedMonthlyVolumeMax = 1000000000000;
+
+export const updateAdminMerchantResponseOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin = 3;
+export const updateAdminMerchantResponseOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax = 3;
+
+
+export const updateAdminMerchantResponseOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
+export const updateAdminMerchantResponseOneApplicationDetailsOneExpectedMonthlyTransactionsMin = 0;
+export const updateAdminMerchantResponseOneApplicationDetailsOneExpectedMonthlyTransactionsMax = 1000000000;
+
+export const updateAdminMerchantResponseOneApplicationDetailsOneExpectedAverageTransactionValueMin = 0;
+export const updateAdminMerchantResponseOneApplicationDetailsOneExpectedAverageTransactionValueMax = 1000000000000;
+
+export const updateAdminMerchantResponseOneApplicationDetailsOneExpectedCustomerCountriesItemMin = 2;
+export const updateAdminMerchantResponseOneApplicationDetailsOneExpectedCustomerCountriesItemMax = 2;
+
+
+export const updateAdminMerchantResponseOneApplicationDetailsOneExpectedCustomerCountriesItemRegExp = new RegExp('^[A-Za-z]{2}$');
+export const updateAdminMerchantResponseOneApplicationDetailsOneExpectedCustomerCountriesMax = 30;
+
+export const updateAdminMerchantResponseOneApplicationDetailsOneExpectedCollectionCurrenciesItemMin = 3;
+export const updateAdminMerchantResponseOneApplicationDetailsOneExpectedCollectionCurrenciesItemMax = 3;
+
+
+export const updateAdminMerchantResponseOneApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp = new RegExp('^[A-Za-z]{3}$');
+export const updateAdminMerchantResponseOneApplicationDetailsOneExpectedCollectionCurrenciesMax = 30;
+
+export const updateAdminMerchantResponseOneApplicationDetailsOneSourceOfFundsMin = 10;
+export const updateAdminMerchantResponseOneApplicationDetailsOneSourceOfFundsMax = 1000;
+
+export const updateAdminMerchantResponseOneApplicationRequestedInfoMax = 2000;
+
 
 
 export const UpdateAdminMerchantResponse = zod.object({
@@ -5225,6 +6050,23 @@ export const UpdateAdminMerchantResponse = zod.object({
   "baseCurrency": zod.string(),
   "registrationNumber": zod.string().nullish(),
   "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "applicationDetails": zod.union([zod.object({
+  "businessType": zod.enum(['sole_proprietor', 'limited_company', 'partnership', 'nonprofit', 'other']),
+  "natureOfBusiness": zod.string().min(updateAdminMerchantResponseOneApplicationDetailsOneNatureOfBusinessMin).max(updateAdminMerchantResponseOneApplicationDetailsOneNatureOfBusinessMax),
+  "registeredAddress": zod.string().min(updateAdminMerchantResponseOneApplicationDetailsOneRegisteredAddressMin).max(updateAdminMerchantResponseOneApplicationDetailsOneRegisteredAddressMax),
+  "website": zod.string().url().max(updateAdminMerchantResponseOneApplicationDetailsOneWebsiteMax).nullable(),
+  "expectedMonthlyVolume": zod.number().min(updateAdminMerchantResponseOneApplicationDetailsOneExpectedMonthlyVolumeMin).max(updateAdminMerchantResponseOneApplicationDetailsOneExpectedMonthlyVolumeMax),
+  "expectedMonthlyVolumeCurrency": zod.string().min(updateAdminMerchantResponseOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMin).max(updateAdminMerchantResponseOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyMax).regex(updateAdminMerchantResponseOneApplicationDetailsOneExpectedMonthlyVolumeCurrencyRegExp),
+  "expectedMonthlyTransactions": zod.number().int().min(updateAdminMerchantResponseOneApplicationDetailsOneExpectedMonthlyTransactionsMin).max(updateAdminMerchantResponseOneApplicationDetailsOneExpectedMonthlyTransactionsMax),
+  "expectedAverageTransactionValue": zod.number().min(updateAdminMerchantResponseOneApplicationDetailsOneExpectedAverageTransactionValueMin).max(updateAdminMerchantResponseOneApplicationDetailsOneExpectedAverageTransactionValueMax),
+  "expectedCustomerCountries": zod.array(zod.string().min(updateAdminMerchantResponseOneApplicationDetailsOneExpectedCustomerCountriesItemMin).max(updateAdminMerchantResponseOneApplicationDetailsOneExpectedCustomerCountriesItemMax).regex(updateAdminMerchantResponseOneApplicationDetailsOneExpectedCustomerCountriesItemRegExp)).min(1).max(updateAdminMerchantResponseOneApplicationDetailsOneExpectedCustomerCountriesMax),
+  "expectedCollectionCurrencies": zod.array(zod.string().min(updateAdminMerchantResponseOneApplicationDetailsOneExpectedCollectionCurrenciesItemMin).max(updateAdminMerchantResponseOneApplicationDetailsOneExpectedCollectionCurrenciesItemMax).regex(updateAdminMerchantResponseOneApplicationDetailsOneExpectedCollectionCurrenciesItemRegExp)).min(1).max(updateAdminMerchantResponseOneApplicationDetailsOneExpectedCollectionCurrenciesMax),
+  "sourceOfFunds": zod.string().min(updateAdminMerchantResponseOneApplicationDetailsOneSourceOfFundsMin).max(updateAdminMerchantResponseOneApplicationDetailsOneSourceOfFundsMax)
+}),zod.null()]),
+  "applicationStatus": zod.enum(['not_submitted', 'awaiting_review', 'more_info_required', 'approved', 'declined']),
+  "applicationRequestedInfo": zod.string().max(updateAdminMerchantResponseOneApplicationRequestedInfoMax).nullable(),
+  "applicationSubmittedAt": zod.coerce.date().nullable(),
+  "applicationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "paymentsEnabled": zod.boolean().optional(),
@@ -5473,6 +6315,35 @@ export const SetAdminMerchantStatusResponse = zod.object({
   "status": zod.enum(['active', 'suspended']),
   "reason": zod.string(),
   "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Approve a business application or request additional information
+ */
+
+
+
+export const ReviewAdminMerchantApplicationParams = zod.object({
+  "merchantId": zod.coerce.number().int().min(1)
+})
+
+export const reviewAdminMerchantApplicationBodyReasonMin = 5;
+export const reviewAdminMerchantApplicationBodyReasonMax = 2000;
+
+
+
+export const ReviewAdminMerchantApplicationBody = zod.object({
+  "decision": zod.enum(['approve', 'request_information']),
+  "reason": zod.string().min(reviewAdminMerchantApplicationBodyReasonMin).max(reviewAdminMerchantApplicationBodyReasonMax)
+})
+
+export const ReviewAdminMerchantApplicationResponse = zod.object({
+  "merchantId": zod.number().int(),
+  "applicationStatus": zod.enum(['awaiting_review', 'more_info_required', 'approved', 'declined']),
+  "merchantStatus": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "applicationRequestedInfo": zod.string().nullable(),
+  "applicationReviewedAt": zod.coerce.date().nullable()
 })
 
 
@@ -5933,6 +6804,42 @@ export const SendAdminEmailDeliveryTestResponse = zod.object({
 
 
 /**
+ * Bulk broadcasts require explicit confirmation and include only verified account email addresses.
+ * @summary Queue a branded email to all verified users or one selected account
+ */
+export const sendAdminEmailBroadcastBodyUserIdMax = 128;
+
+export const sendAdminEmailBroadcastBodySubjectMin = 2;
+export const sendAdminEmailBroadcastBodySubjectMax = 160;
+
+export const sendAdminEmailBroadcastBodyMessageMin = 2;
+export const sendAdminEmailBroadcastBodyMessageMax = 12000;
+
+
+
+export const SendAdminEmailBroadcastBody = zod.object({
+  "audience": zod.enum(['all', 'user']),
+  "userId": zod.string().min(1).max(sendAdminEmailBroadcastBodyUserIdMax).optional(),
+  "subject": zod.string().min(sendAdminEmailBroadcastBodySubjectMin).max(sendAdminEmailBroadcastBodySubjectMax),
+  "message": zod.string().min(sendAdminEmailBroadcastBodyMessageMin).max(sendAdminEmailBroadcastBodyMessageMax),
+  "confirmAll": zod.boolean()
+})
+
+export const sendAdminEmailBroadcastResponseQueuedRecipientsMin = 0;
+
+export const sendAdminEmailBroadcastResponseSkippedUnverifiedMin = 0;
+
+
+
+export const SendAdminEmailBroadcastResponse = zod.object({
+  "broadcastId": zod.string(),
+  "audience": zod.enum(['all', 'user']),
+  "queuedRecipients": zod.number().int().min(sendAdminEmailBroadcastResponseQueuedRecipientsMin),
+  "skippedUnverified": zod.number().int().min(sendAdminEmailBroadcastResponseSkippedUnverifiedMin)
+})
+
+
+/**
  * @summary Review transactional email queue and held legacy support receipts
  */
 export const listAdminEmailDeliveryOutboxQueryPageDefault = 1;
@@ -5948,7 +6855,7 @@ export const ListAdminEmailDeliveryOutboxQueryParams = zod.object({
   "page": zod.coerce.number().int().min(1).default(listAdminEmailDeliveryOutboxQueryPageDefault),
   "perPage": zod.coerce.number().int().min(1).max(listAdminEmailDeliveryOutboxQueryPerPageMax).default(listAdminEmailDeliveryOutboxQueryPerPageDefault),
   "deliveryState": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured']).optional(),
-  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test']).optional(),
+  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test', 'admin_broadcast']).optional(),
   "search": zod.coerce.string().max(listAdminEmailDeliveryOutboxQuerySearchMax).optional()
 })
 
@@ -5965,7 +6872,7 @@ export const ListAdminEmailDeliveryOutboxResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().int(),
   "eventKey": zod.string(),
-  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test']),
+  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test', 'admin_broadcast']),
   "recipientEmail": zod.string().email(),
   "deliveryState": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured']),
   "attempts": zod.number().int().min(listAdminEmailDeliveryOutboxResponseItemsItemAttemptsMin),
@@ -5978,7 +6885,7 @@ export const ListAdminEmailDeliveryOutboxResponse = zod.object({
   "legacyHeld": zod.array(zod.object({
   "id": zod.number().int(),
   "eventKey": zod.string(),
-  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test']),
+  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test', 'admin_broadcast']),
   "recipientEmail": zod.string().email(),
   "deliveryState": zod.enum(['unconfigured']),
   "createdAt": zod.coerce.date(),
@@ -6007,7 +6914,7 @@ export const retryAdminEmailDeliveryOutboxItemResponseAttemptsMin = 0;
 export const RetryAdminEmailDeliveryOutboxItemResponse = zod.object({
   "id": zod.number().int(),
   "eventKey": zod.string(),
-  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test']),
+  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test', 'admin_broadcast']),
   "recipientEmail": zod.string().email(),
   "deliveryState": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured']),
   "attempts": zod.number().int().min(retryAdminEmailDeliveryOutboxItemResponseAttemptsMin),
@@ -6040,7 +6947,7 @@ export const reviewAndRequeueLegacySupportEmailOutboxItemResponseAttemptsMin = 0
 export const ReviewAndRequeueLegacySupportEmailOutboxItemResponse = zod.object({
   "id": zod.number().int(),
   "eventKey": zod.string(),
-  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test']),
+  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test', 'admin_broadcast']),
   "recipientEmail": zod.string().email(),
   "deliveryState": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured']),
   "attempts": zod.number().int().min(reviewAndRequeueLegacySupportEmailOutboxItemResponseAttemptsMin),

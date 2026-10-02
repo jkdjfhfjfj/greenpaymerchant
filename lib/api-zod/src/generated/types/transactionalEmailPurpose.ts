@@ -19,4 +19,5 @@ export const TransactionalEmailPurpose = {
   support_receipt: 'support_receipt',
   team_invitation: 'team_invitation',
   admin_test: 'admin_test',
+  admin_broadcast: 'admin_broadcast',
 } as const;

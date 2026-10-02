@@ -4,6 +4,9 @@ import {
   AlertTriangle, CheckCircle2, Clock3, Mail, RefreshCw, RotateCcw, Search,
   Send, ShieldAlert, ShieldCheck, XCircle,
 } from 'lucide-react';
+import {
+  getFindAdminPlatformUsersQueryKey, useFindAdminPlatformUsers, useSendAdminEmailBroadcast,
+} from '@workspace/api-client-react';
 import './admin-email-delivery.css';
 
 type DeliveryState = 'queued' | 'sending' | 'sent' | 'failed' | 'uncertain' | 'unconfigured';
@@ -87,6 +90,12 @@ export function AdminEmailDeliveryPage() {
   const [filter, setFilter] = useState('');
   const [pageError, setPageError] = useState('');
   const [notice, setNotice] = useState('');
+  const [broadcastAudience, setBroadcastAudience] = useState<'all' | 'user'>('all');
+  const [broadcastLookup, setBroadcastLookup] = useState('');
+  const [broadcastSearchEmail, setBroadcastSearchEmail] = useState('');
+  const [selectedBroadcastUser, setSelectedBroadcastUser] = useState<{ userId: string; email: string } | null>(null);
+  const [confirmAll, setConfirmAll] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState<{ broadcastId: string; audience: 'all' | 'user'; queuedRecipients: number; skippedUnverified: number } | null>(null);
 
   const settingsQuery = useQuery({
     queryKey: ['admin', 'email-delivery', 'settings'],
@@ -96,6 +105,11 @@ export function AdminEmailDeliveryPage() {
     refetchInterval: 15_000,
   });
   const settings = settingsQuery.data;
+  const userLookupParams = { email: broadcastSearchEmail };
+  const userLookup = useFindAdminPlatformUsers(userLookupParams, {
+    query: { queryKey: getFindAdminPlatformUsersQueryKey(userLookupParams), enabled: Boolean(broadcastSearchEmail) },
+  });
+  const sendBroadcast = useSendAdminEmailBroadcast();
   useEffect(() => {
     if (!settings || settingsDirty) return;
     setSender(settings.fromEmail || '');
@@ -200,6 +214,46 @@ export function AdminEmailDeliveryPage() {
     sendTest.mutate(testRecipient.trim());
   }
 
+  function findBroadcastUser() {
+    setSelectedBroadcastUser(null);
+    setBroadcastSearchEmail(broadcastLookup.trim().toLowerCase());
+  }
+
+  function submitBroadcast(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPageError('');
+    setNotice('');
+    setBroadcastResult(null);
+    if (broadcastAudience === 'user' && !selectedBroadcastUser) {
+      setPageError('Find and select a verified user before sending to one account.');
+      return;
+    }
+    const form = new FormData(event.currentTarget);
+    const subject = String(form.get('broadcastSubject') || '').trim();
+    const message = String(form.get('broadcastMessage') || '').trim();
+    if (broadcastAudience === 'all' && !confirmAll) {
+      setPageError('Confirm the all-user broadcast before queueing it.');
+      return;
+    }
+    sendBroadcast.mutate({
+      data: {
+        audience: broadcastAudience,
+        ...(broadcastAudience === 'user' && selectedBroadcastUser ? { userId: selectedBroadcastUser.userId } : {}),
+        subject,
+        message,
+        confirmAll: broadcastAudience === 'all' ? true : false,
+      },
+    }, {
+      onSuccess: async (result) => {
+        setBroadcastResult(result);
+        setNotice('Broadcast queued. The delivery result below reflects the server response.');
+        setPageError('');
+        await refresh();
+      },
+      onError: (error) => setPageError(error.message),
+    });
+  }
+
   return <main className="admin-email-page">
     <header className="admin-email-heading">
       <div>
@@ -280,6 +334,41 @@ export function AdminEmailDeliveryPage() {
         </form>
       </section>
     </div>
+
+    <section className="email-panel email-broadcast-panel">
+      <div className="email-panel-heading"><div><span className="email-panel-kicker">ANNOUNCEMENTS</span><h2>Compose a broadcast</h2><p>Queue a message for verified accounts. Sending to everyone requires explicit confirmation.</p></div><Mail size={18} /></div>
+      <form className="email-broadcast-form" onSubmit={submitBroadcast}>
+        <div className="email-audience-switch" role="group" aria-label="Broadcast audience">
+          <button type="button" data-testid="button-audience-all" className={broadcastAudience === 'all' ? 'selected' : ''} onClick={() => { setBroadcastAudience('all'); setSelectedBroadcastUser(null); }}>All verified users</button>
+          <button type="button" data-testid="button-audience-user" className={broadcastAudience === 'user' ? 'selected' : ''} onClick={() => { setBroadcastAudience('user'); setConfirmAll(false); }}>One user</button>
+        </div>
+        {broadcastAudience === 'all' ? <label className="email-check-row email-broadcast-confirm">
+          <input type="checkbox" data-testid="input-confirm-broadcast-all" checked={confirmAll} onChange={(event) => setConfirmAll(event.target.checked)} />
+          <span><strong>Confirm sending to all verified users</strong><small>Unverified addresses are skipped by the server.</small></span>
+        </label> : <div className="email-user-lookup">
+          <div className="email-search">
+            <Search size={15} /><input type="email" required maxLength={254} value={broadcastLookup} onChange={(event) => setBroadcastLookup(event.target.value)} placeholder="Exact verified email address" aria-label="Find one verified user" data-testid="input-broadcast-user-email" />
+            <button type="button" data-testid="button-find-broadcast-user" disabled={userLookup.isFetching || !broadcastLookup.trim()} onClick={findBroadcastUser}>{userLookup.isFetching ? 'Finding…' : 'Find user'}</button>
+          </div>
+          {broadcastSearchEmail && userLookup.isLoading && <div className="email-lookup-state">Looking up the exact primary email…</div>}
+          {broadcastSearchEmail && userLookup.isError && <div className="email-lookup-error">The verified user lookup failed. Search again to retry.</div>}
+          {broadcastSearchEmail && userLookup.isSuccess && !userLookup.data?.items.some((user) => user.email.toLowerCase() === broadcastSearchEmail) && <div className="email-lookup-state">No exact verified primary email match.</div>}
+          {broadcastSearchEmail && userLookup.data?.items.filter((user) => user.email.toLowerCase() === broadcastSearchEmail).map((user) => <button className={`email-user-result ${selectedBroadcastUser?.userId === user.userId ? 'chosen' : ''}`} type="button" key={user.userId} data-testid={`button-select-broadcast-user-${user.userId}`} onClick={() => setSelectedBroadcastUser({ userId: user.userId, email: user.email })}>
+            <span><strong>{user.email}</strong><small>Verified exact match · Clerk user ID {user.userId}</small></span><span>{selectedBroadcastUser?.userId === user.userId ? 'Selected' : 'Select'}</span>
+          </button>)}
+          {selectedBroadcastUser && <div className="email-selected-user" role="status">Selected account: {selectedBroadcastUser.email}</div>}
+        </div>}
+        <label className="email-field"><span>Subject</span><input name="broadcastSubject" required minLength={2} maxLength={160} data-testid="input-broadcast-subject" /></label>
+        <label className="email-field"><span>Message</span><textarea name="broadcastMessage" required minLength={2} maxLength={12000} rows={6} data-testid="input-broadcast-message" /></label>
+        <button className="email-button email-button-primary" type="submit" disabled={sendBroadcast.isPending || (broadcastAudience === 'all' ? !confirmAll : !selectedBroadcastUser)} data-testid="button-send-broadcast">
+          <Send size={15} />{sendBroadcast.isPending ? 'Queueing…' : 'Queue broadcast'}
+        </button>
+      </form>
+      {broadcastResult && <div className="email-broadcast-result" role="status" data-testid="broadcast-delivery-result">
+        <CheckCircle2 size={17} /><div><strong>Broadcast queued</strong><span>{broadcastResult.queuedRecipients.toLocaleString()} queued · {broadcastResult.skippedUnverified.toLocaleString()} unverified skipped</span><small>Broadcast reference {broadcastResult.broadcastId} · audience: {broadcastResult.audience === 'all' ? 'all verified users' : 'one selected user'}</small></div>
+      </div>}
+      {sendBroadcast.error && <ErrorNotice message={sendBroadcast.error.message} />}
+    </section>
 
     <section className="email-panel email-outbox-panel">
       <div className="email-panel-heading">

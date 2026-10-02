@@ -124,6 +124,26 @@ export function fetchClerkUser(userId: string): Promise<ClerkUserRecord> {
   return clerkRequest<ClerkUserRecord>(`https://api.clerk.com/v1/users/${encodeURIComponent(userId)}`);
 }
 
+export async function listActiveClerkUsers(maxUsers = 10_000): Promise<{
+  users: ClerkUserRecord[];
+  truncated: boolean;
+}> {
+  const users: ClerkUserRecord[] = [];
+  const pageSize = 500;
+  for (let offset = 0; offset < maxUsers; offset += pageSize) {
+    const params = new URLSearchParams({
+      limit: String(Math.min(pageSize, maxUsers - offset)),
+      offset: String(offset),
+    });
+    const page = await clerkRequest<ClerkUserRecord[]>(`https://api.clerk.com/v1/users?${params.toString()}`);
+    users.push(...page);
+    if (page.length < Math.min(pageSize, maxUsers - offset)) return { users, truncated: false };
+  }
+  const probe = new URLSearchParams({ limit: "1", offset: String(maxUsers) });
+  const nextPage = await clerkRequest<ClerkUserRecord[]>(`https://api.clerk.com/v1/users?${probe.toString()}`);
+  return { users, truncated: nextPage.length > 0 };
+}
+
 export async function findLegacyVerifiedClerkUsersByEmail(email: string): Promise<{
   users: ClerkUserRecord[];
   possiblyTruncated: boolean;

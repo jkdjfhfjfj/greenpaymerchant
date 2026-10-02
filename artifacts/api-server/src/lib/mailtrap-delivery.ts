@@ -62,7 +62,8 @@ export type TransactionalPurpose =
   | "support_reply"
   | "support_receipt"
   | "team_invitation"
-  | "admin_test";
+  | "admin_test"
+  | "admin_broadcast";
 
 export type EmailDeliveryState = "queued" | "sending" | "sent" | "failed" | "uncertain";
 
@@ -158,6 +159,43 @@ export async function enqueueTransactionalEmail(
     throw new Error("Transactional email event key was reused for different recipient or purpose facts.");
   }
   return { id: existing.id, deliveryState: stateOf(existing) };
+}
+
+export async function enqueueTransactionalEmailBatch(
+  inputs: EnqueueTransactionalEmailInput[],
+): Promise<{ queued: number }> {
+  if (inputs.length > 10_000) throw new Error("A single email broadcast cannot exceed 10,000 recipients.");
+  const seenEventKeys = new Set<string>();
+  const rows = inputs.map((input) => {
+    const eventKey = input.eventKey.trim();
+    const recipientEmail = normalizedEmail(input.recipientEmail);
+    if (!eventKey || eventKey.length > 240) throw new Error("Transactional email needs a stable event key of at most 240 characters.");
+    if (!isEmail(recipientEmail)) throw new Error("Transactional email recipient is not a valid email address.");
+    if (seenEventKeys.has(eventKey)) throw new Error("Transactional email batch contains duplicate event keys.");
+    if (input.sendAfter && Number.isNaN(input.sendAfter.getTime())) throw new Error("Scheduled transactional email time must be valid.");
+    seenEventKeys.add(eventKey);
+    const content = renderTransactionalEmail(input.template, input.payload);
+    return {
+      eventKey,
+      purpose: input.purpose,
+      recipientEmail,
+      template: input.template,
+      subject: input.subject?.trim().slice(0, 200) || content.subject.slice(0, 200),
+      payload: input.payload,
+      deliveryState: "queued",
+      nextAttemptAt: input.sendAfter && input.sendAfter.getTime() > Date.now() ? input.sendAfter : null,
+      updatedAt: new Date(),
+    };
+  });
+  let queued = 0;
+  for (let offset = 0; offset < rows.length; offset += 250) {
+    const created = await db.insert(transactionalEmailOutboxTable)
+      .values(rows.slice(offset, offset + 250))
+      .onConflictDoNothing({ target: transactionalEmailOutboxTable.eventKey })
+      .returning({ id: transactionalEmailOutboxTable.id });
+    queued += created.length;
+  }
+  return { queued };
 }
 
 type DeliverySettings = {

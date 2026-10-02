@@ -10,6 +10,8 @@ import type { StatementPayoutStatus } from './statementPayoutStatus';
 
 export interface StatementPayout {
   reference: string;
+  /** @nullable */
+  providerReference: string | null;
   amount: number;
   fee: number;
   currency: string;

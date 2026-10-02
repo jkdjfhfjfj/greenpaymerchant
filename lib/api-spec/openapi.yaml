@@ -274,6 +274,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+        "503":
+          description: Database unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
   /dashboard:
     get:
       operationId: getDashboard
@@ -1516,6 +1522,34 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/MerchantProfileResponse" }
         "409": { description: Merchant already exists }
+  /merchant/application:
+    patch:
+      operationId: resubmitMerchantApplication
+      tags: [merchant]
+      summary: Submit requested additional business application information
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BusinessApplicationDetails" }
+      responses:
+        "200":
+          description: Application resubmitted for review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantProfileResponse" }
+        "409": { description: The application is not awaiting additional information }
+  /merchant/collection-analytics:
+    get:
+      operationId: getMerchantCollectionAnalytics
+      tags: [merchant]
+      summary: Read aggregate collection outcomes for the last 90 days
+      responses:
+        "200":
+          description: Merchant collection analytics grouped by country, currency, and payment rail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantCollectionAnalyticsResponse" }
   /merchant/shop-profile:
     patch:
       operationId: updateMerchantShopProfile
@@ -1949,6 +1983,54 @@ paths:
           schema: { type: integer }
       responses:
         "204": { description: Destination removed }
+  /merchant/webhook-deliveries:
+    get:
+      operationId: listMerchantWebhookDeliveries
+      tags: [merchant]
+      summary: Review outbound webhook delivery attempts for the current merchant
+      responses:
+        "200":
+          description: Recent delivery attempts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantWebhookDeliveryList" }
+  /merchant/webhook-deliveries/{deliveryId}/replay:
+    post:
+      operationId: replayMerchantWebhookDelivery
+      tags: [merchant]
+      summary: Retry a failed outbound webhook delivery
+      parameters:
+        - name: deliveryId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 250 }
+      responses:
+        "200":
+          description: Failed delivery returned to the retry queue
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantWebhookDelivery" }
+        "400": { description: Invalid delivery ID }
+        "404": { description: Delivery not found for this merchant }
+        "409": { description: Delivery is not currently failed }
+  /merchant/webhook-endpoints/{id}/test:
+    post:
+      operationId: createMerchantWebhookTestDelivery
+      tags: [merchant]
+      summary: Queue a signed test event for an owned webhook endpoint
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "202":
+          description: Test event queued for delivery
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantWebhookTestDeliveryResponse" }
+        "400": { description: Invalid endpoint ID }
+        "404": { description: Endpoint not found }
   /merchant/fees:
     get:
       operationId: getMerchantFees
@@ -2491,6 +2573,28 @@ paths:
         "400": { description: Invalid status or reason }
         "403": { description: Administrator access required }
         "404": { description: Merchant not found }
+  /admin/merchants/{merchantId}/application-review:
+    post:
+      operationId: reviewAdminMerchantApplication
+      tags: [admin]
+      summary: Approve a business application or request additional information
+      parameters:
+        - name: merchantId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReviewMerchantApplicationRequest" }
+      responses:
+        "200":
+          description: Application review saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminMerchantApplicationReviewResponse" }
+        "409": { description: Application is not awaiting review }
   /admin/fee-schedules:
     get:
       operationId: listAdminFeeSchedules
@@ -2707,6 +2811,28 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AdminEmailDeliveryTestResult" }
         "403": { description: Email delivery administrator permission required }
+  /admin/email-delivery/broadcast:
+    post:
+      operationId: sendAdminEmailBroadcast
+      tags: [admin]
+      summary: Queue a branded email to all verified users or one selected account
+      description: Bulk broadcasts require explicit confirmation and include only verified account email addresses.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminEmailBroadcastRequest" }
+      responses:
+        "202":
+          description: Email broadcast queued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminEmailBroadcastResponse" }
+        "400": { description: Invalid broadcast request or confirmation }
+        "403": { description: Email delivery administrator permission required }
+        "404": { description: Selected account not found }
+        "413": { description: Recipient count exceeds the broadcast limit }
+        "503": { description: Email delivery or Clerk account lookup is unavailable }
   /admin/email-delivery/outbox:
     get:
       operationId: listAdminEmailDeliveryOutbox
@@ -2925,7 +3051,7 @@ components:
       enum: [queued, sending, sent, failed, uncertain, unconfigured]
     TransactionalEmailPurpose:
       type: string
-      enum: [payment_receipt, payment_success, payment_failure, payout_update, invoice_reminder, support_reply, support_receipt, team_invitation, admin_test]
+      enum: [payment_receipt, payment_success, payment_failure, payout_update, invoice_reminder, support_reply, support_receipt, team_invitation, admin_test, admin_broadcast]
     ContactTicketReceipt:
       type: object
       required: [reference, delivery]
@@ -3049,6 +3175,24 @@ components:
         accepted: { type: boolean }
         deliveryState: { type: string, enum: [sent, failed, uncertain] }
         detail: { type: string }
+    AdminEmailBroadcastRequest:
+      type: object
+      required: [audience, subject, message, confirmAll]
+      properties:
+        audience: { type: string, enum: [all, user] }
+        userId: { type: string, minLength: 1, maxLength: 128 }
+        subject: { type: string, minLength: 2, maxLength: 160 }
+        message: { type: string, minLength: 2, maxLength: 12000 }
+        confirmAll: { type: boolean }
+      additionalProperties: false
+    AdminEmailBroadcastResponse:
+      type: object
+      required: [broadcastId, audience, queuedRecipients, skippedUnverified]
+      properties:
+        broadcastId: { type: string }
+        audience: { type: string, enum: [all, user] }
+        queuedRecipients: { type: integer, minimum: 0 }
+        skippedUnverified: { type: integer, minimum: 0 }
     AdminEmailDeliveryOutboxItem:
       type: object
       required: [id, eventKey, purpose, recipientEmail, deliveryState, attempts, createdAt, updatedAt, nextAttemptAt, lastError, heldForReview]
@@ -3129,8 +3273,9 @@ components:
     HealthStatus:
       type: object
       properties:
-        status: { type: string }
-      required: [status]
+        status: { type: string, enum: [ok, unavailable] }
+        database: { type: string, enum: [ready, unavailable] }
+      required: [status, database]
     DashboardSummary:
       type: object
       required: [paymentsToday, successRate, pendingSettlements, settlementsDue, volumeByCurrency, recentTransactions, providerStatus]
@@ -4034,18 +4179,20 @@ components:
           items: { $ref: "#/components/schemas/Reminder" }
     StatementTransaction:
       type: object
-      required: [reference, amount, fee, currency, paidAt]
+      required: [reference, providerReference, amount, fee, currency, paidAt]
       properties:
         reference: { type: string }
+        providerReference: { type: ["string", "null"] }
         amount: { type: number }
         fee: { type: number }
         currency: { type: string }
         paidAt: { type: string, format: date-time }
     StatementRefund:
       type: object
-      required: [reference, originalReference, amount, currency, status, createdAt, cashDate, cashDateBasis]
+      required: [reference, providerReference, originalReference, amount, currency, status, createdAt, cashDate, cashDateBasis]
       properties:
         reference: { type: string }
+        providerReference: { type: ["string", "null"] }
         originalReference: { type: string }
         amount: { type: number }
         currency: { type: string }
@@ -4055,9 +4202,10 @@ components:
         cashDateBasis: { type: string, enum: [confirmed_at, legacy_created_at], description: Distinguishes the source confirmation timestamp from a legacy record with no confirmation timestamp. }
     StatementPayout:
       type: object
-      required: [reference, amount, fee, currency, status, createdAt, cashDate, cashDateBasis]
+      required: [reference, providerReference, amount, fee, currency, status, createdAt, cashDate, cashDateBasis]
       properties:
         reference: { type: string }
+        providerReference: { type: ["string", "null"] }
         amount: { type: number }
         fee: { type: number }
         currency: { type: string }
@@ -4545,7 +4693,7 @@ components:
         role: { $ref: "#/components/schemas/MerchantTeamInvitationRole" }
     MerchantProfile:
       type: object
-      required: [id, businessName, shopName, shopLogoUrl, country, baseCurrency, status, kycStatus, kybStatus, createdAt]
+      required: [id, businessName, shopName, shopLogoUrl, country, baseCurrency, status, applicationDetails, applicationStatus, applicationRequestedInfo, applicationSubmittedAt, applicationReviewedAt, kycStatus, kybStatus, createdAt]
       properties:
         id: { type: integer }
         businessName: { type: string }
@@ -4555,6 +4703,11 @@ components:
         baseCurrency: { type: string }
         registrationNumber: { type: ["string", "null"] }
         status: { type: string, enum: [pending, active, suspended, closed] }
+        applicationDetails: { oneOf: [{ $ref: "#/components/schemas/BusinessApplicationDetails" }, { type: "null" }] }
+        applicationStatus: { type: string, enum: [not_submitted, awaiting_review, more_info_required, approved, declined] }
+        applicationRequestedInfo: { type: ["string", "null"], maxLength: 2000 }
+        applicationSubmittedAt: { type: ["string", "null"], format: date-time }
+        applicationReviewedAt: { type: ["string", "null"], format: date-time }
         kycStatus: { type: string, enum: [not_started, pending, approved, declined, in_review, expired] }
         kybStatus: { type: string, enum: [not_started, pending, approved, declined, in_review, expired] }
         paymentsEnabled: { type: boolean }
@@ -4696,12 +4849,80 @@ components:
         updatedAt: { type: string, format: date-time }
     CreateMerchantInput:
       type: object
-      required: [businessName, country, baseCurrency]
+      required: [businessName, country, baseCurrency, application]
       properties:
         businessName: { type: string, minLength: 2, maxLength: 150 }
         country: { type: string, minLength: 2, maxLength: 2 }
         baseCurrency: { type: string, minLength: 3, maxLength: 3 }
         registrationNumber: { type: string, maxLength: 150 }
+        application: { $ref: "#/components/schemas/BusinessApplicationDetails" }
+    BusinessApplicationDetails:
+      type: object
+      required: [businessType, natureOfBusiness, registeredAddress, website, expectedMonthlyVolume, expectedMonthlyVolumeCurrency, expectedMonthlyTransactions, expectedAverageTransactionValue, expectedCustomerCountries, expectedCollectionCurrencies, sourceOfFunds]
+      properties:
+        businessType: { type: string, enum: [sole_proprietor, limited_company, partnership, nonprofit, other] }
+        natureOfBusiness: { type: string, minLength: 10, maxLength: 2000 }
+        registeredAddress: { type: string, minLength: 5, maxLength: 500 }
+        website: { type: ["string", "null"], format: uri, maxLength: 500 }
+        expectedMonthlyVolume: { type: number, minimum: 0, maximum: 1000000000000 }
+        expectedMonthlyVolumeCurrency: { type: string, minLength: 3, maxLength: 3, pattern: "^[A-Za-z]{3}$" }
+        expectedMonthlyTransactions: { type: integer, minimum: 0, maximum: 1000000000 }
+        expectedAverageTransactionValue: { type: number, minimum: 0, maximum: 1000000000000 }
+        expectedCustomerCountries:
+          type: array
+          minItems: 1
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string, minLength: 2, maxLength: 2, pattern: "^[A-Za-z]{2}$" }
+        expectedCollectionCurrencies:
+          type: array
+          minItems: 1
+          maxItems: 30
+          uniqueItems: true
+          items: { type: string, minLength: 3, maxLength: 3, pattern: "^[A-Za-z]{3}$" }
+        sourceOfFunds: { type: string, minLength: 10, maxLength: 1000 }
+    ReviewMerchantApplicationRequest:
+      type: object
+      required: [decision, reason]
+      properties:
+        decision: { type: string, enum: [approve, request_information] }
+        reason: { type: string, minLength: 5, maxLength: 2000 }
+    AdminMerchantApplicationReviewResponse:
+      type: object
+      required: [merchantId, applicationStatus, merchantStatus, applicationRequestedInfo, applicationReviewedAt]
+      properties:
+        merchantId: { type: integer }
+        applicationStatus: { type: string, enum: [awaiting_review, more_info_required, approved, declined] }
+        merchantStatus: { type: string, enum: [pending, active, suspended, closed] }
+        applicationRequestedInfo: { type: ["string", "null"] }
+        applicationReviewedAt: { type: ["string", "null"], format: date-time }
+    MerchantCollectionAnalyticsGroup:
+      type: object
+      required: [value, transactionCount, successfulCount, successRate, grossVolume, feeTotal, currency, averageSettlementHours]
+      properties:
+        value: { type: string }
+        transactionCount: { type: integer }
+        successfulCount: { type: integer }
+        successRate: { type: number, minimum: 0, maximum: 1 }
+        grossVolume: { type: ["number", "null"] }
+        feeTotal: { type: ["number", "null"] }
+        currency: { type: ["string", "null"] }
+        averageSettlementHours: { type: ["number", "null"] }
+    MerchantCollectionAnalyticsResponse:
+      type: object
+      required: [windowDays, windowStart, countries, currencies, paymentRails]
+      properties:
+        windowDays: { type: integer, enum: [90] }
+        windowStart: { type: string, format: date-time }
+        countries:
+          type: array
+          items: { $ref: "#/components/schemas/MerchantCollectionAnalyticsGroup" }
+        currencies:
+          type: array
+          items: { $ref: "#/components/schemas/MerchantCollectionAnalyticsGroup" }
+        paymentRails:
+          type: array
+          items: { $ref: "#/components/schemas/MerchantCollectionAnalyticsGroup" }
     VerificationTierLimit:
       type: object
       required: [tier, currency, collectionPerTransactionLimit, collectionDailyLimit, collectionMonthlyLimit, payoutLimit, conversionLimit, updatedAt]
@@ -4869,6 +5090,34 @@ components:
           type: array
           items: { type: string, enum: [payment.success, payment.failed, payment.refunded] }
         active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    MerchantWebhookDelivery:
+      type: object
+      required: [deliveryId, endpointId, event, status, attempts, lastStatusCode, lastError, nextAttemptAt, createdAt, updatedAt]
+      properties:
+        deliveryId: { type: string }
+        endpointId: { type: integer }
+        event: { type: string }
+        status: { type: string, enum: [pending, processing, delivered, failed] }
+        attempts: { type: integer, minimum: 0 }
+        lastStatusCode: { type: ["integer", "null"] }
+        lastError: { type: ["string", "null"], maxLength: 1000 }
+        nextAttemptAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    MerchantWebhookDeliveryList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/MerchantWebhookDelivery" }
+    MerchantWebhookTestDeliveryResponse:
+      type: object
+      required: [deliveryId, status, createdAt]
+      properties:
+        deliveryId: { type: string }
+        status: { type: string, enum: [pending] }
         createdAt: { type: string, format: date-time }
     WebhookEndpointList:
       type: object

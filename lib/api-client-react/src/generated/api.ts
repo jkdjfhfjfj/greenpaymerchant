@@ -97,6 +97,7 @@ import type {
   ListCustomersParams,
   ListDeveloperTransactionsParams,
   ListMerchantTransactionsParams,
+  ListMerchantWalletFxRatesParams,
   ListMerchantWalletLedgerParams,
   ListMerchantWalletPayoutMethodsParams,
   ListPaymentLinksParams,
@@ -152,6 +153,7 @@ import type {
   PublicContent,
   PublicContentList,
   PublicPaymentLink,
+  PublicPricingResponse,
   PublicReceipt,
   PublicTransactionStatus,
   Refund,
@@ -185,6 +187,7 @@ import type {
   WalletConversion,
   WalletConversionInput,
   WalletFxQuote,
+  WalletFxRateList,
   WalletLedgerList,
   WalletSettlementConfirmation,
   WalletSettlementConfirmationInput,
@@ -2751,6 +2754,90 @@ export function useListMerchantWalletLedger<TData = Awaited<ReturnType<typeof li
 
 
 
+export const getListMerchantWalletFxRatesUrl = (params: ListMerchantWalletFxRatesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/wallets/fx-rates?${stringifiedParams}` : `/api/wallets/fx-rates`
+}
+
+/**
+ * @summary List fresh reference rates from one supported base currency
+ */
+export const listMerchantWalletFxRates = async (params: ListMerchantWalletFxRatesParams, options?: Parameters<typeof customFetch>[1]): Promise<WalletFxRateList> => {
+
+  return customFetch<WalletFxRateList>(getListMerchantWalletFxRatesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMerchantWalletFxRatesQueryKey = (params?: ListMerchantWalletFxRatesParams,) => {
+    return [
+    `/api/wallets/fx-rates`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListMerchantWalletFxRatesQueryOptions = <TData = Awaited<ReturnType<typeof listMerchantWalletFxRates>>, TError = ErrorType<void>>(params: ListMerchantWalletFxRatesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMerchantWalletFxRates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMerchantWalletFxRatesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMerchantWalletFxRates>>> = ({ signal }) => listMerchantWalletFxRates(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMerchantWalletFxRates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMerchantWalletFxRatesQueryResult = NonNullable<Awaited<ReturnType<typeof listMerchantWalletFxRates>>>
+export type ListMerchantWalletFxRatesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List fresh reference rates from one supported base currency
+ */
+
+export function useListMerchantWalletFxRates<TData = Awaited<ReturnType<typeof listMerchantWalletFxRates>>, TError = ErrorType<void>>(
+ params: ListMerchantWalletFxRatesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMerchantWalletFxRates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMerchantWalletFxRatesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetMerchantWalletFxQuoteUrl = (params: GetMerchantWalletFxQuoteParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -2767,7 +2854,7 @@ export const getGetMerchantWalletFxQuoteUrl = (params: GetMerchantWalletFxQuoteP
 }
 
 /**
- * Reference rates use target ISO-currency units per one source ISO-currency unit from the daily keyless Fawaz Ahmed currency-api. Pairs involving SLL are rejected until Payzaapi's legacy SLL amount scale is verified; SLE rates are never substituted. SLL wallet and payment-link amounts remain available without FX conversion.
+ * Reference rates use target ISO-currency units per one source ISO-currency unit. The server prefers the configured CurrencyAPI credential, then ExchangeRate-API, Frankfurter, and the Fawaz currency-api public feed. Pairs involving SLL are rejected until Payzaapi's legacy SLL amount scale is verified; SLE rates are never substituted.
  * @summary Get a timestamped market-rate quote for an internal wallet conversion
  */
 export const getMerchantWalletFxQuote = async (params: GetMerchantWalletFxQuoteParams, options?: Parameters<typeof customFetch>[1]): Promise<WalletFxQuote> => {
@@ -9537,6 +9624,84 @@ export function useListSupportedCurrencies<TData = Awaited<ReturnType<typeof lis
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListSupportedCurrenciesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPublicPricingUrl = () => {
+
+
+
+
+  return `/api/pricing`
+}
+
+/**
+ * Returns only the global default schedule. Merchant-specific fee schedules may differ.
+ * @summary Read the published default collection fee schedule
+ */
+export const getPublicPricing = async ( options?: Parameters<typeof customFetch>[1]): Promise<PublicPricingResponse> => {
+
+  return customFetch<PublicPricingResponse>(getGetPublicPricingUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicPricingQueryKey = () => {
+    return [
+    `/api/pricing`
+    ] as const;
+    }
+
+
+export const getGetPublicPricingQueryOptions = <TData = Awaited<ReturnType<typeof getPublicPricing>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicPricing>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicPricingQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicPricing>>> = ({ signal }) => getPublicPricing({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicPricing>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicPricingQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicPricing>>>
+export type GetPublicPricingQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Read the published default collection fee schedule
+ */
+
+export function useGetPublicPricing<TData = Awaited<ReturnType<typeof getPublicPricing>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicPricing>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicPricingQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -56,11 +56,15 @@ export function calculateWalletConversion(input: {
   sourceMinor: bigint;
   sourceRate: number | string;
   markupBps: number;
+  systemMarginBps?: number;
   feePercentage: number | string;
   flatFeeMinor: bigint;
 }) {
   if (input.sourceMinor <= 0n || !Number.isInteger(input.markupBps) ||
-      input.markupBps < 0 || input.markupBps > 10_000 || input.flatFeeMinor < 0n) {
+      input.markupBps < 0 || input.markupBps > 10_000 || input.flatFeeMinor < 0n ||
+      !Number.isInteger(input.systemMarginBps ?? input.markupBps) ||
+      (input.systemMarginBps ?? input.markupBps) < 0 ||
+      (input.systemMarginBps ?? input.markupBps) > input.markupBps) {
     throw new Error("Invalid wallet conversion inputs.");
   }
   const sourceRateScaled = decimalToScaled(input.sourceRate, 12);
@@ -68,16 +72,32 @@ export function calculateWalletConversion(input: {
   if (sourceRateScaled <= 0n || percentageScaled > 1_000_000n) {
     throw new Error("Invalid wallet conversion rate or fee schedule.");
   }
+  const marketTargetMinor = roundDivide(input.sourceMinor * sourceRateScaled, WALLET_RATE_SCALE);
   const effectiveRateScaled = roundDivide(
     sourceRateScaled * BigInt(10_000 - input.markupBps),
     10_000n,
   );
   const grossTargetMinor = roundDivide(input.sourceMinor * effectiveRateScaled, WALLET_RATE_SCALE);
+  const totalMarkupMinor = marketTargetMinor - grossTargetMinor;
+  if (totalMarkupMinor < 0n) throw new Error("The configured wallet FX margin exceeds the market amount.");
+  const systemMarginMinor = input.markupBps === 0
+    ? 0n
+    : roundDivide(totalMarkupMinor * BigInt(input.systemMarginBps ?? input.markupBps), BigInt(input.markupBps));
+  const scheduleMarkupMinor = totalMarkupMinor - systemMarginMinor;
   const feeMinor = roundDivide(grossTargetMinor * percentageScaled, 100n * WALLET_PERCENT_SCALE) +
     input.flatFeeMinor;
   const targetMinor = grossTargetMinor - feeMinor;
   if (targetMinor <= 0n) throw new Error("The conversion fees consume the entire quoted amount.");
-  return { effectiveRateScaled, grossTargetMinor, feeMinor, targetMinor };
+  return {
+    effectiveRateScaled,
+    marketTargetMinor,
+    grossTargetMinor,
+    totalMarkupMinor,
+    systemMarginMinor,
+    scheduleMarkupMinor,
+    feeMinor,
+    targetMinor,
+  };
 }
 
 export function eligibleSettlementFunding(input: {

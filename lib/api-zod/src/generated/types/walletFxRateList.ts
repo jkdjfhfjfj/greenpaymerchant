@@ -5,20 +5,13 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { WalletFxRateItem } from './walletFxRateItem';
 
-export interface WalletConversionInput {
-  /** @exclusiveMinimum 0 */
-  amount: number;
+export interface WalletFxRateList {
   /**
      * @minLength 3
      * @maxLength 3
      */
-  fromCurrency: string;
-  /**
-     * @minLength 3
-     * @maxLength 3
-     */
-  toCurrency: string;
-  /** @minLength 1 */
-  quoteId: string;
+  baseCurrency: string;
+  items: WalletFxRateItem[];
 }

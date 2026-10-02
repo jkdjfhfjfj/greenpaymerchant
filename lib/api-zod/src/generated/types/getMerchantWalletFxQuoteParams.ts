@@ -21,4 +21,9 @@ from: string;
  * @maxLength 3
  */
 to: string;
+/**
+ * @minLength 8
+ * @maxLength 128
+ */
+idempotencyKey: string;
 };

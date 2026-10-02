@@ -163,3 +163,86 @@ export async function fetchWalletFxRateCandidate(
   }
   return null;
 }
+
+export async function fetchWalletFxRateBatchCandidate(
+  from: string,
+  targets: string[],
+  apiKey: string | null,
+  now: Date,
+  fetcher: Fetcher = fetch,
+): Promise<Record<string, WalletFxRateCandidate> | null> {
+  const normalizedFrom = from.toUpperCase();
+  const normalizedTargets = [...new Set(targets.map((target) => target.toUpperCase()))]
+    .filter((target) => target !== normalizedFrom);
+  if (!normalizedTargets.length) return {};
+
+  const completeCandidate = (
+    values: Record<string, unknown>,
+    date: unknown,
+    source: string,
+    currencyApiData = false,
+  ): Record<string, WalletFxRateCandidate> | null => {
+    const result: Record<string, WalletFxRateCandidate> = {};
+    for (const target of normalizedTargets) {
+      const value = currencyApiData ? asObject(values[target]).value : values[target];
+      const item = candidate(value, date, source, now);
+      if (!item) return null;
+      result[target] = item;
+    }
+    return result;
+  };
+
+  const attempts: Array<() => Promise<Record<string, WalletFxRateCandidate> | null>> = [
+    ...(apiKey ? [async () => {
+      const url = new URL("https://api.currencyapi.com/v3/latest");
+      url.searchParams.set("base_currency", normalizedFrom);
+      url.searchParams.set("currencies", normalizedTargets.join(","));
+      const body = await readJson(fetcher, url.toString(), { apikey: apiKey });
+      return completeCandidate(
+        asObject(body.data),
+        asObject(body.meta).last_updated_at,
+        "CurrencyAPI live rates",
+        true,
+      );
+    }] : []),
+    async () => {
+      const body = await readJson(fetcher, `https://open.er-api.com/v6/latest/${encodeURIComponent(normalizedFrom)}`);
+      if (body.result !== "success" || stringValue(body.base_code)?.toUpperCase() !== normalizedFrom) return null;
+      return completeCandidate(asObject(body.rates), body.time_last_update_utc, "ExchangeRate-API public feed");
+    },
+    async () => {
+      const url = `https://api.frankfurter.dev/v1/latest?base=${encodeURIComponent(normalizedFrom)}&symbols=${encodeURIComponent(normalizedTargets.join(","))}`;
+      const body = await readJson(fetcher, url);
+      return completeCandidate(asObject(body.rates), body.date, "Frankfurter reference rates");
+    },
+    async () => {
+      const baseCode = normalizedFrom.toLowerCase();
+      const endpoints = [
+        `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${baseCode}.json`,
+        `https://raw.githubusercontent.com/fawazahmed0/currency-api/latest/v1/currencies/${baseCode}.json`,
+      ];
+      for (const url of endpoints) {
+        try {
+          const body = await readJson(fetcher, url);
+          const rates = asObject(body[baseCode]);
+          const lowerCaseRates = Object.fromEntries(Object.entries(rates).map(([key, value]) => [key.toUpperCase(), value]));
+          const result = completeCandidate(lowerCaseRates, body.date, "Fawaz currency-api daily reference rates");
+          if (result) return result;
+        } catch {
+          // Try the mirror before failing this source.
+        }
+      }
+      return null;
+    },
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      const rates = await attempt();
+      if (rates) return rates;
+    } catch {
+      // Continue to the next configured live or public source.
+    }
+  }
+  return null;
+}

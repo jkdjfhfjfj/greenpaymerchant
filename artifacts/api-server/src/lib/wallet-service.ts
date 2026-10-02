@@ -1,4 +1,7 @@
-import { createCipheriv, createDecipheriv, createHash, createHmac, hkdfSync, randomBytes, randomUUID } from "node:crypto";
+import {
+  createCipheriv, createDecipheriv, createHash, createHmac, hkdfSync, randomBytes,
+  randomUUID, timingSafeEqual,
+} from "node:crypto";
 import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { COLLECTION_CURRENCIES } from "@workspace/api-zod";
 import {
@@ -26,13 +29,103 @@ import {
 import { CUSTOMER_REIMBURSED_REFUND_STATUSES, OPEN_REFUND_RESERVATION_STATUSES } from "./payment-safety";
 import {
   calculateWalletConversion, canApplyWalletRefundAdjustment, canReserveWalletFunds,
-  combineWalletFxMarkupBps, decimalToMinor, eligibleSettlementFunding, minorToDecimal, minorToNumber,
+  combineWalletFxMarkupBps, decimalToMinor, decimalToScaled, eligibleSettlementFunding,
+  minorToDecimal, minorToNumber, roundDivide, WALLET_RATE_SCALE,
   payoutNeedsSecondApproval, payoutProviderOutcome, proportionalNetRefundReversal, shouldReleasePayoutHold,
 } from "./wallet-math";
 import { providerCredential } from "./credential-runtime";
-import { fetchWalletFxRateCandidate, sourcePublicationDateIsFresh } from "./wallet-fx-rates";
+import {
+  fetchWalletFxRateBatchCandidate, fetchWalletFxRateCandidate, sourcePublicationDateIsFresh,
+} from "./wallet-fx-rates";
 
 const FX_CACHE_MS = 6 * 60 * 60 * 1000;
+const FX_QUOTE_TTL_MS = 2 * 60 * 1000;
+
+type WalletQuoteToken = {
+  version: 1;
+  merchantId: number;
+  idempotencyKey: string;
+  fromCurrency: string;
+  toCurrency: string;
+  sourceMinor: string;
+  targetMinor: string;
+  feeMinor: string;
+  marketTargetMinor: string;
+  systemMarginMinor: string;
+  scheduleMarkupMinor: string;
+  totalMarkupMinor: string;
+  sourceRateScaled: string;
+  effectiveRateScaled: string;
+  markupBps: number;
+  scheduleMarkupBps: number;
+  currencySpreadBps: number;
+  feeScheduleId: number | null;
+  rateSource: string;
+  rateSourceDate: string;
+  rateFetchedAt: string;
+  expiresAt: number;
+};
+
+function walletQuoteSecret(): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) throw new ApiError(503, "Wallet quote signing is not configured.");
+  return secret;
+}
+
+function signWalletQuote(payload: WalletQuoteToken): string {
+  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = createHmac("sha256", walletQuoteSecret()).update(encoded).digest("base64url");
+  return `${encoded}.${signature}`;
+}
+
+function verifyWalletQuote(token: string): WalletQuoteToken {
+  const [encoded, signature, extra] = token.split(".");
+  if (!encoded || !signature || extra !== undefined) throw new ApiError(409, "This conversion quote is invalid. Request a new quote.");
+  const expected = createHmac("sha256", walletQuoteSecret()).update(encoded).digest();
+  let provided: Buffer;
+  try {
+    provided = Buffer.from(signature, "base64url");
+  } catch {
+    throw new ApiError(409, "This conversion quote is invalid. Request a new quote.");
+  }
+  if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) {
+    throw new ApiError(409, "This conversion quote is invalid. Request a new quote.");
+  }
+  try {
+    const payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as WalletQuoteToken;
+    if (payload.version !== 1 || !Number.isInteger(payload.merchantId) ||
+        !Number.isFinite(payload.expiresAt) || !/^\d+$/.test(payload.sourceMinor) ||
+        !/^\d+$/.test(payload.targetMinor) || !/^\d+$/.test(payload.feeMinor) ||
+        !/^\d+$/.test(payload.marketTargetMinor) || !/^\d+$/.test(payload.systemMarginMinor)) {
+      throw new Error("Invalid wallet quote payload.");
+    }
+    return payload;
+  } catch {
+    throw new ApiError(409, "This conversion quote is invalid. Request a new quote.");
+  }
+}
+
+function sameWalletQuoteEconomics(a: WalletQuoteToken, b: WalletQuoteToken): boolean {
+  return a.merchantId === b.merchantId &&
+    a.idempotencyKey === b.idempotencyKey &&
+    a.fromCurrency === b.fromCurrency &&
+    a.toCurrency === b.toCurrency &&
+    a.sourceMinor === b.sourceMinor &&
+    a.targetMinor === b.targetMinor &&
+    a.feeMinor === b.feeMinor &&
+    a.marketTargetMinor === b.marketTargetMinor &&
+    a.systemMarginMinor === b.systemMarginMinor &&
+    a.scheduleMarkupMinor === b.scheduleMarkupMinor &&
+    a.totalMarkupMinor === b.totalMarkupMinor &&
+    a.sourceRateScaled === b.sourceRateScaled &&
+    a.effectiveRateScaled === b.effectiveRateScaled &&
+    a.markupBps === b.markupBps &&
+    a.scheduleMarkupBps === b.scheduleMarkupBps &&
+    a.currencySpreadBps === b.currencySpreadBps &&
+    a.feeScheduleId === b.feeScheduleId &&
+    a.rateSource === b.rateSource &&
+    a.rateSourceDate === b.rateSourceDate;
+}
 const SLL_FX_UNSUPPORTED_ERROR =
   "FX quotes involving SLL are disabled until Payzaapi's legacy SLL amount scale is verified; Greenpay keeps SLL balances and payment-link amounts unchanged and never substitutes SLE rates.";
 
@@ -335,6 +428,9 @@ async function postJournal(tx: FinancialTx, input: {
   merchantAccount: "merchant_available" | "merchant_reserved";
   merchantDirection: "debit" | "credit";
   externalAccount?: "platform_settlement" | "platform_payout" | "fx_clearing";
+  externalAmountMinor?: bigint;
+  platformFxRevenueMinor?: bigint;
+  platformFeeRevenueMinor?: bigint;
   secondMerchantAccount?: "merchant_available" | "merchant_reserved";
 }) {
   const [journal] = await tx.insert(walletJournalsTable).values({
@@ -350,7 +446,11 @@ async function postJournal(tx: FinancialTx, input: {
       reference: input.reference, sourceReference: input.sourceReference ?? null,
       evidenceReference: input.evidenceReference ?? null, metadata: input.metadata ?? {},
       merchantAccount: input.merchantAccount, merchantDirection: input.merchantDirection,
-      externalAccount: input.externalAccount, secondMerchantAccount: input.secondMerchantAccount,
+      externalAccount: input.externalAccount,
+      externalAmountMinor: input.externalAmountMinor?.toString() ?? null,
+      platformFxRevenueMinor: input.platformFxRevenueMinor?.toString() ?? null,
+      platformFeeRevenueMinor: input.platformFeeRevenueMinor?.toString() ?? null,
+      secondMerchantAccount: input.secondMerchantAccount,
     }),
     metadata: input.metadata ?? {},
   }).onConflictDoNothing().returning();
@@ -382,11 +482,34 @@ async function postJournal(tx: FinancialTx, input: {
       currency: input.currency.toUpperCase(),
       account: input.externalAccount,
       direction: otherDirection,
-      amountMinor,
+      amountMinor: input.externalAmountMinor ?? amountMinor,
     });
   } else {
     throw new ApiError(500, "Wallet journal counter-account is required.");
   }
+  const platformRevenueEntries = [
+    { account: "platform_fx_revenue", amount: input.platformFxRevenueMinor },
+    { account: "platform_fee_revenue", amount: input.platformFeeRevenueMinor },
+  ];
+  for (const revenue of platformRevenueEntries) {
+    if (revenue.amount === undefined) continue;
+    if (revenue.amount < 0n || !input.externalAccount) {
+      throw new ApiError(500, "Platform revenue journal entries require a non-negative amount and external counter-account.");
+    }
+    if (revenue.amount > 0n) {
+      entries.push({
+        journalId: journal.id,
+        merchantId: null,
+        currency: input.currency.toUpperCase(),
+        account: revenue.account,
+        direction: "credit",
+        amountMinor: revenue.amount,
+      });
+    }
+  }
+  const debitTotal = entries.reduce((total, entry) => total + (entry.direction === "debit" ? entry.amountMinor : 0n), 0n);
+  const creditTotal = entries.reduce((total, entry) => total + (entry.direction === "credit" ? entry.amountMinor : 0n), 0n);
+  if (debitTotal !== creditTotal) throw new ApiError(500, "Wallet journal entries do not balance.");
   await tx.insert(walletJournalEntriesTable).values(entries);
   return journal;
 }
@@ -511,6 +634,86 @@ async function getMarketRate(fromCurrency: string, toCurrency: string) {
   }
 }
 
+export async function listMerchantWalletFxRates(baseCurrency: string) {
+  const base = baseCurrency.toUpperCase();
+  const targets = COLLECTION_CURRENCIES
+    .map(({ code }) => code)
+    .filter((code) => code !== base && code !== "SLL");
+  if (base === "SLL") throw new ApiError(422, "SLL FX rates are unavailable until the legacy SLL amount scale is verified.");
+  for (const target of targets) assertWalletFxPairAllowed(base, target);
+
+  const now = new Date();
+  const cachedRows = await db.select().from(walletFxRatesTable).where(and(
+    eq(walletFxRatesTable.fromCurrency, base),
+    gte(walletFxRatesTable.expiresAt, now),
+  )).orderBy(desc(walletFxRatesTable.fetchedAt));
+  const cachedByTarget = new Map<string, typeof cachedRows[number]>();
+  for (const row of cachedRows) {
+    if (!cachedByTarget.has(row.toCurrency) && sourcePublicationDateIsFresh(row.sourceDate, now)) {
+      cachedByTarget.set(row.toCurrency, row);
+    }
+  }
+
+  if (targets.some((target) => !cachedByTarget.has(target))) {
+    try {
+      const apiKey = await providerCredential("currencyapi", "CURRENCYAPI_API_KEY");
+      const fresh = await fetchWalletFxRateBatchCandidate(base, targets, apiKey, now);
+      if (!fresh || targets.some((target) => !fresh[target])) throw new Error("No complete current rate set is available.");
+      const expiresAt = new Date(now.getTime() + FX_CACHE_MS);
+      await db.transaction(async (tx) => {
+        for (const target of targets) {
+          const rate = fresh[target]!;
+          await tx.insert(walletFxRatesTable).values({
+            fromCurrency: base,
+            toCurrency: target,
+            rate: rate.rate,
+            source: rate.source,
+            sourceDate: rate.sourceDate,
+            fetchedAt: now,
+            expiresAt,
+          }).onConflictDoUpdate({
+            target: [
+              walletFxRatesTable.fromCurrency,
+              walletFxRatesTable.toCurrency,
+              walletFxRatesTable.sourceDate,
+            ],
+            set: { rate: rate.rate, source: rate.source, fetchedAt: now, expiresAt },
+          });
+          cachedByTarget.set(target, {
+            id: 0,
+            fromCurrency: base,
+            toCurrency: target,
+            rate: rate.rate,
+            source: rate.source,
+            sourceDate: rate.sourceDate,
+            fetchedAt: now,
+            expiresAt,
+            createdAt: now,
+          });
+        }
+      });
+    } catch {
+      throw new ApiError(503, "Current exchange rates are unavailable. No complete, fresh rate set could be loaded.");
+    }
+  }
+
+  return {
+    baseCurrency: base,
+    items: targets.map((currency) => {
+      const row = cachedByTarget.get(currency);
+      if (!row) throw new ApiError(503, `A fresh ${base}/${currency} rate is unavailable.`);
+      return {
+        currency,
+        rate: Number(row.rate),
+        source: row.source,
+        sourceDate: row.sourceDate,
+        fetchedAt: row.fetchedAt,
+        expiresAt: row.expiresAt,
+      };
+    }),
+  };
+}
+
 async function getWalletFeeSchedule(merchantId: number) {
   const [specific] = await db.select().from(feeSchedulesTable)
     .where(eq(feeSchedulesTable.merchantId, merchantId)).limit(1);
@@ -534,6 +737,7 @@ export async function quoteWalletConversion(merchantId: number, input: {
   amount: number;
   fromCurrency: string;
   toCurrency: string;
+  idempotencyKey?: string;
 }) {
   const fromCurrency = input.fromCurrency.toUpperCase();
   const toCurrency = input.toCurrency.toUpperCase();
@@ -556,28 +760,62 @@ export async function quoteWalletConversion(merchantId: number, input: {
   }
   const flatFeeMinor = schedule ? decimalToMinor(schedule.flatAmount) : 0n;
   const calculation = calculateWalletConversion({
-    sourceMinor, sourceRate: rate.rate, markupBps,
+    sourceMinor, sourceRate: rate.rate, markupBps, systemMarginBps: currencySpreadBps,
     feePercentage: schedule ? String(schedule.percentage) : "0", flatFeeMinor,
   });
   const now = new Date();
   if (rate.expiresAt <= now) throw new ApiError(503, "The public market rate expired before a quote could be issued.");
+  const expiresAt = new Date(Math.min(rate.expiresAt.getTime(), now.getTime() + FX_QUOTE_TTL_MS));
+  const quoteToken: WalletQuoteToken = {
+    version: 1,
+    merchantId,
+    idempotencyKey: input.idempotencyKey ?? "",
+    fromCurrency,
+    toCurrency,
+    sourceMinor: sourceMinor.toString(),
+    targetMinor: calculation.targetMinor.toString(),
+    feeMinor: calculation.feeMinor.toString(),
+    marketTargetMinor: calculation.marketTargetMinor.toString(),
+    systemMarginMinor: calculation.systemMarginMinor.toString(),
+    scheduleMarkupMinor: calculation.scheduleMarkupMinor.toString(),
+    totalMarkupMinor: calculation.totalMarkupMinor.toString(),
+    sourceRateScaled: decimalToScaled(rate.rate, 12).toString(),
+    effectiveRateScaled: calculation.effectiveRateScaled.toString(),
+    markupBps,
+    scheduleMarkupBps,
+    currencySpreadBps,
+    feeScheduleId: schedule?.id ?? null,
+    rateSource: rate.source,
+    rateSourceDate: rate.sourceDate,
+    rateFetchedAt: rate.fetchedAt.toISOString(),
+    expiresAt: expiresAt.getTime(),
+  };
   return {
-    quoteId: randomUUID(),
+    quoteId: signWalletQuote(quoteToken),
     fromCurrency,
     toCurrency,
     sourceAmount: minorToNumber(sourceMinor),
-    sourceRate: Number(rate.rate),
+    sourceRate: Number(quoteToken.sourceRateScaled) / Number(WALLET_RATE_SCALE),
     effectiveRate: Number(calculation.effectiveRateScaled) / 1_000_000_000_000,
+    marketTargetAmount: minorToNumber(calculation.marketTargetMinor),
+    systemMarginAmount: minorToNumber(calculation.systemMarginMinor),
+    scheduleMarkupAmount: minorToNumber(calculation.scheduleMarkupMinor),
+    totalMarkupAmount: minorToNumber(calculation.totalMarkupMinor),
     feeAmount: minorToNumber(calculation.feeMinor),
     targetAmount: minorToNumber(calculation.targetMinor),
     markupBps,
     scheduleMarkupBps,
     currencySpreadBps,
     source: rate.source,
-    quotedAt: rate.fetchedAt,
-    expiresAt: rate.expiresAt,
+    quotedAt: now,
+    expiresAt,
+    sourceDate: rate.sourceDate,
     note: "Internal wallet allocation only. This does not execute external bank FX or represent provider liquidity.",
     sourceMinor,
+    marketTargetMinor: calculation.marketTargetMinor,
+    systemMarginMinor: calculation.systemMarginMinor,
+    scheduleMarkupMinor: calculation.scheduleMarkupMinor,
+    totalMarkupMinor: calculation.totalMarkupMinor,
     targetMinor: calculation.targetMinor,
     feeMinor: calculation.feeMinor,
     schedule,
@@ -590,6 +828,7 @@ export async function convertWalletFunds(merchantId: number, input: {
   fromCurrency: string;
   toCurrency: string;
   idempotencyKey: string;
+  quoteId: string;
 }) {
   const fromCurrency = input.fromCurrency.toUpperCase();
   const toCurrency = input.toCurrency.toUpperCase();
@@ -607,7 +846,23 @@ export async function convertWalletFunds(merchantId: number, input: {
     return walletConversionDto(prior);
   }
   await assertMerchantActionEnabled(merchantId, "walletConversion");
-  const quote = await quoteWalletConversion(merchantId, input);
+  const acceptedQuote = verifyWalletQuote(input.quoteId);
+  if (acceptedQuote.merchantId !== merchantId ||
+      acceptedQuote.idempotencyKey !== input.idempotencyKey ||
+      acceptedQuote.fromCurrency !== fromCurrency ||
+      acceptedQuote.toCurrency !== toCurrency ||
+      acceptedQuote.sourceMinor !== sourceMinor.toString()) {
+    throw new ApiError(409, "This conversion quote does not match the requested amount, wallets, or idempotency key. Request a new quote.");
+  }
+  if (acceptedQuote.expiresAt <= Date.now()) {
+    throw new ApiError(409, "This conversion quote expired. Request a new quote before confirming.");
+  }
+  const refreshedQuote = await quoteWalletConversion(merchantId, input);
+  const refreshedToken = verifyWalletQuote(refreshedQuote.quoteId);
+  if (!sameWalletQuoteEconomics(acceptedQuote, refreshedToken)) {
+    throw new ApiError(409, "The rate or fees changed after this quote was shown. Review a fresh quote before confirming.");
+  }
+  const quote = refreshedQuote;
   return db.transaction(async (tx) => {
     const [existing] = await tx.select().from(walletConversionsTable).where(and(
       eq(walletConversionsTable.merchantId, merchantId),
@@ -676,30 +931,52 @@ export async function convertWalletFunds(merchantId: number, input: {
     await postJournal(tx, {
       merchantId, currency: toCurrency, kind: "conversion", reference: `conversion:${conversion.id}`,
       sourceReference: String(conversion.id), idempotencyKey: `conversion:${conversion.id}:credit`,
-      metadata: { amountMinor: quote.targetMinor.toString(), allocationType: "internal_wallet_allocation" },
-      merchantAccount: "merchant_available", merchantDirection: "credit", externalAccount: "fx_clearing",
+      metadata: {
+        amountMinor: quote.targetMinor.toString(),
+        marketAmountMinor: quote.marketTargetMinor.toString(),
+        systemMarginMinor: quote.systemMarginMinor.toString(),
+        feeMinor: quote.feeMinor.toString(),
+        allocationType: "internal_wallet_allocation",
+      },
+      merchantAccount: "merchant_available",
+      merchantDirection: "credit",
+      externalAccount: "fx_clearing",
+      externalAmountMinor: quote.marketTargetMinor,
+      platformFxRevenueMinor: quote.totalMarkupMinor,
+      platformFeeRevenueMinor: quote.feeMinor,
     });
     return walletConversionDto(conversion);
   });
 }
 
 function walletConversionDto(row: typeof walletConversionsTable.$inferSelect) {
+  const marketTargetMinor = roundDivide(
+    row.sourceMinor * decimalToScaled(row.sourceRate, 12),
+    WALLET_RATE_SCALE,
+  );
+  const totalMarkupMinor = marketTargetMinor - row.targetMinor - row.feeMinor;
+  const systemMarginMinor = row.markupBps === 0
+    ? 0n
+    : roundDivide(totalMarkupMinor * BigInt(row.currencySpreadBps), BigInt(row.markupBps));
+  const scheduleMarkupMinor = totalMarkupMinor - systemMarginMinor;
   return {
     id: row.id,
-    quoteId: `conversion:${row.id}`,
     fromCurrency: row.fromCurrency,
     toCurrency: row.toCurrency,
     sourceAmount: minorToNumber(row.sourceMinor),
     sourceRate: Number(row.sourceRate),
     effectiveRate: Number(row.effectiveRate),
+    marketTargetAmount: minorToNumber(marketTargetMinor),
+    systemMarginAmount: minorToNumber(systemMarginMinor),
+    scheduleMarkupAmount: minorToNumber(scheduleMarkupMinor),
+    totalMarkupAmount: minorToNumber(totalMarkupMinor),
     feeAmount: minorToNumber(row.feeMinor),
     targetAmount: minorToNumber(row.targetMinor),
     markupBps: row.markupBps,
     scheduleMarkupBps: row.markupBps - row.currencySpreadBps,
     currencySpreadBps: row.currencySpreadBps,
     source: row.rateSource,
-    quotedAt: row.rateFetchedAt,
-    expiresAt: row.rateFetchedAt,
+    sourceDate: row.rateSourceDate,
     note: "Internal wallet allocation only. This does not execute external bank FX or represent provider liquidity.",
     idempotencyKey: row.idempotencyKey,
     createdAt: row.createdAt,

@@ -6,11 +6,27 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { WalletConversionAllocationType } from './walletConversionAllocationType';
-import type { WalletFxQuote } from './walletFxQuote';
 
-export type WalletConversion = WalletFxQuote & {
+export interface WalletConversion {
   id: number;
+  fromCurrency: string;
+  toCurrency: string;
+  sourceAmount: number;
+  sourceRate: number;
+  effectiveRate: number;
+  marketTargetAmount: number;
+  systemMarginAmount: number;
+  scheduleMarkupAmount: number;
+  totalMarkupAmount: number;
+  feeAmount: number;
+  targetAmount: number;
+  markupBps: number;
+  scheduleMarkupBps: number;
+  currencySpreadBps: number;
+  source: string;
+  sourceDate: Date;
+  note: string;
   idempotencyKey: string;
   createdAt: Date;
   allocationType: WalletConversionAllocationType;
-};
+}

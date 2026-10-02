@@ -551,13 +551,31 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WalletLedgerList" }
+  /wallets/fx-rates:
+    get:
+      operationId: listMerchantWalletFxRates
+      tags: [wallets, fx]
+      summary: List fresh reference rates from one supported base currency
+      parameters:
+        - name: base
+          in: query
+          required: true
+          schema: { type: string, minLength: 3, maxLength: 3 }
+      responses:
+        "200":
+          description: Current rate table and source timestamps for supported currencies
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WalletFxRateList" }
+        "503": { description: A complete current rate table is unavailable }
+        "422": { description: SLL rates are not available until its legacy amount scale is verified }
   /wallets/fx-quote:
     get:
       operationId: getMerchantWalletFxQuote
       tags: [wallets, fx]
       summary: Get a timestamped market-rate quote for an internal wallet conversion
       description: |
-        Reference rates use target ISO-currency units per one source ISO-currency unit from the daily keyless Fawaz Ahmed currency-api. Pairs involving SLL are rejected until Payzaapi's legacy SLL amount scale is verified; SLE rates are never substituted. SLL wallet and payment-link amounts remain available without FX conversion.
+        Reference rates use target ISO-currency units per one source ISO-currency unit. The server prefers the configured CurrencyAPI credential, then ExchangeRate-API, Frankfurter, and the Fawaz currency-api public feed. Pairs involving SLL are rejected until Payzaapi's legacy SLL amount scale is verified; SLE rates are never substituted.
       parameters:
         - name: amount
           in: query
@@ -571,9 +589,13 @@ paths:
           in: query
           required: true
           schema: { type: string, minLength: 3, maxLength: 3 }
+        - name: idempotencyKey
+          in: query
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
       responses:
         "200":
-          description: Timestamped market-rate quote with existing platform markup and fees
+          description: Short-lived signed quote with market rate, system margin, fees, and exact wallet payout amount
           content:
             application/json:
               schema: { $ref: "#/components/schemas/WalletFxQuote" }
@@ -1861,6 +1883,18 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CurrencyCatalog" }
+  /pricing:
+    get:
+      operationId: getPublicPricing
+      tags: [public]
+      summary: Read the published default collection fee schedule
+      description: Returns only the global default schedule. Merchant-specific fee schedules may differ.
+      responses:
+        "200":
+          description: Public default pricing and override notice
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPricingResponse" }
   /v1/merchant:
     get:
       operationId: getDeveloperMerchant
@@ -3108,9 +3142,40 @@ components:
         items:
           type: array
           items: { $ref: "#/components/schemas/WalletLedgerEntry" }
+    WalletFxRateItem:
+      type: object
+      required: [currency, rate, source, sourceDate, fetchedAt, expiresAt]
+      properties:
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        rate: { type: number, exclusiveMinimum: 0 }
+        source: { type: string }
+        sourceDate: { type: string, format: date }
+        fetchedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+    WalletFxRateList:
+      type: object
+      required: [baseCurrency, items]
+      properties:
+        baseCurrency: { type: string, minLength: 3, maxLength: 3 }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/WalletFxRateItem" }
+    PublicPricingResponse:
+      type: object
+      required: [globalSchedule, customSchedulesMayDiffer]
+      properties:
+        globalSchedule:
+          type: ["object", "null"]
+          required: [percentage, flatAmount, currency, fxMarkupBps]
+          properties:
+            percentage: { type: number, minimum: 0 }
+            flatAmount: { type: number, minimum: 0 }
+            currency: { type: string, minLength: 3, maxLength: 3 }
+            fxMarkupBps: { type: integer, minimum: 0 }
+        customSchedulesMayDiffer: { type: boolean }
     WalletFxQuote:
       type: object
-      required: [quoteId, fromCurrency, toCurrency, sourceAmount, sourceRate, effectiveRate, feeAmount, targetAmount, markupBps, scheduleMarkupBps, currencySpreadBps, source, quotedAt, expiresAt, note]
+      required: [quoteId, fromCurrency, toCurrency, sourceAmount, sourceRate, effectiveRate, marketTargetAmount, systemMarginAmount, scheduleMarkupAmount, totalMarkupAmount, feeAmount, targetAmount, markupBps, scheduleMarkupBps, currencySpreadBps, source, sourceDate, quotedAt, expiresAt, note]
       properties:
         quoteId: { type: string }
         fromCurrency: { type: string }
@@ -3118,32 +3183,53 @@ components:
         sourceAmount: { type: number }
         sourceRate: { type: number }
         effectiveRate: { type: number }
+        marketTargetAmount: { type: number }
+        systemMarginAmount: { type: number }
+        scheduleMarkupAmount: { type: number }
+        totalMarkupAmount: { type: number }
         feeAmount: { type: number }
         targetAmount: { type: number }
         markupBps: { type: integer }
         scheduleMarkupBps: { type: integer }
         currencySpreadBps: { type: integer }
         source: { type: string }
+        sourceDate: { type: string, format: date }
         quotedAt: { type: string, format: date-time }
         expiresAt: { type: string, format: date-time }
         note: { type: string }
     WalletConversionInput:
       type: object
-      required: [amount, fromCurrency, toCurrency]
+      required: [amount, fromCurrency, toCurrency, quoteId]
       properties:
         amount: { type: number, exclusiveMinimum: 0 }
         fromCurrency: { type: string, minLength: 3, maxLength: 3 }
         toCurrency: { type: string, minLength: 3, maxLength: 3 }
+        quoteId: { type: string, minLength: 1 }
     WalletConversion:
-      allOf:
-        - $ref: "#/components/schemas/WalletFxQuote"
-        - type: object
-          required: [id, idempotencyKey, createdAt, allocationType]
-          properties:
-            id: { type: integer }
-            idempotencyKey: { type: string }
-            createdAt: { type: string, format: date-time }
-            allocationType: { type: string, enum: [internal_wallet_allocation] }
+      type: object
+      required: [id, fromCurrency, toCurrency, sourceAmount, sourceRate, effectiveRate, marketTargetAmount, systemMarginAmount, scheduleMarkupAmount, totalMarkupAmount, feeAmount, targetAmount, markupBps, scheduleMarkupBps, currencySpreadBps, source, sourceDate, note, idempotencyKey, createdAt, allocationType]
+      properties:
+        id: { type: integer }
+        fromCurrency: { type: string }
+        toCurrency: { type: string }
+        sourceAmount: { type: number }
+        sourceRate: { type: number }
+        effectiveRate: { type: number }
+        marketTargetAmount: { type: number }
+        systemMarginAmount: { type: number }
+        scheduleMarkupAmount: { type: number }
+        totalMarkupAmount: { type: number }
+        feeAmount: { type: number }
+        targetAmount: { type: number }
+        markupBps: { type: integer }
+        scheduleMarkupBps: { type: integer }
+        currencySpreadBps: { type: integer }
+        source: { type: string }
+        sourceDate: { type: string, format: date }
+        note: { type: string }
+        idempotencyKey: { type: string }
+        createdAt: { type: string, format: date-time }
+        allocationType: { type: string, enum: [internal_wallet_allocation] }
     PayoutRequestInput:
       type: object
       required: [amount, currency, destinationId]

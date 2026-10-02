@@ -419,12 +419,12 @@ function WalletFxSpreadSettings() {
     save.mutate({ data: { walletFxCurrencySpreads } }, { onSuccess: () => { void invalidate(); } });
   }
 
-  return <Card title="Wallet conversion spreads" subtitle="Per-target-currency spreads are added to the active fee schedule's FX markup.">
+  return <Card title="Wallet FX system profit margins" subtitle="Admin-set target-currency margins are applied before the wallet fee schedule.">
     <form className="form-stack" onSubmit={submit}>
-      <Note>Quotes use a configured CurrencyAPI key when available, then fall back to public exchange-rate feeds. Add or replace the optional key in <a className="text-link" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/admin/credentials`}>Provider credentials</a>. Combined markup must stay below 10,000 bps. SLL conversion remains disabled.</Note>
+      <Note>Live rates use CurrencyAPI when configured, then ExchangeRate-API, Frankfurter, and the Fawaz reference feed. Rates are cached for six hours and sources older than 48 hours are rejected. Add or replace the CurrencyAPI key in <a className="text-link" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/admin/credentials`}>Provider credentials</a>. These system margins are added to any merchant schedule markup; the combined markup must stay below 10,000 bps. SLL conversion remains disabled.</Note>
       <Async q={settings}>
         <div className="form-grid">
-          {currencies.map((currency) => <Field key={currency} label={`${currency} target spread`} hint="Basis points added to schedule markup">
+          {currencies.map((currency) => <Field key={currency} label={`${currency} system margin (bps)`} hint="Withheld from the market-rate target amount before fees">
             <input
               type="number"
               min="0"

@@ -6,19 +6,19 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface WalletConversionInput {
-  /** @exclusiveMinimum 0 */
-  amount: number;
+/**
+ * @nullable
+ */
+export type PublicPricingResponseGlobalSchedule = {
+  /** @minimum 0 */
+  percentage: number;
+  /** @minimum 0 */
+  flatAmount: number;
   /**
      * @minLength 3
      * @maxLength 3
      */
-  fromCurrency: string;
-  /**
-     * @minLength 3
-     * @maxLength 3
-     */
-  toCurrency: string;
-  /** @minLength 1 */
-  quoteId: string;
-}
+  currency: string;
+  /** @minimum 0 */
+  fxMarkupBps: number;
+} | null;

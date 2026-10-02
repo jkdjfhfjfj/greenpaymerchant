@@ -6,6 +6,7 @@ import {
   ConvertMerchantWalletFundsBody, ConvertMerchantWalletFundsHeader, ConvertMerchantWalletFundsResponse,
   CreateMerchantPayoutRequestHeader,
   GetMerchantWalletFxQuoteQueryParams, GetMerchantWalletFxQuoteResponse,
+  ListMerchantWalletFxRatesQueryParams, ListMerchantWalletFxRatesResponse,
   ListAdminPayoutRequestsQueryParams, ListAdminWalletsResponse,
   ListMerchantWalletLedgerQueryParams, ListMerchantWalletLedgerResponse,
   ListMerchantWalletPayoutMethodsQueryParams, ListMerchantWalletPayoutMethodsResponse,
@@ -18,6 +19,7 @@ import {
   createWalletPayoutRequest, listAdminPayoutRequests, listAdminWalletPayoutDestinationChanges, listAdminWallets,
   listMerchantWalletPayoutDestinations, listMerchantWalletPayoutDestinationChanges,
   listMerchantPayoutRequests, listMerchantWallets, listWalletLedger,
+  listMerchantWalletFxRates,
   quoteWalletConversion, reconcileMerchantPayoutRequest, rejectMerchantPayoutRequest,
   rejectWalletPayoutDestinationChange,
   walletPayoutMethods,
@@ -134,8 +136,18 @@ merchantWalletRouter.get("/wallets/fx-quote", requireSignedIn, async (req, res):
     amount: query.data.amount,
     fromCurrency: query.data.from,
     toCurrency: query.data.to,
+    idempotencyKey: query.data.idempotencyKey,
   });
   res.json(GetMerchantWalletFxQuoteResponse.parse(quote));
+});
+
+merchantWalletRouter.get("/wallets/fx-rates", requireSignedIn, async (req, res): Promise<void> => {
+  const query = ListMerchantWalletFxRatesQueryParams.safeParse(req.query);
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  const merchant = await resolveMerchantAccess(req, res, "finance");
+  if (!merchant) { res.status(404).json({ error: "Merchant account not found." }); return; }
+  const rates = await listMerchantWalletFxRates(query.data.base);
+  res.json(ListMerchantWalletFxRatesResponse.parse(rates));
 });
 
 merchantWalletRouter.post("/wallets/conversions", requireSignedIn, async (req, res): Promise<void> => {

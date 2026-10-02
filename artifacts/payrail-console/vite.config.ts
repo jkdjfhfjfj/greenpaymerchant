@@ -145,7 +145,11 @@ function prerenderPublicPages(siteUrl: string): Plugin {
           ssrServer.ssrLoadModule('/src/pages/home.tsx'),
           ssrServer.ssrLoadModule('/src/pages/contact.tsx'),
         ]);
-        const homeMarkup = renderToStaticMarkup(createElement(HomePage))
+        const homeMarkup = renderToStaticMarkup(createElement(
+          QueryClientProvider,
+          { client: new QueryClient() },
+          createElement(HomePage),
+        ))
           .replace(/class="([^"]*\bhp-reveal\b[^"]*)"/g, (_match, classes: string) => {
             const classNames = classes.split(/\s+/).filter(Boolean);
             if (!classNames.includes('in')) classNames.push('in');

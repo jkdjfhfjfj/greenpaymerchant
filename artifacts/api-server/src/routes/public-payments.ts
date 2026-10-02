@@ -8,6 +8,7 @@ import {
   GetPublicPaymentLinkResponse,
   GetPublicTransactionStatusParams,
   GetPublicTransactionStatusResponse,
+  GetPublicPricingResponse,
   ListSupportedCurrenciesResponse,
 } from "@workspace/api-zod";
 import { createCollection } from "../lib/greenpay-collection";
@@ -21,10 +22,10 @@ import {
   markTransactionStatus,
 } from "../lib/greenpay-ledger";
 import {
-  db, merchantInvoicesTable, merchantsTable, paymentLinksTable, refundsTable, transactionsTable,
+  db, feeSchedulesTable, merchantInvoicesTable, merchantsTable, paymentLinksTable, refundsTable, transactionsTable,
   verificationTierLimitsTable, collectionCurrencyAvailabilityTable,
 } from "@workspace/db";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { assertMerchantActionEnabled, getPlatformSettings } from "../lib/platform";
 import { merchantVerificationTier, type VerificationTier } from "../lib/security-policy";
 import { invoiceOutstandingAmount } from "../lib/merchant-business-tools";
@@ -45,17 +46,16 @@ async function getCollectionCurrencyOptions(verificationTier?: VerificationTier)
     payhero: await providerIsConfigured("payhero"),
     payzaapi: await providerIsConfigured("payzaapi"),
   };
-  const configuredTierCurrencies = verificationTier === undefined
-    ? undefined
-    : new Set((await db.select({ currency: verificationTierLimitsTable.currency })
-      .from(verificationTierLimitsTable)
-      .where(eq(verificationTierLimitsTable.tier, verificationTier)))
-      .map(({ currency }) => currency.toUpperCase()));
+  const configuredTierRows = verificationTier === undefined
+    ? await db.select({ currency: verificationTierLimitsTable.currency }).from(verificationTierLimitsTable)
+    : await db.select({ currency: verificationTierLimitsTable.currency }).from(verificationTierLimitsTable)
+      .where(eq(verificationTierLimitsTable.tier, verificationTier));
+  const configuredTierCurrencies = new Set(configuredTierRows.map(({ currency }) => currency.toUpperCase()));
   return COLLECTION_CURRENCIES.map(({ code, name, minorUnits }) => {
     const comingSoon = disabledCurrencies.has(code);
     const collectionReady = !comingSoon && platformReady &&
       routeReadiness[providerForCurrency(code)] &&
-      (configuredTierCurrencies === undefined || configuredTierCurrencies.has(code));
+      configuredTierCurrencies.has(code);
     return {
       code,
       name,
@@ -149,6 +149,22 @@ async function invoicePaymentLinkState(
 router.get("/currencies", async (_req, res): Promise<void> => {
   res.setHeader("Cache-Control", "no-store");
   res.json(ListSupportedCurrenciesResponse.parse({ items: await getCollectionCurrencyOptions() }));
+});
+
+router.get("/pricing", async (_req, res): Promise<void> => {
+  const [schedule] = await db.select({
+    percentage: feeSchedulesTable.percentage,
+    flatAmount: feeSchedulesTable.flatAmount,
+    currency: feeSchedulesTable.currency,
+    fxMarkupBps: feeSchedulesTable.fxMarkupBps,
+  }).from(feeSchedulesTable)
+    .where(isNull(feeSchedulesTable.merchantId))
+    .limit(1);
+  res.setHeader("Cache-Control", "no-store");
+  res.json(GetPublicPricingResponse.parse({
+    globalSchedule: schedule ?? null,
+    customSchedulesMayDiffer: true,
+  }));
 });
 
 router.get("/public/payment-links/:slug", async (req, res): Promise<void> => {

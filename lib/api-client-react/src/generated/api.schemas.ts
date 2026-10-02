@@ -867,6 +867,52 @@ export interface WalletLedgerList {
   items: WalletLedgerEntry[];
 }
 
+export interface WalletFxRateItem {
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency: string;
+  /** @exclusiveMinimum 0 */
+  rate: number;
+  source: string;
+  sourceDate: string;
+  fetchedAt: string;
+  expiresAt: string;
+}
+
+export interface WalletFxRateList {
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  baseCurrency: string;
+  items: WalletFxRateItem[];
+}
+
+/**
+ * @nullable
+ */
+export type PublicPricingResponseGlobalSchedule = {
+  /** @minimum 0 */
+  percentage: number;
+  /** @minimum 0 */
+  flatAmount: number;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency: string;
+  /** @minimum 0 */
+  fxMarkupBps: number;
+} | null;
+
+export interface PublicPricingResponse {
+  /** @nullable */
+  globalSchedule: PublicPricingResponseGlobalSchedule;
+  customSchedulesMayDiffer: boolean;
+}
+
 export interface WalletFxQuote {
   quoteId: string;
   fromCurrency: string;
@@ -874,12 +920,17 @@ export interface WalletFxQuote {
   sourceAmount: number;
   sourceRate: number;
   effectiveRate: number;
+  marketTargetAmount: number;
+  systemMarginAmount: number;
+  scheduleMarkupAmount: number;
+  totalMarkupAmount: number;
   feeAmount: number;
   targetAmount: number;
   markupBps: number;
   scheduleMarkupBps: number;
   currencySpreadBps: number;
   source: string;
+  sourceDate: string;
   quotedAt: string;
   expiresAt: string;
   note: string;
@@ -898,6 +949,8 @@ export interface WalletConversionInput {
      * @maxLength 3
      */
   toCurrency: string;
+  /** @minLength 1 */
+  quoteId: string;
 }
 
 export type WalletConversionAllocationType = typeof WalletConversionAllocationType[keyof typeof WalletConversionAllocationType];
@@ -907,12 +960,29 @@ export const WalletConversionAllocationType = {
   internal_wallet_allocation: 'internal_wallet_allocation',
 } as const;
 
-export type WalletConversion = WalletFxQuote & {
+export interface WalletConversion {
   id: number;
+  fromCurrency: string;
+  toCurrency: string;
+  sourceAmount: number;
+  sourceRate: number;
+  effectiveRate: number;
+  marketTargetAmount: number;
+  systemMarginAmount: number;
+  scheduleMarkupAmount: number;
+  totalMarkupAmount: number;
+  feeAmount: number;
+  targetAmount: number;
+  markupBps: number;
+  scheduleMarkupBps: number;
+  currencySpreadBps: number;
+  source: string;
+  sourceDate: string;
+  note: string;
   idempotencyKey: string;
   createdAt: string;
   allocationType: WalletConversionAllocationType;
-};
+}
 
 export interface PayoutRequestInput {
   /** @exclusiveMinimum 0 */
@@ -3271,6 +3341,14 @@ export type ListMerchantWalletLedgerParams = {
 currency?: string;
 };
 
+export type ListMerchantWalletFxRatesParams = {
+/**
+ * @minLength 3
+ * @maxLength 3
+ */
+base: string;
+};
+
 export type GetMerchantWalletFxQuoteParams = {
 /**
  * @exclusiveMinimum 0
@@ -3286,6 +3364,11 @@ from: string;
  * @maxLength 3
  */
 to: string;
+/**
+ * @minLength 8
+ * @maxLength 128
+ */
+idempotencyKey: string;
 };
 
 export type ListMerchantWalletPayoutMethodsParams = {

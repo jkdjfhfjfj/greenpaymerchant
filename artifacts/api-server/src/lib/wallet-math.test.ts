@@ -28,6 +28,27 @@ test("wallet money conversion uses integer minor units without binary rounding",
   assert.equal(converted.targetMinor, 12_044n);
 });
 
+test("wallet conversion separates system margin, schedule markup, fees, and net credit exactly", () => {
+  const converted = calculateWalletConversion({
+    sourceMinor: 10_000n,
+    sourceRate: "2.000000000000",
+    markupBps: 300,
+    systemMarginBps: 200,
+    feePercentage: "1",
+    flatFeeMinor: 25n,
+  });
+  assert.equal(converted.marketTargetMinor, 20_000n);
+  assert.equal(converted.totalMarkupMinor, 600n);
+  assert.equal(converted.systemMarginMinor, 400n);
+  assert.equal(converted.scheduleMarkupMinor, 200n);
+  assert.equal(converted.feeMinor, 219n);
+  assert.equal(converted.targetMinor, 19_181n);
+  assert.equal(
+    converted.systemMarginMinor + converted.scheduleMarkupMinor + converted.feeMinor + converted.targetMinor,
+    converted.marketTargetMinor,
+  );
+});
+
 test("pre- and post-funding refunds use the same proportional reversal against eligible net", () => {
   assert.equal(eligibleSettlementFunding({
     confirmedNetMinor: 8_000n, confirmedRefundMinor: 1_000n,

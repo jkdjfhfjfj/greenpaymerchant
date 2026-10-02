@@ -891,7 +891,42 @@ export const ListMerchantWalletLedgerResponse = zod.object({
 
 
 /**
- * Reference rates use target ISO-currency units per one source ISO-currency unit from the daily keyless Fawaz Ahmed currency-api. Pairs involving SLL are rejected until Payzaapi's legacy SLL amount scale is verified; SLE rates are never substituted. SLL wallet and payment-link amounts remain available without FX conversion.
+ * @summary List fresh reference rates from one supported base currency
+ */
+export const listMerchantWalletFxRatesQueryBaseMin = 3;
+export const listMerchantWalletFxRatesQueryBaseMax = 3;
+
+
+
+export const ListMerchantWalletFxRatesQueryParams = zod.object({
+  "base": zod.coerce.string().min(listMerchantWalletFxRatesQueryBaseMin).max(listMerchantWalletFxRatesQueryBaseMax)
+})
+
+export const listMerchantWalletFxRatesResponseBaseCurrencyMin = 3;
+export const listMerchantWalletFxRatesResponseBaseCurrencyMax = 3;
+
+export const listMerchantWalletFxRatesResponseItemsItemCurrencyMin = 3;
+export const listMerchantWalletFxRatesResponseItemsItemCurrencyMax = 3;
+
+export const listMerchantWalletFxRatesResponseItemsItemRateExclusiveMin = 0;
+
+
+
+export const ListMerchantWalletFxRatesResponse = zod.object({
+  "baseCurrency": zod.string().min(listMerchantWalletFxRatesResponseBaseCurrencyMin).max(listMerchantWalletFxRatesResponseBaseCurrencyMax),
+  "items": zod.array(zod.object({
+  "currency": zod.string().min(listMerchantWalletFxRatesResponseItemsItemCurrencyMin).max(listMerchantWalletFxRatesResponseItemsItemCurrencyMax),
+  "rate": zod.number().gt(listMerchantWalletFxRatesResponseItemsItemRateExclusiveMin),
+  "source": zod.string(),
+  "sourceDate": zod.coerce.date(),
+  "fetchedAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * Reference rates use target ISO-currency units per one source ISO-currency unit. The server prefers the configured CurrencyAPI credential, then ExchangeRate-API, Frankfurter, and the Fawaz currency-api public feed. Pairs involving SLL are rejected until Payzaapi's legacy SLL amount scale is verified; SLE rates are never substituted.
  * @summary Get a timestamped market-rate quote for an internal wallet conversion
  */
 export const getMerchantWalletFxQuoteQueryAmountExclusiveMin = 0;
@@ -902,12 +937,16 @@ export const getMerchantWalletFxQuoteQueryFromMax = 3;
 export const getMerchantWalletFxQuoteQueryToMin = 3;
 export const getMerchantWalletFxQuoteQueryToMax = 3;
 
+export const getMerchantWalletFxQuoteQueryIdempotencyKeyMin = 8;
+export const getMerchantWalletFxQuoteQueryIdempotencyKeyMax = 128;
+
 
 
 export const GetMerchantWalletFxQuoteQueryParams = zod.object({
   "amount": zod.coerce.number().gt(getMerchantWalletFxQuoteQueryAmountExclusiveMin),
   "from": zod.coerce.string().min(getMerchantWalletFxQuoteQueryFromMin).max(getMerchantWalletFxQuoteQueryFromMax),
-  "to": zod.coerce.string().min(getMerchantWalletFxQuoteQueryToMin).max(getMerchantWalletFxQuoteQueryToMax)
+  "to": zod.coerce.string().min(getMerchantWalletFxQuoteQueryToMin).max(getMerchantWalletFxQuoteQueryToMax),
+  "idempotencyKey": zod.coerce.string().min(getMerchantWalletFxQuoteQueryIdempotencyKeyMin).max(getMerchantWalletFxQuoteQueryIdempotencyKeyMax)
 })
 
 export const GetMerchantWalletFxQuoteResponse = zod.object({
@@ -917,12 +956,17 @@ export const GetMerchantWalletFxQuoteResponse = zod.object({
   "sourceAmount": zod.number(),
   "sourceRate": zod.number(),
   "effectiveRate": zod.number(),
+  "marketTargetAmount": zod.number(),
+  "systemMarginAmount": zod.number(),
+  "scheduleMarkupAmount": zod.number(),
+  "totalMarkupAmount": zod.number(),
   "feeAmount": zod.number(),
   "targetAmount": zod.number(),
   "markupBps": zod.number().int(),
   "scheduleMarkupBps": zod.number().int(),
   "currencySpreadBps": zod.number().int(),
   "source": zod.string(),
+  "sourceDate": zod.coerce.date(),
   "quotedAt": zod.coerce.date(),
   "expiresAt": zod.coerce.date(),
   "note": zod.string()
@@ -951,34 +995,37 @@ export const convertMerchantWalletFundsBodyToCurrencyMax = 3;
 
 
 
+
 export const ConvertMerchantWalletFundsBody = zod.object({
   "amount": zod.number().gt(convertMerchantWalletFundsBodyAmountExclusiveMin),
   "fromCurrency": zod.string().min(convertMerchantWalletFundsBodyFromCurrencyMin).max(convertMerchantWalletFundsBodyFromCurrencyMax),
-  "toCurrency": zod.string().min(convertMerchantWalletFundsBodyToCurrencyMin).max(convertMerchantWalletFundsBodyToCurrencyMax)
+  "toCurrency": zod.string().min(convertMerchantWalletFundsBodyToCurrencyMin).max(convertMerchantWalletFundsBodyToCurrencyMax),
+  "quoteId": zod.string().min(1)
 })
 
 export const ConvertMerchantWalletFundsResponse = zod.object({
-  "quoteId": zod.string(),
+  "id": zod.number().int(),
   "fromCurrency": zod.string(),
   "toCurrency": zod.string(),
   "sourceAmount": zod.number(),
   "sourceRate": zod.number(),
   "effectiveRate": zod.number(),
+  "marketTargetAmount": zod.number(),
+  "systemMarginAmount": zod.number(),
+  "scheduleMarkupAmount": zod.number(),
+  "totalMarkupAmount": zod.number(),
   "feeAmount": zod.number(),
   "targetAmount": zod.number(),
   "markupBps": zod.number().int(),
   "scheduleMarkupBps": zod.number().int(),
   "currencySpreadBps": zod.number().int(),
   "source": zod.string(),
-  "quotedAt": zod.coerce.date(),
-  "expiresAt": zod.coerce.date(),
-  "note": zod.string()
-}).and(zod.object({
-  "id": zod.number().int(),
+  "sourceDate": zod.coerce.date(),
+  "note": zod.string(),
   "idempotencyKey": zod.string(),
   "createdAt": zod.coerce.date(),
   "allocationType": zod.enum(['internal_wallet_allocation'])
-}))
+})
 
 
 /**
@@ -4062,6 +4109,32 @@ export const ListSupportedCurrenciesResponse = zod.object({
   "nextAction": zod.enum(['redirect', 'mobile_prompt'])
 })).describe('Provider-neutral payment actions actually supported by Greenpay for this currency. Readiness is evaluated separately.')
 }))
+})
+
+
+/**
+ * Returns only the global default schedule. Merchant-specific fee schedules may differ.
+ * @summary Read the published default collection fee schedule
+ */
+export const getPublicPricingResponseGlobalSchedulePercentageMin = 0;
+
+export const getPublicPricingResponseGlobalScheduleFlatAmountMin = 0;
+
+export const getPublicPricingResponseGlobalScheduleCurrencyMin = 3;
+export const getPublicPricingResponseGlobalScheduleCurrencyMax = 3;
+
+export const getPublicPricingResponseGlobalScheduleFxMarkupBpsMin = 0;
+
+
+
+export const GetPublicPricingResponse = zod.object({
+  "globalSchedule": zod.object({
+  "percentage": zod.number().min(getPublicPricingResponseGlobalSchedulePercentageMin),
+  "flatAmount": zod.number().min(getPublicPricingResponseGlobalScheduleFlatAmountMin),
+  "currency": zod.string().min(getPublicPricingResponseGlobalScheduleCurrencyMin).max(getPublicPricingResponseGlobalScheduleCurrencyMax),
+  "fxMarkupBps": zod.number().int().min(getPublicPricingResponseGlobalScheduleFxMarkupBpsMin)
+}).nullable(),
+  "customSchedulesMayDiffer": zod.boolean()
 })
 
 

@@ -13,12 +13,17 @@ export interface WalletFxQuote {
   sourceAmount: number;
   sourceRate: number;
   effectiveRate: number;
+  marketTargetAmount: number;
+  systemMarginAmount: number;
+  scheduleMarkupAmount: number;
+  totalMarkupAmount: number;
   feeAmount: number;
   targetAmount: number;
   markupBps: number;
   scheduleMarkupBps: number;
   currencySpreadBps: number;
   source: string;
+  sourceDate: Date;
   quotedAt: Date;
   expiresAt: Date;
   note: string;

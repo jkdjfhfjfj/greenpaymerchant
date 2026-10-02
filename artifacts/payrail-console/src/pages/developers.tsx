@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react';
-import { KeyRound, LoaderCircle, Plus, Trash2, Webhook } from 'lucide-react';
+import { CheckCircle2, KeyRound, LoaderCircle, Plus, Trash2, Webhook } from 'lucide-react';
 import {
   useListMerchantApiKeys, useCreateMerchantApiKey, useRevokeMerchantApiKey,
   useListMerchantWebhookEndpoints, useCreateMerchantWebhookEndpoint, useDeleteMerchantWebhookEndpoint,
-  useGetMerchantFxQuote, useGetMerchantFees,
+  useGetMerchantFxQuote, useGetMerchantFees, useListMerchantWalletFxRates,
 } from '@workspace/api-client-react';
 import { Async, Btn, Card, CopyBtn, CURRENCIES, Confirm, Err, Field, Gate, Heading, Modal, Note, Pill, fmtDate, money, useInvalidateAll } from '@/components/kit';
 import { useMerchantActionCapability } from '@/hooks/use-merchant-action-controls';
@@ -124,8 +124,13 @@ curl "${origin}/api/v1/transactions?page=1&perPage=20" \\
 export function ExchangePage() { return <Gate need="merchant"><ExchangeInner /></Gate>; }
 function ExchangeInner() {
   const [form, setForm] = useState({ amount: '', from: 'USD', to: 'KES' });
+  const [ratesBase, setRatesBase] = useState('USD');
   const [params, setParams] = useState<{ amount: number; from: string; to: string } | null>(null);
   const q = useGetMerchantFxQuote(params ?? { amount: 1, from: 'USD', to: 'KES' }, { query: { enabled: !!params, retry: false, queryKey: ['/api/merchant/fx-quote', params] } });
+  const rates = useListMerchantWalletFxRates(
+    { base: ratesBase },
+    { query: { queryKey: ['merchant-wallet-fx-rates', ratesBase], refetchOnMount: 'always', staleTime: 30_000 } },
+  );
   const fees = useGetMerchantFees();
   const f = fees.data?.schedule;
   const quote = params ? q.data : undefined;
@@ -149,5 +154,27 @@ function ExchangeInner() {
         {!quote && !q.isError && <div className="empty-state"><strong>No quote yet</strong><span>Enter an amount and pair to calculate.</span></div>}
       </div>
     </div>
+    <Card title="All live reference rates" subtitle={`One ${ratesBase} equals the listed amount of target currency. Rates are reference data, not a promise of external FX settlement.`} action={<Btn variant="secondary" onClick={() => { void rates.refetch(); }} disabled={rates.isFetching}>Refresh rates</Btn>}>
+      <div className="form-grid">
+        <Field label="Base currency">
+          <select value={ratesBase} onChange={(event) => setRatesBase(event.target.value)} data-testid="select-fx-rates-base">
+            {CURRENCIES.filter((currency) => currency !== 'SLL').map((currency) => <option key={currency}>{currency}</option>)}
+          </select>
+        </Field>
+        <div className="notice"><CheckCircle2 size={16} /><div>Source and publication date are shown for each rate. SLL is omitted because its legacy amount scale has not been verified.</div></div>
+      </div>
+      <Async q={rates} empty={!rates.data?.items.length} emptyTitle="No current rates" emptyBody="Current market reference rates could not be loaded. Retry when a rate provider is available.">
+        <div className="table-wrap"><table className="dt">
+          <thead><tr><th>Pair</th><th className="num">Rate</th><th>Source</th><th>Published</th><th>Fetched</th></tr></thead>
+          <tbody>{(rates.data?.items ?? []).map((item) => <tr key={item.currency}>
+            <td><strong>1 {ratesBase} = {item.currency}</strong></td>
+            <td className="num mono">{item.rate}</td>
+            <td>{item.source}</td>
+            <td>{item.sourceDate}</td>
+            <td>{fmtDate(item.fetchedAt)}</td>
+          </tr>)}</tbody>
+        </table></div>
+      </Async>
+    </Card>
   </>;
 }

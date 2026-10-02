@@ -149,18 +149,22 @@ function WalletInner() {
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState<unknown>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [submittingConversion, setSubmittingConversion] = useState(false);
   const idempotencyKey = useRef(requestKey());
   const walletItems = wallets.data?.items ?? [];
   const accounts = useMemo(() => includeSupportedWallets(walletItems), [walletItems]);
-  const from = fromCurrency || accounts[0]?.currency || '';
-  const to = toCurrency || accounts.find((account) => account.currency !== from)?.currency || '';
+  const conversionAccounts = useMemo(() => accounts.filter((account) => account.currency !== 'SLL'), [accounts]);
+  const from = fromCurrency || conversionAccounts[0]?.currency || '';
+  const to = toCurrency || conversionAccounts.find((account) => account.currency !== from)?.currency || '';
   const amountNumber = Number(amount);
   const quoteEnabled = amountNumber > 0 && Number.isFinite(amountNumber) && from.length === 3 && to.length === 3 && from !== to;
   const quote = useGetMerchantWalletFxQuote({
     amount: quoteEnabled ? amountNumber : 0,
     from,
     to,
-  }, { query: { queryKey: ['merchant-wallet-fx-quote', from, to, amountNumber], enabled: quoteEnabled, staleTime: 0, refetchOnWindowFocus: true } });
+    idempotencyKey: idempotencyKey.current,
+  }, { query: { queryKey: ['merchant-wallet-fx-quote', from, to, amountNumber, idempotencyKey.current], enabled: quoteEnabled, staleTime: 0, refetchOnWindowFocus: true } });
   const accountByCurrency = useMemo(() => new Map(accounts.map((account) => [account.currency, account])), [accounts]);
   const canConvert = capabilities.can('walletConversion');
 
@@ -168,17 +172,35 @@ function WalletInner() {
     event.preventDefault();
     setError(null);
     setMessage('');
+    if (!quote.data || quote.isFetching || !quoteEnabled) return;
+    setConfirmOpen(true);
+  }
+
+  async function confirmConversion() {
+    if (!quote.data || quote.isFetching || !quoteEnabled) return;
     try {
+      setSubmittingConversion(true);
+      setError(null);
       const result = await convertMerchantWalletFunds(
-        { amount: amountNumber, fromCurrency: from, toCurrency: to },
+        {
+          amount: amountNumber,
+          fromCurrency: from,
+          toCurrency: to,
+          quoteId: quote.data.quoteId,
+        },
         { headers: { 'Idempotency-Key': idempotencyKey.current } },
       );
       idempotencyKey.current = requestKey();
-      setMessage(`Internal allocation posted: ${money(result.sourceAmount, result.fromCurrency)} to ${money(result.targetAmount, result.toCurrency)}.`);
+      setConfirmOpen(false);
+      setMessage(`Internal allocation posted: ${money(result.sourceAmount, result.fromCurrency)} to ${money(result.targetAmount, result.toCurrency)}. System margin ${money(result.systemMarginAmount, result.toCurrency)}; fee ${money(result.feeAmount, result.toCurrency)}.`);
       setAmount('');
       await invalidate();
     } catch (failure) {
       setError(failure);
+      setConfirmOpen(false);
+      void quote.refetch();
+    } finally {
+      setSubmittingConversion(false);
     }
   }
 
@@ -198,21 +220,21 @@ function WalletInner() {
       <Card title="Convert wallet funds" subtitle="Fresh public market rate, platform markup, target-currency spread and fee schedule. Conversion is an internal allocation—not external bank FX.">
         <form className="form-stack" onSubmit={submitConversion}>
           <div className="form-grid">
-            <Field label="From wallet"><select value={from} onChange={(event) => { setFromCurrency(event.target.value); setToCurrency(''); }} required data-testid="select-wallet-from">{accounts.map((account) => <option key={account.currency}>{account.currency}</option>)}</select></Field>
-            <Field label="To wallet"><select value={to} onChange={(event) => setToCurrency(event.target.value)} required data-testid="select-wallet-to">{accounts.filter((account) => account.currency !== from).map((account) => <option key={account.currency}>{account.currency}</option>)}</select></Field>
+            <Field label="From wallet"><select value={from} onChange={(event) => { setFromCurrency(event.target.value); setToCurrency(''); }} required data-testid="select-wallet-from">{conversionAccounts.map((account) => <option key={account.currency}>{account.currency}</option>)}</select></Field>
+            <Field label="To wallet"><select value={to} onChange={(event) => setToCurrency(event.target.value)} required data-testid="select-wallet-to">{conversionAccounts.filter((account) => account.currency !== from).map((account) => <option key={account.currency}>{account.currency}</option>)}</select></Field>
           </div>
           <Field label={`Amount (${from || 'source currency'})`} hint={accountByCurrency.has(from) ? `Available: ${money(accountByCurrency.get(from)?.availableBalance, from)}` : 'No funded source wallet is available.'}>
             <input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required data-testid="input-wallet-conversion-amount" />
           </Field>
           <Async q={quote} empty={!quoteEnabled} emptyTitle="Enter a source amount" emptyBody="A current market rate will be requested after both wallets and an amount are selected.">
-            {quote.data && <div className="route-hint"><ArrowLeftRight size={15} /><span>{money(quote.data.sourceAmount, quote.data.fromCurrency)} at {quote.data.effectiveRate} → <strong>{money(quote.data.targetAmount, quote.data.toCurrency)}</strong>. Fee {money(quote.data.feeAmount, quote.data.toCurrency)}; schedule markup {quote.data.scheduleMarkupBps} bps + {quote.data.currencySpreadBps} bps {quote.data.toCurrency} spread. Rate from {quote.data.source}, dated {quote.data.quotedAt.toLocaleString()}.</span></div>}
+            {quote.data && <div className="route-hint"><ArrowLeftRight size={15} /><span>{money(quote.data.sourceAmount, quote.data.fromCurrency)} at effective rate {quote.data.effectiveRate} → <strong>{money(quote.data.targetAmount, quote.data.toCurrency)}</strong>. Reference value {money(quote.data.marketTargetAmount, quote.data.toCurrency)}; system margin {money(quote.data.systemMarginAmount, quote.data.toCurrency)}; fee {money(quote.data.feeAmount, quote.data.toCurrency)}. Rate from {quote.data.source}, published {quote.data.sourceDate}.</span></div>}
           </Async>
           {quote.isError && <Note tone="danger">{(quote.error as Error)?.message || 'A fresh market quote is unavailable; conversion is disabled.'}</Note>}
           {message && <Note>{message}</Note>}
           <Err error={error} />
           {capabilities.isError && <Err error={capabilities.error} />}
           {!canConvert && <Note tone="warn">{capabilities.disabledReason('walletConversion')}</Note>}
-          <Btn type="submit" disabled={!canConvert || !quote.data || !quoteEnabled || quote.isFetching || !accountByCurrency.has(from)} testId="button-convert-wallet"><ArrowLeftRight size={15} />Convert internally</Btn>
+          <Btn type="submit" disabled={!canConvert || !quote.data || !quoteEnabled || quote.isFetching || !accountByCurrency.has(from)} testId="button-convert-wallet"><ArrowLeftRight size={15} />Review conversion</Btn>
         </form>
       </Card>
       <Card title="Balance policy" subtitle="Funding and payout safeguards">
@@ -223,6 +245,30 @@ function WalletInner() {
         </div>
       </Card>
     </div>
+
+    {confirmOpen && quote.data && <Modal title="Confirm wallet conversion" onClose={() => setConfirmOpen(false)}>
+      <div className="form-stack" data-testid="dialog-wallet-conversion-confirm">
+        <Note tone="warn">This moves funds between your Greenpay wallets. The quote is valid until {fmtDate(quote.data.expiresAt)}. If the rate or fee changes, confirmation will be rejected so you can review a fresh quote.</Note>
+        <div className="kv">
+          <div><span>From</span><strong>{money(quote.data.sourceAmount, quote.data.fromCurrency)}</strong></div>
+          <div><span>Reference market rate</span><strong>1 {quote.data.fromCurrency} = {quote.data.sourceRate} {quote.data.toCurrency}</strong></div>
+          <div><span>Market value before margin</span><strong>{money(quote.data.marketTargetAmount, quote.data.toCurrency)}</strong></div>
+          <div><span>System profit margin ({quote.data.currencySpreadBps} bps)</span><strong>− {money(quote.data.systemMarginAmount, quote.data.toCurrency)}</strong></div>
+          <div><span>Merchant schedule markup ({quote.data.scheduleMarkupBps} bps)</span><strong>− {money(quote.data.scheduleMarkupAmount, quote.data.toCurrency)}</strong></div>
+          <div><span>Conversion fee</span><strong>− {money(quote.data.feeAmount, quote.data.toCurrency)}</strong></div>
+          <div><span>Rate after markup</span><strong>1 {quote.data.fromCurrency} = {quote.data.effectiveRate} {quote.data.toCurrency}</strong></div>
+          <div><span>Credited to {quote.data.toCurrency} wallet</span><strong>{money(quote.data.targetAmount, quote.data.toCurrency)}</strong></div>
+          <div><span>Rate source and publication date</span><strong>{quote.data.source} · {quote.data.sourceDate}</strong></div>
+        </div>
+        <Note>On confirmation, both wallet balances and balanced ledger entries update together. This signed quote is tied to the amount and request key shown.</Note>
+        <div className="row-actions">
+          <Btn variant="secondary" onClick={() => setConfirmOpen(false)} disabled={submittingConversion}>Cancel</Btn>
+          <Btn onClick={() => void confirmConversion()} disabled={!canConvert || quote.isFetching || submittingConversion} testId="button-confirm-wallet-conversion">
+            {submittingConversion && <LoaderCircle size={14} className="spin" />}Confirm conversion
+          </Btn>
+        </div>
+      </div>
+    </Modal>}
 
     <Card title="Wallet journal" subtitle="Posted entries only; held or forecast amounts are not available funds." className="currency-panel">
       <Async q={ledger} empty={!ledger.data?.items.length} emptyTitle="No posted wallet activity" emptyBody="Confirmed settlements, internal conversions and payout decisions will be listed here.">

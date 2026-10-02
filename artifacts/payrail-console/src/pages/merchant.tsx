@@ -10,6 +10,7 @@ import {
 import { Async, Btn, Card, COUNTRIES, CURRENCIES, Confirm, CopyBtn, Err, Field, Gate, Heading, Modal, Note, Pager, Pill, currencyAmountStep, currencyMinorUnits, fmtDate, money, nice, useAccess, useInvalidateAll } from '@/components/kit';
 import { usePlatformBranding } from '@/components/platform-brand';
 import { CloudinaryImageUpload } from '@/components/cloudinary-image-upload';
+import { LinkCollectedTotals } from '@/components/link-collected-totals';
 
 export function MerchantDashboardPage() { return <Gate need="merchant"><MerchantDashboardInner /></Gate>; }
 
@@ -253,20 +254,6 @@ function KycInner() {
 }
 
 export function MerchantLinksPage() { return <Gate need="merchant"><LinksInner /></Gate>; }
-type MerchantLinkCurrencyTotal = { currency: string; amount: number };
-type MerchantLinkTotalsSource = {
-  currency: string;
-  totalPaid: number;
-  totalPaidByCurrency?: MerchantLinkCurrencyTotal[] | null;
-};
-function LinkCollectedTotals({ link }: { link: MerchantLinkTotalsSource }) {
-  const totals = Array.isArray(link.totalPaidByCurrency)
-    ? link.totalPaidByCurrency
-    : [{ currency: link.currency, amount: link.totalPaid }];
-  return totals.length
-    ? <>{totals.map((total) => <span key={total.currency} style={{ display: 'block' }}>{money(total.amount, total.currency)}</span>)}</>
-    : <>—</>;
-}
 
 function LinksInner() {
   const q = useListMerchantPaymentLinks();
@@ -283,8 +270,8 @@ function LinksInner() {
        <div className="table-wrap"><table className="dt"><thead><tr><th>Name</th><th>Amount</th><th>Status</th><th className="num">Payments</th><th className="num">Collected by currency</th><th>Expires</th><th>Share link</th><th /></tr></thead><tbody>
         {items.map((l) => <tr key={l.id} data-testid={`row-link-${l.id}`}>
            <td><strong>{l.name}</strong><span className="sub">{l.description || `Created ${fmtDate(l.createdAt)}`}</span></td>
-          <td>{l.amountType === 'fixed' ? money(l.amount, l.currency) : `Customer enters (${l.currency})`}</td>
-          <td><Pill value={l.status} /></td><td className="num">{l.paidCount}</td><td className="num"><LinkCollectedTotals link={l} /></td>
+           <td>{l.amountType === 'fixed' ? money(l.amount, l.currency) : `Customer enters (${l.currency})`}</td>
+           <td><Pill value={l.status} /></td><td className="num">{l.paidCount}</td><td className="num"><LinkCollectedTotals currency={l.currency} totalPaid={l.totalPaid} totalPaidByCurrency={l.totalPaidByCurrency} /></td>
            <td>{l.expiresAt ? fmtDate(l.expiresAt) : 'No expiry'}</td>
            <td><div className="copy-line"><code className="mono" style={{ fontSize: 11 }}>{l.url}</code><CopyBtn text={l.url} /></div></td>
           <td><div className="row-actions">

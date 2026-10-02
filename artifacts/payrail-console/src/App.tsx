@@ -22,6 +22,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { formatFinancialAmount as currency } from '@/lib/money-format';
+import { LinkCollectedTotals } from '@/components/link-collected-totals';
 import HomePage from '@/pages/home';
 import { useAccess, Gate, Async, errMsg, CURRENCIES, currencyAmountStep, currencyMinorUnits } from '@/components/kit';
 import { PlatformBrand, PlatformBrandingProvider, usePlatformBranding } from '@/components/platform-brand';
@@ -502,25 +503,6 @@ function DetailRow({ label: title, value }: { label: string; value: string }) {
   return <div className="detail-row"><span>{title}</span><strong>{value}</strong></div>;
 }
 
-type PaymentLinkCurrencyTotal = { currency: string; amount: number };
-type PaymentLinkTotalsSource = {
-  currency: string;
-  totalPaid: number;
-  totalPaidByCurrency?: PaymentLinkCurrencyTotal[] | null;
-};
-
-function LinkCollectedTotals({ link, format }: {
-  link: PaymentLinkTotalsSource;
-  format: (amount: number, currencyCode: string) => string;
-}) {
-  const totals = Array.isArray(link.totalPaidByCurrency)
-    ? link.totalPaidByCurrency
-    : [{ currency: link.currency, amount: link.totalPaid }];
-  return totals.length
-    ? <>{totals.map((total) => <span key={total.currency} style={{ display: 'block' }}>{format(total.amount, total.currency)}</span>)}</>
-    : <>—</>;
-}
-
 function PaymentLinks() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused'>('all');
@@ -560,7 +542,7 @@ function PaymentLinks() {
           <div className="link-card-top"><span className="link-card-icon"><Link2 size={17} /></span><StatusPill value={item.status} /></div>
           <div className="link-card-copy"><h2>{item.name}</h2><p>{item.description || 'No description added'}</p></div>
           <div className="link-price">{item.amountType === 'fixed' ? currency(item.amount, item.currency) : 'Customer chooses'}<small>{item.amountType === 'fixed' ? `Fixed in ${item.currency}` : `Payer selects currency · ${item.currency} default`}</small></div>
-          <div className="link-performance"><div><strong>{item.paidCount}</strong><span>payments</span></div><div><strong><LinkCollectedTotals link={item} format={currency} /></strong><span>collected</span></div><div><strong>{item.expiresAt ? dateOnly(item.expiresAt) : 'Never'}</strong><span>expires</span></div></div>
+          <div className="link-performance"><div><strong>{item.paidCount}</strong><span>payments</span></div><div><strong><LinkCollectedTotals currency={item.currency} totalPaid={item.totalPaid} totalPaidByCurrency={item.totalPaidByCurrency} /></strong><span>collected</span></div><div><strong>{item.expiresAt ? dateOnly(item.expiresAt) : 'Never'}</strong><span>expires</span></div></div>
           <div className="link-url"><span className="mono" title={item.url}>{item.url}</span><button className="icon-button" title="Copy payment link" aria-label="Copy payment link" onClick={() => { void share(item.url); }} data-testid={`button-copy-link-${item.id}`}><Copy size={15} /></button></div>
           <div className="link-card-actions"><Button variant="secondary" onClick={() => { void share(item.url); }}><Copy size={14} /> Share</Button><Button variant="quiet" onClick={() => setEditing(item)}><SlidersHorizontal size={14} /> Edit</Button>{item.status === 'active' ? <Button variant="quiet" disabled={update.isPending} onClick={() => update.mutate({ id: item.id, data: { status: 'paused' } }, { onSuccess: () => { setNotice('Payment link paused.'); void query.refetch(); }, onError: () => setNotice('Could not pause this payment link.') })}>Pause</Button> : item.status === 'paused' ? <Button variant="quiet" disabled={update.isPending} onClick={() => update.mutate({ id: item.id, data: { status: 'active' } }, { onSuccess: () => { setNotice('Payment link resumed.'); void query.refetch(); }, onError: () => setNotice('Could not resume this payment link.') })}>Resume</Button> : null}<Button variant="quiet" className="archive-action" disabled={remove.isPending} onClick={() => { if (window.confirm(`Archive “${item.name}”? Existing payment records will remain available.`)) remove.mutate({ id: item.id }, { onSuccess: () => { setNotice('Payment link archived.'); void query.refetch(); }, onError: () => setNotice('Could not archive this payment link.') }); }}>Archive</Button></div>
         </article>)}</div>

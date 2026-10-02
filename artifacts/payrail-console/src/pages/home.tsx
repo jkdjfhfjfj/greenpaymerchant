@@ -25,9 +25,9 @@ function Reveal({ children, className = '', delay = 0 }: { children: ReactNode; 
 const features = [
   { icon: Link2, title: 'Payment links', text: 'Create a link, share it anywhere, and let customers pay on a clean hosted page. No storefront needed.', id: 'payment-links' },
   { icon: BadgeCheck, title: 'Confirmed tracking', text: 'A transaction is marked paid only once the payment is confirmed. Until then it stays pending, honestly.', id: 'confirmed-tracking' },
-  { icon: KeyRound, title: 'Scoped developer access', text: 'Issue API credentials limited to the permissions an integration actually needs, and revoke them any time.', id: 'developer-access' },
+  { icon: KeyRound, title: 'Payments API', text: 'Create payment links, start collections, read transaction status, and receive signed webhooks through scoped API access.', id: 'developer-access' },
   { icon: Percent, title: 'Fees you can read', text: 'Fees are shown against each transaction so finance can reconcile what was charged and why.', id: 'fees' },
-  { icon: Send, title: 'Payout history', text: 'Payouts are operated by the platform team on request, with a full history you can review and export to your books.', id: 'payouts' },
+  { icon: Send, title: 'Payout requests', text: 'Request payouts in provider-supported currencies and methods. Availability, minimums, and fees vary; requests go through review.', id: 'payouts' },
   { icon: Banknote, title: 'Wallet conversion', text: 'Review the live reference rate, system margin and fee before moving funded balances between supported wallets.', id: 'wallet-conversion' },
 ];
 
@@ -98,7 +98,7 @@ export default function HomePage() {
   }));
   useEffect(() => {
     const title = `${branding.platformName} | Payment collection and business finance records`;
-    const description = `${branding.platformName} helps businesses collect payments with links and review confirmed transactions, settlement evidence, invoices, refunds and payout records.`;
+    const description = `${branding.platformName} helps businesses collect payments across African markets with hosted links and a developer API, then review confirmed transactions, fees and payout records.`;
     const publicBase = import.meta.env.VITE_PUBLIC_SITE_URL?.trim() || 'https://empty-project.replit.app';
     const canonicalUrl = new URL('/', `${publicBase.replace(/\/$/, '')}/`).toString();
     document.title = title;
@@ -133,6 +133,7 @@ export default function HomePage() {
       <nav className="hp-nav-links" aria-label="Primary">
         <a href="#products" data-testid="link-nav-products">Products</a>
         <a href="#coverage-pricing" data-testid="link-nav-coverage">Markets & pricing</a>
+        <a href="/api-docs" data-testid="link-nav-api-docs">API docs</a>
         <a href="#how" data-testid="link-nav-how">How it works</a>
           <a href="#records" data-testid="link-nav-records">For finance</a>
           <a href="/learn" data-testid="link-nav-help">Help & FAQs</a>
@@ -150,12 +151,12 @@ export default function HomePage() {
     <main>
       <section className="hp-hero">
         <div className="hp-hero-copy">
-          <span className="hp-eyebrow"><i />Payments for ambitious businesses</span>
-          <h1>Get paid.<br /><em>Keep the receipts.</em></h1>
-          <p>{branding.platformName} helps merchants collect payments with simple links, and gives finance teams one clear record of what was paid, what it cost, and what was sent out.</p>
+          <span className="hp-eyebrow"><i />African markets. International USD. Developer API.</span>
+          <h1>Collect across Africa.<br /><em>Build for global business.</em></h1>
+          <p>{branding.platformName}'s currency catalog spans 25 African country markets plus an international USD route. Create payment links or integrate through our API; live collection availability varies by currency and merchant verification.</p>
           <div className="hp-actions">
             <a href="/sign-up" className="hp-btn hp-btn-gold hp-btn-lg" data-testid="link-sign-up-hero">Create your account <ArrowRight size={17} /></a>
-            <a href="/sign-in" className="hp-btn hp-btn-ghost hp-btn-lg" data-testid="link-sign-in-hero">Sign in</a>
+            <a href="/api-docs" className="hp-btn hp-btn-ghost hp-btn-lg" data-testid="link-api-docs-hero">Explore API docs <ArrowUpRight size={17} /></a>
           </div>
         </div>
 
@@ -176,13 +177,42 @@ export default function HomePage() {
       </section>
 
       <section className="hp-strip" aria-label="Principles">
-        <span>Pending until confirmed</span><span>Scoped API access</span><span>Fees on every record</span><span>Payout history</span>
+        <span>Pending until confirmed</span><span>Developer API</span><span>Fees on every record</span><span>Reviewed payout requests</span>
       </section>
 
       <section className="hp-section" id="products">
         <Reveal><span className="hp-eyebrow dark"><i />What you get</span><h2>The essentials of getting paid, done carefully.</h2></Reveal>
         <div className="hp-grid">
           {features.map((f, i) => { const Icon = f.icon; return <Reveal key={f.id} delay={i * 60} className={`hp-feature ${i === 0 ? 'hp-feature-big' : ''}`}><div data-testid={`card-feature-${f.id}`}><span className="hp-ico"><Icon size={20} /></span><h3>{f.title}</h3><p>{f.text}</p></div></Reveal>; })}
+        </div>
+      </section>
+
+      <section className="hp-section hp-api-section" id="api">
+        <div className="hp-api-layout">
+          <Reveal>
+            <span className="hp-eyebrow dark"><i />For developers</span>
+            <h2>Integrate payments into your product.</h2>
+            <p className="hp-section-intro">Use merchant-scoped keys to create payment links and collections, read transaction records, and verify signed webhook events. The API reference is public; API access requires an account.</p>
+            <div className="hp-actions">
+              <a href="/api-docs" className="hp-btn hp-btn-gold" data-testid="link-api-docs-section">Read public API docs <ArrowRight size={16} /></a>
+              <a href="/sign-up" className="hp-link" data-testid="link-api-access-section">Get API access <ArrowUpRight size={16} /></a>
+            </div>
+          </Reveal>
+          <Reveal delay={100}>
+            <div className="hp-api-sample" aria-label="Example payment link API request">
+              <span>PAYMENT LINK REQUEST</span>
+              <pre>{`POST /api/v1/payment-links
+Authorization: Bearer $GREENPAY_API_KEY
+Content-Type: application/json
+
+{
+  "name": "Invoice 1042",
+  "amountType": "fixed",
+  "amount": 10,
+  "currency": "USD"
+}`}</pre>
+            </div>
+          </Reveal>
         </div>
       </section>
 
@@ -270,7 +300,7 @@ export default function HomePage() {
 
     <footer className="hp-footer">
       <Mark /><span>Payments for businesses, backed by clear records.</span>
-      <div><a href="/learn" data-testid="link-footer-help">Help & FAQs</a><a href="/guides">Guides</a><a href="/articles">Articles</a><a href="/sign-in" data-testid="link-footer-sign-in">Sign in</a><a href="/sign-up" data-testid="link-footer-sign-up">Sign up</a><a href="/contact" data-testid="link-footer-support">Contact</a><a href="/platform-status" data-testid="link-footer-platform-status">Platform status</a><a href={import.meta.env.BASE_URL} aria-label={`Powered by ${branding.platformName} — visit homepage`}>Powered by {branding.platformName}</a></div>
+      <div><a href="/api-docs" data-testid="link-footer-api-docs">API docs</a><a href="/learn" data-testid="link-footer-help">Help & FAQs</a><a href="/guides">Guides</a><a href="/articles">Articles</a><a href="/sign-in" data-testid="link-footer-sign-in">Sign in</a><a href="/sign-up" data-testid="link-footer-sign-up">Sign up</a><a href="/contact" data-testid="link-footer-support">Contact</a><a href="/platform-status" data-testid="link-footer-platform-status">Platform status</a><a href={import.meta.env.BASE_URL} aria-label={`Powered by ${branding.platformName} — visit homepage`}>Powered by {branding.platformName}</a></div>
     </footer>
   </div>;
 }

@@ -33,7 +33,7 @@ import { ProfilePage } from '@/pages/profile';
 import { NotificationsPage } from '@/pages/notifications';
 import { PlatformStatusPage } from '@/pages/platform-status';
 import { VerificationLimitsPage } from '@/pages/verification-limits';
-import { DeveloperDocsPage } from '@/pages/developer-docs';
+import { DeveloperDocsPage, PublicApiDocsPage } from '@/pages/developer-docs';
 import { WalletPage, PayoutRequestsPage, AdminWalletsPage, AdminPayoutRequestsPage } from '@/pages/wallets';
 import { InvoicePage, InvoiceDetailPage, StatementsPage, CasesPage, AdminCasesPage, PublicReceiptPage } from '@/pages/business-tools';
 import { MerchantTeamPage, AcceptTeamInvitePage } from '@/pages/team';
@@ -895,6 +895,7 @@ const protectedRoutes: [string, () => ReactNode][] = [
 protectedRoutes.push(['/operations', () => <Gate need="admin"><Dashboard /></Gate>]);
 const protectedRouteElements = protectedRoutes.map(([path, C]) => <Route key={path} path={path} component={wrap(() => path.startsWith('/admin') ? <Gate need="admin"><C /></Gate> : <C />)} />);
 const publicContentRoutes = [
+  <Route key="api-docs" path="/api-docs" component={PublicApiDocsPage} />,
   <Route key="learn" path="/learn" component={PublicHelpPage} />,
   <Route key="learn-detail" path="/learn/:slug" component={() => <PublicContentPage kind="faq" />} />,
   <Route key="guides" path="/guides" component={() => <PublicContentIndexPage kind="guide" />} />,

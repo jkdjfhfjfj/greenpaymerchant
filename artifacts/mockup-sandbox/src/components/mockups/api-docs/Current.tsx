@@ -1,13 +1,101 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowLeft, LoaderCircle, Play, ShieldCheck } from 'lucide-react';
-import {
-  COLLECTION_CURRENCIES,
-  hasCollectionAmountPrecision,
-} from '@workspace/api-zod';
-import { useListSupportedCurrencies } from '@workspace/api-client-react';
-import { Async, Btn, Card, CURRENCIES, Err, Field, Gate, Heading, Note } from '@/components/kit';
-import { PlatformBrand, usePlatformBranding } from '@/components/platform-brand';
-import '@/public-api-docs.css';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { ArrowLeft, CircleAlert, CheckCircle2, LoaderCircle, Play, ShieldCheck } from 'lucide-react';
+import './_group.css';
+
+type CollectionCurrency = { code: string; name: string; minorUnits: number };
+type SupportedCurrency = CollectionCurrency & {
+  comingSoon: boolean;
+  collectionReady: boolean;
+  paymentMethods: { id: string; ready: boolean; requiresPhone: boolean }[];
+};
+
+const COLLECTION_CURRENCIES: CollectionCurrency[] = [
+  { code: 'USD', name: 'US Dollar', minorUnits: 2 },
+  { code: 'KES', name: 'Kenyan Shilling', minorUnits: 0 },
+  { code: 'NGN', name: 'Nigerian Naira', minorUnits: 2 },
+  { code: 'GHS', name: 'Ghanaian Cedi', minorUnits: 2 },
+  { code: 'TZS', name: 'Tanzanian Shilling', minorUnits: 2 },
+  { code: 'XOF', name: 'West African CFA Franc', minorUnits: 0 },
+  { code: 'RWF', name: 'Rwandan Franc', minorUnits: 0 },
+  { code: 'UGX', name: 'Ugandan Shilling', minorUnits: 0 },
+  { code: 'ZMW', name: 'Zambian Kwacha', minorUnits: 2 },
+  { code: 'MWK', name: 'Malawian Kwacha', minorUnits: 2 },
+  { code: 'SLL', name: 'Sierra Leonean Leone', minorUnits: 2 },
+  { code: 'CDF', name: 'Congolese Franc', minorUnits: 2 },
+  { code: 'MZN', name: 'Mozambican Metical', minorUnits: 2 },
+  { code: 'XAF', name: 'Central African CFA Franc', minorUnits: 0 },
+];
+
+// The live currency catalog is an API dependency. Keep its real supported-code
+// shape, but use a static, non-authoritative readiness snapshot in this mockup.
+const SUPPORTED_CURRENCIES: SupportedCurrency[] = COLLECTION_CURRENCIES.map((currency) => ({
+  ...currency,
+  comingSoon: currency.code === 'NGN',
+  collectionReady: false,
+  paymentMethods: [{
+    id: currency.code === 'KES' ? 'mobile_prompt' : 'hosted_checkout',
+    ready: false,
+    requiresPhone: currency.code === 'KES',
+  }],
+}));
+
+const CURRENCIES = COLLECTION_CURRENCIES.map(({ code }) => code);
+const branding = { platformName: 'Greenpay' };
+
+function usePlatformBranding() {
+  return branding;
+}
+
+function useListSupportedCurrencies() {
+  return { data: { items: SUPPORTED_CURRENCIES } };
+}
+
+function hasCollectionAmountPrecision(amount: number, currency: string) {
+  const minorUnits = COLLECTION_CURRENCIES.find((item) => item.code === currency)?.minorUnits ?? 2;
+  const scaled = amount * 10 ** minorUnits;
+  return Number.isFinite(amount) && amount > 0 && Math.abs(scaled - Math.round(scaled)) < 1e-8;
+}
+
+function PlatformBrand({ variant }: { variant: 'home' | 'console' }) {
+  return <span className={variant === 'home' ? 'hp-brand' : 'brand'}>
+    <span className={variant === 'home' ? 'hp-mark' : 'brand-mark'} aria-hidden="true">
+      {variant === 'home' ? <><i /><i /><i /></> : <><span /><span /><span /></>}
+    </span>
+    <span className={variant === 'home' ? 'hp-word' : 'brand-name'}>{branding.platformName}</span>
+  </span>;
+}
+
+function Heading({ eyebrow, title, subtitle, action }: { eyebrow?: string; title: string; subtitle?: string; action?: ReactNode }) {
+  return <div className="page-heading"><div>{eyebrow && <div className="eyebrow">{eyebrow}</div>}<h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>{action && <div>{action}</div>}</div>;
+}
+
+function Card({ title, subtitle, children }: { title?: string; subtitle?: string; children: ReactNode }) {
+  return <section className="panel">{(title) && <div className="panel-head"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div></div>}{children}</section>;
+}
+
+function Note({ children, tone = 'ok' }: { children: ReactNode; tone?: 'ok' | 'warn' | 'danger' }) {
+  return <div className={`notice ${tone === 'warn' ? 'warn' : tone === 'danger' ? 'notice-danger' : ''}`} role={tone === 'danger' ? 'alert' : 'status'}>
+    {tone === 'ok' ? <CheckCircle2 size={16} /> : <CircleAlert size={16} />}<div>{children}</div>
+  </div>;
+}
+
+function Async({ q, empty, emptyTitle, emptyBody, children }: { q: unknown; empty?: boolean; emptyTitle?: string; emptyBody?: string; children: ReactNode }) {
+  void q;
+  if (empty) return <div className="empty-state"><strong>{emptyTitle}</strong><span>{emptyBody}</span></div>;
+  return <>{children}</>;
+}
+
+function Btn({ children, type = 'button', disabled, variant = 'primary', onClick, testId }: { children: ReactNode; type?: 'button' | 'submit'; disabled?: boolean; variant?: string; onClick?: () => void; testId?: string }) {
+  return <button className={`btn btn-${variant}`} type={type} disabled={disabled} onClick={onClick} data-testid={testId}>{children}</button>;
+}
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return <label className="field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;
+}
+
+function Err({ error }: { error: unknown }) {
+  return error ? <div className="form-error">{String(error)}</div> : null;
+}
 
 type ReadEndpoint = 'merchant' | 'payment-links' | 'transactions' | 'transaction' | 'public-status' | 'public-fx-rates' | 'fees' | 'fx-quote';
 type CallResult = { kind: 'read' | 'payment'; status: number; body: string } | null;
@@ -38,11 +126,7 @@ function makeReadPath(endpoint: ReadEndpoint, reference: string, page: string, p
   }
 }
 
-export function DeveloperDocsPage() {
-  return <Gate need="merchant"><DeveloperDocsContent /></Gate>;
-}
-
-export function PublicApiDocsPage() {
+export function Current() {
   const branding = usePlatformBranding();
   useEffect(() => {
     const title = `${branding.platformName} API documentation`;
@@ -195,61 +279,22 @@ function DeveloperDocsContent({ publicView = false }: { publicView?: boolean }) 
     }
   }
 
-  return <div className={`api-docs-page ${publicView ? 'is-public public-api-docs-content' : 'is-private'}`}>
-    <a className="api-docs-skip-link" href="#api-docs-content">Skip to API reference</a>
-    <div className="api-docs-page-heading">
-      <Heading
-        eyebrow={publicView ? 'PUBLIC DEVELOPER DOCUMENTATION' : 'DEVELOPER REFERENCE'}
-        title={publicView ? 'Greenpay API documentation' : 'API docs & safe playground'}
-        subtitle={publicView
-          ? 'Build from your backend. Start with read-only checks, verify route readiness, then confirm payments with signed events.'
-          : "Greenpay's merchant API reference, currency catalog, and same-origin request console."}
-        action={publicView
-          ? <a className="btn btn-secondary" href="/sign-up">Get API access</a>
-          : <a className="btn btn-secondary" href="/developers"><ArrowLeft size={14} />API access</a>}
-      />
-      <div className="api-docs-facts" aria-label="API basics">
-        <span><b>Base path</b><code>/api</code></span>
-        <span><b>Merchant auth</b><code>Bearer key</code></span>
-        <span><b>Collection readiness</b><code>Deployment-specific</code></span>
-      </div>
-    </div>
+  return <div className={`form-stack${publicView ? ' public-api-docs-content' : ''}`}>
+    <Heading
+      eyebrow={publicView ? 'PUBLIC DEVELOPER DOCUMENTATION' : 'DEVELOPER REFERENCE'}
+      title={publicView ? 'Greenpay API documentation' : 'API docs & safe playground'}
+      subtitle={publicView
+        ? 'Integration guide, supported currency catalog, payment flows, webhooks, and payout availability.'
+        : "Greenpay's merchant API reference, currency catalog, and same-origin request console."}
+      action={publicView
+        ? <a className="btn btn-secondary" href="/sign-up">Get API access</a>
+        : <a className="btn btn-secondary" href="/developers"><ArrowLeft size={14} />API access</a>}
+    />
 
-    <div className="api-docs-alert">
-      {publicView
-        ? <Note tone="warn">This reference is public. API keys are created after sign-in; keep them in trusted server-side secret storage and never publish them in browser or mobile code.</Note>
-        : <Note tone="warn">The playground keeps a bearer key in component memory only. It is not written to local storage, query caches, browser URLs, or logs. Clear the field or leave this page to discard it. Only fixed same-origin Greenpay paths are available.</Note>}
-    </div>
+    {publicView
+      ? <Note tone="warn">This reference is public. API keys are created after sign-in; keep them in trusted server-side secret storage and never publish them in browser or mobile code.</Note>
+      : <Note tone="warn">The playground keeps a bearer key in component memory only. It is not written to local storage, query caches, browser URLs, or logs. Clear the field or leave this page to discard it. Only fixed same-origin Greenpay paths are available.</Note>}
 
-    <div className="api-docs-layout">
-      <nav className="api-docs-toc" aria-label="API documentation sections">
-        <div className="api-docs-toc-title">ON THIS PAGE</div>
-        <div className="api-docs-toc-group">
-          <span>START</span>
-          <a href="#api-authentication"><i>01</i>Base URL &amp; auth</a>
-          <a href="#api-scopes"><i>02</i>Scopes &amp; endpoints</a>
-          <a href="#api-request-behavior"><i>03</i>Requests &amp; responses</a>
-        </div>
-        <div className="api-docs-toc-group">
-          <span>PAYMENTS</span>
-          <a href="#api-payment-flow"><i>04</i>Collection flow</a>
-          <a href="#supported-collection-currencies"><i>05</i>Currency readiness</a>
-        </div>
-        <div className="api-docs-toc-group">
-          <span>OPERATIONS &amp; EVENTS</span>
-          <a href="#api-payouts"><i>06</i>Payouts</a>
-          <a href="#api-webhooks"><i>07</i>Signed webhooks</a>
-          <a href="#api-examples"><i>08</i>Code examples</a>
-        </div>
-        {!publicView && <div className="api-docs-toc-group">
-          <span>PLAYGROUND</span>
-          <a href="#api-read-playground"><i>09</i>Read-only requests</a>
-          <a href="#api-payment-playground"><i>10</i>Payment request</a>
-        </div>}
-      </nav>
-
-      <div className="api-docs-article" id="api-docs-content" tabIndex={-1}>
-      <section id="api-authentication" className="api-docs-section">
     <Card title="Base URL and authentication" subtitle="All merchant API requests use this deployment's API host.">
       <div className="form-stack">
         <pre className="code">{`Base URL: ${window.location.origin}${API_ORIGIN}
@@ -260,9 +305,7 @@ Environment: this Greenpay deployment; there is no separate Greenpay sandbox hos
         <p>Active API keys can be copied again from API access after an explicit request. Keys created before encrypted key storage cannot be recovered; create and verify a replacement before revoking an older key. Store keys in a trusted server-side secret manager and never ship a secret key in browser or mobile application code.{!publicView && ' The playground key input is temporary and exists to make direct merchant-scoped read requests possible.'}</p>
       </div>
     </Card>
-      </section>
 
-      <section id="api-scopes" className="api-docs-section">
     <Card title="Scopes and available endpoints" subtitle="Keys have least-privilege scopes; all records are restricted to the key's merchant.">
       <div className="table-wrap"><table className="dt"><thead><tr><th>Scope</th><th>Allowed requests</th></tr></thead><tbody>
         <tr><td><code>read</code></td><td><code>GET /v1/merchant</code>, <code>/v1/payment-links</code>, <code>/v1/transactions</code>, <code>/v1/transactions/:reference</code>, <code>/v1/fx-quote</code>, <code>/v1/fees</code></td></tr>
@@ -272,9 +315,7 @@ Environment: this Greenpay deployment; there is no separate Greenpay sandbox hos
       </tbody></table></div>
       <p>Keys are bound to one merchant. The API rejects requests when the key is missing, revoked, lacks the required scope, or the merchant/API feature is inactive. Verification checks do not declare a payment successful unless provider-confirmed reference, amount, and currency evidence matches. The public status endpoint returns only reference, status, amount, currency, timestamps, and the merchant's public shop identity; it does not expose customer contact or internal provider data.</p>
     </Card>
-      </section>
 
-      <section id="api-request-behavior" className="api-docs-section">
     <Card title="Request and response behavior">
       <ul>
         <li>Errors are JSON, generally <code>{'{ "error": "..." }'}</code>. <code>400</code> means invalid input; <code>401</code> missing/invalid key; <code>403</code> inactive access or missing scope; <code>404</code> merchant-owned record not found; <code>409</code> idempotency conflict/in-flight request; <code>429</code> request limit; <code>502</code> upstream confirmation/initiation problem; <code>503</code> disabled or unconfigured service.</li>
@@ -285,9 +326,7 @@ Environment: this Greenpay deployment; there is no separate Greenpay sandbox hos
         <li><code>POST /v1/payment-links</code> creates a shareable link but does not itself charge a customer. The response includes its shareable public <code>url</code>.</li>
       </ul>
     </Card>
-      </section>
 
-      <section id="api-payment-flow" className="api-docs-section">
     <Card title="Integrate payments on your website" subtitle="Create payments on your server, then confirm them before fulfilling an order.">
       <div className="form-stack">
         <ol style={{ margin: 0, paddingLeft: 22, display: 'grid', gap: 10 }}>
@@ -317,9 +356,8 @@ curl "${window.location.origin}${API_ORIGIN}/public/transactions/TRANSACTION_REF
         <p>Use <code>GET /public/transactions/:reference</code> to display customer-safe status, or <code>GET /v1/transactions/:reference</code> with the <code>read</code> scope for merchant details. Greenpay has no separate public sandbox hostname: a payment-creation request can start a real collection. Use the read-only checks above for connectivity, and only run end-to-end payment tests after confirming the currency route is configured for test mode.</p>
       </div>
     </Card>
-      </section>
 
-      <section id="supported-collection-currencies" className="api-docs-section currency-section-anchor">
+    <div id="supported-collection-currencies" className="currency-section-anchor">
     <Card title="Supported collection currencies" subtitle="Use these provider-neutral method IDs as paymentMethod; availability is deployment-specific and provider routes are not exposed.">
       <Async q={currencies} empty={!currencies.data?.items.length} emptyTitle="Currency readiness is unavailable" emptyBody="The catalog request returned no supported collection currencies. Retry the page before selecting a currency.">
         <div className="currency-table-wrap table-wrap">
@@ -368,9 +406,8 @@ curl "${window.location.origin}${API_ORIGIN}/public/transactions/TRANSACTION_REF
       <p>Payzaapi's published minima are KES 1, NGN 100, GHS 1, TZS 500, XOF 100, and USD 0.50; its reference says network-set minimums apply to RWF, UGX, ZMW, MWK, SLL, CDF, MZN, and XAF. These are Payzaapi-published values, not a promise that a particular Greenpay route is enabled or uses identical commercial limits.</p>
       <p><a href="https://payzaapi.co.ke/docs#currencies" target="_blank" rel="noreferrer">Payzaapi official currencies and methods reference</a></p>
     </Card>
-      </section>
+    </div>
 
-      <section id="api-payouts" className="api-docs-section">
     <Card title="Payout requests and currency availability" subtitle="Payouts are not a promise of arbitrary-currency or cryptocurrency support.">
       <div className="form-stack">
         <p>Payout requests are handled in the signed-in merchant workspace, not with a developer API bearer key. Currency must be one of Greenpay's supported three-letter currency codes, and the payout provider must return that currency as available. Provider methods, minimum withdrawals, and fees can vary by currency and deployment.</p>
@@ -386,9 +423,7 @@ Content-Type: application/json
         <p>The current currency catalog contains fiat currency codes only. No cryptocurrency asset or blockchain payout network is represented in the current payout flow, so Greenpay cannot claim payouts in every currency or crypto at this time.</p>
       </div>
     </Card>
-      </section>
 
-      <section id="api-webhooks" className="api-docs-section">
     <Card title="Signed webhooks" subtitle="Use webhooks for payment state changes; treat deliveries as at-least-once.">
       <div className="form-stack">
         <p>Configure a destination from <a href={publicView ? '/sign-in' : '/developers'}>API access</a>. Greenpay sends <code>payment.success</code>, <code>payment.failed</code>, or <code>payment.refunded</code> with <code>X-Greenpay-Event</code>, a unique <code>X-Greenpay-Delivery</code>, and <code>X-Greenpay-Signature: sha256=&lt;hex HMAC-SHA256&gt;</code>. The signature is computed over the exact raw UTF-8 JSON body using the webhook signing secret shown once when the destination is created.</p>
@@ -414,9 +449,7 @@ app.post('/webhooks/greenpay', express.raw({ type: 'application/json' }), (req, 
         <p>Current event shape: <code>{'{ id, type, createdAt, data: { reference, amount, currency, status, paymentLinkId } }'}</code>.</p>
       </div>
     </Card>
-      </section>
 
-      <section id="api-examples" className="api-docs-section">
     <Card title="Examples" subtitle="Run these examples from a trusted website backend or server terminal—not from browser JavaScript.">
       <div className="form-stack">
         <Note tone="warn">For a website integration, keep <code>GREENPAY_API_KEY</code> in your server-side secret manager. The browser should call your own backend, which attaches the key when it calls Greenpay. Never put the key in browser JavaScript, HTML, a public build-time environment variable, or a mobile app.{!publicView && ' The built-in playground is a temporary, explicit same-origin tool—not a production integration pattern.'}</Note>
@@ -451,10 +484,8 @@ curl "${window.location.origin}/api/v1/fx-quote?amount=100&from=USD&to=KES" \\
         <Note tone="warn">Do not use a live payment request as a connectivity test. A request can initiate a real collection when live upstream credentials are active. The API does not offer a distinct public sandbox hostname.</Note>
       </div>
     </Card>
-      </section>
 
     {!publicView && <>
-      <section id="api-read-playground" className="api-docs-section">
     <Card title="Read-only API playground" subtitle="Calls only this Greenpay deployment. The available GET endpoints are fixed; no custom URL, host, or path is accepted.">
       <form className="form-stack" onSubmit={runRead}>
         <Field label="Merchant API key" hint={endpoint === 'public-status' || endpoint === 'public-fx-rates' ? 'Optional for this public endpoint; otherwise held in memory only.' : 'Held in memory for this page only; it is never stored or logged.'}><input type="password" autoComplete="off" spellCheck={false} value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="Paste a scoped merchant API key" data-testid="input-playground-api-key" /></Field>
@@ -476,9 +507,7 @@ curl "${window.location.origin}/api/v1/fx-quote?amount=100&from=USD&to=KES" \\
       </form>
       {result?.kind === 'read' && <div className="form-stack"><h3>HTTP {result.status}</h3><pre className="code" aria-live="polite">{result.body}</pre></div>}
     </Card>
-      </section>
 
-      <section id="api-payment-playground" className="api-docs-section">
     <Card title="Payment request playground — disabled by default" subtitle="Only POST /v1/transactions is offered. Sending it can start a collection; there is no automatic retry.">
       <form className="form-stack" onSubmit={runPayment}>
         <label className="chip"><input type="checkbox" checked={mutationEnabled} onChange={(event) => { setMutationEnabled(event.target.checked); setConfirmPhrase(''); }} />I understand this can initiate a real payment</label>
@@ -495,9 +524,6 @@ curl "${window.location.origin}/api/v1/fx-quote?amount=100&from=USD&to=KES" \\
       </form>
       {result?.kind === 'payment' && <div className="form-stack"><h3>HTTP {result.status}</h3><pre className="code" aria-live="polite">{result.body}</pre></div>}
     </Card>
-      </section>
     </>}
-      </div>
-    </div>
   </div>;
 }

@@ -14,6 +14,8 @@ import merchantBusinessToolsRouter from "./merchant-business-tools";
 import { merchantWalletRouter, adminWalletRouter } from "./wallets";
 import adminEmailDeliveryRouter from "./admin-email-delivery";
 import { contentApiRouter } from "./public-content";
+import legalPoliciesRouter, { requireCurrentLegalAcceptance } from "./legal-policies";
+import { requireSignedIn } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
 
@@ -21,13 +23,17 @@ router.use(healthRouter);
 router.use(publicPaymentsRouter);
 router.use(publicBrandingRouter);
 router.use(contentApiRouter);
+router.use(legalPoliciesRouter);
 router.use(platformStatusRouter);
 router.use(supportRouter);
+router.use("/merchant", requireSignedIn, requireCurrentLegalAcceptance);
+router.use("/me/workspace", requireSignedIn, requireCurrentLegalAcceptance);
 router.use(merchantTeamRouter);
 router.use(merchantBusinessToolsRouter);
 router.use(merchantWalletRouter);
 router.use(merchantPlatformRouter);
 router.use(requireAdmin);
+router.use("/admin", requireCurrentLegalAcceptance);
 router.use(adminEmailDeliveryRouter);
 router.use(adminWalletRouter);
 router.use(adminPaymentsRouter);

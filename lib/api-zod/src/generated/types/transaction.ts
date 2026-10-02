@@ -30,6 +30,8 @@ export interface Transaction {
   /** @nullable */
   description?: string | null;
   /** @nullable */
+  failureReason: string | null;
+  /** @nullable */
   providerReference?: string | null;
   /** @nullable */
   paymentUrl?: string | null;

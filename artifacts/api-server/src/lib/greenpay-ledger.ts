@@ -1,4 +1,4 @@
-import { and, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
+import { and, eq, gte, ilike, inArray, isNotNull, lte, or, sql } from "drizzle-orm";
 import {
   db,
   paymentLinksTable,
@@ -60,6 +60,7 @@ export function transactionDto(row: TransactionRecord) {
     customerName: row.customerName,
     customerPhone: row.customerPhone,
     description: row.description,
+    failureReason: row.failureReason,
     providerReference: row.providerReference,
     paymentUrl: row.paymentUrl,
     paymentLinkId: row.paymentLinkId,
@@ -158,7 +159,7 @@ export function webhookEventDto(row: WebhookEventRecord) {
 
 export async function markTransactionStatus(
   reference: string,
-  result: { status: PaymentStatus; fee?: number | null; netAmount?: number | null; paidAt?: Date | null },
+  result: { status: PaymentStatus; fee?: number | null; netAmount?: number | null; paidAt?: Date | null; reason?: string | null },
 ): Promise<TransactionRecord | undefined> {
   const outcome = await db.transaction(async (tx) => {
     const [current] = await tx.select().from(transactionsTable)
@@ -184,6 +185,13 @@ export async function markTransactionStatus(
         settlementStatus: "pending",
       }).where(and(eq(transactionsTable.id, current.id), eq(transactionsTable.status, "pending"))).returning();
       if (!updated) return { transaction: current, event: undefined };
+      if (current.paymentLinkId !== null) {
+        await tx.update(paymentLinksTable).set({ status: "archived" }).where(and(
+          eq(paymentLinksTable.id, current.paymentLinkId),
+          eq(paymentLinksTable.status, "active"),
+          isNotNull(paymentLinksTable.recoveryForTransactionId),
+        ));
+      }
       if (current.merchantId !== null) {
         await tx.update(verificationUsageReservationsTable).set({
           status: "committed", updatedAt: new Date(),
@@ -207,6 +215,7 @@ export async function markTransactionStatus(
       [updated] = await tx.update(transactionsTable).set({
         status: result.status,
         settlementStatus: "not_applicable",
+        failureReason: (result.reason ?? "").replace(/\s+/g, " ").trim().slice(0, 500) || null,
       }).where(and(eq(transactionsTable.id, current.id), eq(transactionsTable.status, "pending"))).returning();
       if (!updated) return { transaction: current, event: undefined };
       if (current.merchantId !== null) {

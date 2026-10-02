@@ -57,6 +57,8 @@ export type TransactionalPurpose =
   | "payment_failure"
   | "payout_update"
   | "invoice_reminder"
+  | "payment_link_reminder"
+  | "payment_failure_recovery"
   | "support_reply"
   | "support_receipt"
   | "team_invitation"

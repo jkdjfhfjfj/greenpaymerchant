@@ -90,6 +90,15 @@ import type {
   KycSessionResponse,
   KycStatus,
   LegacySupportEmailOutboxReviewInput,
+  LegalConsentInput,
+  LegalConsentResult,
+  LegalConsentState,
+  LegalPolicyAdmin,
+  LegalPolicyAdminList,
+  LegalPolicyDraftInput,
+  LegalPolicyList,
+  LegalPolicyType,
+  LegalPolicyVersionList,
   ListAdminAuditLogParams,
   ListAdminContentParams,
   ListAdminEmailDeliveryOutboxParams,
@@ -129,7 +138,11 @@ import type {
   PaymentLinkCheckoutInput,
   PaymentLinkInput,
   PaymentLinkList,
+  PaymentLinkReminder,
+  PaymentLinkReminderInput,
+  PaymentLinkReminderList,
   PaymentLinkUpdate,
+  PaymentRecoveryResult,
   Payout,
   PayoutDestinationChangeRejectInput,
   PayoutDestinationChangeRequest,
@@ -8204,6 +8217,80 @@ export function useListMerchantTransactions<TData = Awaited<ReturnType<typeof li
 
 
 
+export const getCreateMerchantTransactionRecoveryLinkUrl = (reference: string,) => {
+
+
+
+
+  return `/api/merchant/transactions/${reference}/recovery-link`
+}
+
+/**
+ * @summary Create or reuse a safe payment link for a confirmed failed merchant transaction
+ */
+export const createMerchantTransactionRecoveryLink = async (reference: string, options?: Parameters<typeof customFetch>[1]): Promise<PaymentRecoveryResult> => {
+
+  return customFetch<PaymentRecoveryResult>(getCreateMerchantTransactionRecoveryLinkUrl(reference),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateMerchantTransactionRecoveryLinkMutationKey = () => ['createMerchantTransactionRecoveryLink'] as const;
+
+export const getCreateMerchantTransactionRecoveryLinkMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMerchantTransactionRecoveryLink>>, TError,CreateMerchantTransactionRecoveryLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMerchantTransactionRecoveryLink>>, TError,CreateMerchantTransactionRecoveryLinkMutationVariables, TContext> => {
+
+const mutationKey = getCreateMerchantTransactionRecoveryLinkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMerchantTransactionRecoveryLink>>, CreateMerchantTransactionRecoveryLinkMutationVariables> = (props) => {
+          const {reference} = props ?? {};
+
+          return  createMerchantTransactionRecoveryLink(reference,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMerchantTransactionRecoveryLinkMutationResult = NonNullable<Awaited<ReturnType<typeof createMerchantTransactionRecoveryLink>>>
+
+    export type CreateMerchantTransactionRecoveryLinkMutationError = ErrorType<void>
+    export type CreateMerchantTransactionRecoveryLinkMutationVariables = {reference: string}
+
+    /**
+ * @summary Create or reuse a safe payment link for a confirmed failed merchant transaction
+ */
+export const useCreateMerchantTransactionRecoveryLink = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMerchantTransactionRecoveryLink>>, TError,CreateMerchantTransactionRecoveryLinkMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMerchantTransactionRecoveryLink>>,
+        TError,
+        CreateMerchantTransactionRecoveryLinkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateMerchantTransactionRecoveryLinkMutationOptions(options));
+    }
+
 export const getListMerchantPayoutsUrl = () => {
 
 
@@ -8607,6 +8694,172 @@ export const useDeleteMerchantPaymentLink = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteMerchantPaymentLinkMutationOptions(options));
+    }
+
+export const getListMerchantPaymentLinkRemindersUrl = (id: number,) => {
+
+
+
+
+  return `/api/merchant/payment-links/${id}/reminders`
+}
+
+/**
+ * @summary List reminder delivery records for an owned payment link
+ */
+export const listMerchantPaymentLinkReminders = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<PaymentLinkReminderList> => {
+
+  return customFetch<PaymentLinkReminderList>(getListMerchantPaymentLinkRemindersUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMerchantPaymentLinkRemindersQueryKey = (id: number,) => {
+    return [
+    `/api/merchant/payment-links/${id}/reminders`
+    ] as const;
+    }
+
+
+export const getListMerchantPaymentLinkRemindersQueryOptions = <TData = Awaited<ReturnType<typeof listMerchantPaymentLinkReminders>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMerchantPaymentLinkReminders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMerchantPaymentLinkRemindersQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMerchantPaymentLinkReminders>>> = ({ signal }) => listMerchantPaymentLinkReminders(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMerchantPaymentLinkReminders>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMerchantPaymentLinkRemindersQueryResult = NonNullable<Awaited<ReturnType<typeof listMerchantPaymentLinkReminders>>>
+export type ListMerchantPaymentLinkRemindersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List reminder delivery records for an owned payment link
+ */
+
+export function useListMerchantPaymentLinkReminders<TData = Awaited<ReturnType<typeof listMerchantPaymentLinkReminders>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMerchantPaymentLinkReminders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMerchantPaymentLinkRemindersQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateMerchantPaymentLinkReminderUrl = (id: number,) => {
+
+
+
+
+  return `/api/merchant/payment-links/${id}/reminders`
+}
+
+/**
+ * @summary Send or schedule a reminder for an active unpaid payment link
+ */
+export const createMerchantPaymentLinkReminder = async (id: number,
+    paymentLinkReminderInput: PaymentLinkReminderInput, options?: Parameters<typeof customFetch>[1]): Promise<PaymentLinkReminder> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<PaymentLinkReminder>(getCreateMerchantPaymentLinkReminderUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(paymentLinkReminderInput)
+  }
+);}
+
+
+
+
+
+export const getCreateMerchantPaymentLinkReminderMutationKey = () => ['createMerchantPaymentLinkReminder'] as const;
+
+export const getCreateMerchantPaymentLinkReminderMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMerchantPaymentLinkReminder>>, TError,CreateMerchantPaymentLinkReminderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMerchantPaymentLinkReminder>>, TError,CreateMerchantPaymentLinkReminderMutationVariables, TContext> => {
+
+const mutationKey = getCreateMerchantPaymentLinkReminderMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMerchantPaymentLinkReminder>>, CreateMerchantPaymentLinkReminderMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createMerchantPaymentLinkReminder(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMerchantPaymentLinkReminderMutationResult = NonNullable<Awaited<ReturnType<typeof createMerchantPaymentLinkReminder>>>
+    export type CreateMerchantPaymentLinkReminderMutationBody = BodyType<PaymentLinkReminderInput>
+    export type CreateMerchantPaymentLinkReminderMutationError = ErrorType<void>
+    export type CreateMerchantPaymentLinkReminderMutationVariables = {id: number;data: BodyType<PaymentLinkReminderInput>}
+
+    /**
+ * @summary Send or schedule a reminder for an active unpaid payment link
+ */
+export const useCreateMerchantPaymentLinkReminder = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMerchantPaymentLinkReminder>>, TError,CreateMerchantPaymentLinkReminderMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMerchantPaymentLinkReminder>>,
+        TError,
+        CreateMerchantPaymentLinkReminderMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateMerchantPaymentLinkReminderMutationOptions(options));
     }
 
 export const getListMerchantTeamUrl = () => {
@@ -13580,6 +13833,565 @@ export function useListAdminAuditLog<TData = Awaited<ReturnType<typeof listAdmin
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListAdminAuditLogQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCurrentLegalPoliciesUrl = () => {
+
+
+
+
+  return `/api/public/legal-policies`
+}
+
+/**
+ * @summary Get the current published Privacy Policy and Terms of Service
+ */
+export const getCurrentLegalPolicies = async ( options?: Parameters<typeof customFetch>[1]): Promise<LegalPolicyList> => {
+
+  return customFetch<LegalPolicyList>(getGetCurrentLegalPoliciesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCurrentLegalPoliciesQueryKey = () => {
+    return [
+    `/api/public/legal-policies`
+    ] as const;
+    }
+
+
+export const getGetCurrentLegalPoliciesQueryOptions = <TData = Awaited<ReturnType<typeof getCurrentLegalPolicies>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCurrentLegalPolicies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCurrentLegalPoliciesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCurrentLegalPolicies>>> = ({ signal }) => getCurrentLegalPolicies({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCurrentLegalPolicies>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCurrentLegalPoliciesQueryResult = NonNullable<Awaited<ReturnType<typeof getCurrentLegalPolicies>>>
+export type GetCurrentLegalPoliciesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the current published Privacy Policy and Terms of Service
+ */
+
+export function useGetCurrentLegalPolicies<TData = Awaited<ReturnType<typeof getCurrentLegalPolicies>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCurrentLegalPolicies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCurrentLegalPoliciesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMerchantLegalConsentUrl = () => {
+
+
+
+
+  return `/api/merchant/legal-consent`
+}
+
+/**
+ * @summary Check current published policy versions and the signed-in user's acceptance
+ */
+export const getMerchantLegalConsent = async ( options?: Parameters<typeof customFetch>[1]): Promise<LegalConsentState> => {
+
+  return customFetch<LegalConsentState>(getGetMerchantLegalConsentUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMerchantLegalConsentQueryKey = () => {
+    return [
+    `/api/merchant/legal-consent`
+    ] as const;
+    }
+
+
+export const getGetMerchantLegalConsentQueryOptions = <TData = Awaited<ReturnType<typeof getMerchantLegalConsent>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMerchantLegalConsent>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMerchantLegalConsentQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMerchantLegalConsent>>> = ({ signal }) => getMerchantLegalConsent({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMerchantLegalConsent>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMerchantLegalConsentQueryResult = NonNullable<Awaited<ReturnType<typeof getMerchantLegalConsent>>>
+export type GetMerchantLegalConsentQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Check current published policy versions and the signed-in user's acceptance
+ */
+
+export function useGetMerchantLegalConsent<TData = Awaited<ReturnType<typeof getMerchantLegalConsent>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMerchantLegalConsent>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMerchantLegalConsentQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAcceptMerchantLegalPoliciesUrl = () => {
+
+
+
+
+  return `/api/merchant/legal-consent`
+}
+
+/**
+ * @summary Record acceptance of the current Privacy Policy and Terms versions
+ */
+export const acceptMerchantLegalPolicies = async (legalConsentInput: LegalConsentInput, options?: Parameters<typeof customFetch>[1]): Promise<LegalConsentResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<LegalConsentResult>(getAcceptMerchantLegalPoliciesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(legalConsentInput)
+  }
+);}
+
+
+
+
+
+export const getAcceptMerchantLegalPoliciesMutationKey = () => ['acceptMerchantLegalPolicies'] as const;
+
+export const getAcceptMerchantLegalPoliciesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptMerchantLegalPolicies>>, TError,AcceptMerchantLegalPoliciesMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptMerchantLegalPolicies>>, TError,AcceptMerchantLegalPoliciesMutationVariables, TContext> => {
+
+const mutationKey = getAcceptMerchantLegalPoliciesMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptMerchantLegalPolicies>>, AcceptMerchantLegalPoliciesMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  acceptMerchantLegalPolicies(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcceptMerchantLegalPoliciesMutationResult = NonNullable<Awaited<ReturnType<typeof acceptMerchantLegalPolicies>>>
+    export type AcceptMerchantLegalPoliciesMutationBody = BodyType<LegalConsentInput>
+    export type AcceptMerchantLegalPoliciesMutationError = ErrorType<void>
+    export type AcceptMerchantLegalPoliciesMutationVariables = {data: BodyType<LegalConsentInput>}
+
+    /**
+ * @summary Record acceptance of the current Privacy Policy and Terms versions
+ */
+export const useAcceptMerchantLegalPolicies = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptMerchantLegalPolicies>>, TError,AcceptMerchantLegalPoliciesMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acceptMerchantLegalPolicies>>,
+        TError,
+        AcceptMerchantLegalPoliciesMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAcceptMerchantLegalPoliciesMutationOptions(options));
+    }
+
+export const getListAdminLegalPoliciesUrl = () => {
+
+
+
+
+  return `/api/admin/legal-policies`
+}
+
+/**
+ * @summary List policy drafts, published versions, and publication status
+ */
+export const listAdminLegalPolicies = async ( options?: Parameters<typeof customFetch>[1]): Promise<LegalPolicyAdminList> => {
+
+  return customFetch<LegalPolicyAdminList>(getListAdminLegalPoliciesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminLegalPoliciesQueryKey = () => {
+    return [
+    `/api/admin/legal-policies`
+    ] as const;
+    }
+
+
+export const getListAdminLegalPoliciesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminLegalPolicies>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminLegalPolicies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminLegalPoliciesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminLegalPolicies>>> = ({ signal }) => listAdminLegalPolicies({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminLegalPolicies>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminLegalPoliciesQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminLegalPolicies>>>
+export type ListAdminLegalPoliciesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List policy drafts, published versions, and publication status
+ */
+
+export function useListAdminLegalPolicies<TData = Awaited<ReturnType<typeof listAdminLegalPolicies>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminLegalPolicies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminLegalPoliciesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveAdminLegalPolicyDraftUrl = (type: LegalPolicyType,) => {
+
+
+
+
+  return `/api/admin/legal-policies/${type}/draft`
+}
+
+/**
+ * @summary Save a policy draft without changing the live published version
+ */
+export const saveAdminLegalPolicyDraft = async (type: LegalPolicyType,
+    legalPolicyDraftInput: LegalPolicyDraftInput, options?: Parameters<typeof customFetch>[1]): Promise<LegalPolicyAdmin> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<LegalPolicyAdmin>(getSaveAdminLegalPolicyDraftUrl(type),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(legalPolicyDraftInput)
+  }
+);}
+
+
+
+
+
+export const getSaveAdminLegalPolicyDraftMutationKey = () => ['saveAdminLegalPolicyDraft'] as const;
+
+export const getSaveAdminLegalPolicyDraftMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveAdminLegalPolicyDraft>>, TError,SaveAdminLegalPolicyDraftMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveAdminLegalPolicyDraft>>, TError,SaveAdminLegalPolicyDraftMutationVariables, TContext> => {
+
+const mutationKey = getSaveAdminLegalPolicyDraftMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveAdminLegalPolicyDraft>>, SaveAdminLegalPolicyDraftMutationVariables> = (props) => {
+          const {type,data} = props ?? {};
+
+          return  saveAdminLegalPolicyDraft(type,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveAdminLegalPolicyDraftMutationResult = NonNullable<Awaited<ReturnType<typeof saveAdminLegalPolicyDraft>>>
+    export type SaveAdminLegalPolicyDraftMutationBody = BodyType<LegalPolicyDraftInput>
+    export type SaveAdminLegalPolicyDraftMutationError = ErrorType<unknown>
+    export type SaveAdminLegalPolicyDraftMutationVariables = {type: LegalPolicyType;data: BodyType<LegalPolicyDraftInput>}
+
+    /**
+ * @summary Save a policy draft without changing the live published version
+ */
+export const useSaveAdminLegalPolicyDraft = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveAdminLegalPolicyDraft>>, TError,SaveAdminLegalPolicyDraftMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveAdminLegalPolicyDraft>>,
+        TError,
+        SaveAdminLegalPolicyDraftMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSaveAdminLegalPolicyDraftMutationOptions(options));
+    }
+
+export const getPublishAdminLegalPolicyUrl = (type: LegalPolicyType,) => {
+
+
+
+
+  return `/api/admin/legal-policies/${type}/publish`
+}
+
+/**
+ * @summary Publish the saved draft as a new immutable policy version
+ */
+export const publishAdminLegalPolicy = async (type: LegalPolicyType, options?: Parameters<typeof customFetch>[1]): Promise<LegalPolicyAdmin> => {
+
+  return customFetch<LegalPolicyAdmin>(getPublishAdminLegalPolicyUrl(type),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPublishAdminLegalPolicyMutationKey = () => ['publishAdminLegalPolicy'] as const;
+
+export const getPublishAdminLegalPolicyMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishAdminLegalPolicy>>, TError,PublishAdminLegalPolicyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publishAdminLegalPolicy>>, TError,PublishAdminLegalPolicyMutationVariables, TContext> => {
+
+const mutationKey = getPublishAdminLegalPolicyMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishAdminLegalPolicy>>, PublishAdminLegalPolicyMutationVariables> = (props) => {
+          const {type} = props ?? {};
+
+          return  publishAdminLegalPolicy(type,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublishAdminLegalPolicyMutationResult = NonNullable<Awaited<ReturnType<typeof publishAdminLegalPolicy>>>
+
+    export type PublishAdminLegalPolicyMutationError = ErrorType<void>
+    export type PublishAdminLegalPolicyMutationVariables = {type: LegalPolicyType}
+
+    /**
+ * @summary Publish the saved draft as a new immutable policy version
+ */
+export const usePublishAdminLegalPolicy = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishAdminLegalPolicy>>, TError,PublishAdminLegalPolicyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof publishAdminLegalPolicy>>,
+        TError,
+        PublishAdminLegalPolicyMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPublishAdminLegalPolicyMutationOptions(options));
+    }
+
+export const getListAdminLegalPolicyVersionsUrl = (type: LegalPolicyType,) => {
+
+
+
+
+  return `/api/admin/legal-policies/${type}/versions`
+}
+
+/**
+ * @summary List immutable published policy versions
+ */
+export const listAdminLegalPolicyVersions = async (type: LegalPolicyType, options?: Parameters<typeof customFetch>[1]): Promise<LegalPolicyVersionList> => {
+
+  return customFetch<LegalPolicyVersionList>(getListAdminLegalPolicyVersionsUrl(type),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminLegalPolicyVersionsQueryKey = (type: LegalPolicyType,) => {
+    return [
+    `/api/admin/legal-policies/${type}/versions`
+    ] as const;
+    }
+
+
+export const getListAdminLegalPolicyVersionsQueryOptions = <TData = Awaited<ReturnType<typeof listAdminLegalPolicyVersions>>, TError = ErrorType<unknown>>(type: LegalPolicyType, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminLegalPolicyVersions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminLegalPolicyVersionsQueryKey(type);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminLegalPolicyVersions>>> = ({ signal }) => listAdminLegalPolicyVersions(type, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: type !== null && type !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminLegalPolicyVersions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminLegalPolicyVersionsQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminLegalPolicyVersions>>>
+export type ListAdminLegalPolicyVersionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List immutable published policy versions
+ */
+
+export function useListAdminLegalPolicyVersions<TData = Awaited<ReturnType<typeof listAdminLegalPolicyVersions>>, TError = ErrorType<unknown>>(
+ type: LegalPolicyType, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminLegalPolicyVersions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminLegalPolicyVersionsQueryOptions(type,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

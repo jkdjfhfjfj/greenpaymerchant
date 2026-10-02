@@ -321,11 +321,14 @@ router.post("/:provider", async (req, res): Promise<void> => {
         const fee = numberValue(provider === "paystack" ? paystackData.fees : payload.fee);
         const dateValue = stringValue(provider === "paystack" ? paystackData.paid_at : payload.paid_at);
         const paidAt = dateValue ? new Date(dateValue) : null;
+        const failureData = provider === "paystack" ? paystackData : payload;
         await markTransactionStatus(reference, {
           status: verifiedStatus,
           fee: fee === undefined ? null : fee / amountDivisor,
           netAmount: fee === undefined ? null : Math.max(0, Number(transaction.amount) - fee / amountDivisor),
           paidAt: paidAt && !Number.isNaN(paidAt.getTime()) ? paidAt : null,
+          reason: stringValue(failureData.gateway_response) ?? stringValue(failureData.status_message) ??
+            stringValue(failureData.message) ?? stringValue(failureData.reason) ?? null,
         });
       }
     }

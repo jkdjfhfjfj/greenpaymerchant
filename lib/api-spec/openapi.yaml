@@ -18,6 +18,7 @@ tags:
   - name: webhooks
   - name: providers
   - name: merchant
+  - name: legal
   - name: developer-api
   - name: admin
   - name: kyc
@@ -1634,6 +1635,23 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TransactionList" }
+  /merchant/transactions/{reference}/recovery-link:
+    post:
+      operationId: createMerchantTransactionRecoveryLink
+      tags: [merchant]
+      summary: Create or reuse a safe payment link for a confirmed failed merchant transaction
+      parameters:
+        - name: reference
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        "201":
+          description: Recovery link and honest email-queue status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentRecoveryResult" }
+        "409": { description: Transaction is not eligible or a recovery payment already succeeded }
   /merchant/payouts:
     get:
       operationId: listMerchantPayouts
@@ -1704,6 +1722,37 @@ paths:
           schema: { type: integer }
       responses:
         "204": { description: Link archived }
+  /merchant/payment-links/{id}/reminders:
+    get:
+      operationId: listMerchantPaymentLinkReminders
+      tags: [merchant]
+      summary: List reminder delivery records for an owned payment link
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200":
+          description: Payment-link reminder history
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentLinkReminderList" }
+    post:
+      operationId: createMerchantPaymentLinkReminder
+      tags: [merchant]
+      summary: Send or schedule a reminder for an active unpaid payment link
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PaymentLinkReminderInput" }
+      responses:
+        "201":
+          description: Persisted reminder request and delivery state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentLinkReminder" }
+        "409": { description: Link is not active or has expired }
   /merchant/team:
     get:
       operationId: listMerchantTeam
@@ -2728,6 +2777,100 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AdminAuditLog" }
+  /public/legal-policies:
+    get:
+      operationId: getCurrentLegalPolicies
+      tags: [legal]
+      summary: Get the current published Privacy Policy and Terms of Service
+      responses:
+        "200":
+          description: Current legal policy documents, including publication readiness
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LegalPolicyList" }
+  /merchant/legal-consent:
+    get:
+      operationId: getMerchantLegalConsent
+      tags: [legal]
+      summary: Check current published policy versions and the signed-in user's acceptance
+      responses:
+        "200":
+          description: Consent gate state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LegalConsentState" }
+    post:
+      operationId: acceptMerchantLegalPolicies
+      tags: [legal]
+      summary: Record acceptance of the current Privacy Policy and Terms versions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LegalConsentInput" }
+      responses:
+        "200":
+          description: Accepted current versions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LegalConsentResult" }
+        "409": { description: Policies changed while acceptance was being submitted }
+  /admin/legal-policies:
+    get:
+      operationId: listAdminLegalPolicies
+      tags: [legal, admin]
+      summary: List policy drafts, published versions, and publication status
+      responses:
+        "200":
+          description: Editable legal policies
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LegalPolicyAdminList" }
+  /admin/legal-policies/{type}/draft:
+    put:
+      operationId: saveAdminLegalPolicyDraft
+      tags: [legal, admin]
+      summary: Save a policy draft without changing the live published version
+      parameters:
+        - { name: type, in: path, required: true, schema: { $ref: "#/components/schemas/LegalPolicyType" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LegalPolicyDraftInput" }
+      responses:
+        "200":
+          description: Saved draft
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LegalPolicyAdmin" }
+  /admin/legal-policies/{type}/publish:
+    post:
+      operationId: publishAdminLegalPolicy
+      tags: [legal, admin]
+      summary: Publish the saved draft as a new immutable policy version
+      parameters:
+        - { name: type, in: path, required: true, schema: { $ref: "#/components/schemas/LegalPolicyType" } }
+      responses:
+        "200":
+          description: Published policy version
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LegalPolicyAdmin" }
+        "409": { description: Draft must contain approved title and copy before publishing }
+  /admin/legal-policies/{type}/versions:
+    get:
+      operationId: listAdminLegalPolicyVersions
+      tags: [legal, admin]
+      summary: List immutable published policy versions
+      parameters:
+        - { name: type, in: path, required: true, schema: { $ref: "#/components/schemas/LegalPolicyType" } }
+      responses:
+        "200":
+          description: Published policy version history
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LegalPolicyVersionList" }
 components:
   securitySchemes:
     bearerAuth:
@@ -2988,7 +3131,7 @@ components:
         count: { type: integer }
     Transaction:
       type: object
-      required: [id, reference, amount, currency, status, provider, customerEmail, createdAt, settlementStatus]
+      required: [id, reference, amount, currency, status, provider, customerEmail, createdAt, settlementStatus, failureReason]
       properties:
         id: { type: integer }
         reference: { type: string }
@@ -3005,6 +3148,7 @@ components:
         customerName: { type: ["string", "null"] }
         customerPhone: { type: ["string", "null"] }
         description: { type: ["string", "null"] }
+        failureReason: { type: ["string", "null"] }
         providerReference: { type: ["string", "null"] }
         paymentUrl: { type: ["string", "null"] }
         paymentLinkId: { type: ["integer", "null"] }
@@ -3042,6 +3186,143 @@ components:
       properties:
         transaction: { $ref: "#/components/schemas/Transaction" }
         checkoutUrl: { type: ["string", "null"], format: uri }
+    PaymentRecoveryResult:
+      type: object
+      required: [paymentUrl, deliveryStatus, message]
+      properties:
+        paymentUrl: { type: string, format: uri }
+        deliveryStatus: { type: string, enum: [queued, sending, sent, uncertain, unconfigured, failed] }
+        message: { type: string }
+    PaymentLinkReminderInput:
+      type: object
+      required: [recipientEmail]
+      properties:
+        recipientEmail: { type: string, format: email, maxLength: 254 }
+        customerName: { type: string, maxLength: 150 }
+        scheduleAt: { type: string, format: date-time }
+    PaymentLinkReminder:
+      type: object
+      required: [id, merchantId, paymentLinkId, recipientEmail, deliveryStatus, message, scheduledAt, createdAt, attemptedAt]
+      properties:
+        id: { type: integer }
+        merchantId: { type: integer }
+        paymentLinkId: { type: integer }
+        recipientEmail: { type: string, format: email }
+        deliveryStatus: { type: string }
+        message: { type: string }
+        scheduledAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        attemptedAt: { type: ["string", "null"], format: date-time }
+    PaymentLinkReminderList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/PaymentLinkReminder" }
+    LegalPolicyType:
+      type: string
+      enum: [privacy_policy, terms_of_service]
+    LegalPolicy:
+      type: object
+      required: [policyType, slug, title, content, version, publishedAt, published]
+      properties:
+        policyType: { $ref: "#/components/schemas/LegalPolicyType" }
+        slug: { type: string }
+        title: { type: ["string", "null"] }
+        content: { type: ["string", "null"] }
+        version: { type: integer, minimum: 0 }
+        publishedAt: { type: ["string", "null"], format: date-time }
+        published: { type: boolean }
+    LegalPolicyList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/LegalPolicy" }
+    LegalConsentPolicy:
+      allOf:
+        - $ref: "#/components/schemas/LegalPolicy"
+        - type: object
+          required: [acceptedVersion]
+          properties:
+            acceptedVersion: { type: ["integer", "null"] }
+    LegalConsentState:
+      type: object
+      required: [ready, accepted, policies]
+      properties:
+        ready: { type: boolean }
+        accepted: { type: boolean }
+        policies:
+          type: array
+          items: { $ref: "#/components/schemas/LegalConsentPolicy" }
+    LegalConsentItem:
+      type: object
+      required: [policyType, version]
+      properties:
+        policyType: { $ref: "#/components/schemas/LegalPolicyType" }
+        version: { type: integer, minimum: 1 }
+    LegalConsentInput:
+      type: object
+      required: [acceptances]
+      properties:
+        acceptances:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items: { $ref: "#/components/schemas/LegalConsentItem" }
+    LegalConsentResult:
+      type: object
+      required: [accepted, acceptedAt]
+      properties:
+        accepted: { type: boolean }
+        acceptedAt: { type: string, format: date-time }
+    LegalPolicyAdmin:
+      type: object
+      required: [policyType, slug, draftTitle, draftContent, publishedTitle, publishedContent, publishedVersion, draftUpdatedAt, publishedAt, updatedBy]
+      properties:
+        policyType: { $ref: "#/components/schemas/LegalPolicyType" }
+        slug: { type: string }
+        draftTitle: { type: string }
+        draftContent: { type: string }
+        publishedTitle: { type: ["string", "null"] }
+        publishedContent: { type: ["string", "null"] }
+        publishedVersion: { type: integer }
+        draftUpdatedAt: { type: string, format: date-time }
+        publishedAt: { type: ["string", "null"], format: date-time }
+        updatedBy: { type: ["string", "null"] }
+    LegalPolicyAdminList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/LegalPolicyAdmin" }
+    LegalPolicyDraftInput:
+      type: object
+      required: [title, content]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        content: { type: string, minLength: 1, maxLength: 50000 }
+    LegalPolicyVersion:
+      type: object
+      required: [id, policyType, version, title, content, publishedBy, publishedAt]
+      properties:
+        id: { type: integer }
+        policyType: { $ref: "#/components/schemas/LegalPolicyType" }
+        version: { type: integer }
+        title: { type: string }
+        content: { type: string }
+        publishedBy: { type: string }
+        publishedAt: { type: string, format: date-time }
+    LegalPolicyVersionList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/LegalPolicyVersion" }
     PublicCheckoutSession:
       type: object
       required: [reference, checkoutUrl, nextAction]

@@ -11,12 +11,16 @@ import {
   GetMerchantStatementParams, GetMerchantStatementResponse, GetPublicReceiptParams,
   GetPublicReceiptResponse, ListAdminCasesResponse, ListInvoiceRemindersParams,
   ListInvoiceRemindersResponse, ListMerchantCasesResponse, ListMerchantInvoicesResponse,
+  CreateMerchantTransactionRecoveryLinkParams, CreateMerchantTransactionRecoveryLinkResponse,
+  CreateMerchantPaymentLinkReminderBody, CreateMerchantPaymentLinkReminderParams,
+  CreateMerchantPaymentLinkReminderResponse, ListMerchantPaymentLinkRemindersParams,
+  ListMerchantPaymentLinkRemindersResponse,
   ReviewAdminCaseBody, ReviewAdminCaseParams, ReviewAdminCaseResponse, SendMerchantInvoiceParams,
   SendMerchantInvoiceResponse, UpdateMerchantInvoiceBody, UpdateMerchantInvoiceParams,
   UpdateMerchantInvoiceResponse, VoidMerchantInvoiceParams, VoidMerchantInvoiceResponse,
 } from "@workspace/api-zod";
 import {
-  db, merchantInvoiceRemindersTable, merchantInvoicesTable, merchantSupportCasesTable,
+  db, merchantInvoiceRemindersTable, merchantInvoicesTable, merchantPaymentLinkRemindersTable, merchantSupportCasesTable,
   merchantCaseAttachmentsTable, merchantCaseRefundsTable, merchantCaseUploadIntentsTable,
   merchantsTable, paymentLinksTable, payoutsTable, refundsTable, transactionsTable,
   transactionalEmailOutboxTable, walletPayoutRequestsTable, walletSettlementConfirmationsTable,
@@ -438,6 +442,281 @@ router.post("/merchant/invoices/:id/reminders", requireSignedIn, async (req, res
     req.log.error({ err: error, invoiceId: invoice.id }, "Invoice reminder could not be queued");
     res.status(503).json({ error: error instanceof Error ? error.message : "Invoice reminder could not be queued." });
   }
+});
+
+router.post("/merchant/transactions/:reference/recovery-link", requireSignedIn, async (req, res): Promise<void> => {
+  const params = CreateMerchantTransactionRecoveryLinkParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const merchant = await resolveMerchantAccess(req, res, "finance");
+  if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  await assertMerchantActionEnabled(merchant.id, "collect");
+  const [initial] = await db.select().from(transactionsTable).where(and(
+    eq(transactionsTable.reference, params.data.reference),
+    eq(transactionsTable.merchantId, merchant.id),
+  )).limit(1);
+  if (!initial) { res.status(404).json({ error: "Transaction not found for this merchant." }); return; }
+  if (initial.status !== "failed" && initial.status !== "cancelled") {
+    res.status(409).json({ error: "Only a confirmed failed or cancelled payment can be retried. Pending or uncertain payments are not eligible." });
+    return;
+  }
+  let shareBase: string;
+  try {
+    shareBase = officialInvoiceEmailBaseUrl() ?? getPublicAppUrl();
+  } catch (error) {
+    const statusCode = Number((error as { statusCode?: unknown })?.statusCode) || 503;
+    res.status(statusCode).json({ error: error instanceof Error ? error.message : "Hosted checkout is unavailable." });
+    return;
+  }
+
+  let link: typeof paymentLinksTable.$inferSelect | undefined;
+  if (initial.paymentLinkId !== null) {
+    const [invoice] = await db.select().from(merchantInvoicesTable).where(and(
+      eq(merchantInvoicesTable.merchantId, merchant.id),
+      eq(merchantInvoicesTable.paymentLinkId, initial.paymentLinkId),
+    )).limit(1);
+    if (invoice) {
+      if (!["sent", "partially_paid"].includes(invoice.status)) {
+        res.status(409).json({ error: "The linked invoice is not unpaid. No retry link was created." });
+        return;
+      }
+      try {
+        const refreshed = await db.transaction((tx) => refreshInvoicePaymentLinkInTransaction(tx, {
+          invoiceId: invoice.id, merchantId: merchant.id,
+        }));
+        if (refreshed.paymentLinkId !== null) {
+          [link] = await db.select().from(paymentLinksTable).where(and(
+            eq(paymentLinksTable.id, refreshed.paymentLinkId),
+            eq(paymentLinksTable.merchantId, merchant.id),
+            eq(paymentLinksTable.status, "active"),
+          )).limit(1);
+        }
+      } catch (error) {
+        const statusCode = Number((error as { statusCode?: unknown })?.statusCode) || 409;
+        res.status(statusCode).json({ error: error instanceof Error ? error.message : "The invoice balance could not be safely refreshed." });
+        return;
+      }
+      if (!link) { res.status(409).json({ error: "The invoice has no active payment link. No retry link was created." }); return; }
+    }
+  }
+
+  if (!link) {
+    try {
+      link = await db.transaction(async (tx) => {
+        const [current] = await tx.select().from(transactionsTable).where(and(
+          eq(transactionsTable.id, initial.id),
+          eq(transactionsTable.merchantId, merchant.id),
+        )).for("update").limit(1);
+        if (!current || (current.status !== "failed" && current.status !== "cancelled")) {
+          throw Object.assign(new Error("Only a confirmed failed or cancelled payment can be retried."), { statusCode: 409 });
+        }
+        const [existing] = await tx.select().from(paymentLinksTable).where(
+          eq(paymentLinksTable.recoveryForTransactionId, current.id),
+        ).for("update").limit(1);
+        if (existing) {
+          const [successfulRecovery] = await tx.select({ id: transactionsTable.id }).from(transactionsTable).where(and(
+            eq(transactionsTable.paymentLinkId, existing.id),
+            inArray(transactionsTable.status, [...PAID_TRANSACTION_STATUSES]),
+          )).limit(1);
+          if (successfulRecovery) {
+            throw Object.assign(new Error("A payment through this recovery link has already succeeded. No additional link was created."), { statusCode: 409 });
+          }
+          if (existing.status === "active" && (!existing.expiresAt || existing.expiresAt.getTime() > Date.now())) {
+            return existing;
+          }
+          const [renewed] = await tx.update(paymentLinksTable).set({
+            slug: randomUUID().replaceAll("-", "").slice(0, 20),
+            status: "active",
+            expiresAt: null,
+          }).where(eq(paymentLinksTable.id, existing.id)).returning();
+          if (!renewed) throw new Error("The recovery link could not be refreshed.");
+          return renewed;
+        }
+        const [created] = await tx.insert(paymentLinksTable).values({
+          slug: randomUUID().replaceAll("-", "").slice(0, 20),
+          name: `Retry payment ${current.reference}`,
+          description: `Retry payment for transaction ${current.reference}`,
+          amountType: "fixed",
+          amount: current.amount,
+          currency: current.currency,
+          status: "active",
+          merchantId: merchant.id,
+          recoveryForTransactionId: current.id,
+        }).returning();
+        if (!created) throw new Error("The recovery link could not be created.");
+        return created;
+      });
+    } catch (error) {
+      const statusCode = Number((error as { statusCode?: unknown })?.statusCode) || 500;
+      res.status(statusCode).json({ error: error instanceof Error ? error.message : "The recovery link could not be created." });
+      return;
+    }
+  }
+
+  const paymentUrl = new URL(`/pay/${encodeURIComponent(link.slug)}`, shareBase).toString();
+  let deliveryStatus: "queued" | "sending" | "sent" | "uncertain" | "unconfigured" | "failed" = "unconfigured";
+  let message = "The retry link is ready to share, but email delivery is not configured. The original payment remains unconfirmed.";
+  if (officialInvoiceEmailBaseUrl() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(initial.customerEmail)) {
+    try {
+      const delivery = await enqueueTransactionalEmail({
+        eventKey: `payment-recovery:${initial.id}:${link.id}`,
+        purpose: "payment_failure_recovery",
+        recipientEmail: initial.customerEmail,
+        template: "payment_failure_recovery",
+        payload: {
+          businessName: merchant.businessName,
+          customerName: initial.customerName,
+          reference: initial.reference,
+          amount: Number(initial.amount),
+          currency: initial.currency,
+          paymentUrl,
+        },
+      });
+      deliveryStatus = delivery.deliveryState;
+      message = deliveryStatus === "queued"
+        ? `Retry link queued for ${initial.customerEmail}. The original payment is still recorded as ${initial.status}; do not treat it as paid.`
+        : deliveryStatus === "sent"
+          ? `The retry link email was already confirmed sent to ${initial.customerEmail}. The original payment remains ${initial.status}.`
+          : deliveryStatus === "sending"
+            ? "Email delivery is in progress. The original payment remains unconfirmed."
+            : deliveryStatus === "uncertain"
+              ? "Email delivery is uncertain. Do not send it again until delivery is reviewed; copy the link if needed."
+              : `Retry link created, but email delivery is ${delivery.deliveryState}. Copy the link to share it.`;
+    } catch (error) {
+      deliveryStatus = "failed";
+      message = `Retry link created, but the email could not be queued${error instanceof Error ? `: ${error.message}` : "."} Copy the link to share it.`;
+    }
+  } else if (!officialInvoiceEmailBaseUrl()) {
+    message = "Retry link created. Email delivery needs the official HTTPS app URL; copy the link to share it.";
+  } else {
+    deliveryStatus = "failed";
+    message = "Retry link created, but the transaction has no valid customer email. Copy the link to share it.";
+  }
+  res.status(201).json(CreateMerchantTransactionRecoveryLinkResponse.parse({ paymentUrl, deliveryStatus, message }));
+});
+
+router.get("/merchant/payment-links/:id/reminders", requireSignedIn, async (req, res): Promise<void> => {
+  const params = ListMerchantPaymentLinkRemindersParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const merchant = await resolveMerchantAccess(req, res, "read");
+  if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  const [link] = await db.select({ id: paymentLinksTable.id }).from(paymentLinksTable).where(and(
+    eq(paymentLinksTable.id, params.data.id),
+    eq(paymentLinksTable.merchantId, merchant.id),
+  )).limit(1);
+  if (!link) { res.status(404).json({ error: "Payment link not found for this merchant." }); return; }
+  const rows = await db.select({
+    id: merchantPaymentLinkRemindersTable.id,
+    merchantId: merchantPaymentLinkRemindersTable.merchantId,
+    paymentLinkId: merchantPaymentLinkRemindersTable.paymentLinkId,
+    recipientEmail: merchantPaymentLinkRemindersTable.recipientEmail,
+    deliveryStatus: sql<string>`coalesce(${transactionalEmailOutboxTable.deliveryState}, ${merchantPaymentLinkRemindersTable.deliveryStatus})`,
+    message: sql<string>`case when ${transactionalEmailOutboxTable.lastError} is not null then ${merchantPaymentLinkRemindersTable.message} || ' Delivery detail: ' || ${transactionalEmailOutboxTable.lastError} else ${merchantPaymentLinkRemindersTable.message} end`,
+    scheduledAt: merchantPaymentLinkRemindersTable.scheduledAt,
+    createdAt: merchantPaymentLinkRemindersTable.createdAt,
+    attemptedAt: sql<Date | null>`case when ${transactionalEmailOutboxTable.deliveryState} = 'queued' then null else coalesce(${transactionalEmailOutboxTable.updatedAt}, ${merchantPaymentLinkRemindersTable.attemptedAt}) end`,
+  }).from(merchantPaymentLinkRemindersTable).leftJoin(transactionalEmailOutboxTable,
+    eq(merchantPaymentLinkRemindersTable.deliveryId, transactionalEmailOutboxTable.id)).where(and(
+    eq(merchantPaymentLinkRemindersTable.paymentLinkId, link.id),
+    eq(merchantPaymentLinkRemindersTable.merchantId, merchant.id),
+  )).orderBy(desc(merchantPaymentLinkRemindersTable.createdAt));
+  res.json(ListMerchantPaymentLinkRemindersResponse.parse({
+    items: rows.map((row) => ({
+      ...row,
+      scheduledAt: row.scheduledAt?.toISOString() ?? null,
+      createdAt: row.createdAt.toISOString(),
+      attemptedAt: row.attemptedAt?.toISOString() ?? null,
+    })),
+  }));
+});
+
+router.post("/merchant/payment-links/:id/reminders", requireSignedIn, async (req, res): Promise<void> => {
+  const params = CreateMerchantPaymentLinkReminderParams.safeParse(req.params);
+  const body = CreateMerchantPaymentLinkReminderBody.safeParse(req.body ?? {});
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+  const merchant = await resolveMerchantAccess(req, res, "finance");
+  if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  await assertMerchantActionEnabled(merchant.id, "reminders");
+  const [link] = await db.select().from(paymentLinksTable).where(and(
+    eq(paymentLinksTable.id, params.data.id),
+    eq(paymentLinksTable.merchantId, merchant.id),
+  )).limit(1);
+  if (!link) { res.status(404).json({ error: "Payment link not found for this merchant." }); return; }
+  if (link.status !== "active" || (link.expiresAt && link.expiresAt.getTime() <= Date.now())) {
+    res.status(409).json({ error: "Only an active, unexpired payment link can be reminded." });
+    return;
+  }
+  const [invoice] = await db.select({ id: merchantInvoicesTable.id }).from(merchantInvoicesTable).where(and(
+    eq(merchantInvoicesTable.merchantId, merchant.id),
+    eq(merchantInvoicesTable.paymentLinkId, link.id),
+  )).limit(1);
+  if (invoice) {
+    res.status(409).json({ error: "This link belongs to an invoice. Use the invoice reminder so the current unpaid balance is sent." });
+    return;
+  }
+  const [paidPayment] = await db.select({ id: transactionsTable.id }).from(transactionsTable).where(and(
+    eq(transactionsTable.merchantId, merchant.id),
+    eq(transactionsTable.paymentLinkId, link.id),
+    inArray(transactionsTable.status, [...PAID_TRANSACTION_STATUSES]),
+  )).limit(1);
+  if (paidPayment) {
+    res.status(409).json({ error: "This link has a confirmed payment and cannot be classified as unpaid." });
+    return;
+  }
+  let scheduledAt: Date | null = null;
+  if (body.data.scheduleAt) {
+    scheduledAt = new Date(body.data.scheduleAt);
+    if (scheduledAt.getTime() <= Date.now() + 60_000 || scheduledAt.getTime() > Date.now() + 30 * 86_400_000) {
+      res.status(400).json({ error: "Schedule reminders at least one minute from now and no more than 30 days ahead." });
+      return;
+    }
+  }
+  const eventKey = `payment-link-reminder:${link.id}:${randomUUID()}`;
+  const officialBase = officialInvoiceEmailBaseUrl();
+  let deliveryId: number | null = null;
+  let deliveryStatus = "unconfigured";
+  let message = "Reminder was recorded but not emailed because the official HTTPS app URL is not configured. Share the payment link directly.";
+  if (officialBase) {
+    try {
+      const delivery = await enqueueTransactionalEmail({
+        eventKey,
+        purpose: "payment_link_reminder",
+        recipientEmail: body.data.recipientEmail,
+        template: "payment_link_reminder",
+        payload: {
+          businessName: merchant.businessName,
+          customerName: body.data.customerName ?? "there",
+          description: link.description ?? link.name,
+          amount: link.amountType === "fixed" ? Number(link.amount) : "As selected by you",
+          currency: link.currency,
+          paymentUrl: new URL(`/pay/${encodeURIComponent(link.slug)}`, officialBase).toString(),
+        },
+        ...(scheduledAt ? { sendAfter: scheduledAt } : {}),
+      });
+      deliveryId = delivery.id;
+      deliveryStatus = delivery.deliveryState;
+      message = `Reminder ${scheduledAt ? "scheduled" : "queued"} for ${body.data.recipientEmail}. The email delivery status will update as the outbox processes it.`;
+    } catch (error) {
+      deliveryStatus = "failed";
+      message = `Reminder could not be queued${error instanceof Error ? `: ${error.message}` : "."}`;
+    }
+  }
+  const [reminder] = await db.insert(merchantPaymentLinkRemindersTable).values({
+    merchantId: merchant.id,
+    paymentLinkId: link.id,
+    recipientEmail: body.data.recipientEmail,
+    deliveryStatus,
+    message,
+    scheduledAt,
+    eventKey,
+    deliveryId,
+  }).returning();
+  res.status(201).json(CreateMerchantPaymentLinkReminderResponse.parse({
+    ...reminder,
+    scheduledAt: reminder?.scheduledAt?.toISOString() ?? null,
+    createdAt: reminder?.createdAt.toISOString(),
+    attemptedAt: reminder?.attemptedAt?.toISOString() ?? null,
+  }));
 });
 
 router.get("/merchant/statements/:month", requireSignedIn, async (req, res): Promise<void> => {

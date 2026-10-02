@@ -448,6 +448,8 @@ export interface Transaction {
   /** @nullable */
   description?: string | null;
   /** @nullable */
+  failureReason: string | null;
+  /** @nullable */
   providerReference?: string | null;
   /** @nullable */
   paymentUrl?: string | null;
@@ -538,6 +540,154 @@ export interface TransactionCreated {
   transaction: Transaction;
   /** @nullable */
   checkoutUrl: string | null;
+}
+
+export type PaymentRecoveryResultDeliveryStatus = typeof PaymentRecoveryResultDeliveryStatus[keyof typeof PaymentRecoveryResultDeliveryStatus];
+
+
+export const PaymentRecoveryResultDeliveryStatus = {
+  queued: 'queued',
+  sending: 'sending',
+  sent: 'sent',
+  uncertain: 'uncertain',
+  unconfigured: 'unconfigured',
+  failed: 'failed',
+} as const;
+
+export interface PaymentRecoveryResult {
+  paymentUrl: string;
+  deliveryStatus: PaymentRecoveryResultDeliveryStatus;
+  message: string;
+}
+
+export interface PaymentLinkReminderInput {
+  /** @maxLength 254 */
+  recipientEmail: string;
+  /** @maxLength 150 */
+  customerName?: string;
+  scheduleAt?: string;
+}
+
+export interface PaymentLinkReminder {
+  id: number;
+  merchantId: number;
+  paymentLinkId: number;
+  recipientEmail: string;
+  deliveryStatus: string;
+  message: string;
+  /** @nullable */
+  scheduledAt: string | null;
+  createdAt: string;
+  /** @nullable */
+  attemptedAt: string | null;
+}
+
+export interface PaymentLinkReminderList {
+  items: PaymentLinkReminder[];
+}
+
+export type LegalPolicyType = typeof LegalPolicyType[keyof typeof LegalPolicyType];
+
+
+export const LegalPolicyType = {
+  privacy_policy: 'privacy_policy',
+  terms_of_service: 'terms_of_service',
+} as const;
+
+export interface LegalPolicy {
+  policyType: LegalPolicyType;
+  slug: string;
+  /** @nullable */
+  title: string | null;
+  /** @nullable */
+  content: string | null;
+  /** @minimum 0 */
+  version: number;
+  /** @nullable */
+  publishedAt: string | null;
+  published: boolean;
+}
+
+export interface LegalPolicyList {
+  items: LegalPolicy[];
+}
+
+export type LegalConsentPolicy = LegalPolicy & ({
+  /** @nullable */
+  acceptedVersion: number | null;
+});
+
+export interface LegalConsentState {
+  ready: boolean;
+  accepted: boolean;
+  policies: LegalConsentPolicy[];
+}
+
+export interface LegalConsentItem {
+  policyType: LegalPolicyType;
+  /** @minimum 1 */
+  version: number;
+}
+
+export interface LegalConsentInput {
+  /**
+     * @minItems 2
+     * @maxItems 2
+     */
+  acceptances: LegalConsentItem[];
+}
+
+export interface LegalConsentResult {
+  accepted: boolean;
+  acceptedAt: string;
+}
+
+export interface LegalPolicyAdmin {
+  policyType: LegalPolicyType;
+  slug: string;
+  draftTitle: string;
+  draftContent: string;
+  /** @nullable */
+  publishedTitle: string | null;
+  /** @nullable */
+  publishedContent: string | null;
+  publishedVersion: number;
+  draftUpdatedAt: string;
+  /** @nullable */
+  publishedAt: string | null;
+  /** @nullable */
+  updatedBy: string | null;
+}
+
+export interface LegalPolicyAdminList {
+  items: LegalPolicyAdmin[];
+}
+
+export interface LegalPolicyDraftInput {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  title: string;
+  /**
+     * @minLength 1
+     * @maxLength 50000
+     */
+  content: string;
+}
+
+export interface LegalPolicyVersion {
+  id: number;
+  policyType: LegalPolicyType;
+  version: number;
+  title: string;
+  content: string;
+  publishedBy: string;
+  publishedAt: string;
+}
+
+export interface LegalPolicyVersionList {
+  items: LegalPolicyVersion[];
 }
 
 export type PublicCheckoutSessionNextAction = typeof PublicCheckoutSessionNextAction[keyof typeof PublicCheckoutSessionNextAction];

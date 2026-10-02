@@ -320,6 +320,7 @@ export interface PaymentVerification {
   fee: number | null;
   netAmount: number | null;
   paidAt: Date | null;
+  reason?: string | null;
 }
 
 function normalizeStatus(value: unknown): PaymentStatus {
@@ -415,6 +416,10 @@ export async function verifyProviderPayment(transaction: TransactionRecord): Pro
     fee,
     netAmount: fee === null ? null : Math.max(0, transaction.amount - fee),
     paidAt: paidAt && !Number.isNaN(paidAt.getTime()) ? paidAt : null,
+    reason: status === "failed" || status === "cancelled"
+      ? stringValue(data.gateway_response) ?? stringValue(data.status_message) ??
+        stringValue(data.message) ?? stringValue(data.reason) ?? null
+      : null,
   };
 }
 

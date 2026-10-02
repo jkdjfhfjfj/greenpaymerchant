@@ -15,6 +15,15 @@
 .business-payment-url{flex:1 1 100%;max-width:700px}
 .business-reminder-form{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;flex:1 1 100%;padding:12px;border:1px solid var(--line);border-radius:11px;background:#fbf9f2}
 .business-reminder-form .field{flex:1 1 250px}
+.payment-link-reminder-form{padding:18px}
+.payment-link-reminder-result{display:grid;gap:4px;padding:11px 12px;border:1px solid #d8e9dc;border-radius:10px;background:#f1f8f1;color:var(--forest);font-size:13px}
+.payment-link-reminder-result span{line-height:1.5}
+.payment-link-reminder-history{border-top:1px solid var(--line);padding:12px 18px 18px}
+.payment-link-reminder-history h3{margin:0 0 10px;font-size:14px}
+.payment-link-reminder-history ul{list-style:none;display:grid;gap:8px;margin:0;padding:0}
+.payment-link-reminder-history li{display:grid;gap:3px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fbf9f2;font-size:12px}
+.payment-link-reminder-history li span,.payment-link-reminder-history li small{color:var(--mute)}
+.payment-link-reminder-history li small{line-height:1.45;overflow-wrap:anywhere}
 .business-attachments{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
 .business-attachment{display:flex;flex-direction:column;gap:4px;max-width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--paper);text-decoration:none!important}
 .business-attachment strong{max-width:100%;overflow-wrap:anywhere}

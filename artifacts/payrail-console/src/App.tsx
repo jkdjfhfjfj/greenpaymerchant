@@ -46,6 +46,7 @@ import { StatusPage, AuthSetupScreen } from '@/pages/status';
 import { AdminSummaryPage, AdminMerchantsPage, AdminMerchantControlsPage, AdminFeesPage, AdminExchangePage, AdminCredentialsPage, AdminSettingsPage, AdminAuditPage, AdminPlatformAdminsPage } from '@/pages/admin';
 import { AdminEmailDeliveryPage } from '@/pages/admin-email-delivery';
 import { AdminContentPage, PublicHelpPage, PublicContentPage, PublicContentIndexPage } from '@/pages/content';
+import { AdminLegalPoliciesPage, LegalAcceptanceGate, PublicLegalPolicyPage } from '@/pages/legal-policies';
 import { Route, Switch, Redirect, useLocation, Router as WouterRouter } from 'wouter';
 
 const queryClient = new QueryClient();
@@ -173,10 +174,12 @@ const adminSection: { title: string; items: NavItem[] } = { title: 'PLATFORM ADM
   { label: 'Support inbox', href: '/admin/support', icon: Headphones },
   { label: 'Email delivery', href: '/admin/email-delivery', icon: Send },
   { label: 'Public content', href: '/admin/content', icon: FileClock },
+  { label: 'Privacy & terms', href: '/admin/legal-policies', icon: ShieldCheck },
 ] };
 const pageInfo: Record<string, { title: string; subtitle: string }> = {
   '/admin/email-delivery': { title: 'Email delivery', subtitle: '' },
   '/admin/content': { title: 'Public content', subtitle: '' },
+  '/admin/legal-policies': { title: 'Privacy & terms', subtitle: '' },
   '/wallets': { title: 'Wallets & conversion', subtitle: '' }, '/payout-requests': { title: 'Payout requests', subtitle: '' },
   '/invoices': { title: 'Invoices', subtitle: '' }, '/statements': { title: 'Monthly statements', subtitle: '' },
   '/cases': { title: 'Refunds & disputes', subtitle: '' }, '/team': { title: 'Team access', subtitle: '' },
@@ -274,18 +277,18 @@ function ClerkQueryClientCacheInvalidator() {
 }
 
 function SignInPage() {
-  return <div className="auth-page"><div className="auth-side"><Brand /><div className="auth-story"><span className="eyebrow">GREENPAY / OPERATIONS</span><h1>Move money.<br />Know where it is.</h1><p>One calm place to follow every collection, settlement and payout.</p></div><div className="auth-foot">Payments infrastructure for the places business is growing.</div></div><div className="auth-main"><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} /></div></div>;
+  return <div className="auth-page"><div className="auth-side"><Brand /><div className="auth-story"><span className="eyebrow">GREENPAY / OPERATIONS</span><h1>Move money.<br />Know where it is.</h1><p>One calm place to follow every collection, settlement and payout.</p></div><div className="auth-foot">Payments infrastructure for the places business is growing.</div></div><div className="auth-main"><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} /><p className="auth-legal-links">By continuing, you agree to the <a href={`${basePath}/privacy`}>Privacy Policy</a> and <a href={`${basePath}/terms`}>Terms of Service</a>.</p></div></div>;
 }
 
 function SignUpPage() {
-  return <div className="auth-page"><div className="auth-side"><Brand /><div className="auth-story"><span className="eyebrow">GREENPAY / OPERATIONS</span><h1>Build your<br />money movement.</h1><p>Start collecting across Africa with operations built for clarity.</p></div><div className="auth-foot">Payments infrastructure for the places business is growing.</div></div><div className="auth-main"><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} /></div></div>;
+  return <div className="auth-page"><div className="auth-side"><Brand /><div className="auth-story"><span className="eyebrow">GREENPAY / OPERATIONS</span><h1>Build your<br />money movement.</h1><p>Start collecting across Africa with operations built for clarity.</p></div><div className="auth-foot">Payments infrastructure for the places business is growing.</div></div><div className="auth-main"><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} /><p className="auth-legal-links">By continuing, you agree to the <a href={`${basePath}/privacy`}>Privacy Policy</a> and <a href={`${basePath}/terms`}>Terms of Service</a>.</p></div></div>;
 }
 
 function Protected({ children }: { children: ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth();
   if (!isLoaded) return <div className="auth-loading"><div className="skeleton-line" /><div className="skeleton-line short" /></div>;
   if (!isSignedIn) return <Redirect to="/" />;
-  return <>{children}</>;
+  return <LegalAcceptanceGate>{children}</LegalAcceptanceGate>;
 }
 
 function RoleHome() {
@@ -483,7 +486,7 @@ function MetricCard({ title, value, detail, icon: Icon, loading, tone }: { title
 }
 
 function TransactionTable({ items, compact = false, onSelect }: { items: any[]; compact?: boolean; onSelect?: (reference: string) => void }) {
-  return <div className="table-scroll"><table className="data-table"><thead><tr><th>Payment</th><th>Customer</th><th>Route</th><th>Amount</th><th>Status</th><th>Created</th>{!compact && <th />}</tr></thead><tbody>{items.map((item) => <tr key={item.reference} data-testid={`row-transaction-${item.reference}`} onClick={() => onSelect?.(item.reference)} className={onSelect ? 'table-row-clickable' : ''}><td><strong className="mono ref-cell">{item.reference}</strong><small>{item.description || item.paymentMethod || 'Collection'}</small></td><td><strong>{item.customerName || item.customerEmail}</strong><small>{item.customerName ? item.customerEmail : item.customerPhone || 'Customer'}</small></td><td><span className="provider-cell"><span className={`provider-mini provider-${item.provider}`} />{label(item.provider)}</span></td><td><strong className="amount-cell">{currency(item.amount, item.currency)}</strong><small>{item.currency}</small></td><td><StatusPill value={item.status} /></td><td><span className="date-cell">{dateTime(item.createdAt)}</span></td>{!compact && <td><button className="table-more" aria-label={`Open ${item.reference}`} onClick={(event) => { event.stopPropagation(); onSelect?.(item.reference); }}><ArrowUpRight size={15} /></button></td>}</tr>)}</tbody></table></div>;
+  return <div className="table-scroll"><table className="data-table"><thead><tr><th>Payment</th><th>Customer</th><th>Route</th><th>Amount</th><th>Status</th><th>Created</th>{!compact && <th />}</tr></thead><tbody>{items.map((item) => <tr key={item.reference} data-testid={`row-transaction-${item.reference}`} onClick={() => onSelect?.(item.reference)} className={onSelect ? 'table-row-clickable' : ''}><td><strong className="mono ref-cell">{item.reference}</strong><small>{item.description || item.paymentMethod || 'Collection'}</small></td><td><strong>{item.customerName || item.customerEmail}</strong><small>{item.customerName ? item.customerEmail : item.customerPhone || 'Customer'}</small></td><td><span className="provider-cell"><span className={`provider-mini provider-${item.provider}`} />{label(item.provider)}</span></td><td><strong className="amount-cell">{currency(item.amount, item.currency)}</strong><small>{item.currency}</small></td><td><StatusPill value={item.status} />{item.failureReason && <small className="failure-reason">{item.failureReason}</small>}</td><td><span className="date-cell">{dateTime(item.createdAt)}</span></td>{!compact && <td><button className="table-more" aria-label={`Open ${item.reference}`} onClick={(event) => { event.stopPropagation(); onSelect?.(item.reference); }}><ArrowUpRight size={15} /></button></td>}</tr>)}</tbody></table></div>;
 }
 
 function Transactions() {
@@ -537,7 +540,7 @@ function TransactionDetail({ reference, onClose }: { reference: string; onClose:
             <Button type="submit" disabled={refund.isPending}>{refund.isPending ? 'Submitting…' : 'Submit refund'}</Button>
           </form>}
           {message && <Notice danger={message.includes('failed') || message.includes('could not')}>{message}</Notice>}
-          <div className="detail-section"><div className="detail-section-heading">Payment details</div><DetailRow label="Customer" value={transaction.customerName || '—'} /><DetailRow label="Email" value={transaction.customerEmail} /><DetailRow label="Phone" value={transaction.customerPhone || '—'} /><DetailRow label="Method" value={transaction.paymentMethod || '—'} /><DetailRow label="Provider" value={label(transaction.provider)} /><DetailRow label="Description" value={transaction.description || '—'} /></div>
+          <div className="detail-section"><div className="detail-section-heading">Payment details</div><DetailRow label="Customer" value={transaction.customerName || '—'} /><DetailRow label="Email" value={transaction.customerEmail} /><DetailRow label="Phone" value={transaction.customerPhone || '—'} /><DetailRow label="Method" value={transaction.paymentMethod || '—'} /><DetailRow label="Provider" value={label(transaction.provider)} /><DetailRow label="Description" value={transaction.description || '—'} />{transaction.failureReason && <DetailRow label="Failure reason" value={transaction.failureReason} />}</div>
           <div className="detail-section"><div className="detail-section-heading">Settlement timeline</div><DetailRow label="Gross amount" value={currency(transaction.amount, transaction.currency)} /><DetailRow label="Fee" value={currency(transaction.fee, transaction.currency)} /><DetailRow label="Net amount" value={currency(transaction.netAmount, transaction.currency)} /><DetailRow label="Expected settlement" value={dateTime(transaction.settlementAt)} /><DetailRow label="Settlement status" value={label(transaction.settlementStatus)} /><DetailRow label="Created" value={dateTime(transaction.createdAt)} /><DetailRow label="Paid" value={dateTime(transaction.paidAt)} /></div>
         </>}</>
       </QueryState>
@@ -999,7 +1002,7 @@ function PublicCheckout() {
 const wrap = (C: () => ReactNode) => () => <Protected><AppShell><C /></AppShell></Protected>;
 const protectedRoutes: [string, () => ReactNode][] = [
   ['/admin/merchants/:merchantId/controls', AdminMerchantControlsPage],
-  ['/admin/email-delivery', AdminEmailDeliveryPage], ['/admin/content', AdminContentPage],
+  ['/admin/email-delivery', AdminEmailDeliveryPage], ['/admin/content', AdminContentPage], ['/admin/legal-policies', AdminLegalPoliciesPage],
   ['/merchant/dashboard', MerchantDashboardPage], ['/merchant/new', () => <MerchantPage addBusiness />], ['/merchant', () => <MerchantPage />], ['/merchant/kyc', KycPage], ['/merchant/payment-links', MerchantLinksPage], ['/merchant/transactions', MerchantTransactionsPage], ['/merchant/payouts', MerchantPayoutsPage],
   ['/developers', DevelopersPage], ['/exchange', ExchangePage], ['/admin', AdminSummaryPage], ['/admin/merchants', AdminMerchantsPage], ['/admin/fees', AdminFeesPage],
   ['/admin/exchange', AdminExchangePage], ['/admin/credentials', AdminCredentialsPage], ['/admin/settings', AdminSettingsPage], ['/admin/audit', AdminAuditPage],
@@ -1013,6 +1016,8 @@ const protectedRoutes: [string, () => ReactNode][] = [
 protectedRoutes.push(['/operations', () => <Gate need="admin"><Dashboard /></Gate>]);
 const protectedRouteElements = protectedRoutes.map(([path, C]) => <Route key={path} path={path} component={wrap(() => path.startsWith('/admin') ? <Gate need="admin"><C /></Gate> : <C />)} />);
 const publicContentRoutes = [
+  <Route key="privacy-policy" path="/privacy" component={() => <PublicLegalPolicyPage policyType="privacy_policy" />} />,
+  <Route key="terms-of-service" path="/terms" component={() => <PublicLegalPolicyPage policyType="terms_of_service" />} />,
   <Route key="api-docs" path="/api-docs" component={PublicApiDocsPage} />,
   <Route key="learn" path="/learn" component={PublicHelpPage} />,
   <Route key="learn-detail" path="/learn/:slug" component={() => <PublicContentPage kind="faq" />} />,

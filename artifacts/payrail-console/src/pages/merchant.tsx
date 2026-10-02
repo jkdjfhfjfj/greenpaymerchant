@@ -1,11 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Activity, ArrowRight, CheckCircle2, Clock3, ExternalLink, Link2, LoaderCircle, Plus, Trash2, Pause, Play, ShieldCheck } from 'lucide-react';
+import { Activity, ArrowRight, CheckCircle2, Clock3, ExternalLink, Link2, LoaderCircle, Plus, Trash2, Pause, Play, ShieldCheck, Send } from 'lucide-react';
 import {
   useCreateMerchantProfile, useGetMerchantFees, useGetMerchantKyc, getGetMerchantKycQueryKey, useCreateMerchantKycSession,
   useCreateMerchantCloudinaryUploadSignature, useUpdateMerchantShopProfile,
   useListMerchantPaymentLinks, useCreateMerchantPaymentLink, useUpdateMerchantPaymentLink, useDeleteMerchantPaymentLink,
   useListMerchantTransactions, useListMerchantPayouts, useListSupportedCurrencies,
+  useCreateMerchantPaymentLinkReminder, useListMerchantPaymentLinkReminders,
+  useCreateMerchantTransactionRecoveryLink,
 } from '@workspace/api-client-react';
 import { Async, Btn, Card, COUNTRIES, CURRENCIES, Confirm, CopyBtn, Err, Field, Gate, Heading, Modal, Note, Pager, Pill, currencyAmountStep, currencyMinorUnits, fmtDate, money, nice, useAccess, useInvalidateAll } from '@/components/kit';
 import { usePlatformBranding } from '@/components/platform-brand';
@@ -270,6 +272,7 @@ function LinksInner() {
   const inv = useInvalidateAll();
   const [open, setOpen] = useState(false);
   const [rm, setRm] = useState<number | null>(null);
+  const [reminderId, setReminderId] = useState<number | null>(null);
   const items = q.data?.items ?? [];
   return <>
     <Heading eyebrow="MERCHANT / COLLECTION TOOLS" title="Payment links" subtitle="Create, share and pause customer-facing links. Collected totals stay separated by transaction currency." action={<Btn onClick={() => setOpen(true)} testId="button-new-link"><Plus size={15} />New link</Btn>} />
@@ -283,12 +286,14 @@ function LinksInner() {
            <td>{l.expiresAt ? fmtDate(l.expiresAt) : 'No expiry'}</td>
            <td><div className="copy-line"><code className="mono" style={{ fontSize: 11 }}>{l.url}</code><CopyBtn text={l.url} /></div></td>
           <td><div className="row-actions">
-            {l.status !== 'archived' && <Btn variant="quiet" small disabled={update.isPending} onClick={() => update.mutate({ id: l.id, data: { status: l.status === 'active' ? 'paused' : 'active' } }, { onSuccess: () => { void inv(); } })}>{l.status === 'active' ? <><Pause size={13} />Pause</> : <><Play size={13} />Resume</>}</Btn>}
+             {l.status === 'active' && <Btn variant="secondary" small onClick={() => setReminderId(l.id)}><Send size={13} />Remind</Btn>}
+             {l.status !== 'archived' && <Btn variant="quiet" small disabled={update.isPending} onClick={() => update.mutate({ id: l.id, data: { status: l.status === 'active' ? 'paused' : 'active' } }, { onSuccess: () => { void inv(); } })}>{l.status === 'active' ? <><Pause size={13} />Pause</> : <><Play size={13} />Resume</>}</Btn>}
             <Btn variant="danger" small onClick={() => setRm(l.id)}><Trash2 size={13} />Delete</Btn></div></td>
         </tr>)}
       </tbody></table></div>
     </Async>
     {open && <LinkModal onClose={() => setOpen(false)} />}
+    {reminderId !== null && <LinkReminderModal linkId={reminderId} onClose={() => setReminderId(null)} />}
     {rm !== null && <Confirm title="Delete payment link" body="The link stops accepting payments immediately." confirmLabel="Delete link" pending={del.isPending} error={del.error} onClose={() => { setRm(null); del.reset(); }} onConfirm={() => del.mutate({ id: rm }, { onSuccess: () => { void inv(); setRm(null); } })} />}
   </>;
 }
@@ -325,16 +330,65 @@ function LinkModal({ onClose }: { onClose: () => void }) {
   </form></Modal>;
 }
 
+function LinkReminderModal({ linkId, onClose }: { linkId: number; onClose: () => void }) {
+  const create = useCreateMerchantPaymentLinkReminder();
+  const history = useListMerchantPaymentLinkReminders(linkId);
+  const invalidate = useInvalidateAll();
+  const [scheduleError, setScheduleError] = useState('');
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const recipientEmail = String(form.get('recipientEmail') || '').trim();
+    const customerName = String(form.get('customerName') || '').trim();
+    const rawSchedule = String(form.get('scheduleAt') || '');
+    const scheduleAt = rawSchedule ? new Date(rawSchedule) : null;
+    if (scheduleAt && (Number.isNaN(scheduleAt.getTime()) || scheduleAt.getTime() <= Date.now() + 60_000 || scheduleAt.getTime() > Date.now() + 30 * 86_400_000)) {
+      setScheduleError('Schedule at least one minute from now and no more than 30 days ahead.');
+      return;
+    }
+    setScheduleError('');
+    create.mutate({ id: linkId, data: {
+      recipientEmail,
+      ...(customerName ? { customerName } : {}),
+      ...(scheduleAt ? { scheduleAt: scheduleAt.toISOString() } : {}),
+    } }, { onSuccess: () => { void invalidate(); } });
+  }
+  return <Modal title="Remind a customer" description="Send or schedule one email for this active payment link." onClose={onClose} wide>
+    <form className="form-stack payment-link-reminder-form" onSubmit={submit}>
+      <Note>The server confirms the link is active, unpaid, and not an invoice link before queuing a reminder.</Note>
+      <Field label="Recipient email"><input name="recipientEmail" type="email" maxLength={254} required placeholder="customer@example.com" /></Field>
+      <Field label="Customer name (optional)"><input name="customerName" maxLength={150} placeholder="Customer name" /></Field>
+      <Field label="Schedule later (optional)"><input name="scheduleAt" type="datetime-local" /></Field>
+      {scheduleError && <Note>{scheduleError}</Note>}
+      {create.data && <div className="payment-link-reminder-result"><strong>{nice(create.data.deliveryStatus)}</strong><span>{create.data.message}</span></div>}
+      <Err error={create.error} />
+      <div className="row-actions"><Btn variant="secondary" onClick={onClose}>Close</Btn><Btn type="submit" disabled={create.isPending}>{create.isPending ? 'Queuing…' : 'Queue reminder'}</Btn></div>
+    </form>
+    <div className="payment-link-reminder-history">
+      <h3>Recent reminders</h3>
+      <Async q={history} empty={!history.data?.items.length} emptyTitle="No reminders yet" emptyBody="Reminder attempts for this link will appear here.">
+        <ul>{history.data?.items.map((item) => <li key={item.id}><strong>{nice(item.deliveryStatus)}</strong><span>{item.recipientEmail} · {fmtDate(item.createdAt)}</span><small>{item.message}</small></li>)}</ul>
+      </Async>
+    </div>
+  </Modal>;
+}
+
 export function MerchantTransactionsPage() { return <Gate need="merchant"><TxInner /></Gate>; }
 function TxInner() {
   const [page, setPage] = useState(1);
   const q = useListMerchantTransactions({ page, perPage: 20 });
+  const recovery = useCreateMerchantTransactionRecoveryLink();
+  const invalidate = useInvalidateAll();
+  const [recoveryResult, setRecoveryResult] = useState<{ paymentUrl: string; message: string } | null>(null);
+  const [recoveryError, setRecoveryError] = useState('');
   const items = q.data?.items ?? [];
   const successful = items.filter((item) => item.status === 'success').length;
   const awaiting = items.filter((item) => item.status === 'pending').length;
   const attention = items.filter((item) => item.status === 'failed' || item.status === 'cancelled').length;
   return <>
     <Heading eyebrow="MERCHANT / COLLECTIONS" title="Transactions" subtitle="A clear record of collections linked to your business. Amounts, fees and settlements remain in each transaction’s original currency." />
+    {recoveryResult && <div className="payment-recovery-result"><strong>Retry link ready</strong><span>{recoveryResult.message}</span><div><code>{recoveryResult.paymentUrl}</code><CopyBtn text={recoveryResult.paymentUrl} /></div></div>}
+    {recoveryError && <Note>{recoveryError}</Note>}
     <div className="merchant-tx-summary" aria-label="Current page transaction summary">
       <div><span>Page {page} / latest 20</span><strong>{q.isLoading ? '—' : q.data?.total.toLocaleString() ?? items.length}</strong><small>Total merchant records</small></div>
       <div><span>Successful on page</span><strong>{q.isLoading ? '—' : successful}</strong><small>Confirmed collections</small></div>
@@ -342,8 +396,8 @@ function TxInner() {
       <div><span>Needs attention on page</span><strong>{q.isLoading ? '—' : attention}</strong><small>Failed or cancelled</small></div>
     </div>
     <Async q={q} empty={!items.length} emptyTitle="No transactions yet" emptyBody="Payments made through your links or API appear here.">
-      <div className="table-wrap"><table className="dt"><thead><tr><th>Reference</th><th>Customer</th><th className="num">Amount</th><th className="num">Fee</th><th className="num">Net</th><th>Status</th><th>Settlement</th><th>Method</th><th>Created</th></tr></thead><tbody>
-        {items.map((t) => <tr key={t.id} data-testid={`row-tx-${t.id}`}><td className="mono" style={{ fontSize: 12 }}>{t.reference}<span className="sub">{t.description || nice(t.provider)}</span></td><td>{t.customerName || t.customerEmail}<span className="sub">{t.customerName ? t.customerEmail : t.customerPhone || 'Customer'}</span></td><td className="num">{money(t.amount, t.currency)}</td><td className="num">{t.fee != null ? money(t.fee, t.currency) : '—'}</td><td className="num">{t.netAmount != null ? money(t.netAmount, t.currency) : '—'}</td><td><Pill value={t.status} /></td><td><Pill value={t.settlementStatus} />{t.settlementAt && <span className="sub">{fmtDate(t.settlementAt)}</span>}</td><td>{nice(t.paymentMethod)}</td><td>{fmtDate(t.createdAt)}</td></tr>)}
+      <div className="table-wrap"><table className="dt"><thead><tr><th>Reference</th><th>Customer</th><th className="num">Amount</th><th className="num">Fee</th><th className="num">Net</th><th>Status</th><th>Settlement</th><th>Method</th><th>Created</th><th>Recovery</th></tr></thead><tbody>
+        {items.map((t) => <tr key={t.id} data-testid={`row-tx-${t.id}`}><td className="mono" style={{ fontSize: 12 }}>{t.reference}<span className="sub">{t.description || nice(t.provider)}</span></td><td>{t.customerName || t.customerEmail}<span className="sub">{t.customerName ? t.customerEmail : t.customerPhone || 'Customer'}</span></td><td className="num">{money(t.amount, t.currency)}</td><td className="num">{t.fee != null ? money(t.fee, t.currency) : '—'}</td><td className="num">{t.netAmount != null ? money(t.netAmount, t.currency) : '—'}</td><td><Pill value={t.status} />{t.failureReason && <span className="sub failure-reason">{t.failureReason}</span>}</td><td><Pill value={t.settlementStatus} />{t.settlementAt && <span className="sub">{fmtDate(t.settlementAt)}</span>}</td><td>{nice(t.paymentMethod)}</td><td>{fmtDate(t.createdAt)}</td><td>{(t.status === 'failed' || t.status === 'cancelled') ? <Btn variant="secondary" small disabled={recovery.isPending} onClick={() => { setRecoveryError(''); setRecoveryResult(null); recovery.mutate({ reference: t.reference }, { onSuccess: (result) => { setRecoveryResult(result); void invalidate(); }, onError: (error) => setRecoveryError(error instanceof Error ? error.message : 'Retry link could not be created.') }); }}>{recovery.isPending ? 'Working…' : 'Send retry link'}</Btn> : '—'}</td></tr>)}
       </tbody></table></div>
       {q.data && <Pager page={page} total={q.data.total} perPage={q.data.perPage || 20} onPage={setPage} />}
     </Async>

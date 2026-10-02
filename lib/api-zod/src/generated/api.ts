@@ -412,6 +412,7 @@ export const GetDashboardResponse = zod.object({
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
   "description": zod.string().nullish(),
+  "failureReason": zod.string().nullable(),
   "providerReference": zod.string().nullish(),
   "paymentUrl": zod.string().nullish(),
   "paymentLinkId": zod.number().int().nullish(),
@@ -465,6 +466,7 @@ export const ListTransactionsResponse = zod.object({
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
   "description": zod.string().nullish(),
+  "failureReason": zod.string().nullable(),
   "providerReference": zod.string().nullish(),
   "paymentUrl": zod.string().nullish(),
   "paymentLinkId": zod.number().int().nullish(),
@@ -515,6 +517,7 @@ export const CreateTransactionResponse = zod.object({
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
   "description": zod.string().nullish(),
+  "failureReason": zod.string().nullable(),
   "providerReference": zod.string().nullish(),
   "paymentUrl": zod.string().nullish(),
   "paymentLinkId": zod.number().int().nullish(),
@@ -548,6 +551,7 @@ export const GetTransactionResponse = zod.object({
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
   "description": zod.string().nullish(),
+  "failureReason": zod.string().nullable(),
   "providerReference": zod.string().nullish(),
   "paymentUrl": zod.string().nullish(),
   "paymentLinkId": zod.number().int().nullish(),
@@ -579,6 +583,7 @@ export const VerifyTransactionResponse = zod.object({
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
   "description": zod.string().nullish(),
+  "failureReason": zod.string().nullable(),
   "providerReference": zod.string().nullish(),
   "paymentUrl": zod.string().nullish(),
   "paymentLinkId": zod.number().int().nullish(),
@@ -3767,6 +3772,7 @@ export const ListMerchantTransactionsResponse = zod.object({
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
   "description": zod.string().nullish(),
+  "failureReason": zod.string().nullable(),
   "providerReference": zod.string().nullish(),
   "paymentUrl": zod.string().nullish(),
   "paymentLinkId": zod.number().int().nullish(),
@@ -3778,6 +3784,24 @@ export const ListMerchantTransactionsResponse = zod.object({
   "total": zod.number().int(),
   "page": zod.number().int(),
   "perPage": zod.number().int()
+})
+
+
+/**
+ * @summary Create or reuse a safe payment link for a confirmed failed merchant transaction
+ */
+export const createMerchantTransactionRecoveryLinkPathReferenceMax = 100;
+
+
+
+export const CreateMerchantTransactionRecoveryLinkParams = zod.object({
+  "reference": zod.coerce.string().min(1).max(createMerchantTransactionRecoveryLinkPathReferenceMax)
+})
+
+export const CreateMerchantTransactionRecoveryLinkResponse = zod.object({
+  "paymentUrl": zod.string().url(),
+  "deliveryStatus": zod.enum(['queued', 'sending', 'sent', 'uncertain', 'unconfigured', 'failed']),
+  "message": zod.string()
 })
 
 
@@ -3931,6 +3955,66 @@ export const DeleteMerchantPaymentLinkParams = zod.object({
 })
 
 export const DeleteMerchantPaymentLinkResponse = zod.void()
+
+
+/**
+ * @summary List reminder delivery records for an owned payment link
+ */
+
+
+
+export const ListMerchantPaymentLinkRemindersParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const ListMerchantPaymentLinkRemindersResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "merchantId": zod.number().int(),
+  "paymentLinkId": zod.number().int(),
+  "recipientEmail": zod.string().email(),
+  "deliveryStatus": zod.string(),
+  "message": zod.string(),
+  "scheduledAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "attemptedAt": zod.coerce.date().nullable()
+}))
+})
+
+
+/**
+ * @summary Send or schedule a reminder for an active unpaid payment link
+ */
+
+
+
+export const CreateMerchantPaymentLinkReminderParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const createMerchantPaymentLinkReminderBodyRecipientEmailMax = 254;
+
+export const createMerchantPaymentLinkReminderBodyCustomerNameMax = 150;
+
+
+
+export const CreateMerchantPaymentLinkReminderBody = zod.object({
+  "recipientEmail": zod.string().email().max(createMerchantPaymentLinkReminderBodyRecipientEmailMax),
+  "customerName": zod.string().max(createMerchantPaymentLinkReminderBodyCustomerNameMax).optional(),
+  "scheduleAt": zod.coerce.date().optional()
+})
+
+export const CreateMerchantPaymentLinkReminderResponse = zod.object({
+  "id": zod.number().int(),
+  "merchantId": zod.number().int(),
+  "paymentLinkId": zod.number().int(),
+  "recipientEmail": zod.string().email(),
+  "deliveryStatus": zod.string(),
+  "message": zod.string(),
+  "scheduledAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date(),
+  "attemptedAt": zod.coerce.date().nullable()
+})
 
 
 /**
@@ -4421,6 +4505,7 @@ export const ListDeveloperTransactionsResponse = zod.object({
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
   "description": zod.string().nullish(),
+  "failureReason": zod.string().nullable(),
   "providerReference": zod.string().nullish(),
   "paymentUrl": zod.string().nullish(),
   "paymentLinkId": zod.number().int().nullish(),
@@ -4480,6 +4565,7 @@ export const CreateDeveloperTransactionResponse = zod.object({
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
   "description": zod.string().nullish(),
+  "failureReason": zod.string().nullable(),
   "providerReference": zod.string().nullish(),
   "paymentUrl": zod.string().nullish(),
   "paymentLinkId": zod.number().int().nullish(),
@@ -4513,6 +4599,7 @@ export const GetDeveloperTransactionResponse = zod.object({
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
   "description": zod.string().nullish(),
+  "failureReason": zod.string().nullable(),
   "providerReference": zod.string().nullish(),
   "paymentUrl": zod.string().nullish(),
   "paymentLinkId": zod.number().int().nullish(),
@@ -4544,6 +4631,7 @@ export const VerifyDeveloperTransactionResponse = zod.object({
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
   "description": zod.string().nullish(),
+  "failureReason": zod.string().nullable(),
   "providerReference": zod.string().nullish(),
   "paymentUrl": zod.string().nullish(),
   "paymentLinkId": zod.number().int().nullish(),
@@ -5944,6 +6032,164 @@ export const ListAdminAuditLogResponse = zod.object({
   "route": zod.string().nullable(),
   "statusCode": zod.number().int().nullable(),
   "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Get the current published Privacy Policy and Terms of Service
+ */
+export const getCurrentLegalPoliciesResponseItemsItemVersionMin = 0;
+
+
+
+export const GetCurrentLegalPoliciesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "policyType": zod.enum(['privacy_policy', 'terms_of_service']),
+  "slug": zod.string(),
+  "title": zod.string().nullable(),
+  "content": zod.string().nullable(),
+  "version": zod.number().int().min(getCurrentLegalPoliciesResponseItemsItemVersionMin),
+  "publishedAt": zod.coerce.date().nullable(),
+  "published": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Check current published policy versions and the signed-in user's acceptance
+ */
+export const getMerchantLegalConsentResponsePoliciesItemOneVersionMin = 0;
+
+
+
+export const GetMerchantLegalConsentResponse = zod.object({
+  "ready": zod.boolean(),
+  "accepted": zod.boolean(),
+  "policies": zod.array(zod.object({
+  "policyType": zod.enum(['privacy_policy', 'terms_of_service']),
+  "slug": zod.string(),
+  "title": zod.string().nullable(),
+  "content": zod.string().nullable(),
+  "version": zod.number().int().min(getMerchantLegalConsentResponsePoliciesItemOneVersionMin),
+  "publishedAt": zod.coerce.date().nullable(),
+  "published": zod.boolean()
+}).and(zod.object({
+  "acceptedVersion": zod.number().int().nullable()
+})))
+})
+
+
+/**
+ * @summary Record acceptance of the current Privacy Policy and Terms versions
+ */
+
+export const acceptMerchantLegalPoliciesBodyAcceptancesMin = 2;
+export const acceptMerchantLegalPoliciesBodyAcceptancesMax = 2;
+
+
+
+export const AcceptMerchantLegalPoliciesBody = zod.object({
+  "acceptances": zod.array(zod.object({
+  "policyType": zod.enum(['privacy_policy', 'terms_of_service']),
+  "version": zod.number().int().min(1)
+})).min(acceptMerchantLegalPoliciesBodyAcceptancesMin).max(acceptMerchantLegalPoliciesBodyAcceptancesMax)
+})
+
+export const AcceptMerchantLegalPoliciesResponse = zod.object({
+  "accepted": zod.boolean(),
+  "acceptedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List policy drafts, published versions, and publication status
+ */
+export const ListAdminLegalPoliciesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "policyType": zod.enum(['privacy_policy', 'terms_of_service']),
+  "slug": zod.string(),
+  "draftTitle": zod.string(),
+  "draftContent": zod.string(),
+  "publishedTitle": zod.string().nullable(),
+  "publishedContent": zod.string().nullable(),
+  "publishedVersion": zod.number().int(),
+  "draftUpdatedAt": zod.coerce.date(),
+  "publishedAt": zod.coerce.date().nullable(),
+  "updatedBy": zod.string().nullable()
+}))
+})
+
+
+/**
+ * @summary Save a policy draft without changing the live published version
+ */
+export const SaveAdminLegalPolicyDraftParams = zod.object({
+  "type": zod.enum(['privacy_policy', 'terms_of_service'])
+})
+
+export const saveAdminLegalPolicyDraftBodyTitleMax = 160;
+
+export const saveAdminLegalPolicyDraftBodyContentMax = 50000;
+
+
+
+export const SaveAdminLegalPolicyDraftBody = zod.object({
+  "title": zod.string().min(1).max(saveAdminLegalPolicyDraftBodyTitleMax),
+  "content": zod.string().min(1).max(saveAdminLegalPolicyDraftBodyContentMax)
+})
+
+export const SaveAdminLegalPolicyDraftResponse = zod.object({
+  "policyType": zod.enum(['privacy_policy', 'terms_of_service']),
+  "slug": zod.string(),
+  "draftTitle": zod.string(),
+  "draftContent": zod.string(),
+  "publishedTitle": zod.string().nullable(),
+  "publishedContent": zod.string().nullable(),
+  "publishedVersion": zod.number().int(),
+  "draftUpdatedAt": zod.coerce.date(),
+  "publishedAt": zod.coerce.date().nullable(),
+  "updatedBy": zod.string().nullable()
+})
+
+
+/**
+ * @summary Publish the saved draft as a new immutable policy version
+ */
+export const PublishAdminLegalPolicyParams = zod.object({
+  "type": zod.enum(['privacy_policy', 'terms_of_service'])
+})
+
+export const PublishAdminLegalPolicyResponse = zod.object({
+  "policyType": zod.enum(['privacy_policy', 'terms_of_service']),
+  "slug": zod.string(),
+  "draftTitle": zod.string(),
+  "draftContent": zod.string(),
+  "publishedTitle": zod.string().nullable(),
+  "publishedContent": zod.string().nullable(),
+  "publishedVersion": zod.number().int(),
+  "draftUpdatedAt": zod.coerce.date(),
+  "publishedAt": zod.coerce.date().nullable(),
+  "updatedBy": zod.string().nullable()
+})
+
+
+/**
+ * @summary List immutable published policy versions
+ */
+export const ListAdminLegalPolicyVersionsParams = zod.object({
+  "type": zod.enum(['privacy_policy', 'terms_of_service'])
+})
+
+export const ListAdminLegalPolicyVersionsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "policyType": zod.enum(['privacy_policy', 'terms_of_service']),
+  "version": zod.number().int(),
+  "title": zod.string(),
+  "content": zod.string(),
+  "publishedBy": zod.string(),
+  "publishedAt": zod.coerce.date()
 }))
 })
 

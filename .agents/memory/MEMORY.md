@@ -9,5 +9,6 @@
 - [Tier-currency collection readiness](tier-currency-limit-readiness.md) — provider configuration alone is not checkout readiness; merchant-tier currency limits also gate collections.
 - [Wallet conversion markup allocation](wallet-conversion-margin-split.md) — allocate combined markup proportionally so quote breakdowns and minor-unit journals reconcile.
 - [Admin wallet corrections](admin-wallet-corrections.md) — corrections must use audited, idempotent journal entries and never rewrite settlement history or consume reserved funds.
+- [Legal policy content](legal-policy-content.md) — only administrators supply approved policy wording; never invent or publish legal copy.
 - [Verified Clerk account linking](verified-clerk-linking.md) — link legacy records only after one unique legacy account matches a verified email on the external account.
 - [External PostgreSQL cutover](external-postgres-cutover.md) — preserve `DATABASE_URL`, use a distinct external target, and do not push schema before the external database is confirmed.

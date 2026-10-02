@@ -4,6 +4,8 @@ export type TransactionalTemplate =
   | "payment_failure"
   | "payout_update"
   | "invoice_reminder"
+  | "payment_link_reminder"
+  | "payment_failure_recovery"
   | "support_reply"
   | "support_receipt"
   | "team_invitation"
@@ -107,6 +109,23 @@ export function renderTransactionalEmail(
       `Remaining balance: ${value(payload, "amount")} ${value(payload, "currency")}.`,
       dueDate ? `Due date: ${dueDate}.` : "Please contact the business if you need help with this invoice.",
     ], link);
+  }
+  if (template === "payment_link_reminder") {
+    const paymentUrl = approvedDeploymentUrl(value(payload, "paymentUrl"));
+    return branded("Payment link reminder", [
+      `Hello ${value(payload, "customerName", "there")},`,
+      `${value(payload, "businessName", "Your business")} has shared a payment link with you.`,
+      value(payload, "description", "Please complete your payment using the secure link below."),
+      `Amount: ${value(payload, "amount", "As selected by you")} ${value(payload, "currency")}.`,
+    ], paymentUrl ? { label: "Complete payment", href: paymentUrl } : undefined);
+  }
+  if (template === "payment_failure_recovery") {
+    const paymentUrl = approvedDeploymentUrl(value(payload, "paymentUrl"));
+    return branded("Try your payment again", [
+      `Hello ${value(payload, "customerName", "there")},`,
+      `Your payment ${value(payload, "reference")} could not be completed.`,
+      "You can try again using the secure payment link below. Do not make another payment if your bank already confirmed the first one; contact the business if you are unsure.",
+    ], paymentUrl ? { label: "Try payment again", href: paymentUrl } : undefined);
   }
   if (template === "support_reply" || template === "support_receipt") {
     const receipt = template === "support_receipt";

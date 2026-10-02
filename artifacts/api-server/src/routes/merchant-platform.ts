@@ -56,6 +56,7 @@ import { cleanPublicUrl } from "../lib/platform-branding";
 import { cloudinaryUploadStatus, createCloudinaryUploadSignature } from "../lib/cloudinary-upload";
 import { resolveCloudinaryEnvironment } from "../lib/cloudinary-credentials";
 import { providerCredential } from "../lib/credential-runtime";
+import { ensureMerchantWalletAccounts } from "../lib/wallet-service";
 
 const router: IRouter = Router();
 const apiRouter: IRouter = Router();
@@ -243,6 +244,7 @@ router.post("/merchant", requireSignedIn, async (req, res): Promise<void> => {
     country: parsed.data.country.toUpperCase(), baseCurrency: parsed.data.baseCurrency.toUpperCase(),
     registrationNumber: parsed.data.registrationNumber?.trim() || null,
   }).returning();
+  await ensureMerchantWalletAccounts(merchant.id, merchant.baseCurrency);
   res.status(201).json(CreateMerchantProfileResponse.parse({ merchant: profile(merchant) }));
 });
 

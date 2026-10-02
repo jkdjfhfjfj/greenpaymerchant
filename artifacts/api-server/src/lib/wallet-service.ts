@@ -391,15 +391,20 @@ async function postJournal(tx: FinancialTx, input: {
   return journal;
 }
 
+export async function ensureMerchantWalletAccounts(merchantId: number, baseCurrency: string): Promise<void> {
+  const normalizedBaseCurrency = baseCurrency.toUpperCase();
+  const walletCurrencies = new Set([...COLLECTION_CURRENCIES.map(({ code }) => code), normalizedBaseCurrency]);
+  await db.insert(merchantWalletsTable).values([...walletCurrencies].map((currency) => ({
+    merchantId, currency,
+  }))).onConflictDoNothing();
+}
+
 export async function listMerchantWallets(merchantId: number) {
   const [merchant] = await db.select({ baseCurrency: merchantsTable.baseCurrency }).from(merchantsTable)
     .where(eq(merchantsTable.id, merchantId)).limit(1);
   if (!merchant) throw new ApiError(404, "Merchant account not found.");
   const baseCurrency = merchant.baseCurrency.toUpperCase();
-  const walletCurrencies = new Set([...COLLECTION_CURRENCIES.map(({ code }) => code), baseCurrency]);
-  await db.insert(merchantWalletsTable).values([...walletCurrencies].map((currency) => ({
-    merchantId, currency,
-  }))).onConflictDoNothing();
+  await ensureMerchantWalletAccounts(merchantId, baseCurrency);
   const rows = await db.select().from(merchantWalletsTable)
     .where(eq(merchantWalletsTable.merchantId, merchantId))
     .orderBy(merchantWalletsTable.currency);

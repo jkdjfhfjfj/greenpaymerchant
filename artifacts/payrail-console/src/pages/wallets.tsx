@@ -8,11 +8,29 @@ import {
   useListMerchantPayoutRequests, useListMerchantWalletLedger,
   useListMerchantWalletPayoutMethods, useListMerchantWallets, useListSettlements,
 } from '@workspace/api-client-react';
-import { Async, Btn, Card, Err, Field, Gate, Heading, Modal, Note, Pill, fmtDate, money, nice, useInvalidateAll } from '@/components/kit';
+import { Async, Btn, Card, CURRENCIES, Err, Field, Gate, Heading, Modal, Note, Pill, fmtDate, money, nice, useInvalidateAll } from '@/components/kit';
 import { useMerchantActionCapability } from '@/hooks/use-merchant-action-controls';
 
 function requestKey() {
   return crypto.randomUUID();
+}
+
+type WalletBalance = {
+  currency: string;
+  availableBalance: number;
+  reservedBalance: number;
+  updatedAt?: string | Date | null;
+};
+
+function includeSupportedWallets<T extends WalletBalance>(items: T[]) {
+  const byCurrency = new Map(items.map((item) => [item.currency, item]));
+  const currencies = [...new Set([...items.map((item) => item.currency), ...CURRENCIES])];
+  return currencies.map((currency) => byCurrency.get(currency) ?? {
+    currency,
+    availableBalance: 0,
+    reservedBalance: 0,
+    updatedAt: undefined,
+  });
 }
 
 async function walletApi<T>(path: string, options: {
@@ -132,7 +150,8 @@ function WalletInner() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState<unknown>(null);
   const idempotencyKey = useRef(requestKey());
-  const accounts = wallets.data?.items ?? [];
+  const walletItems = wallets.data?.items ?? [];
+  const accounts = useMemo(() => includeSupportedWallets(walletItems), [walletItems]);
   const from = fromCurrency || accounts[0]?.currency || '';
   const to = toCurrency || accounts.find((account) => account.currency !== from)?.currency || '';
   const amountNumber = Number(amount);
@@ -170,7 +189,7 @@ function WalletInner() {
         {accounts.map((account) => <section className="metric-card tone-mint" key={account.currency}>
           <div className="metric-top"><span>{account.currency} available</span><span className="metric-icon"><WalletCards size={17} /></span></div>
           <div className="metric-value">{money(account.availableBalance, account.currency)}</div>
-          <div className="metric-detail">Reserved {money(account.reservedBalance, account.currency)} · updated {fmtDate(account.updatedAt)}</div>
+          <div className="metric-detail">Reserved {money(account.reservedBalance, account.currency)} · {account.updatedAt ? `updated ${fmtDate(account.updatedAt)}` : 'no wallet activity yet'}</div>
         </section>)}
       </div>
     </Async>
@@ -242,7 +261,8 @@ function PayoutRequestInner() {
   const [error, setError] = useState<unknown>(null);
   const key = useRef(requestKey());
   const destinationKey = useRef(requestKey());
-  const balances = wallets.data?.items ?? [];
+  const walletItems = wallets.data?.items ?? [];
+  const balances = useMemo(() => includeSupportedWallets(walletItems), [walletItems]);
   const currency = currencyCode || balances[0]?.currency || '';
   const methods = useListMerchantWalletPayoutMethods({ currency }, {
     query: { queryKey: ['merchant-wallet-payout-methods', currency], enabled: currency.length === 3, refetchOnMount: 'always', staleTime: 0 },

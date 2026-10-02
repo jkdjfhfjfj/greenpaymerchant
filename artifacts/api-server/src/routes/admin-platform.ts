@@ -324,7 +324,7 @@ function merchantDto(row: typeof merchantsTable.$inferSelect) {
   return {
     id: row.id, businessName: row.businessName, shopName: row.shopName, shopLogoUrl: row.shopLogoUrl, country: row.country,
     baseCurrency: row.baseCurrency, registrationNumber: row.registrationNumber,
-    status: row.status, kycStatus: row.kycStatus, createdAt: row.createdAt,
+    status: row.status, kycStatus: row.kycStatus, kybStatus: row.kybStatus, createdAt: row.createdAt,
     ownerUserId: row.ownerClerkId, riskNote: row.riskNote, diditSessionId: row.diditSessionId,
     paymentsEnabled: row.paymentsEnabled, apiAccessEnabled: row.apiAccessEnabled,
     payoutsEnabled: row.payoutsEnabled, refundsEnabled: row.refundsEnabled,

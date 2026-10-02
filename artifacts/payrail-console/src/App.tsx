@@ -50,8 +50,17 @@ import { Route, Switch, Redirect, useLocation, Router as WouterRouter } from 'wo
 
 const queryClient = new QueryClient();
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
-const clerkPubKey = publishableKeyFromHost(window.location.hostname, import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
+const clerkProviderMode = (import.meta.env.VITE_CLERK_PROVIDER_MODE || 'managed').trim().toLowerCase();
+if (clerkProviderMode !== 'managed' && clerkProviderMode !== 'external') {
+  throw new Error('VITE_CLERK_PROVIDER_MODE must be either managed or external.');
+}
+const clerkPubKey = clerkProviderMode === 'external'
+  ? import.meta.env.VITE_EXTERNAL_CLERK_PUBLISHABLE_KEY
+  : publishableKeyFromHost(window.location.hostname, import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+if (clerkProviderMode === 'external' && !clerkPubKey) {
+  throw new Error('External Clerk mode requires VITE_EXTERNAL_CLERK_PUBLISHABLE_KEY.');
+}
+const clerkProxyUrl = clerkProviderMode === 'external' ? undefined : import.meta.env.VITE_CLERK_PROXY_URL;
 
 function stripBase(path: string) {
   return basePath && path.startsWith(basePath) ? path.slice(basePath.length) || '/' : path;
@@ -302,6 +311,9 @@ function AppShell({ children }: { children: ReactNode }) {
   const branding = usePlatformBranding();
   const workspaces = access.data?.workspaces ?? [];
   const capacity = access.data?.businessCapacity;
+  const canCreateBusiness = capacity
+    ? capacity.businessCount < capacity.businessLimit
+    : workspaces.length === 0;
   const merchantOnly = navSections.filter((section) => section.title === 'MERCHANT' || section.title === 'ACCOUNT');
   const sections = access.isAdmin ? [...navSections, adminSection] : merchantOnly;
   const active = pageInfo[location] || (location.startsWith('/invoices/') ? { title: 'Invoice details', subtitle: '' } : { title: 'Workspace', subtitle: '' });
@@ -327,9 +339,12 @@ function AppShell({ children }: { children: ReactNode }) {
           {workspaces.length ? workspaces.map((workspace) => <button key={workspace.id} type="button" role="menuitemradio" aria-checked={workspace.id === access.merchant?.id} className={`workspace-option ${workspace.id === access.merchant?.id ? 'workspace-option-active' : ''}`} disabled={selectWorkspace.isPending} onClick={() => activateWorkspace(workspace.id)}>
             <span className="workspace-option-copy"><strong>{workspace.businessName}</strong><small>{workspace.role === 'owner' ? 'Owner' : workspace.role === 'finance' ? 'Finance access' : 'Viewer access'}</small></span>
             {workspace.id === access.merchant?.id && <Check size={15} />}
-          </button>) : <p className="workspace-menu-empty">No merchant workspaces yet.</p>}
+          </button>) : <div className="workspace-empty-state">
+            <p>No merchant workspaces yet.</p>
+            {canCreateBusiness && <button className="workspace-add" type="button" role="menuitem" onClick={() => { setWorkspaceOpen(false); setLocation('/merchant/new'); }}><Plus size={15} />Create your first business</button>}
+          </div>}
           {capacity && <div className="workspace-capacity"><span>{capacity.businessCount} of {capacity.businessLimit} owned businesses</span><small>{capacity.tier === 'kyb' ? 'KYB verified' : capacity.tier === 'kyc' ? 'KYC verified' : 'Verification level sets your limit'}</small></div>}
-          {capacity && capacity.businessCount < capacity.businessLimit && <button className="workspace-add" type="button" onClick={() => { setWorkspaceOpen(false); setLocation('/merchant/new'); }}><Plus size={15} />Add a business</button>}
+          {workspaces.length > 0 && canCreateBusiness && <button className="workspace-add" type="button" role="menuitem" onClick={() => { setWorkspaceOpen(false); setLocation('/merchant/new'); }}><Plus size={15} />Add a business</button>}
           {capacity && capacity.businessCount >= capacity.businessLimit && capacity.tier !== 'kyb' && <p className="workspace-limit">Complete {capacity.tier === 'kyc' ? 'KYB' : 'KYC'} verification to raise your business limit.</p>}
           {selectWorkspace.error && <p className="workspace-error" role="alert">{errMsg(selectWorkspace.error)}</p>}
         </div>}

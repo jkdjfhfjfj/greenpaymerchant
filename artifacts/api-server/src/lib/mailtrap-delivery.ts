@@ -24,6 +24,7 @@ import {
   financialPayoutTransitionIsCurrent,
   processFinancialNotificationAttempt,
 } from "./financial-notification-events";
+import { getActiveClerkSecretKey } from "./clerk-config";
 export {
   persistFinancialNotificationEvent,
   processFinancialNotificationAttempt,
@@ -244,8 +245,8 @@ async function merchantRecipients(merchantId: number): Promise<Array<{
 }
 
 async function verifiedClerkEmailForNotification(userId: string): Promise<string | null> {
-  const secret = process.env.CLERK_SECRET_KEY?.trim();
-  if (!secret) throw new Error("CLERK_SECRET_KEY is required to resolve verified merchant notification email addresses.");
+  const secret = getActiveClerkSecretKey();
+  if (!secret) throw new Error("Active Clerk server credentials are required to resolve verified merchant notification email addresses.");
   let response: Response;
   try {
     response = await fetch(`https://api.clerk.com/v1/users/${encodeURIComponent(userId)}`, {

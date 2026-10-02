@@ -33,6 +33,6 @@ export function AuthSetupScreen() {
     <div className="eyebrow">SIGN-IN UNAVAILABLE</div>
     <h1>Authentication is not configured</h1>
     <p>This deployment has no Clerk publishable key, so merchant and administrator sign-in cannot start. Public payment links and payment status pages continue to work.</p>
-    <p>An operator needs to provide VITE_CLERK_PUBLISHABLE_KEY and reload the app.</p>
+    <p>An operator needs to provide the configured Clerk publishable key and reload the app (VITE_CLERK_PUBLISHABLE_KEY for Replit-managed Clerk or VITE_EXTERNAL_CLERK_PUBLISHABLE_KEY for external Clerk).</p>
   </div><footer className="support-public-footer"><a href={import.meta.env.BASE_URL} aria-label={`Powered by ${branding.platformName} — visit homepage`}>Powered by {branding.platformName}</a></footer></div>;
 }

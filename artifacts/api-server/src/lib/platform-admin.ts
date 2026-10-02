@@ -1,4 +1,5 @@
 import { and, eq, isNull } from "drizzle-orm";
+import { getActiveClerkSecretKey, getLegacyClerkSecretKey } from "./clerk-config";
 
 type ClerkEmailAddress = {
   id?: string;
@@ -59,8 +60,25 @@ export function verifiedPrimaryEmail(user: ClerkUserRecord): string | null {
   return primary.email_address.toLowerCase().trim();
 }
 
-async function clerkRequest<T>(url: string): Promise<T> {
-  const secret = process.env.CLERK_SECRET_KEY?.trim();
+export function verifiedEmailAddresses(user: ClerkUserRecord): string[] {
+  return [...new Set((user.email_addresses ?? [])
+    .filter((item) => item.verification?.status === "verified" && item.email_address)
+    .map((item) => item.email_address!.toLowerCase().trim())
+    .filter(Boolean))];
+}
+
+export function classifyLegacyIdentityCandidates(
+  candidates: Array<{ id: string }>,
+  possiblyTruncated = false,
+): { resolution: "linked"; legacyClerkUserId: string } | { resolution: "unmatched" | "ambiguous" } {
+  if (possiblyTruncated) return { resolution: "ambiguous" };
+  const ids = [...new Set(candidates.map((candidate) => candidate.id))];
+  if (ids.length === 0) return { resolution: "unmatched" };
+  if (ids.length > 1) return { resolution: "ambiguous" };
+  return { resolution: "linked", legacyClerkUserId: ids[0]! };
+}
+
+async function clerkRequestWithSecret<T>(url: string, secret: string | null): Promise<T> {
   if (!secret) throw new ClerkApiError("Clerk server credentials are not configured.");
   let response: Response;
   try {
@@ -75,8 +93,30 @@ async function clerkRequest<T>(url: string): Promise<T> {
   return await response.json() as T;
 }
 
+async function clerkRequest<T>(url: string): Promise<T> {
+  return clerkRequestWithSecret(url, getActiveClerkSecretKey());
+}
+
 export function fetchClerkUser(userId: string): Promise<ClerkUserRecord> {
   return clerkRequest<ClerkUserRecord>(`https://api.clerk.com/v1/users/${encodeURIComponent(userId)}`);
+}
+
+export async function findLegacyVerifiedClerkUsersByEmail(email: string): Promise<{
+  users: ClerkUserRecord[];
+  possiblyTruncated: boolean;
+}> {
+  const normalizedEmail = email.trim().toLowerCase();
+  const secret = getLegacyClerkSecretKey();
+  if (!secret) throw new ClerkApiError("Legacy Clerk credentials are not configured.");
+  const params = new URLSearchParams();
+  params.append("email_address[]", normalizedEmail);
+  params.set("limit", "100");
+  const users = await clerkRequestWithSecret<ClerkUserRecord[]>(
+    `https://api.clerk.com/v1/users?${params.toString()}`,
+    secret,
+  );
+  const matches = users.filter((user) => verifiedEmailAddresses(user).includes(normalizedEmail));
+  return { users: matches, possiblyTruncated: users.length >= 100 };
 }
 
 export async function findVerifiedClerkUsersByEmail(email: string): Promise<Array<ClerkUserRecord & { verifiedEmail: string }>> {

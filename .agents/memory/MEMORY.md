@@ -8,3 +8,5 @@
 - [Customer-facing payment labels](customer-facing-payment-labels.md) — use local method names, identify USD as global, and keep FX feed names out of customer-facing displays.
 - [Tier-currency collection readiness](tier-currency-limit-readiness.md) — provider configuration alone is not checkout readiness; merchant-tier currency limits also gate collections.
 - [Wallet conversion markup allocation](wallet-conversion-margin-split.md) — allocate combined markup proportionally so quote breakdowns and minor-unit journals reconcile.
+- [Verified Clerk account linking](verified-clerk-linking.md) — link legacy records only after one unique legacy account matches a verified email on the external account.
+- [External PostgreSQL cutover](external-postgres-cutover.md) — preserve `DATABASE_URL`, use a distinct external target, and do not push schema before the external database is confirmed.

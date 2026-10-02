@@ -22,8 +22,8 @@ h1,h2,h3,p{margin:0}
 .workspace-option:disabled{opacity:.65;cursor:wait}
 .workspace-option-copy{display:flex;flex-direction:column;min-width:0;gap:3px}
 .workspace-option-copy strong{overflow:hidden;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
-.workspace-option-copy small,.workspace-menu-empty{font-size:10px;opacity:.65}
-.workspace-menu-empty{padding:8px;margin:0}
+.workspace-option-copy small,.workspace-empty-state p{font-size:10px;opacity:.65}
+.workspace-empty-state p{padding:8px;margin:0}
 .workspace-capacity{display:flex;flex-direction:column;gap:3px;margin-top:5px;padding:10px 8px 7px;border-top:1px solid hsl(var(--sidebar-border));font-size:10px}
 .workspace-capacity>span{font-weight:600}
 .workspace-capacity>small{opacity:.6}

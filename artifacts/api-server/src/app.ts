@@ -17,8 +17,20 @@ import { requireSameOriginForCookieMutations, trustedBrowserOrigins } from "./mi
 import { originIsAllowed } from "./lib/origin-policy";
 import { activityAuditMiddleware } from "./middlewares/activity-audit";
 import { noindexApiResponses, publicSeoRouter } from "./routes/public-content";
+import {
+  getActiveClerkPublishableKey,
+  getActiveClerkSecretKey,
+  getClerkProviderMode,
+} from "./lib/clerk-config";
+import { legacyClerkIdentityLinkMiddleware } from "./middlewares/legacyClerkIdentityLink";
 
 const app: Express = express();
+const clerkProviderMode = getClerkProviderMode();
+const activeClerkPublishableKey = getActiveClerkPublishableKey();
+const activeClerkSecretKey = getActiveClerkSecretKey();
+if (clerkProviderMode === "external" && (!activeClerkPublishableKey || !activeClerkSecretKey)) {
+  throw new Error("External Clerk mode requires VITE_EXTERNAL_CLERK_PUBLISHABLE_KEY and EXTERNAL_CLERK_SECRET_KEY.");
+}
 
 app.use(
   pinoHttp({
@@ -56,13 +68,17 @@ app.use(cookieParser());
 
 app.use(
   clerkMiddleware((req) => ({
-    publishableKey: publishableKeyFromHost(
-      getClerkProxyHost(req) ?? "",
-      process.env.CLERK_PUBLISHABLE_KEY,
-    ),
+    ...(activeClerkSecretKey ? { secretKey: activeClerkSecretKey } : {}),
+    publishableKey: clerkProviderMode === "external"
+      ? activeClerkPublishableKey!
+      : publishableKeyFromHost(
+        getClerkProxyHost(req) ?? "",
+        process.env.CLERK_PUBLISHABLE_KEY,
+      ),
   })),
 );
 
+app.use("/api", legacyClerkIdentityLinkMiddleware);
 app.use("/api", activityAuditMiddleware);
 app.use("/api", requireSameOriginForCookieMutations);
 app.use("/api", router);

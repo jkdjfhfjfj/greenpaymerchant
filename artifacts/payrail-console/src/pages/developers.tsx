@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Clock3, KeyRound, LoaderCircle, Plus, RotateCcw, Send, Trash2, Webhook } from 'lucide-react';
+import { CheckCircle2, Clock3, Copy, KeyRound, LoaderCircle, Plus, RotateCcw, Send, Trash2, Webhook } from 'lucide-react';
 import {
   useListMerchantApiKeys, useCreateMerchantApiKey, useRevokeMerchantApiKey,
+  getMerchantApiKeySecret,
   useListMerchantWebhookEndpoints, useCreateMerchantWebhookEndpoint, useDeleteMerchantWebhookEndpoint,
   useListMerchantWebhookDeliveries, useCreateMerchantWebhookTestDelivery, useReplayMerchantWebhookDelivery,
   getListMerchantWebhookDeliveriesQueryKey, getListMerchantWebhookEndpointsQueryKey,
@@ -16,6 +17,29 @@ const EVENTS = ['payment.success', 'payment.failed', 'payment.refunded'] as cons
 
 function Secret({ title, secret, hint, onClose }: { title: string; secret: string; hint: string; onClose: () => void }) {
   return <Modal title={title} onClose={onClose}><div className="secret-box"><small>{hint}</small><code data-testid="text-secret" style={{ userSelect: 'all', overflowWrap: 'anywhere' }}>{secret}</code><div><CopyBtn text={secret} /></div></div><Btn onClick={onClose}>I have stored it</Btn></Modal>;
+}
+
+function ApiKeyCopyAction({ id, disabled, onSecret }: { id: number; disabled: boolean; onSecret: (value: string) => void }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function retrieveSecret() {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await getMerchantApiKeySecret(id);
+      onSecret(result.secret);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not retrieve this API key.');
+    } finally {
+      setLoading(false);
+    }
+  }
+  return <span className="copy-action">
+    <Btn variant="secondary" small disabled={disabled || loading} onClick={() => { void retrieveSecret(); }} testId={`button-copy-key-${id}`}>
+      {loading ? <LoaderCircle size={13} className="spin" /> : <Copy size={13} />}{loading ? 'Loading' : 'Copy key'}
+    </Btn>
+    {error && <small role="alert">{error}</small>}
+  </span>;
 }
 
 export function DevelopersPage() { return <Gate need="merchant"><Inner /></Gate>; }
@@ -50,7 +74,7 @@ function Inner() {
       const r = await mk.mutateAsync({ data: { name, scopes: scopes as never } });
       void inv();
       setKeyOpen(false);
-      setSecret({ title: 'API key created', value: r.secret, hint: 'This secret is shown once. Copy it now; it cannot be retrieved later.' });
+      setSecret({ title: 'API key created', value: r.secret, hint: 'Copy it now or use Copy key in the key list later while this key remains active.' });
     } catch {
       // The mutation error is shown in the form; keep the dialog open for correction or retry.
     }
@@ -84,7 +108,7 @@ function Inner() {
     {!capabilities.isLoading && !capabilities.isError && !mayManageApi && <Note tone="warn">{capabilities.disabledReason('apiAccess')}</Note>}
     <Card title="API keys" subtitle="Keys authenticate with Bearer tokens" action={<Btn small disabled={!mayManageApi} onClick={() => { setScopes(['read']); mk.reset(); setKeyOpen(true); }} testId="button-new-key"><Plus size={14} />New key</Btn>}>
       <Async q={keys} empty={!kItems.length} emptyTitle="No API keys" emptyBody="Create a key to call the merchant API."><div className="table-wrap"><table className="dt"><thead><tr><th>Name</th><th>Prefix</th><th>Scopes</th><th>Last used</th><th>State</th><th /></tr></thead><tbody>
-        {kItems.map((k) => <tr key={k.id} data-testid={`row-key-${k.id}`}><td><strong>{k.name}</strong><span className="sub">Created {fmtDate(k.createdAt)}</span></td><td className="mono">{k.prefix}...</td><td>{k.scopes.join(', ')}</td><td>{fmtDate(k.lastUsedAt)}</td><td><Pill value={k.revokedAt ? 'revoked' : 'active'} /></td><td><div className="row-actions">{!k.revokedAt && <Btn variant="danger" small onClick={() => setRevoke(k.id)}><Trash2 size={13} />Revoke</Btn>}</div></td></tr>)}
+        {kItems.map((k) => <tr key={k.id} data-testid={`row-key-${k.id}`}><td><strong>{k.name}</strong><span className="sub">Created {fmtDate(k.createdAt)}</span></td><td className="mono">{k.prefix}...</td><td>{k.scopes.join(', ')}</td><td>{fmtDate(k.lastUsedAt)}</td><td><Pill value={k.revokedAt ? 'revoked' : 'active'} /></td><td><div className="row-actions">{!k.revokedAt && (k.secretRecoverable ? <ApiKeyCopyAction id={k.id} disabled={!mayManageApi} onSecret={(value) => setSecret({ title: `Copy ${k.name} API key`, value, hint: 'This active key is shown only after you request it. Copy it and store it securely.' })} /> : <span className="sub">Create a replacement to enable copying</span>)}{!k.revokedAt && <Btn variant="danger" small disabled={!mayManageApi} onClick={() => setRevoke(k.id)}><Trash2 size={13} />Revoke</Btn>}</div></td></tr>)}
       </tbody></table></div></Async>
     </Card>
     <Card title="Webhook destinations" subtitle="Receive signed payment events" action={<Btn small disabled={!mayManageApi} onClick={() => { setEvents(['payment.success']); mh.reset(); setHookOpen(true); }} testId="button-new-webhook"><Webhook size={14} />Add endpoint</Btn>}>

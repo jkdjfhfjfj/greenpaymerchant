@@ -11,6 +11,8 @@ export interface ApiKey {
   id: number;
   name: string;
   prefix: string;
+  /** Whether an encrypted copy is available for explicit retrieval. The key secret itself is never included in list responses. */
+  secretRecoverable: boolean;
   scopes: ApiKeyScopesItem[];
   createdAt: Date;
   /** @nullable */

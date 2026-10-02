@@ -6,7 +6,7 @@ import { db, providerCredentialsTable } from "@workspace/db";
 import { ApiError } from "./api-error";
 import { apiKeyHash, credentialVaultReady, decryptSecret, encryptSecret, equalSignature } from "./secret-crypto";
 import { isPrivateAddress } from "./network-safety";
-export { apiKeyHash, credentialVaultReady, decryptSecret, encryptSecret, equalSignature } from "./secret-crypto";
+export { apiKeyHash, credentialVaultReady, decryptApiKeySecret, decryptSecret, encryptSecret, equalSignature } from "./secret-crypto";
 export { isPrivateAddress } from "./network-safety";
 
 export async function encryptProviderCredentials(provider: string, credentials: Record<string, string>, enabled: boolean, updatedBy: string) {

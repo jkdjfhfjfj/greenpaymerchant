@@ -35,6 +35,14 @@ export function apiKeyHash(secret: string): string {
   return createHash("sha256").update(secret).digest("hex");
 }
 
+export function decryptApiKeySecret(serialized: string, expectedHash: string): string {
+  const secret = decryptSecret(serialized);
+  if (!equalSignature(apiKeyHash(secret), expectedHash)) {
+    throw new ApiError(503, "Stored API key secret failed integrity verification.");
+  }
+  return secret;
+}
+
 export function equalSignature(expectedHex: string, receivedHex: string): boolean {
   if (!/^[\da-f]{64}$/i.test(receivedHex) || !/^[\da-f]{64}$/i.test(expectedHex)) return false;
   const expected = Buffer.from(expectedHex, "hex");

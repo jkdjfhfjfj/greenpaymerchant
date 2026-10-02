@@ -124,6 +124,7 @@ import type {
   ListTransactionsParams,
   ListWebhookEventsParams,
   MerchantActionControlsResponse,
+  MerchantApiKeySecret,
   MerchantCaseAttachmentUploadIntent,
   MerchantCaseAttachmentUploadIntentInput,
   MerchantCollectionAnalyticsResponse,
@@ -9690,6 +9691,83 @@ export const useCreateMerchantApiKey = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getCreateMerchantApiKeyMutationOptions(options));
     }
+
+export const getGetMerchantApiKeySecretUrl = (id: number,) => {
+
+
+
+
+  return `/api/merchant/api-keys/${id}/secret`
+}
+
+/**
+ * @summary Retrieve an active API key secret for explicit copying
+ */
+export const getMerchantApiKeySecret = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<MerchantApiKeySecret> => {
+
+  return customFetch<MerchantApiKeySecret>(getGetMerchantApiKeySecretUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMerchantApiKeySecretQueryKey = (id: number,) => {
+    return [
+    `/api/merchant/api-keys/${id}/secret`
+    ] as const;
+    }
+
+
+export const getGetMerchantApiKeySecretQueryOptions = <TData = Awaited<ReturnType<typeof getMerchantApiKeySecret>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMerchantApiKeySecret>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMerchantApiKeySecretQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMerchantApiKeySecret>>> = ({ signal }) => getMerchantApiKeySecret(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMerchantApiKeySecret>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMerchantApiKeySecretQueryResult = NonNullable<Awaited<ReturnType<typeof getMerchantApiKeySecret>>>
+export type GetMerchantApiKeySecretQueryError = ErrorType<void>
+
+
+/**
+ * @summary Retrieve an active API key secret for explicit copying
+ */
+
+export function useGetMerchantApiKeySecret<TData = Awaited<ReturnType<typeof getMerchantApiKeySecret>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMerchantApiKeySecret>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMerchantApiKeySecretQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getRevokeMerchantApiKeyUrl = (id: number,) => {
 

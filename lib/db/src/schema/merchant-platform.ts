@@ -67,6 +67,7 @@ export const merchantApiKeysTable = pgTable("greenpay_merchant_api_keys", {
   name: varchar("name", { length: 100 }).notNull(),
   prefix: varchar("prefix", { length: 20 }).notNull(),
   secretHash: varchar("secret_hash", { length: 64 }).notNull().unique(),
+  encryptedSecret: text("encrypted_secret"),
   scopes: jsonb("scopes").$type<string[]>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),

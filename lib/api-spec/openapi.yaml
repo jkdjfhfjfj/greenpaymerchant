@@ -1933,6 +1933,26 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CreatedApiKey" }
+  /merchant/api-keys/{id}/secret:
+    get:
+      operationId: getMerchantApiKeySecret
+      tags: [merchant]
+      summary: Retrieve an active API key secret for explicit copying
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Active API key secret. This response is never cached.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantApiKeySecret" }
+        "404": { description: Active API key not found for this merchant }
+        "403": { description: API access is disabled for this merchant or workspace }
+        "409": { description: The key predates encrypted secret storage and must be replaced }
+        "503": { description: Credential vault is unavailable or stored data failed integrity verification }
   /merchant/api-keys/{id}:
     delete:
       operationId: revokeMerchantApiKey
@@ -5000,11 +5020,12 @@ components:
         status: { type: string }
     ApiKey:
       type: object
-      required: [id, name, prefix, scopes, createdAt]
+      required: [id, name, prefix, scopes, createdAt, secretRecoverable]
       properties:
         id: { type: integer }
         name: { type: string }
         prefix: { type: string }
+        secretRecoverable: { type: boolean, description: Whether an encrypted copy is available for explicit retrieval. The key secret itself is never included in list responses. }
         scopes:
           type: array
           items: { type: string, enum: [read, payment_links:write, payments:write] }
@@ -5083,6 +5104,11 @@ components:
       required: [key, secret]
       properties:
         key: { $ref: "#/components/schemas/ApiKey" }
+        secret: { type: string }
+    MerchantApiKeySecret:
+      type: object
+      required: [secret]
+      properties:
         secret: { type: string }
     WebhookEndpoint:
       type: object

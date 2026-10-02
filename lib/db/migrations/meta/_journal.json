@@ -8,6 +8,13 @@
       "when": 1790951988695,
       "tag": "0000_perpetual_sunspot",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790957623254,
+      "tag": "0001_amazing_wilson_fisk",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { apiKeyHash, decryptSecret, encryptSecret } from "./secret-crypto";
+import { apiKeyHash, decryptApiKeySecret, decryptSecret, encryptSecret } from "./secret-crypto";
 import { calculateFxQuote } from "./fx-math";
 import {
   featureIsEnabled, hasRequiredScope, merchantCapabilityIsEnabled,
@@ -33,6 +33,14 @@ test("vault encryption authenticates ciphertext and fails closed without a valid
   assert.equal(decryptSecret(serialized), "provider-private-value");
   const [iv, tag, encrypted] = serialized.split(".");
   assert.throws(() => decryptSecret(`${iv}.${tag}.${encrypted.slice(0, -2)}AA`));
+});
+
+test("API key recovery verifies decrypted secrets against the authentication hash", () => {
+  process.env.CREDENTIALS_ENCRYPTION_KEY = "unit-test-only-key";
+  const secret = "gp_live_unit-test-key";
+  const encrypted = encryptSecret(secret);
+  assert.equal(decryptApiKeySecret(encrypted, apiKeyHash(secret)), secret);
+  assert.throws(() => decryptApiKeySecret(encrypted, apiKeyHash("different-secret")), /integrity verification/);
 });
 
 test("Didit timestamp freshness accepts only recent epoch seconds or milliseconds", () => {

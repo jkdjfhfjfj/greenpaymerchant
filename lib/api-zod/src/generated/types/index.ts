@@ -188,6 +188,7 @@ export * from './merchantActionControlsResponseMerchantStatus';
 export * from './merchantActionControlUpdates';
 export * from './merchantActionKey';
 export * from './merchantActionRole';
+export * from './merchantApiKeySecret';
 export * from './merchantBusinessCapacity';
 export * from './merchantBusinessCapacityBusinessLimit';
 export * from './merchantBusinessCapacityTier';

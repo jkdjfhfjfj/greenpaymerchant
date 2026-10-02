@@ -19,6 +19,7 @@ import {
   ListDeveloperTransactionsResponse, ListMerchantApiKeysResponse, ListMerchantPaymentLinksResponse,
   ListMerchantTransactionsQueryParams, ListMerchantTransactionsResponse, ListMerchantWebhookEndpointsResponse,
   RevokeMerchantApiKeyParams, UpdateMerchantPaymentLinkBody, UpdateMerchantPaymentLinkParams,
+  GetMerchantApiKeySecretParams, GetMerchantApiKeySecretResponse,
   UpdateMerchantPaymentLinkResponse, DeleteMerchantPaymentLinkParams, DeleteMerchantWebhookEndpointParams,
   CreateDeveloperPaymentLinkResponse, CreateDeveloperTransactionBody, CreateDeveloperTransactionHeader,
   CreateDeveloperTransactionResponse, GetDeveloperTransactionParams, GetDeveloperTransactionResponse,
@@ -46,7 +47,7 @@ import {
   assertPlatformEnabled,
   getMerchantActionControlState,
 } from "../lib/platform";
-import { apiKeyHash, encryptSecret, validateWebhookUrl } from "../lib/secure-storage";
+import { apiKeyHash, decryptApiKeySecret, encryptSecret, validateWebhookUrl } from "../lib/secure-storage";
 import {
   findTransaction, markTransactionStatus, paymentLinkDto, paymentLinkStats, payoutDto, transactionDto,
 } from "../lib/greenpay-ledger";
@@ -192,6 +193,7 @@ async function createOwnedLink(merchant: typeof merchantsTable.$inferSelect, inp
 function apiKeyDto(row: typeof merchantApiKeysTable.$inferSelect) {
   return {
     id: row.id, name: row.name, prefix: row.prefix, scopes: row.scopes,
+    secretRecoverable: row.encryptedSecret !== null,
     createdAt: row.createdAt, lastUsedAt: row.lastUsedAt, revokedAt: row.revokedAt,
   };
 }
@@ -752,9 +754,32 @@ router.post("/merchant/api-keys", requireSignedIn, async (req, res): Promise<voi
   const prefix = secret.slice(0, 15);
   const [key] = await db.insert(merchantApiKeysTable).values({
     merchantId: merchant.id, name: parsed.data.name.trim(), prefix,
-    secretHash: apiKeyHash(secret), scopes: parsed.data.scopes,
+    secretHash: apiKeyHash(secret), encryptedSecret: encryptSecret(secret), scopes: parsed.data.scopes,
   }).returning();
   res.status(201).json(CreateMerchantApiKeyResponse.parse({ key: apiKeyDto(key), secret }));
+});
+
+router.get("/merchant/api-keys/:id/secret", requireSignedIn, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  const params = GetMerchantApiKeySecretParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const merchant = await ownedMerchant(res);
+  if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  await assertMerchantActionEnabled(merchant.id, "apiAccess");
+  await assertPlatformEnabled("apiAccessEnabled");
+  if (!merchant.apiAccessEnabled) { res.status(403).json({ error: "Developer API access is disabled for this merchant." }); return; }
+  const [key] = await db.select().from(merchantApiKeysTable).where(and(
+    eq(merchantApiKeysTable.id, params.data.id),
+    eq(merchantApiKeysTable.merchantId, merchant.id),
+    isNull(merchantApiKeysTable.revokedAt),
+  )).limit(1);
+  if (!key) { res.status(404).json({ error: "Active API key not found for this merchant." }); return; }
+  if (!key.encryptedSecret) {
+    res.status(409).json({ error: "This key cannot be recopied because it was created before encrypted key storage. Create a replacement key to enable recopying." });
+    return;
+  }
+  const secret = decryptApiKeySecret(key.encryptedSecret, key.secretHash);
+  res.json(GetMerchantApiKeySecretResponse.parse({ secret }));
 });
 
 router.delete("/merchant/api-keys/:id", requireSignedIn, async (req, res): Promise<void> => {

@@ -1,0 +1,1 @@
+ALTER TABLE "greenpay_merchant_api_keys" ADD COLUMN "encrypted_secret" text;

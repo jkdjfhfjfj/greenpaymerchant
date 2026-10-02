@@ -218,7 +218,7 @@ Authentication: Authorization: Bearer <merchant API key>
 Content type: application/json
 Environment: this Greenpay deployment; there is no separate Greenpay sandbox hostname.`}</pre>
         <p>Use an API key created in <a href={publicView ? '/sign-in' : '/developers'}>API access</a>. Greenpay currently issues a <code>gp_live_</code>-prefixed key; do not interpret that prefix as proof of a test or live payment environment. Payment requests use the credentials configured for the selected currency route. Until an operator configures test-mode credentials, treat a confirmed payment request as potentially real.</p>
-        <p>Keys are shown once at creation. Store them in a trusted server-side secret manager, rotate or revoke them from API access, and never ship a secret key in browser or mobile application code.{!publicView && ' The playground key input is temporary and exists to make direct merchant-scoped read requests possible.'}</p>
+        <p>Active API keys can be copied again from API access after an explicit request. Keys created before encrypted key storage cannot be recovered; create and verify a replacement before revoking an older key. Store keys in a trusted server-side secret manager and never ship a secret key in browser or mobile application code.{!publicView && ' The playground key input is temporary and exists to make direct merchant-scoped read requests possible.'}</p>
       </div>
     </Card>
 

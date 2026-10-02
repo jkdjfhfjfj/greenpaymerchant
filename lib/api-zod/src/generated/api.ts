@@ -4723,6 +4723,7 @@ export const ListMerchantApiKeysResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "prefix": zod.string(),
+  "secretRecoverable": zod.boolean().describe('Whether an encrypted copy is available for explicit retrieval. The key secret itself is never included in list responses.'),
   "scopes": zod.array(zod.enum(['read', 'payment_links:write', 'payments:write'])),
   "createdAt": zod.coerce.date(),
   "lastUsedAt": zod.coerce.date().nullish(),
@@ -4750,11 +4751,24 @@ export const CreateMerchantApiKeyResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "prefix": zod.string(),
+  "secretRecoverable": zod.boolean().describe('Whether an encrypted copy is available for explicit retrieval. The key secret itself is never included in list responses.'),
   "scopes": zod.array(zod.enum(['read', 'payment_links:write', 'payments:write'])),
   "createdAt": zod.coerce.date(),
   "lastUsedAt": zod.coerce.date().nullish(),
   "revokedAt": zod.coerce.date().nullish()
 }),
+  "secret": zod.string()
+})
+
+
+/**
+ * @summary Retrieve an active API key secret for explicit copying
+ */
+export const GetMerchantApiKeySecretParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetMerchantApiKeySecretResponse = zod.object({
   "secret": zod.string()
 })
 

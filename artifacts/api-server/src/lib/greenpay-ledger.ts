@@ -26,6 +26,7 @@ import { paymentTransitionAllowed } from "./security-policy";
 import { paymentLinkCurrencyTotals } from "./payment-link-accounting";
 import { settleWalletRefundFunds } from "./wallet-service";
 import { persistFinancialNotificationEvent } from "./mailtrap-delivery";
+import { archiveInvoicePaymentLinkIfPaidInTransaction } from "./merchant-invoice-payment-links";
 
 const TERMINAL_REFUND_STATUSES = new Set([
   ...CUSTOMER_REIMBURSED_REFUND_STATUSES,
@@ -186,6 +187,12 @@ export async function markTransactionStatus(
       }).where(and(eq(transactionsTable.id, current.id), eq(transactionsTable.status, "pending"))).returning();
       if (!updated) return { transaction: current, event: undefined };
       if (current.paymentLinkId !== null) {
+        if (current.merchantId !== null) {
+          await archiveInvoicePaymentLinkIfPaidInTransaction(tx, {
+            paymentLinkId: current.paymentLinkId,
+            merchantId: current.merchantId,
+          });
+        }
         await tx.update(paymentLinksTable).set({ status: "archived" }).where(and(
           eq(paymentLinksTable.id, current.paymentLinkId),
           eq(paymentLinksTable.status, "active"),

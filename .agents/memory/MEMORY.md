@@ -12,3 +12,4 @@
 - [Legal policy content](legal-policy-content.md) — only administrators supply approved policy wording; never invent or publish legal copy.
 - [Verified Clerk account linking](verified-clerk-linking.md) — link legacy records only after one unique legacy account matches a verified email on the external account.
 - [External PostgreSQL cutover](external-postgres-cutover.md) — preserve `DATABASE_URL`, use a distinct external target, and do not push schema before the external database is confirmed.
+- [Invoice payment-link closure](invoice-payment-link-closure.md) — archive a fully paid invoice's checkout link at provider confirmation, not only when another retry or checkout is attempted.

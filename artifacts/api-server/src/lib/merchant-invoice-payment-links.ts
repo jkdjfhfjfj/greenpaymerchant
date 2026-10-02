@@ -15,6 +15,51 @@ type FinancialTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const PAID_TRANSACTION_STATUSES = ["success", "refunded"] as const;
 
+async function invoiceBalanceAfterPayments(
+  tx: FinancialTx,
+  invoice: typeof merchantInvoicesTable.$inferSelect,
+  merchantId: number,
+): Promise<number> {
+  const paidTransactions = invoice.paymentLinkId ? await tx.select().from(transactionsTable).where(and(
+    eq(transactionsTable.merchantId, merchantId),
+    eq(transactionsTable.paymentLinkId, invoice.paymentLinkId),
+    inArray(transactionsTable.status, [...PAID_TRANSACTION_STATUSES]),
+  )) : [];
+  const collected = paidTransactions.reduce((sum, row) => sum + (row.paidAt ? Number(row.amount) : 0), 0);
+  let reimbursed = 0;
+  for (const transaction of paidTransactions) {
+    const confirmedRefunds = await tx.select({ amount: refundsTable.amount }).from(refundsTable).where(and(
+      eq(refundsTable.originalReference, transaction.reference),
+      inArray(refundsTable.status, [...CUSTOMER_REIMBURSED_REFUND_STATUSES]),
+    ));
+    reimbursed += confirmedRefunds.reduce((sum, refund) => sum + Number(refund.amount), 0);
+  }
+  return invoiceOutstandingAmount(
+    invoice.total,
+    Math.max(0, Math.min(invoice.total, collected - reimbursed)),
+  );
+}
+
+export async function archiveInvoicePaymentLinkIfPaidInTransaction(
+  tx: FinancialTx,
+  input: { paymentLinkId: number; merchantId: number },
+): Promise<void> {
+  const [invoice] = await tx.select().from(merchantInvoicesTable).where(and(
+    eq(merchantInvoicesTable.paymentLinkId, input.paymentLinkId),
+    eq(merchantInvoicesTable.merchantId, input.merchantId),
+  )).for("update").limit(1);
+  if (!invoice) return;
+
+  const outstanding = await invoiceBalanceAfterPayments(tx, invoice, input.merchantId);
+  if (outstanding > 0) return;
+
+  await tx.update(paymentLinksTable).set({ status: "archived" }).where(and(
+    eq(paymentLinksTable.id, input.paymentLinkId),
+    eq(paymentLinksTable.merchantId, input.merchantId),
+    eq(paymentLinksTable.status, "active"),
+  ));
+}
+
 export async function refreshInvoicePaymentLinkInTransaction(
   tx: FinancialTx,
   input: { invoiceId: number; merchantId: number },
@@ -38,24 +83,7 @@ export async function refreshInvoicePaymentLinkInTransaction(
     throw Object.assign(new Error("The invoice's original payment link is unavailable or inconsistent; support is required before regenerating it."), { statusCode: 409 });
   }
 
-  const paidTransactions = invoice.paymentLinkId ? await tx.select().from(transactionsTable).where(and(
-    eq(transactionsTable.merchantId, input.merchantId),
-    eq(transactionsTable.paymentLinkId, invoice.paymentLinkId),
-    inArray(transactionsTable.status, [...PAID_TRANSACTION_STATUSES]),
-  )) : [];
-  const collected = paidTransactions.reduce((sum, row) => sum + (row.paidAt ? Number(row.amount) : 0), 0);
-  let reimbursed = 0;
-  for (const transaction of paidTransactions) {
-    const confirmedRefunds = await tx.select({ amount: refundsTable.amount }).from(refundsTable).where(and(
-      eq(refundsTable.originalReference, transaction.reference),
-      inArray(refundsTable.status, [...CUSTOMER_REIMBURSED_REFUND_STATUSES]),
-    ));
-    reimbursed += confirmedRefunds.reduce((sum, refund) => sum + Number(refund.amount), 0);
-  }
-  const outstanding = invoiceOutstandingAmount(
-    invoice.total,
-    Math.max(0, Math.min(invoice.total, collected - reimbursed)),
-  );
+  const outstanding = await invoiceBalanceAfterPayments(tx, invoice, input.merchantId);
   if (outstanding <= 0) {
     throw Object.assign(new Error("This invoice has no outstanding balance."), { statusCode: 409 });
   }

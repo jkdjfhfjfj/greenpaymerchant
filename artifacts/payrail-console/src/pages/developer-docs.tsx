@@ -243,18 +243,48 @@ Environment: this Greenpay deployment; there is no separate Greenpay sandbox hos
       </ul>
     </Card>
 
+    <Card title="Integrate payments on your website" subtitle="Create payments on your server, then confirm them before fulfilling an order.">
+      <div className="form-stack">
+        <ol style={{ margin: 0, paddingLeft: 22, display: 'grid', gap: 10 }}>
+          <li><strong>Check currency readiness.</strong> Read <code>GET /currencies</code> and offer only currencies where <code>collectionReady</code> is true and a returned <code>paymentMethods[].ready</code> is true. Send that method's <code>id</code> as <code>paymentMethod</code> (for example, <code>hosted_checkout</code> or <code>mobile_prompt</code>).</li>
+          <li><strong>Start payment from your backend.</strong> Create an API key with <code>payments:write</code>, store it in server-side secrets, and calculate the amount from your server-side order. Never expose the key or trust a browser-supplied amount.</li>
+          <li><strong>Continue checkout.</strong> Redirect the customer's browser to the returned <code>checkoutUrl</code> when present. <code>mobile_prompt</code> requires <code>customerPhone</code>; the API may return no checkout URL for that method.</li>
+          <li><strong>Confirm before fulfillment.</strong> Save <code>transaction.reference</code>. Use the signed-webhook procedure below for order fulfillment, match the reference, amount, and currency to your order, and treat <code>pending</code> as unpaid.</li>
+        </ol>
+        <h3>Example server request</h3>
+        <pre className="code">{`POST ${window.location.origin}${API_ORIGIN}/v1/transactions
+Authorization: Bearer $GREENPAY_API_KEY
+Idempotency-Key: order-1042-attempt-1
+Content-Type: application/json
+
+{"amount":10,"currency":"USD","paymentMethod":"hosted_checkout","customerEmail":"buyer@example.com"}`}</pre>
+        <p>Use a new idempotency key for each distinct attempt and reuse it only when retrying the same request. Return the checkout URL and transaction reference to your frontend, never the API key.</p>
+        <h3>Run safe connection and status checks</h3>
+        <pre className="code">{`# Currency and method readiness; no API key required
+curl "${window.location.origin}${API_ORIGIN}/currencies"
+
+# Confirm the merchant API key (requires the read scope)
+curl "${window.location.origin}${API_ORIGIN}/v1/merchant" \\
+  -H "Authorization: Bearer $GREENPAY_API_KEY"
+
+# Customer-safe status lookup; no API key required
+curl "${window.location.origin}${API_ORIGIN}/public/transactions/TRANSACTION_REFERENCE"`}</pre>
+        <p>Use <code>GET /public/transactions/:reference</code> to display customer-safe status, or <code>GET /v1/transactions/:reference</code> with the <code>read</code> scope for merchant details. Greenpay has no separate public sandbox hostname: a payment-creation request can start a real collection. Use the read-only checks above for connectivity, and only run end-to-end payment tests after confirming the currency route is configured for test mode.</p>
+      </div>
+    </Card>
+
     <div id="supported-collection-currencies" className="currency-section-anchor">
-    <Card title="Supported collection currencies" subtitle="Readiness is deployment-specific and never exposes route/provider names.">
+    <Card title="Supported collection currencies" subtitle="Use these provider-neutral method IDs as paymentMethod; availability is deployment-specific and provider routes are not exposed.">
       <Async q={currencies} empty={!currencies.data?.items.length} emptyTitle="Currency readiness is unavailable" emptyBody="The catalog request returned no supported collection currencies. Retry the page before selecting a currency.">
         <div className="currency-table-wrap table-wrap">
           <table className="dt currency-readiness-table">
-            <thead><tr><th>Currency</th><th>Code</th><th>Fraction digits</th><th>Payment methods</th><th>Launch state</th><th>Collection readiness</th></tr></thead>
+            <thead><tr><th>Currency</th><th>Code</th><th>Fraction digits</th><th>Payment method IDs</th><th>Launch state</th><th>Collection readiness</th></tr></thead>
             <tbody>
               {(currencies.data?.items ?? []).map((item) => <tr key={item.code}>
                 <td>{item.name}</td>
                 <td><code className="currency-code">{item.code}</code>{item.code === 'SLL' && <span className="sub">Greenpay preserves the SLL API value and labels it SLL pending denomination-scale confirmation.</span>}</td>
                 <td>{item.minorUnits}</td>
-                <td>{item.paymentMethods.length ? item.paymentMethods.map((method) => <span key={method.id}>{method.label}{method.requiresPhone ? ' · phone required' : ''}{method.ready ? '' : item.comingSoon ? ' · Coming soon' : ' · unavailable'}</span>) : 'No method available'}</td>
+                <td>{item.paymentMethods.length ? item.paymentMethods.map((method) => <span key={method.id}>{method.id}{method.requiresPhone ? ' · phone required' : ''}{method.ready ? '' : item.comingSoon ? ' · Coming soon' : ' · unavailable'}</span>) : 'No method available'}</td>
                 <td>{item.comingSoon ? 'Coming soon' : 'Active'}</td>
                 <td>{item.comingSoon ? 'Not launched' : item.collectionReady ? 'Ready on this deployment' : 'Provider/tier not configured or disabled'}</td>
               </tr>)}
@@ -269,11 +299,11 @@ Environment: this Greenpay deployment; there is no separate Greenpay sandbox hos
             </header>
             {item.code === 'SLL' && <p className="currency-mobile-sll-note">Greenpay preserves the SLL API value and labels it SLL pending denomination-scale confirmation.</p>}
             <div className="currency-mobile-detail">
-              <span>Payment methods</span>
+               <span>Payment method IDs</span>
               <div className="currency-mobile-methods">
                 {item.paymentMethods.length
                   ? item.paymentMethods.map((method) => <span className="currency-mobile-method" key={method.id}>
-                    {method.label}{method.requiresPhone ? ' · phone required' : ''}{method.ready ? '' : item.comingSoon ? ' · Coming soon' : ' · unavailable'}
+                    {method.id}{method.requiresPhone ? ' · phone required' : ''}{method.ready ? '' : item.comingSoon ? ' · Coming soon' : ' · unavailable'}
                   </span>)
                   : <span className="currency-mobile-method">No method available</span>}
               </div>
@@ -357,7 +387,7 @@ curl "${window.location.origin}/api/v1/fx-quote?amount=100&from=USD&to=KES" \\
   -H "Idempotency-Key: order-1042-attempt-1" \\
   -H "Content-Type: application/json" \\
   -d '{"amount":10,"currency":"USD","paymentMethod":"hosted_checkout","customerEmail":"buyer@example.com"}'`}</pre>
-        <p>The response contains <code>transaction</code> and <code>checkoutUrl</code>. A hosted checkout session is not a card-only guarantee: the provider checkout displays the methods it actually supports. For USD, Greenpay currently offers hosted checkout; do not describe it as card-only unless the provider contract enforces that.</p>
+        <p>The request's <code>paymentMethod</code> must use a designated method ID returned for the selected currency, such as <code>hosted_checkout</code> or <code>mobile_prompt</code>; do not send a display label or provider name. With <code>hosted_checkout</code>, the provider checkout displays the methods it actually supports, so it is not a card-only guarantee.</p>
         <h3>Create a payment link</h3>
         <pre className="code">{`curl -X POST "${window.location.origin}/api/v1/payment-links" \\
   -H "Authorization: Bearer $GREENPAY_API_KEY" \\
@@ -400,7 +430,7 @@ curl "${window.location.origin}/api/v1/fx-quote?amount=100&from=USD&to=KES" \\
         <Note tone="danger"><ShieldCheck size={15} /> Before enabling: the API key must have <code>payments:write</code>; currency routes may be connected to live payment credentials. This is not a sandbox/test-payment guarantee.</Note>
           <div className="form-grid"><Field label="Amount"><input type="number" min={paymentCurrency === 'KES' || COLLECTION_CURRENCIES.find(({ code }) => code === paymentCurrency)?.minorUnits === 0 ? '1' : '0.01'} step={COLLECTION_CURRENCIES.find(({ code }) => code === paymentCurrency)?.minorUnits === 0 ? '1' : '0.01'} value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} disabled={!mutationEnabled} required /></Field><Field label="Currency"><select value={paymentCurrency} onChange={(event) => { setPaymentCurrency(event.target.value); setPaymentMethodId(''); }}>{(currencies.data?.items ?? []).map((item) => <option key={item.code} value={item.code}>{item.code} · {item.name}{item.comingSoon ? ' · Coming soon' : item.collectionReady ? '' : ' · unavailable'}</option>)}</select></Field></div>
           {paymentCurrencyOption?.comingSoon && <Note tone="warn">Coming soon: collections in {paymentCurrency} are disabled by an administrator.</Note>}
-          <Field label="Payment method"><select value={selectedPaymentMethod?.id ?? ''} onChange={(event) => setPaymentMethodId(event.target.value)} disabled={!paymentMethods.some((method) => method.ready)}>{!selectedPaymentMethod && <option value="">{paymentCurrencyOption?.comingSoon ? 'Coming soon' : paymentCurrencyOption?.collectionReady ? 'No payment method available' : 'No payment method available right now'}</option>}{paymentMethods.map((method) => <option key={method.id} value={method.id} disabled={!method.ready}>{method.label}{method.requiresPhone ? ' · phone required' : ''}{method.ready ? '' : paymentCurrencyOption?.comingSoon ? ' · Coming soon' : ' · unavailable'}</option>)}</select></Field>
+          <Field label="Payment method ID" hint="Use the designated ID returned in paymentMethods[].id for this currency."><select value={selectedPaymentMethod?.id ?? ''} onChange={(event) => setPaymentMethodId(event.target.value)} disabled={!paymentMethods.some((method) => method.ready)}>{!selectedPaymentMethod && <option value="">{paymentCurrencyOption?.comingSoon ? 'Coming soon' : paymentCurrencyOption?.collectionReady ? 'No payment method available' : 'No payment method available right now'}</option>}{paymentMethods.map((method) => <option key={method.id} value={method.id} disabled={!method.ready}>{method.id}{method.requiresPhone ? ' · phone required' : ''}{method.ready ? '' : paymentCurrencyOption?.comingSoon ? ' · Coming soon' : ' · unavailable'}</option>)}</select></Field>
         <Field label="Customer email"><input type="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} disabled={!mutationEnabled} required /></Field>
          {selectedPaymentMethod?.requiresPhone && <Field label="Customer phone (required for this method)"><input type="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} disabled={!mutationEnabled} required /></Field>}
         <Field label="Idempotency-Key" hint="This key stays in page memory. Do not retry the same uncertain request with a different key until you reconcile it."><input minLength={8} maxLength={128} value={idempotencyKey} onChange={(event) => setIdempotencyKey(event.target.value)} disabled={!mutationEnabled} required /></Field>

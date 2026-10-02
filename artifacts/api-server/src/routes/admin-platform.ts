@@ -320,9 +320,27 @@ async function adminMerchantControlsDto(merchant: typeof merchantsTable.$inferSe
   };
 }
 
-function merchantDto(row: typeof merchantsTable.$inferSelect) {
+type AdminMerchantDtoRow = Omit<typeof merchantsTable.$inferSelect, "kybStatus"> & {
+  kybStatus: string;
+};
+
+function safeShopLogoUrl(value: string | null): string | null {
+  if (!value?.trim()) return null;
+  try {
+    const url = new URL(value.trim());
+    const localHttp = url.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+    if ((url.protocol !== "https:" && !localHttp) || url.username || url.password) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function merchantDto(row: AdminMerchantDtoRow) {
   return {
-    id: row.id, businessName: row.businessName, shopName: row.shopName, shopLogoUrl: row.shopLogoUrl, country: row.country,
+    id: row.id, businessName: row.businessName, shopName: row.shopName,
+    shopLogoUrl: safeShopLogoUrl(row.shopLogoUrl), country: row.country,
     baseCurrency: row.baseCurrency, registrationNumber: row.registrationNumber,
     status: row.status, kycStatus: row.kycStatus, kybStatus: row.kybStatus, createdAt: row.createdAt,
     ownerUserId: row.ownerClerkId, riskNote: row.riskNote, diditSessionId: row.diditSessionId,
@@ -440,9 +458,43 @@ router.get("/admin/merchants", async (req, res): Promise<void> => {
   if (parsed.data.status) conditions.push(eq(merchantsTable.status, parsed.data.status));
   if (parsed.data.kycStatus) conditions.push(eq(merchantsTable.kycStatus, parsed.data.kycStatus));
   if (parsed.data.search) conditions.push(ilike(merchantsTable.businessName, `%${parsed.data.search}%`));
-  const rows = await db.select().from(merchantsTable)
-    .where(conditions.length ? and(...conditions) : undefined).orderBy(desc(merchantsTable.createdAt)).limit(1000);
-  res.json(ListAdminMerchantsResponse.parse({ items: rows.map(merchantDto) }));
+  try {
+    const rows = await db.select({
+      id: merchantsTable.id,
+      businessName: merchantsTable.businessName,
+      shopName: merchantsTable.shopName,
+      shopLogoUrl: merchantsTable.shopLogoUrl,
+      country: merchantsTable.country,
+      baseCurrency: merchantsTable.baseCurrency,
+      registrationNumber: merchantsTable.registrationNumber,
+      status: merchantsTable.status,
+      kycStatus: merchantsTable.kycStatus,
+      // Read the recently added field through the row JSON so this endpoint
+      // remains usable against databases that have not yet added kyb_status.
+      kybStatus: sql<string>`coalesce(to_jsonb(${merchantsTable})->>'kyb_status', 'not_started')`,
+      paymentsEnabled: merchantsTable.paymentsEnabled,
+      apiAccessEnabled: merchantsTable.apiAccessEnabled,
+      payoutsEnabled: merchantsTable.payoutsEnabled,
+      refundsEnabled: merchantsTable.refundsEnabled,
+      createdAt: merchantsTable.createdAt,
+      ownerClerkId: merchantsTable.ownerClerkId,
+      riskNote: merchantsTable.riskNote,
+      diditSessionId: merchantsTable.diditSessionId,
+    }).from(merchantsTable)
+      .where(conditions.length ? and(...conditions) : undefined)
+      .orderBy(desc(merchantsTable.createdAt))
+      .limit(1000);
+    const response = ListAdminMerchantsResponse.safeParse({ items: rows.map(merchantDto) });
+    if (!response.success) {
+      req.log.error({ issues: response.error.issues }, "Admin merchant list failed response validation");
+      res.status(500).json({ error: "Merchant records could not be returned." });
+      return;
+    }
+    res.json(response.data);
+  } catch (error) {
+    req.log.error({ err: error }, "Could not load admin merchant list");
+    res.status(500).json({ error: "Merchant records could not be loaded. Try again shortly." });
+  }
 });
 
 router.get("/admin/merchants/:merchantId/controls", async (req, res): Promise<void> => {

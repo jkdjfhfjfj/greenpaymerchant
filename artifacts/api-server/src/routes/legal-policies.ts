@@ -76,6 +76,22 @@ async function currentPolicies() {
   );
 }
 
+export function hasAcceptedCurrentLegalPolicyVersions(
+  current: readonly { policyType: LegalPolicyType; publishedVersion: number }[],
+  acceptances: readonly { policyType: LegalPolicyType; version: number }[],
+): boolean {
+  if (current.length !== legalPolicyTypes.length ||
+      new Set(current.map((row) => row.policyType)).size !== legalPolicyTypes.length) {
+    return false;
+  }
+  const currentVersions = new Map(current.map((row) => [row.policyType, row.publishedVersion]));
+  const acceptedVersions = new Set(acceptances.map((row) => `${row.policyType}:${row.version}`));
+  return legalPolicyTypes.every((type) => {
+    const version = currentVersions.get(type);
+    return version !== undefined && version > 0 && acceptedVersions.has(`${type}:${version}`);
+  });
+}
+
 export const requireCurrentLegalAcceptance: RequestHandler = async (req, res, next) => {
   const userId = signedInUserId(req, res);
   if (!userId) { res.status(401).json({ error: "Sign in to access this workspace." }); return; }
@@ -90,8 +106,7 @@ export const requireCurrentLegalAcceptance: RequestHandler = async (req, res, ne
       eq(legalPolicyAcceptancesTable.clerkUserId, userId),
       inArray(legalPolicyAcceptancesTable.policyType, [...legalPolicyTypes]),
     ));
-    const acceptedVersions = new Set(accepted.map((row) => `${row.policyType}:${row.version}`));
-    if (current.some((row) => !acceptedVersions.has(`${row.policyType}:${row.publishedVersion}`))) {
+    if (!hasAcceptedCurrentLegalPolicyVersions(current, accepted)) {
       res.status(428).json({ error: "Accept the current Privacy Policy and Terms of Service before using this workspace." });
       return;
     }

@@ -9,6 +9,12 @@
 .public-api-docs-content{width:100%}
 .public-api-docs-content .table-wrap{max-width:100%;overflow-x:auto}
 .public-api-docs-content pre.code{max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}
+.currency-section-anchor{scroll-margin-top:82px}
+.currency-table-wrap{width:100%;min-width:0}
+.currency-readiness-table{min-width:760px}
+.currency-readiness-table td:nth-child(4)>span{display:block;margin:2px 0}
+.currency-code{display:inline-block;white-space:nowrap;word-break:normal;overflow-wrap:normal}
+.currency-mobile-list{display:none}
 .public-api-footer{display:flex;justify-content:space-between;gap:16px;padding:22px 5vw 32px;border-top:1px solid #e5e2d9;color:#68736d;font-size:13px}
 .public-api-footer a{color:#174d3b;font-weight:600}
 @media(max-width:640px){
@@ -17,4 +23,24 @@
   .public-api-header nav>a:first-child{display:none}
   .public-api-main{padding:20px 14px 52px}
   .public-api-footer{padding:18px 16px 26px;flex-direction:column}
+  .currency-table-wrap{display:none}
+  .currency-mobile-list{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;min-width:0}
+  .currency-mobile-card{min-width:0;padding:14px;border:1px solid #e5e8df;border-radius:12px;background:#fffefa}
+  .currency-mobile-card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;min-width:0}
+  .currency-mobile-card-header strong{min-width:0;font-size:14px;line-height:1.4;overflow-wrap:anywhere}
+  .currency-mobile-card-header .currency-code{flex:0 0 auto;padding:4px 7px;border:1px solid #e5e8df;border-radius:7px;background:#f7f8f3;color:#315c47;font:600 11px "IBM Plex Mono",monospace}
+  .currency-mobile-sll-note{margin:8px 0 0;color:#737d74;font-size:11px;line-height:1.45;overflow-wrap:anywhere}
+  .currency-mobile-detail{margin-top:12px;min-width:0}
+  .currency-mobile-detail>span,.currency-mobile-facts dt{color:#737d74;font-size:10px;font-weight:650;letter-spacing:.04em;text-transform:uppercase}
+  .currency-mobile-methods{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;min-width:0}
+  .currency-mobile-method{max-width:100%;padding:5px 8px;border:1px solid #e8e9e1;border-radius:8px;background:#f8f8f3;color:#34463c;font-size:11px;line-height:1.4;overflow-wrap:anywhere;word-break:normal}
+  .currency-mobile-facts{display:grid;gap:0;margin:11px 0 0;min-width:0}
+  .currency-mobile-facts>div{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid #eeefe9;min-width:0}
+  .currency-mobile-facts dt{flex:0 0 42%;line-height:1.4}
+  .currency-mobile-facts dd{flex:1;min-width:0;margin:0;color:#34463c;text-align:right;font-size:11px;font-weight:600;line-height:1.45;overflow-wrap:anywhere}
+}
+@media(max-width:380px){
+  .currency-mobile-facts>div{flex-direction:column;gap:3px}
+  .currency-mobile-facts dt{flex-basis:auto}
+  .currency-mobile-facts dd{text-align:left}
 }

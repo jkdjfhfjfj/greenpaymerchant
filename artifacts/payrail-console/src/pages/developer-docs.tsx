@@ -64,6 +64,14 @@ export function PublicApiDocsPage() {
     setMeta('meta[name="twitter:title"]', 'name', 'twitter:title', title);
     setMeta('meta[name="twitter:description"]', 'name', 'twitter:description', description);
   }, [branding.platformName]);
+  useEffect(() => {
+    const targetId = decodeURIComponent(window.location.hash.slice(1));
+    if (!targetId) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(targetId)?.scrollIntoView({ block: 'start' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
   return <div className="public-api-docs">
     <header className="public-api-header">
       <a href="/" aria-label={`${branding.platformName} home`}><PlatformBrand variant="home" /></a>
@@ -235,11 +243,48 @@ Environment: this Greenpay deployment; there is no separate Greenpay sandbox hos
       </ul>
     </Card>
 
+    <div id="supported-collection-currencies" className="currency-section-anchor">
     <Card title="Supported collection currencies" subtitle="Readiness is deployment-specific and never exposes route/provider names.">
       <Async q={currencies} empty={!currencies.data?.items.length} emptyTitle="Currency readiness is unavailable" emptyBody="The catalog request returned no supported collection currencies. Retry the page before selecting a currency.">
-      <div className="table-wrap"><table className="dt"><thead><tr><th>Currency</th><th>Code</th><th>Fraction digits</th><th>Payment methods</th><th>Launch state</th><th>Collection readiness</th></tr></thead><tbody>
-          {(currencies.data?.items ?? []).map((item) => <tr key={item.code}><td>{item.name}</td><td><code>{item.code}</code>{item.code === 'SLL' && <span className="sub">Greenpay preserves the SLL API value and labels it SLL pending denomination-scale confirmation.</span>}</td><td>{item.minorUnits}</td><td>{item.paymentMethods.length ? item.paymentMethods.map((method) => <span key={method.id}>{method.label}{method.requiresPhone ? ' · phone required' : ''}{method.ready ? '' : item.comingSoon ? ' · Coming soon' : ' · unavailable'}</span>) : 'No method available'}</td><td>{item.comingSoon ? 'Coming soon' : 'Active'}</td><td>{item.comingSoon ? 'Not launched' : item.collectionReady ? 'Ready on this deployment' : 'Provider/tier not configured or disabled'}</td></tr>)}
-        </tbody></table></div>
+        <div className="currency-table-wrap table-wrap">
+          <table className="dt currency-readiness-table">
+            <thead><tr><th>Currency</th><th>Code</th><th>Fraction digits</th><th>Payment methods</th><th>Launch state</th><th>Collection readiness</th></tr></thead>
+            <tbody>
+              {(currencies.data?.items ?? []).map((item) => <tr key={item.code}>
+                <td>{item.name}</td>
+                <td><code className="currency-code">{item.code}</code>{item.code === 'SLL' && <span className="sub">Greenpay preserves the SLL API value and labels it SLL pending denomination-scale confirmation.</span>}</td>
+                <td>{item.minorUnits}</td>
+                <td>{item.paymentMethods.length ? item.paymentMethods.map((method) => <span key={method.id}>{method.label}{method.requiresPhone ? ' · phone required' : ''}{method.ready ? '' : item.comingSoon ? ' · Coming soon' : ' · unavailable'}</span>) : 'No method available'}</td>
+                <td>{item.comingSoon ? 'Coming soon' : 'Active'}</td>
+                <td>{item.comingSoon ? 'Not launched' : item.collectionReady ? 'Ready on this deployment' : 'Provider/tier not configured or disabled'}</td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+        <div className="currency-mobile-list" role="list" aria-label="Supported collection currencies">
+          {(currencies.data?.items ?? []).map((item) => <article className="currency-mobile-card" role="listitem" key={`mobile-${item.code}`}>
+            <header className="currency-mobile-card-header">
+              <strong>{item.name}</strong>
+              <code className="currency-code">{item.code}</code>
+            </header>
+            {item.code === 'SLL' && <p className="currency-mobile-sll-note">Greenpay preserves the SLL API value and labels it SLL pending denomination-scale confirmation.</p>}
+            <div className="currency-mobile-detail">
+              <span>Payment methods</span>
+              <div className="currency-mobile-methods">
+                {item.paymentMethods.length
+                  ? item.paymentMethods.map((method) => <span className="currency-mobile-method" key={method.id}>
+                    {method.label}{method.requiresPhone ? ' · phone required' : ''}{method.ready ? '' : item.comingSoon ? ' · Coming soon' : ' · unavailable'}
+                  </span>)
+                  : <span className="currency-mobile-method">No method available</span>}
+              </div>
+            </div>
+            <dl className="currency-mobile-facts">
+              <div><dt>Fraction digits</dt><dd>{item.minorUnits}</dd></div>
+              <div><dt>Launch state</dt><dd>{item.comingSoon ? 'Coming soon' : 'Active'}</dd></div>
+              <div><dt>Collection readiness</dt><dd>{item.comingSoon ? 'Not launched' : item.collectionReady ? 'Ready on this deployment' : 'Provider/tier not configured or disabled'}</dd></div>
+            </dl>
+          </article>)}
+        </div>
       </Async>
        <p>The currency catalog explicitly distinguishes an administrator launch state of “Coming soon” from provider or verification-tier unavailability. A Coming soon currency cannot initiate collections, though payment links can remain visible and editable. For active currencies, payment-method readiness and collection readiness still reflect the configured provider route and applicable verification limits. Check the catalog before collecting.</p>
       <p>Payzaapi's official currency reference lists KES, NGN, GHS, TZS, XOF, USD, RWF, UGX, ZMW, MWK, SLL, CDF, MZN, and XAF. Greenpay keeps its existing USD and KES route behavior and adds the documented codes. KES collections are whole-shilling only; XOF, RWF, UGX, and XAF accept whole units. Check live readiness before collecting—catalog support does not mean provider credentials are configured.</p>
@@ -247,6 +292,7 @@ Environment: this Greenpay deployment; there is no separate Greenpay sandbox hos
       <p>Payzaapi's published minima are KES 1, NGN 100, GHS 1, TZS 500, XOF 100, and USD 0.50; its reference says network-set minimums apply to RWF, UGX, ZMW, MWK, SLL, CDF, MZN, and XAF. These are Payzaapi-published values, not a promise that a particular Greenpay route is enabled or uses identical commercial limits.</p>
       <p><a href="https://payzaapi.co.ke/docs#currencies" target="_blank" rel="noreferrer">Payzaapi official currencies and methods reference</a></p>
     </Card>
+    </div>
 
     <Card title="Payout requests and currency availability" subtitle="Payouts are not a promise of arbitrary-currency or cryptocurrency support.">
       <div className="form-stack">

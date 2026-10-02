@@ -43,6 +43,22 @@ export const merchantInvoiceRemindersTable = pgTable("greenpay_merchant_invoice_
   uniqueIndex("greenpay_invoice_reminders_event_key_unique_idx").on(table.eventKey),
 ]);
 
+export const merchantPaymentLinkRemindersTable = pgTable("greenpay_merchant_payment_link_reminders", {
+  id: serial("id").primaryKey(),
+  merchantId: integer("merchant_id").notNull(),
+  paymentLinkId: integer("payment_link_id").notNull(),
+  recipientEmail: varchar("recipient_email", { length: 254 }).notNull(),
+  deliveryStatus: varchar("delivery_status", { length: 24 }).notNull().default("unconfigured"),
+  message: text("message").notNull(),
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  eventKey: varchar("event_key", { length: 200 }).notNull().unique(),
+  deliveryId: integer("delivery_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  attemptedAt: timestamp("attempted_at", { withTimezone: true }),
+}, (table) => [
+  index("greenpay_payment_link_reminders_merchant_link_idx").on(table.merchantId, table.paymentLinkId, table.createdAt),
+]);
+
 export type CaseMessageRecord = {
   id: string;
   authorRole: "merchant" | "admin";

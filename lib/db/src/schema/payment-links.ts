@@ -12,12 +12,14 @@ export const paymentLinksTable = pgTable("greenpay_payment_links", {
   currency: varchar("currency", { length: 3 }).notNull(),
   status: varchar("status", { length: 24 }).notNull().default("active"),
   merchantId: integer("merchant_id"),
+  recoveryForTransactionId: integer("recovery_for_transaction_id"),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("greenpay_payment_links_status_idx").on(table.status),
   index("greenpay_payment_links_created_at_idx").on(table.createdAt),
   index("greenpay_payment_links_merchant_id_idx").on(table.merchantId),
+  uniqueIndex("greenpay_payment_links_recovery_transaction_unique_idx").on(table.recoveryForTransactionId),
 ]);
 
 export const insertPaymentLinkSchema = createInsertSchema(paymentLinksTable).omit({ id: true, slug: true, createdAt: true });

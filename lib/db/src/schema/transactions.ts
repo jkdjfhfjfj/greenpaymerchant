@@ -23,6 +23,7 @@ export const transactionsTable = pgTable("greenpay_transactions", {
   customerName: text("customer_name"),
   customerPhone: text("customer_phone"),
   description: text("description"),
+  failureReason: text("failure_reason"),
   paymentUrl: text("payment_url"),
   paymentLinkId: integer("payment_link_id"),
   merchantId: integer("merchant_id"),

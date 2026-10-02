@@ -29,6 +29,7 @@ export const requireAdmin: RequestHandler = async (req, res, next) => {
   try {
     const resolved = await resolvePlatformAdmin(auth.userId);
     if (resolved.isAdmin) {
+      res.locals.clerkUserId = auth.userId;
       next();
       return;
     }

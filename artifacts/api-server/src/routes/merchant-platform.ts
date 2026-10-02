@@ -22,6 +22,7 @@ import {
   GetDeveloperFxQuoteResponse, GetDeveloperFeesResponse,
   ListMerchantPayoutsResponse,
   UpdateAdminVerificationLimitsBody, UpdateAdminVerificationLimitsResponse,
+  SelectMerchantWorkspaceBody,
 } from "@workspace/api-zod";
 import {
   adminAuditLogTable, db, developerIdempotencyTable, feeSchedulesTable, fxRatesTable, merchantApiKeysTable,
@@ -30,7 +31,7 @@ import {
 } from "@workspace/db";
 import { assertCollectionAmountPrecision, createCollection } from "../lib/greenpay-collection";
 import {
-  assertSupportedCurrency, getPublicAppUrl, providerForCurrency, providerIsConfigured, resolveCollectionPaymentMethod,
+  ApiError, assertSupportedCurrency, getPublicAppUrl, providerForCurrency, providerIsConfigured, resolveCollectionPaymentMethod,
 } from "../lib/greenpay-provider";
 import { requireAdmin, requireSignedIn } from "../middlewares/requireAdmin";
 import { resolvePlatformAdmin } from "../lib/platform-admin";
@@ -51,7 +52,10 @@ import { diditDecisionStatus, diditStatusNeedsRefresh, ownsMerchantRecord } from
 import { developerTransactionRequestFingerprint, idempotencyDisposition } from "../lib/payment-safety";
 import { verificationTierForMerchant } from "../lib/platform";
 import { getAuth } from "@clerk/express";
-import { findMerchantAccessForUser, resolveMerchantAccess } from "../lib/merchant-access";
+import {
+  findMerchantAccessForUser, listMerchantAccessForUser, resolveMerchantAccess,
+  selectedMerchantWorkspaceId, setMerchantWorkspaceCookie,
+} from "../lib/merchant-access";
 import { cleanPublicUrl } from "../lib/platform-branding";
 import { cloudinaryUploadStatus, createCloudinaryUploadSignature } from "../lib/cloudinary-upload";
 import { resolveCloudinaryEnvironment } from "../lib/cloudinary-credentials";
@@ -72,6 +76,7 @@ function profile(row: typeof merchantsTable.$inferSelect) {
     registrationNumber: row.registrationNumber,
     status: row.status,
     kycStatus: row.kycStatus,
+    kybStatus: row.kybStatus,
     paymentsEnabled: row.paymentsEnabled,
     payoutsEnabled: row.payoutsEnabled,
     refundsEnabled: row.refundsEnabled,
@@ -80,8 +85,50 @@ function profile(row: typeof merchantsTable.$inferSelect) {
   };
 }
 
-function merchantFor(reqUserId: string) {
-  return db.select().from(merchantsTable).where(eq(merchantsTable.ownerClerkId, reqUserId)).limit(1);
+function businessCapacity(workspaces: Awaited<ReturnType<typeof listMerchantAccessForUser>>) {
+  const owned = workspaces.filter((workspace) => workspace.role === "owner");
+  const tier = owned.some(({ merchant }) => verificationTierForMerchant(merchant) === "kyb")
+    ? "kyb"
+    : owned.some(({ merchant }) => verificationTierForMerchant(merchant) === "kyc")
+      ? "kyc"
+      : "unverified";
+  return {
+    tier,
+    businessCount: owned.length,
+    businessLimit: tier === "kyb" ? 10 : tier === "kyc" ? 2 : 1,
+  } as const;
+}
+
+async function accessProfilePayload(
+  userId: string,
+  workspaces: Awaited<ReturnType<typeof listMerchantAccessForUser>>,
+  selectedId: number | undefined,
+  req: Parameters<Parameters<IRouter["get"]>[1]>[0],
+) {
+  const access = (selectedId === undefined ? undefined : workspaces.find(({ merchant }) => merchant.id === selectedId))
+    ?? workspaces[0];
+  let isAdmin = false;
+  try {
+    isAdmin = (await resolvePlatformAdmin(userId)).isAdmin;
+  } catch (error) {
+    req.log.warn({ err: error, userId }, "Could not resolve platform-admin access for access profile");
+  }
+  return GetAccessProfileResponse.parse({
+    userId,
+    isAdmin,
+    ...(access ? { role: access.role } : {}),
+    merchant: access ? profile(access.merchant) : null,
+    workspaces: workspaces.map(({ merchant, role }) => ({
+      id: merchant.id,
+      businessName: merchant.businessName,
+      role,
+      kycStatus: merchant.kycStatus,
+      kybStatus: merchant.kybStatus,
+      country: merchant.country,
+      baseCurrency: merchant.baseCurrency,
+    })),
+    businessCapacity: businessCapacity(workspaces),
+  });
 }
 
 async function ownedMerchant(res: Parameters<Parameters<IRouter["get"]>[1]>[1]) {
@@ -146,23 +193,28 @@ function endpointDto(row: typeof merchantWebhookEndpointsTable.$inferSelect) {
 
 router.get("/me", requireSignedIn, async (req, res): Promise<void> => {
   const userId = res.locals.clerkUserId as string;
-  const access = await findMerchantAccessForUser(userId);
-  let isAdmin = false;
-  try {
-    isAdmin = (await resolvePlatformAdmin(userId)).isAdmin;
-  } catch (error) {
-    req.log.warn({ err: error, userId }, "Could not resolve platform-admin access for access profile");
-  }
-  res.json(GetAccessProfileResponse.parse({
-    userId, isAdmin, ...(access ? { role: access.role } : {}),
-    merchant: access ? profile(access.merchant) : null,
-  }));
+  const workspaces = await listMerchantAccessForUser(userId);
+  res.json(await accessProfilePayload(userId, workspaces, selectedMerchantWorkspaceId(req), req));
 });
 
-router.get("/merchant/action-controls", requireSignedIn, async (_req, res): Promise<void> => {
+router.post("/me/workspace", requireSignedIn, async (req, res): Promise<void> => {
+  const parsed = SelectMerchantWorkspaceBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const userId = res.locals.clerkUserId as string;
+  const workspaces = await listMerchantAccessForUser(userId);
+  const selected = workspaces.find(({ merchant }) => merchant.id === parsed.data.workspaceId);
+  if (!selected) {
+    res.status(403).json({ error: "This merchant workspace is not accessible to your account." });
+    return;
+  }
+  setMerchantWorkspaceCookie(res, selected.merchant.id);
+  res.json(await accessProfilePayload(userId, workspaces, selected.merchant.id, req));
+});
+
+router.get("/merchant/action-controls", requireSignedIn, async (req, res): Promise<void> => {
   res.setHeader("Cache-Control", "no-store");
   const userId = res.locals.clerkUserId as string;
-  const access = await findMerchantAccessForUser(userId);
+  const access = await findMerchantAccessForUser(userId, selectedMerchantWorkspaceId(req));
   if (!access) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
   res.json({
     merchantId: access.merchant.id,
@@ -237,14 +289,26 @@ router.post("/merchant", requireSignedIn, async (req, res): Promise<void> => {
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   await assertPlatformEnabled("newMerchantSignups");
   const userId = res.locals.clerkUserId as string;
-  const existing = await merchantFor(userId);
-  if (existing.length) { res.status(409).json({ error: "A merchant profile already exists for this account." }); return; }
-  const [merchant] = await db.insert(merchantsTable).values({
-    ownerClerkId: userId, businessName: parsed.data.businessName.trim(),
-    country: parsed.data.country.toUpperCase(), baseCurrency: parsed.data.baseCurrency.toUpperCase(),
-    registrationNumber: parsed.data.registrationNumber?.trim() || null,
-  }).returning();
+  const [merchant] = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
+    const owned = await tx.select().from(merchantsTable)
+      .where(eq(merchantsTable.ownerClerkId, userId));
+    const workspaces = owned.map((merchant) => ({ merchant, role: "owner" as const }));
+    const capacity = businessCapacity(workspaces);
+    if (capacity.businessCount >= capacity.businessLimit) {
+      const message = capacity.tier === "unverified"
+        ? "Business limit reached. Complete KYC verification to add a second business."
+        : "Business limit reached. Complete KYB verification to manage up to 10 businesses.";
+      throw new ApiError(409, message);
+    }
+    return tx.insert(merchantsTable).values({
+      ownerClerkId: userId, businessName: parsed.data.businessName.trim(),
+      country: parsed.data.country.toUpperCase(), baseCurrency: parsed.data.baseCurrency.toUpperCase(),
+      registrationNumber: parsed.data.registrationNumber?.trim() || null,
+    }).returning();
+  });
   await ensureMerchantWalletAccounts(merchant.id, merchant.baseCurrency);
+  setMerchantWorkspaceCookie(res, merchant.id);
   res.status(201).json(CreateMerchantProfileResponse.parse({ merchant: profile(merchant) }));
 });
 

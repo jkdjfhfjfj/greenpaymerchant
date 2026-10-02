@@ -193,7 +193,8 @@ import type {
   WalletSettlementConfirmationInput,
   WebhookEndpointList,
   WebhookEvent,
-  WebhookEventList
+  WebhookEventList,
+  WorkspaceSelectionInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -6970,7 +6971,7 @@ export const getGetAccessProfileUrl = () => {
 }
 
 /**
- * @summary Resolve the signed-in user and their merchant or admin access
+ * @summary Resolve the signed-in user and all merchant workspaces they can access
  */
 export const getAccessProfile = async ( options?: Parameters<typeof customFetch>[1]): Promise<AccessProfile> => {
 
@@ -7017,7 +7018,7 @@ export type GetAccessProfileQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Resolve the signed-in user and their merchant or admin access
+ * @summary Resolve the signed-in user and all merchant workspaces they can access
  */
 
 export function useGetAccessProfile<TData = Awaited<ReturnType<typeof getAccessProfile>>, TError = ErrorType<unknown>>(
@@ -7037,6 +7038,94 @@ export function useGetAccessProfile<TData = Awaited<ReturnType<typeof getAccessP
 
 
 
+
+export const getSelectMerchantWorkspaceUrl = () => {
+
+
+
+
+  return `/api/me/workspace`
+}
+
+/**
+ * @summary Select an accessible merchant workspace for this signed-in user
+ */
+export const selectMerchantWorkspace = async (workspaceSelectionInput: WorkspaceSelectionInput, options?: Parameters<typeof customFetch>[1]): Promise<AccessProfile> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AccessProfile>(getSelectMerchantWorkspaceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(workspaceSelectionInput)
+  }
+);}
+
+
+
+
+
+export const getSelectMerchantWorkspaceMutationKey = () => ['selectMerchantWorkspace'] as const;
+
+export const getSelectMerchantWorkspaceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof selectMerchantWorkspace>>, TError,SelectMerchantWorkspaceMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof selectMerchantWorkspace>>, TError,SelectMerchantWorkspaceMutationVariables, TContext> => {
+
+const mutationKey = getSelectMerchantWorkspaceMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof selectMerchantWorkspace>>, SelectMerchantWorkspaceMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  selectMerchantWorkspace(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SelectMerchantWorkspaceMutationResult = NonNullable<Awaited<ReturnType<typeof selectMerchantWorkspace>>>
+    export type SelectMerchantWorkspaceMutationBody = BodyType<WorkspaceSelectionInput>
+    export type SelectMerchantWorkspaceMutationError = ErrorType<void>
+    export type SelectMerchantWorkspaceMutationVariables = {data: BodyType<WorkspaceSelectionInput>}
+
+    /**
+ * @summary Select an accessible merchant workspace for this signed-in user
+ */
+export const useSelectMerchantWorkspace = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof selectMerchantWorkspace>>, TError,SelectMerchantWorkspaceMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof selectMerchantWorkspace>>,
+        TError,
+        SelectMerchantWorkspaceMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSelectMerchantWorkspaceMutationOptions(options));
+    }
 
 export const getGetMerchantProfileUrl = () => {
 

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { Activity, ArrowRight, CheckCircle2, Clock3, ExternalLink, Link2, LoaderCircle, Plus, Trash2, Pause, Play, ShieldCheck } from 'lucide-react';
 import {
   useCreateMerchantProfile, useGetMerchantFees, useGetMerchantKyc, getGetMerchantKycQueryKey, useCreateMerchantKycSession,
@@ -79,34 +79,42 @@ function MerchantDashboardInner() {
   </>;
 }
 
-export function MerchantPage() {
+export function MerchantPage({ addBusiness = false }: { addBusiness?: boolean } = {}) {
   const access = useAccess();
   const branding = usePlatformBranding();
   const create = useCreateMerchantProfile();
   const inv = useInvalidateAll();
-  const fees = useGetMerchantFees({ query: { enabled: !!access.merchant } as never });
+  const [, setLocation] = useLocation();
+  const capacity = access.data?.businessCapacity;
+  const canCreateBusiness = !!capacity && capacity.businessCount < capacity.businessLimit;
+  const fees = useGetMerchantFees({ query: { enabled: !!access.merchant && !addBusiness } as never });
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const reg = String(f.get('reg') || '').trim();
-    create.mutate({ data: { businessName: String(f.get('name')).trim(), country: String(f.get('country')), baseCurrency: String(f.get('cur')), ...(reg ? { registrationNumber: reg } : {}) } }, { onSuccess: () => { void inv(); } });
+    create.mutate({ data: { businessName: String(f.get('name')).trim(), country: String(f.get('country')), baseCurrency: String(f.get('cur')), ...(reg ? { registrationNumber: reg } : {}) } }, { onSuccess: () => { void inv(); if (addBusiness) setLocation('/merchant/dashboard'); } });
   }
   const m = access.merchant;
+  const createBusinessForm = <Card title={m ? 'Register another business' : 'Register your business'} subtitle={m ? `Your account can manage ${capacity?.businessLimit ?? 1} owned businesses at its current verification level.` : 'Takes a minute. Verification is a separate step.'}>
+    <form className="form-stack" onSubmit={submit}>
+      <Field label="Business name"><input name="name" required minLength={2} maxLength={150} data-testid="input-business-name" /></Field>
+      <div className="form-grid">
+        <Field label="Country"><select name="country" defaultValue="KE" data-testid="select-country">{COUNTRIES.map(([c, n]) => <option key={c} value={c}>{n}</option>)}</select></Field>
+        <Field label="Base currency"><select key={branding.baseCurrency} name="cur" defaultValue={branding.baseCurrency} data-testid="select-base-currency">{[...new Set([branding.baseCurrency, ...CURRENCIES])].map((c) => <option key={c}>{c}</option>)}</select></Field>
+      </div>
+      <Field label="Registration number" hint="Optional"><input name="reg" maxLength={150} data-testid="input-registration" /></Field>
+      <Err error={create.error} />
+      <Btn type="submit" disabled={create.isPending} testId="button-create-merchant">{create.isPending ? <LoaderCircle size={15} className="spin" /> : <Plus size={15} />}{m ? 'Create business' : 'Create merchant profile'}</Btn>
+    </form>
+  </Card>;
+  const businessLimitNotice = <Card title="Business limit reached" subtitle={`Your current ${capacity?.tier === 'kyc' ? 'KYC' : 'unverified'} level allows ${capacity?.businessLimit ?? 1} owned business${capacity?.businessLimit === 1 ? '' : 'es'}.`}>
+    <Note tone="warn">Complete {capacity?.tier === 'kyc' ? 'KYB' : 'KYC'} verification to increase your business limit.</Note>
+    <Link href="/merchant/kyc" className="btn btn-primary">Open verification <ArrowRight size={14} /></Link>
+  </Card>;
   return <>
-    <Heading eyebrow="MERCHANT" title={m ? m.businessName : 'Merchant onboarding'} subtitle="Your business profile, verification state and the fees that apply to you." />
+    <Heading eyebrow="MERCHANT" title={addBusiness ? (m ? 'Add another business' : 'Register your business') : m ? m.businessName : 'Merchant onboarding'} subtitle="Your business profile, verification state and the fees that apply to you." action={m && canCreateBusiness && !addBusiness ? <Link href="/merchant/new" className="btn btn-primary"><Plus size={15} />Add a business</Link> : undefined} />
     <Async q={access}>
-      {!m ? <Card title="Register your business" subtitle="Takes a minute. Verification is a separate step.">
-        <form className="form-stack" onSubmit={submit}>
-          <Field label="Business name"><input name="name" required minLength={2} maxLength={150} data-testid="input-business-name" /></Field>
-          <div className="form-grid">
-            <Field label="Country"><select name="country" defaultValue="KE" data-testid="select-country">{COUNTRIES.map(([c, n]) => <option key={c} value={c}>{n}</option>)}</select></Field>
-            <Field label="Base currency"><select key={branding.baseCurrency} name="cur" defaultValue={branding.baseCurrency} data-testid="select-base-currency">{[...new Set([branding.baseCurrency, ...CURRENCIES])].map((c) => <option key={c}>{c}</option>)}</select></Field>
-          </div>
-          <Field label="Registration number" hint="Optional"><input name="reg" maxLength={150} data-testid="input-registration" /></Field>
-          <Err error={create.error} />
-          <Btn type="submit" disabled={create.isPending} testId="button-create-merchant">{create.isPending ? <LoaderCircle size={15} className="spin" /> : <Plus size={15} />}Create merchant profile</Btn>
-        </form>
-      </Card> : <div className="split">
+      {!m ? createBusinessForm : addBusiness ? canCreateBusiness ? createBusinessForm : businessLimitNotice : <div className="split">
         <div>
           <Card title="Profile">
             <div className="kv">

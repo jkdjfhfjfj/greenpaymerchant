@@ -1415,13 +1415,31 @@ paths:
     get:
       operationId: getAccessProfile
       tags: [merchant]
-      summary: Resolve the signed-in user and their merchant or admin access
+      summary: Resolve the signed-in user and all merchant workspaces they can access
       responses:
         "200":
           description: User access profile
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AccessProfile" }
+  /me/workspace:
+    post:
+      operationId: selectMerchantWorkspace
+      tags: [merchant]
+      summary: Select an accessible merchant workspace for this signed-in user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkspaceSelectionInput" }
+      responses:
+        "200":
+          description: Updated user access profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccessProfile" }
+        "400": { description: Invalid workspace selection }
+        "403": { description: Workspace is not accessible to this user }
   /merchant:
     get:
       operationId: getMerchantProfile
@@ -4040,7 +4058,7 @@ components:
           items: { $ref: "#/components/schemas/ProviderStatus" }
     AccessProfile:
       type: object
-      required: [userId, isAdmin, merchant]
+      required: [userId, isAdmin, merchant, workspaces, businessCapacity]
       properties:
         userId: { type: string }
         isAdmin: { type: boolean }
@@ -4049,6 +4067,33 @@ components:
           anyOf:
             - { $ref: "#/components/schemas/MerchantProfile" }
             - { type: "null" }
+        workspaces:
+          type: array
+          items: { $ref: "#/components/schemas/MerchantWorkspace" }
+        businessCapacity: { $ref: "#/components/schemas/MerchantBusinessCapacity" }
+    MerchantWorkspace:
+      type: object
+      required: [id, businessName, role, kycStatus, kybStatus, country, baseCurrency]
+      properties:
+        id: { type: integer }
+        businessName: { type: string }
+        role: { $ref: "#/components/schemas/MerchantTeamRole" }
+        kycStatus: { type: string, enum: [not_started, pending, approved, declined, in_review, expired] }
+        kybStatus: { type: string, enum: [not_started, pending, approved, declined, in_review, expired] }
+        country: { type: string }
+        baseCurrency: { type: string }
+    MerchantBusinessCapacity:
+      type: object
+      required: [tier, businessCount, businessLimit]
+      properties:
+        tier: { type: string, enum: [unverified, kyc, kyb] }
+        businessCount: { type: integer, minimum: 0 }
+        businessLimit: { type: integer, enum: [1, 2, 10] }
+    WorkspaceSelectionInput:
+      type: object
+      required: [workspaceId]
+      properties:
+        workspaceId: { type: integer, minimum: 1 }
     MerchantTeamRole:
       type: string
       enum: [owner, finance, viewer]
@@ -4116,7 +4161,7 @@ components:
         role: { $ref: "#/components/schemas/MerchantTeamInvitationRole" }
     MerchantProfile:
       type: object
-      required: [id, businessName, shopName, shopLogoUrl, country, baseCurrency, status, kycStatus, createdAt]
+      required: [id, businessName, shopName, shopLogoUrl, country, baseCurrency, status, kycStatus, kybStatus, createdAt]
       properties:
         id: { type: integer }
         businessName: { type: string }
@@ -4127,6 +4172,7 @@ components:
         registrationNumber: { type: ["string", "null"] }
         status: { type: string, enum: [pending, active, suspended, closed] }
         kycStatus: { type: string, enum: [not_started, pending, approved, declined, in_review, expired] }
+        kybStatus: { type: string, enum: [not_started, pending, approved, declined, in_review, expired] }
         paymentsEnabled: { type: boolean }
         payoutsEnabled: { type: boolean }
         refundsEnabled: { type: boolean }

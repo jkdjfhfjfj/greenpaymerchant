@@ -3,7 +3,7 @@ import { boolean, index, integer, jsonb, numeric, pgTable, serial, text, timesta
 
 export const merchantsTable = pgTable("greenpay_merchants", {
   id: serial("id").primaryKey(),
-  ownerClerkId: varchar("owner_clerk_id", { length: 128 }).notNull().unique(),
+  ownerClerkId: varchar("owner_clerk_id", { length: 128 }).notNull(),
   businessName: varchar("business_name", { length: 150 }).notNull(),
   shopName: varchar("shop_name", { length: 100 }),
   shopLogoUrl: text("shop_logo_url"),
@@ -34,6 +34,7 @@ export const merchantsTable = pgTable("greenpay_merchants", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
+  index("greenpay_merchants_owner_idx").on(table.ownerClerkId),
   index("greenpay_merchants_status_idx").on(table.status),
   index("greenpay_merchants_kyc_status_idx").on(table.kycStatus),
   index("greenpay_merchants_kyb_status_idx").on(table.kybStatus),

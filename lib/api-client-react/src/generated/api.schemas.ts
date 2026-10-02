@@ -2301,6 +2301,18 @@ export const MerchantProfileKycStatus = {
   expired: 'expired',
 } as const;
 
+export type MerchantProfileKybStatus = typeof MerchantProfileKybStatus[keyof typeof MerchantProfileKybStatus];
+
+
+export const MerchantProfileKybStatus = {
+  not_started: 'not_started',
+  pending: 'pending',
+  approved: 'approved',
+  declined: 'declined',
+  in_review: 'in_review',
+  expired: 'expired',
+} as const;
+
 export interface MerchantProfile {
   id: number;
   businessName: string;
@@ -2321,18 +2333,12 @@ export interface MerchantProfile {
   registrationNumber?: string | null;
   status: MerchantProfileStatus;
   kycStatus: MerchantProfileKycStatus;
+  kybStatus: MerchantProfileKybStatus;
   paymentsEnabled?: boolean;
   payoutsEnabled?: boolean;
   refundsEnabled?: boolean;
   apiAccessEnabled?: boolean;
   createdAt: string;
-}
-
-export interface AccessProfile {
-  userId: string;
-  isAdmin: boolean;
-  role?: AccessProfileRole;
-  merchant: MerchantProfile | null;
 }
 
 export type MerchantTeamRole = typeof MerchantTeamRole[keyof typeof MerchantTeamRole];
@@ -2343,6 +2349,79 @@ export const MerchantTeamRole = {
   finance: 'finance',
   viewer: 'viewer',
 } as const;
+
+export type MerchantWorkspaceKycStatus = typeof MerchantWorkspaceKycStatus[keyof typeof MerchantWorkspaceKycStatus];
+
+
+export const MerchantWorkspaceKycStatus = {
+  not_started: 'not_started',
+  pending: 'pending',
+  approved: 'approved',
+  declined: 'declined',
+  in_review: 'in_review',
+  expired: 'expired',
+} as const;
+
+export type MerchantWorkspaceKybStatus = typeof MerchantWorkspaceKybStatus[keyof typeof MerchantWorkspaceKybStatus];
+
+
+export const MerchantWorkspaceKybStatus = {
+  not_started: 'not_started',
+  pending: 'pending',
+  approved: 'approved',
+  declined: 'declined',
+  in_review: 'in_review',
+  expired: 'expired',
+} as const;
+
+export interface MerchantWorkspace {
+  id: number;
+  businessName: string;
+  role: MerchantTeamRole;
+  kycStatus: MerchantWorkspaceKycStatus;
+  kybStatus: MerchantWorkspaceKybStatus;
+  country: string;
+  baseCurrency: string;
+}
+
+export type MerchantBusinessCapacityTier = typeof MerchantBusinessCapacityTier[keyof typeof MerchantBusinessCapacityTier];
+
+
+export const MerchantBusinessCapacityTier = {
+  unverified: 'unverified',
+  kyc: 'kyc',
+  kyb: 'kyb',
+} as const;
+
+export type MerchantBusinessCapacityBusinessLimit = typeof MerchantBusinessCapacityBusinessLimit[keyof typeof MerchantBusinessCapacityBusinessLimit];
+
+
+export const MerchantBusinessCapacityBusinessLimit = {
+  NUMBER_1: 1,
+  NUMBER_2: 2,
+  NUMBER_10: 10,
+} as const;
+
+export interface MerchantBusinessCapacity {
+  tier: MerchantBusinessCapacityTier;
+  /** @minimum 0 */
+  businessCount: number;
+  businessLimit: MerchantBusinessCapacityBusinessLimit;
+}
+
+export interface AccessProfile {
+  userId: string;
+  isAdmin: boolean;
+  role?: AccessProfileRole;
+  merchant: MerchantProfile | null;
+  workspaces: MerchantWorkspace[];
+  businessCapacity: MerchantBusinessCapacity;
+}
+
+export interface WorkspaceSelectionInput {
+  /** @minimum 1 */
+  workspaceId: number;
+}
 
 export type MerchantTeamInvitationRole = typeof MerchantTeamInvitationRole[keyof typeof MerchantTeamInvitationRole];
 

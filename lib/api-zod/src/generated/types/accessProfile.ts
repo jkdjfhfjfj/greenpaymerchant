@@ -6,11 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AccessProfileRole } from './accessProfileRole';
+import type { MerchantBusinessCapacity } from './merchantBusinessCapacity';
 import type { MerchantProfile } from './merchantProfile';
+import type { MerchantWorkspace } from './merchantWorkspace';
 
 export interface AccessProfile {
   userId: string;
   isAdmin: boolean;
   role?: AccessProfileRole;
   merchant: MerchantProfile | null;
+  workspaces: MerchantWorkspace[];
+  businessCapacity: MerchantBusinessCapacity;
 }

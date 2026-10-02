@@ -3,7 +3,6 @@ import { Router, type IRouter } from "express";
 import {
   db,
   merchantBusinessContactsTable,
-  merchantsTable,
   supportDeliveryOutboxTable,
   supportMessagesTable,
   supportTicketsTable,
@@ -21,6 +20,7 @@ import {
   unreadNotificationCount,
 } from "../lib/support-service";
 import { allowContactSubmission, boundedText, categoryOf, redactSupportText, validEmail } from "../lib/support-rules";
+import { resolveMerchantAccess } from "../lib/merchant-access";
 
 const router: IRouter = Router();
 const statuses = new Set(["open", "in_progress", "waiting", "resolved", "closed"]);
@@ -299,10 +299,8 @@ router.post("/notifications/read-all", requireSignedIn, async (_req, res): Promi
   res.json({ unreadCount: 0 });
 });
 
-router.get("/profile/business-contact", requireSignedIn, async (_req, res): Promise<void> => {
-  const ownerId = res.locals.clerkUserId as string;
-  const [merchant] = await db.select({ id: merchantsTable.id }).from(merchantsTable)
-    .where(eq(merchantsTable.ownerClerkId, ownerId)).limit(1);
+router.get("/profile/business-contact", requireSignedIn, async (req, res): Promise<void> => {
+  const merchant = await resolveMerchantAccess(req, res, "owner");
   if (!merchant) {
     res.status(404).json({ error: "Complete merchant onboarding before editing business contact details." });
     return;
@@ -312,9 +310,7 @@ router.get("/profile/business-contact", requireSignedIn, async (_req, res): Prom
 
 router.put("/profile/business-contact", requireSignedIn, async (req, res): Promise<void> => {
   const input = bodyObject(req.body);
-  const ownerId = res.locals.clerkUserId as string;
-  const [merchant] = await db.select({ id: merchantsTable.id }).from(merchantsTable)
-    .where(eq(merchantsTable.ownerClerkId, ownerId)).limit(1);
+  const merchant = await resolveMerchantAccess(req, res, "owner");
   if (!merchant) {
     res.status(404).json({ error: "Complete merchant onboarding before editing business contact details." });
     return;

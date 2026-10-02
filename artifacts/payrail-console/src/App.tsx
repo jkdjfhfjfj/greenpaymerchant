@@ -17,6 +17,7 @@ import {
   useListPayouts, useCreatePayout, useListPayoutMethods, useListBanks, useListSettlements,
   useListCustomers, useListWebhookEvents, useReplayWebhookEvent, useGetProviderStatus,
   getGetTransactionQueryKey, useListAdminMerchants, useListSupportedCurrencies,
+  useSelectMerchantWorkspace,
 } from '@workspace/api-client-react';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -291,19 +292,49 @@ function DashboardRoot() {
 function AppShell({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [newCollectionOpen, setNewCollectionOpen] = useState(false);
   const { user } = useUser();
   const { signOut } = useClerk();
+  const queryClient = useQueryClient();
+  const selectWorkspace = useSelectMerchantWorkspace();
   const access = useAccess();
   const branding = usePlatformBranding();
+  const workspaces = access.data?.workspaces ?? [];
+  const capacity = access.data?.businessCapacity;
   const merchantOnly = navSections.filter((section) => section.title === 'MERCHANT' || section.title === 'ACCOUNT');
   const sections = access.isAdmin ? [...navSections, adminSection] : merchantOnly;
   const active = pageInfo[location] || (location.startsWith('/invoices/') ? { title: 'Invoice details', subtitle: '' } : { title: 'Workspace', subtitle: '' });
+  function activateWorkspace(workspaceId: number) {
+    if (workspaceId === access.merchant?.id) { setWorkspaceOpen(false); return; }
+    selectWorkspace.mutate({ data: { workspaceId } }, {
+      onSuccess: () => {
+        setWorkspaceOpen(false);
+        void queryClient.invalidateQueries();
+      },
+    });
+  }
   return <div className="app-shell">
     <aside className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}>
       <div className="sidebar-brand"><Brand /><button className="mobile-close icon-button" onClick={() => setMenuOpen(false)} aria-label="Close navigation"><X size={18} /></button></div>
-      <div className="workspace-switch"><span className="workspace-avatar">K</span><span className="workspace-copy"><strong>{access.merchant?.businessName || 'No merchant yet'}</strong><small>{access.isAdmin ? 'Platform administrator' : access.merchant ? 'Merchant workspace' : 'Onboarding needed'}</small></span><ChevronDown size={15} /></div>
-      <nav className="main-nav" aria-label="Main navigation">{sections.map((section) => <div className="nav-section" key={section.title}><div className="nav-label">{section.title}</div>{section.items.map((item) => { const Icon = item.icon; const current = location === item.href; return <a key={item.href} href={item.href} className={`nav-item ${current ? 'nav-active' : ''}`} onClick={(event) => { event.preventDefault(); setLocation(item.href); setMenuOpen(false); }} data-testid={`nav-${item.label.toLowerCase().replaceAll(' ', '-')}`}><Icon size={17} strokeWidth={1.8} /><span>{item.label}</span>{item.href === '/webhooks' && <span className="nav-dot" />}</a>; })}</div>)}</nav>
+      <div className="workspace-switcher">
+        <button className="workspace-switch" type="button" aria-haspopup="menu" aria-expanded={workspaceOpen} onClick={() => setWorkspaceOpen((open) => !open)} data-testid="button-workspace-switcher">
+          <span className="workspace-avatar">{access.merchant?.businessName?.trim().charAt(0).toUpperCase() || 'K'}</span>
+          <span className="workspace-copy"><strong>{access.merchant?.businessName || 'No merchant yet'}</strong><small>{access.data?.role ? `${access.data.role} workspace` : access.isAdmin ? 'Platform administrator' : 'Onboarding needed'}</small></span>
+          <ChevronDown size={15} />
+        </button>
+        {workspaceOpen && <div className="workspace-menu" role="menu" aria-label="Merchant workspaces">
+          {workspaces.length ? workspaces.map((workspace) => <button key={workspace.id} type="button" role="menuitemradio" aria-checked={workspace.id === access.merchant?.id} className={`workspace-option ${workspace.id === access.merchant?.id ? 'workspace-option-active' : ''}`} disabled={selectWorkspace.isPending} onClick={() => activateWorkspace(workspace.id)}>
+            <span className="workspace-option-copy"><strong>{workspace.businessName}</strong><small>{workspace.role === 'owner' ? 'Owner' : workspace.role === 'finance' ? 'Finance access' : 'Viewer access'}</small></span>
+            {workspace.id === access.merchant?.id && <Check size={15} />}
+          </button>) : <p className="workspace-menu-empty">No merchant workspaces yet.</p>}
+          {capacity && <div className="workspace-capacity"><span>{capacity.businessCount} of {capacity.businessLimit} owned businesses</span><small>{capacity.tier === 'kyb' ? 'KYB verified' : capacity.tier === 'kyc' ? 'KYC verified' : 'Verification level sets your limit'}</small></div>}
+          {capacity && capacity.businessCount < capacity.businessLimit && <button className="workspace-add" type="button" onClick={() => { setWorkspaceOpen(false); setLocation('/merchant/new'); }}><Plus size={15} />Add a business</button>}
+          {capacity && capacity.businessCount >= capacity.businessLimit && capacity.tier !== 'kyb' && <p className="workspace-limit">Complete {capacity.tier === 'kyc' ? 'KYB' : 'KYC'} verification to raise your business limit.</p>}
+          {selectWorkspace.error && <p className="workspace-error" role="alert">{errMsg(selectWorkspace.error)}</p>}
+        </div>}
+      </div>
+      <nav className="main-nav" aria-label="Main navigation">{sections.map((section) => <div className="nav-section" key={section.title}><div className="nav-label">{section.title}</div>{section.items.map((item) => { const Icon = item.icon; const current = location === item.href; return <a key={item.href} href={item.href} className={`nav-item ${current ? 'nav-active' : ''}`} onClick={(event) => { event.preventDefault(); setLocation(item.href); setMenuOpen(false); setWorkspaceOpen(false); }} data-testid={`nav-${item.label.toLowerCase().replaceAll(' ', '-')}`}><Icon size={17} strokeWidth={1.8} /><span>{item.label}</span>{item.href === '/webhooks' && <span className="nav-dot" />}</a>; })}</div>)}</nav>
       <div className="sidebar-bottom"><a className="help-link" href={`${basePath}/support`}><Headphones size={16} />Contact support</a><div className="profile-row"><div className="profile-avatar">{user?.firstName?.[0] || user?.primaryEmailAddress?.emailAddress?.[0] || 'O'}</div><a className="profile-name" href={`${basePath}/profile`}><strong>{user?.fullName || 'Operations user'}</strong><small>{user?.primaryEmailAddress?.emailAddress || 'Signed in'}</small></a><button className="icon-button profile-logout" onClick={() => signOut({ redirectUrl: basePath || '/' })} aria-label="Sign out" title="Sign out" data-testid="button-sign-out"><LogOut size={16} /></button></div></div>
     </aside>
     {menuOpen && <button className="mobile-scrim" aria-label="Close menu" onClick={() => setMenuOpen(false)} />}
@@ -692,9 +723,9 @@ function Settlements() {
       item.currency,
     ].some((value) => value.toLowerCase().includes(normalizedSearch)));
   }, [rows, normalizedSearch]);
-  const openCount = visibleRows.filter((item) => item.status !== 'settled').length;
-  const dueCount = visibleRows.filter((item) => item.status === 'due').length;
-  const settledCount = visibleRows.filter((item) => item.status === 'settled').length;
+  const openCount = rows.filter((item) => item.status !== 'settled').length;
+  const dueCount = rows.filter((item) => item.status === 'due').length;
+  const settledCount = rows.filter((item) => item.status === 'settled').length;
 
   function clearFilters() {
     setStatus('');
@@ -954,7 +985,7 @@ const wrap = (C: () => ReactNode) => () => <Protected><AppShell><C /></AppShell>
 const protectedRoutes: [string, () => ReactNode][] = [
   ['/admin/merchants/:merchantId/controls', AdminMerchantControlsPage],
   ['/admin/email-delivery', AdminEmailDeliveryPage], ['/admin/content', AdminContentPage],
-  ['/merchant/dashboard', MerchantDashboardPage], ['/merchant', MerchantPage], ['/merchant/kyc', KycPage], ['/merchant/payment-links', MerchantLinksPage], ['/merchant/transactions', MerchantTransactionsPage], ['/merchant/payouts', MerchantPayoutsPage],
+  ['/merchant/dashboard', MerchantDashboardPage], ['/merchant/new', () => <MerchantPage addBusiness />], ['/merchant', () => <MerchantPage />], ['/merchant/kyc', KycPage], ['/merchant/payment-links', MerchantLinksPage], ['/merchant/transactions', MerchantTransactionsPage], ['/merchant/payouts', MerchantPayoutsPage],
   ['/developers', DevelopersPage], ['/exchange', ExchangePage], ['/admin', AdminSummaryPage], ['/admin/merchants', AdminMerchantsPage], ['/admin/fees', AdminFeesPage],
   ['/admin/exchange', AdminExchangePage], ['/admin/credentials', AdminCredentialsPage], ['/admin/settings', AdminSettingsPage], ['/admin/audit', AdminAuditPage],
   ['/admin/administrators', AdminPlatformAdminsPage],

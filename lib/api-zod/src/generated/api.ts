@@ -3261,9 +3261,11 @@ export const GetProviderStatusResponse = zod.object({
 
 
 /**
- * @summary Resolve the signed-in user and their merchant or admin access
+ * @summary Resolve the signed-in user and all merchant workspaces they can access
  */
 export const getAccessProfileResponseMerchantOneShopNameMax = 100;
+
+export const getAccessProfileResponseBusinessCapacityBusinessCountMin = 0;
 
 
 
@@ -3281,12 +3283,81 @@ export const GetAccessProfileResponse = zod.object({
   "registrationNumber": zod.string().nullish(),
   "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "paymentsEnabled": zod.boolean().optional(),
   "payoutsEnabled": zod.boolean().optional(),
   "refundsEnabled": zod.boolean().optional(),
   "apiAccessEnabled": zod.boolean().optional(),
   "createdAt": zod.coerce.date()
-}),zod.null()])
+}),zod.null()]),
+  "workspaces": zod.array(zod.object({
+  "id": zod.number().int(),
+  "businessName": zod.string(),
+  "role": zod.enum(['owner', 'finance', 'viewer']),
+  "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "country": zod.string(),
+  "baseCurrency": zod.string()
+})),
+  "businessCapacity": zod.object({
+  "tier": zod.enum(['unverified', 'kyc', 'kyb']),
+  "businessCount": zod.number().int().min(getAccessProfileResponseBusinessCapacityBusinessCountMin),
+  "businessLimit": zod.union([zod.literal(1),zod.literal(2),zod.literal(10)])
+})
+})
+
+
+/**
+ * @summary Select an accessible merchant workspace for this signed-in user
+ */
+
+
+
+export const SelectMerchantWorkspaceBody = zod.object({
+  "workspaceId": zod.number().int().min(1)
+})
+
+export const selectMerchantWorkspaceResponseMerchantOneShopNameMax = 100;
+
+export const selectMerchantWorkspaceResponseBusinessCapacityBusinessCountMin = 0;
+
+
+
+export const SelectMerchantWorkspaceResponse = zod.object({
+  "userId": zod.string(),
+  "isAdmin": zod.boolean(),
+  "role": zod.enum(['owner', 'finance', 'viewer']).optional(),
+  "merchant": zod.union([zod.object({
+  "id": zod.number().int(),
+  "businessName": zod.string(),
+  "shopName": zod.string().max(selectMerchantWorkspaceResponseMerchantOneShopNameMax).nullable().describe('Optional public-facing merchant display name; separate from the verified legal business name.'),
+  "shopLogoUrl": zod.string().url().nullable().describe('Optional public-facing merchant shop image.'),
+  "country": zod.string(),
+  "baseCurrency": zod.string(),
+  "registrationNumber": zod.string().nullish(),
+  "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
+  "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "paymentsEnabled": zod.boolean().optional(),
+  "payoutsEnabled": zod.boolean().optional(),
+  "refundsEnabled": zod.boolean().optional(),
+  "apiAccessEnabled": zod.boolean().optional(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "workspaces": zod.array(zod.object({
+  "id": zod.number().int(),
+  "businessName": zod.string(),
+  "role": zod.enum(['owner', 'finance', 'viewer']),
+  "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "country": zod.string(),
+  "baseCurrency": zod.string()
+})),
+  "businessCapacity": zod.object({
+  "tier": zod.enum(['unverified', 'kyc', 'kyb']),
+  "businessCount": zod.number().int().min(selectMerchantWorkspaceResponseBusinessCapacityBusinessCountMin),
+  "businessLimit": zod.union([zod.literal(1),zod.literal(2),zod.literal(10)])
+})
 })
 
 
@@ -3308,6 +3379,7 @@ export const GetMerchantProfileResponse = zod.object({
   "registrationNumber": zod.string().nullish(),
   "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "paymentsEnabled": zod.boolean().optional(),
   "payoutsEnabled": zod.boolean().optional(),
   "refundsEnabled": zod.boolean().optional(),
@@ -3355,6 +3427,7 @@ export const CreateMerchantProfileResponse = zod.object({
   "registrationNumber": zod.string().nullish(),
   "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "paymentsEnabled": zod.boolean().optional(),
   "payoutsEnabled": zod.boolean().optional(),
   "refundsEnabled": zod.boolean().optional(),
@@ -3392,6 +3465,7 @@ export const UpdateMerchantShopProfileResponse = zod.object({
   "registrationNumber": zod.string().nullish(),
   "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "paymentsEnabled": zod.boolean().optional(),
   "payoutsEnabled": zod.boolean().optional(),
   "refundsEnabled": zod.boolean().optional(),
@@ -4183,6 +4257,7 @@ export const GetDeveloperMerchantResponse = zod.object({
   "registrationNumber": zod.string().nullish(),
   "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "paymentsEnabled": zod.boolean().optional(),
   "payoutsEnabled": zod.boolean().optional(),
   "refundsEnabled": zod.boolean().optional(),
@@ -4851,6 +4926,7 @@ export const ListAdminMerchantsResponse = zod.object({
   "registrationNumber": zod.string().nullish(),
   "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "paymentsEnabled": zod.boolean().optional(),
   "payoutsEnabled": zod.boolean().optional(),
   "refundsEnabled": zod.boolean().optional(),
@@ -4906,6 +4982,7 @@ export const UpdateAdminMerchantResponse = zod.object({
   "registrationNumber": zod.string().nullish(),
   "status": zod.enum(['pending', 'active', 'suspended', 'closed']),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
+  "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired']),
   "paymentsEnabled": zod.boolean().optional(),
   "payoutsEnabled": zod.boolean().optional(),
   "refundsEnabled": zod.boolean().optional(),

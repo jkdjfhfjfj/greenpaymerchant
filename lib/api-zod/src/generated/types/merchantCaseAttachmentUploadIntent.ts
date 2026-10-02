@@ -5,11 +5,14 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { MerchantCaseAttachmentUploadIntentUploadParameters } from './merchantCaseAttachmentUploadIntentUploadParameters';
 
 export interface MerchantCaseAttachmentUploadIntent {
-  /** Short-lived signed upload URL. */
+  /** Cloudinary raw upload endpoint. */
   uploadURL: string;
-  /** Private opaque App Storage path; never a public URL. */
+  /** Per-asset signed upload fields. The API secret is never returned. */
+  uploadParameters: MerchantCaseAttachmentUploadIntentUploadParameters;
+  /** Opaque authenticated Cloudinary asset reference; never a public URL. */
   objectPath: string;
   uploadToken: string;
   expiresAt: Date;

@@ -45,7 +45,7 @@ import {
   CASE_FILE_MAX_BYTES, CASE_FILE_TYPES, createPrivateCaseUpload, deletePrivateCaseObject,
   getPrivateCaseObject, verifyPrivateCaseObject,
   type CaseFileType,
-} from "../lib/business-case-storage";
+} from "../lib/cloudinary-case-storage";
 
 const router: IRouter = Router();
 const PAID_TRANSACTION_STATUSES = ["success", "refunded"] as const;
@@ -930,6 +930,7 @@ router.post("/merchant/cases/:id/attachments/upload-intent", requireSignedIn, as
     });
     res.status(201).json({
       uploadURL: upload.uploadURL,
+      uploadParameters: upload.uploadParameters,
       objectPath: upload.objectPath,
       uploadToken: token,
       expiresAt: upload.expiresAt,
@@ -1172,7 +1173,6 @@ router.post("/merchant/cases/:id", requireSignedIn, async (req, res): Promise<vo
         updatedAt: new Date(),
       }).where(and(eq(merchantSupportCasesTable.id, row.id), eq(merchantSupportCasesTable.merchantId, merchant.id))).returning();
     });
-    await Promise.all(intents.map((intent) => deletePrivateCaseObject(intent.objectPath)));
     res.json(AddMerchantCaseMessageResponse.parse(await caseDto(updated)));
   } catch (error) {
     for (const intent of intents) {

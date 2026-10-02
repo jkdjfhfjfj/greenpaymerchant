@@ -428,14 +428,16 @@ function CaseConversation({ id, selected, onSelect, mode, onUpdated, canReply = 
         const attachmentUploadTokens: string[] = [];
         for (const file of files) {
           const intent = await postBusinessRequest<{
-            uploadURL: string; uploadToken: string; expiresAt: string;
+            uploadURL: string; uploadParameters: Record<string, string>; uploadToken: string; expiresAt: string;
           }>(`/merchant/cases/${id}/attachments/upload-intent`, {
             name: file.name, size: file.size, contentType: file.type,
           });
+          const form = new FormData();
+          for (const [key, value] of Object.entries(intent.uploadParameters)) form.append(key, value);
+          form.append('file', file);
           const uploaded = await fetch(intent.uploadURL, {
-            method: 'PUT',
-            headers: { 'Content-Type': file.type },
-            body: file,
+            method: 'POST',
+            body: form,
           });
           if (!uploaded.ok) throw new Error(`Private upload failed for ${file.name} (${uploaded.status}).`);
           attachmentUploadTokens.push(intent.uploadToken);

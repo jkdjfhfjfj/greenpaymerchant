@@ -5939,7 +5939,7 @@ export const getCreateMerchantCaseAttachmentUploadIntentUrl = (id: number,) => {
 }
 
 /**
- * @summary Create a short-lived private App Storage upload intent for case evidence
+ * @summary Create a short-lived signed Cloudinary upload intent for private case evidence
  */
 export const createMerchantCaseAttachmentUploadIntent = async (id: number,
     merchantCaseAttachmentUploadIntentInput: MerchantCaseAttachmentUploadIntentInput, options?: Parameters<typeof customFetch>[1]): Promise<MerchantCaseAttachmentUploadIntent> => {
@@ -6006,7 +6006,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateMerchantCaseAttachmentUploadIntentMutationVariables = {id: number;data: BodyType<MerchantCaseAttachmentUploadIntentInput>}
 
     /**
- * @summary Create a short-lived private App Storage upload intent for case evidence
+ * @summary Create a short-lived signed Cloudinary upload intent for private case evidence
  */
 export const useCreateMerchantCaseAttachmentUploadIntent = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMerchantCaseAttachmentUploadIntent>>, TError,CreateMerchantCaseAttachmentUploadIntentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}

@@ -196,6 +196,7 @@ export * from './merchantCaseAttachmentContentType';
 export * from './merchantCaseAttachmentUploadIntent';
 export * from './merchantCaseAttachmentUploadIntentInput';
 export * from './merchantCaseAttachmentUploadIntentInputContentType';
+export * from './merchantCaseAttachmentUploadIntentUploadParameters';
 export * from './merchantCollectionAnalyticsGroup';
 export * from './merchantCollectionAnalyticsResponse';
 export * from './merchantCollectionAnalyticsResponseWindowDays';

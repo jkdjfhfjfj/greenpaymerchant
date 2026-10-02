@@ -1236,7 +1236,7 @@ paths:
     post:
       operationId: createMerchantCaseAttachmentUploadIntent
       tags: [merchant]
-      summary: Create a short-lived private App Storage upload intent for case evidence
+      summary: Create a short-lived signed Cloudinary upload intent for private case evidence
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
       requestBody:
@@ -1246,7 +1246,7 @@ paths:
             schema: { $ref: "#/components/schemas/MerchantCaseAttachmentUploadIntentInput" }
       responses:
         "201":
-          description: Short-lived upload URL and opaque private object token
+          description: Short-lived Cloudinary upload signature and opaque private object token
           content:
             application/json:
               schema: { $ref: "#/components/schemas/MerchantCaseAttachmentUploadIntent" }
@@ -4366,10 +4366,14 @@ components:
       additionalProperties: false
     MerchantCaseAttachmentUploadIntent:
       type: object
-      required: [uploadURL, objectPath, uploadToken, expiresAt]
+      required: [uploadURL, uploadParameters, objectPath, uploadToken, expiresAt]
       properties:
-        uploadURL: { type: string, format: uri, description: Short-lived signed upload URL. }
-        objectPath: { type: string, description: Private opaque App Storage path; never a public URL. }
+        uploadURL: { type: string, format: uri, description: Cloudinary raw upload endpoint. }
+        uploadParameters:
+          type: object
+          description: Per-asset signed upload fields. The API secret is never returned.
+          additionalProperties: { type: string }
+        objectPath: { type: string, description: Opaque authenticated Cloudinary asset reference; never a public URL. }
         uploadToken: { type: string }
         expiresAt: { type: string, format: date-time }
     AdminCaseRefundRecordInput:

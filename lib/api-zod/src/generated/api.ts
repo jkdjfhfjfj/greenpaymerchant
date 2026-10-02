@@ -2921,7 +2921,7 @@ export const AddMerchantCaseMessageResponse = zod.object({
 
 
 /**
- * @summary Create a short-lived private App Storage upload intent for case evidence
+ * @summary Create a short-lived signed Cloudinary upload intent for private case evidence
  */
 
 
@@ -2943,8 +2943,9 @@ export const CreateMerchantCaseAttachmentUploadIntentBody = zod.object({
 })
 
 export const CreateMerchantCaseAttachmentUploadIntentResponse = zod.object({
-  "uploadURL": zod.string().url().describe('Short-lived signed upload URL.'),
-  "objectPath": zod.string().describe('Private opaque App Storage path; never a public URL.'),
+  "uploadURL": zod.string().url().describe('Cloudinary raw upload endpoint.'),
+  "uploadParameters": zod.record(zod.string(), zod.string()).describe('Per-asset signed upload fields. The API secret is never returned.'),
+  "objectPath": zod.string().describe('Opaque authenticated Cloudinary asset reference; never a public URL.'),
   "uploadToken": zod.string(),
   "expiresAt": zod.coerce.date()
 })

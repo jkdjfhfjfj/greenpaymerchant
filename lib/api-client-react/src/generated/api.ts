@@ -111,6 +111,7 @@ import type {
   ListBanksParams,
   ListCustomersParams,
   ListDeveloperTransactionsParams,
+  ListMerchantPaymentLinksParams,
   ListMerchantTransactionsParams,
   ListMerchantWalletFxRatesParams,
   ListMerchantWalletLedgerParams,
@@ -127,6 +128,7 @@ import type {
   MerchantCaseAttachmentUploadIntent,
   MerchantCaseAttachmentUploadIntentInput,
   MerchantCollectionAnalyticsResponse,
+  MerchantPaymentLinkList,
   MerchantProfileResponse,
   MerchantShopProfileUpdate,
   MerchantTeam,
@@ -8542,20 +8544,27 @@ export function useListMerchantPayouts<TData = Awaited<ReturnType<typeof listMer
 
 
 
-export const getListMerchantPaymentLinksUrl = () => {
+export const getListMerchantPaymentLinksUrl = (params?: ListMerchantPaymentLinksParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/merchant/payment-links`
+  return stringifiedParams.length > 0 ? `/api/merchant/payment-links?${stringifiedParams}` : `/api/merchant/payment-links`
 }
 
 /**
  * @summary List payment links belonging to the current merchant
  */
-export const listMerchantPaymentLinks = async ( options?: Parameters<typeof customFetch>[1]): Promise<PaymentLinkList> => {
+export const listMerchantPaymentLinks = async (params?: ListMerchantPaymentLinksParams, options?: Parameters<typeof customFetch>[1]): Promise<MerchantPaymentLinkList> => {
 
-  return customFetch<PaymentLinkList>(getListMerchantPaymentLinksUrl(),
+  return customFetch<MerchantPaymentLinkList>(getListMerchantPaymentLinksUrl(params),
   {
     ...options,
     method: 'GET'
@@ -8568,23 +8577,23 @@ export const listMerchantPaymentLinks = async ( options?: Parameters<typeof cust
 
 
 
-export const getListMerchantPaymentLinksQueryKey = () => {
+export const getListMerchantPaymentLinksQueryKey = (params?: ListMerchantPaymentLinksParams,) => {
     return [
-    `/api/merchant/payment-links`
+    `/api/merchant/payment-links`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListMerchantPaymentLinksQueryOptions = <TData = Awaited<ReturnType<typeof listMerchantPaymentLinks>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMerchantPaymentLinks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListMerchantPaymentLinksQueryOptions = <TData = Awaited<ReturnType<typeof listMerchantPaymentLinks>>, TError = ErrorType<unknown>>(params?: ListMerchantPaymentLinksParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMerchantPaymentLinks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListMerchantPaymentLinksQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListMerchantPaymentLinksQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMerchantPaymentLinks>>> = ({ signal }) => listMerchantPaymentLinks({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMerchantPaymentLinks>>> = ({ signal }) => listMerchantPaymentLinks(params, { signal, ...requestOptions });
 
 
 
@@ -8602,11 +8611,11 @@ export type ListMerchantPaymentLinksQueryError = ErrorType<unknown>
  */
 
 export function useListMerchantPaymentLinks<TData = Awaited<ReturnType<typeof listMerchantPaymentLinks>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMerchantPaymentLinks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: ListMerchantPaymentLinksParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMerchantPaymentLinks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListMerchantPaymentLinksQueryOptions(options)
+  const queryOptions = getListMerchantPaymentLinksQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

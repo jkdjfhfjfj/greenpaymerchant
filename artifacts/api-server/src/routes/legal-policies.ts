@@ -98,6 +98,14 @@ export const requireCurrentLegalAcceptance: RequestHandler = async (req, res, ne
   // requireAdmin marks the request after verifying the account's current admin role.
   // Admins must be able to enter operations before publishing or accepting legal policies.
   if (res.locals.isPlatformAdmin === true) { next(); return; }
+  // The signed-in merchant landing page may read only its first 20 transactions and
+  // a four-link overview; full lists and every merchant action remain gated.
+  const dashboardHomeRead = req.method === "GET" && (
+    (req.path === "/merchant/transactions" &&
+      req.query.page === "1" && req.query.perPage === "20") ||
+    (req.path === "/merchant/payment-links" && req.query.overview === "true")
+  );
+  if (dashboardHomeRead) { next(); return; }
   try {
     const rows = await currentPolicies();
     const current = rows.filter((row) => row.publishedVersion > 0 && row.publishedTitle?.trim() && row.publishedContent?.trim());

@@ -151,9 +151,9 @@ async function ownedMerchant(res: Parameters<Parameters<IRouter["get"]>[1]>[1]) 
   return resolveMerchantAccess(res.req, res, permission);
 }
 
-async function merchantLinks(merchantId: number) {
+async function merchantLinks(merchantId: number, limit = 500) {
   const rows = await db.select().from(paymentLinksTable)
-    .where(eq(paymentLinksTable.merchantId, merchantId)).orderBy(desc(paymentLinksTable.createdAt)).limit(500);
+    .where(eq(paymentLinksTable.merchantId, merchantId)).orderBy(desc(paymentLinksTable.createdAt)).limit(limit);
   return Promise.all(rows.map(async (row) => {
     const stats = await paymentLinkStats(row.id);
     return paymentLinkDto(row, stats.paidCount, stats.totalsByCurrency);
@@ -699,10 +699,18 @@ router.get("/merchant/payouts", requireSignedIn, async (_req, res): Promise<void
   res.json(ListMerchantPayoutsResponse.parse({ items: rows.map(payoutDto) }));
 });
 
-router.get("/merchant/payment-links", requireSignedIn, async (_req, res): Promise<void> => {
+router.get("/merchant/payment-links", requireSignedIn, async (req, res): Promise<void> => {
   const merchant = await ownedMerchant(res);
   if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
-  res.json(ListMerchantPaymentLinksResponse.parse({ items: await merchantLinks(merchant.id) }));
+  const overview = req.query.overview === "true";
+  const [activeLinks] = await db.select({ count: sql<number>`count(*)::int` }).from(paymentLinksTable).where(and(
+    eq(paymentLinksTable.merchantId, merchant.id),
+    eq(paymentLinksTable.status, "active"),
+  ));
+  res.json(ListMerchantPaymentLinksResponse.parse({
+    items: await merchantLinks(merchant.id, overview ? 4 : 500),
+    activeCount: Number(activeLinks?.count ?? 0),
+  }));
 });
 
 router.post("/merchant/payment-links", requireSignedIn, async (req, res): Promise<void> => {

@@ -4418,8 +4418,16 @@ export const ListMerchantPayoutsResponse = zod.object({
 /**
  * @summary List payment links belonging to the current merchant
  */
-export const listMerchantPaymentLinksResponseItemsItemTotalPaidByCurrencyItemCurrencyMin = 3;
-export const listMerchantPaymentLinksResponseItemsItemTotalPaidByCurrencyItemCurrencyMax = 3;
+export const listMerchantPaymentLinksQueryOverviewDefault = false;
+
+export const ListMerchantPaymentLinksQueryParams = zod.object({
+  "overview": zod.coerce.boolean().default(listMerchantPaymentLinksQueryOverviewDefault)
+})
+
+export const listMerchantPaymentLinksResponseOneItemsItemTotalPaidByCurrencyItemCurrencyMin = 3;
+export const listMerchantPaymentLinksResponseOneItemsItemTotalPaidByCurrencyItemCurrencyMax = 3;
+
+export const listMerchantPaymentLinksResponseTwoActiveCountMin = 0;
 
 
 
@@ -4437,13 +4445,15 @@ export const ListMerchantPaymentLinksResponse = zod.object({
   "paidCount": zod.number().int(),
   "totalPaid": zod.number().describe('Successful and refunded transaction amounts in the payment link\'s original currency only. It does not combine amounts charged in other currencies.'),
   "totalPaidByCurrency": zod.array(zod.object({
-  "currency": zod.string().min(listMerchantPaymentLinksResponseItemsItemTotalPaidByCurrencyItemCurrencyMin).max(listMerchantPaymentLinksResponseItemsItemTotalPaidByCurrencyItemCurrencyMax),
+  "currency": zod.string().min(listMerchantPaymentLinksResponseOneItemsItemTotalPaidByCurrencyItemCurrencyMin).max(listMerchantPaymentLinksResponseOneItemsItemTotalPaidByCurrencyItemCurrencyMax),
   "amount": zod.number().describe('Sum of successful and refunded transactions in this currency.')
 })).describe('Successful and refunded gross transaction totals grouped by their actual transaction currency.'),
   "expiresAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 }))
-})
+}).and(zod.object({
+  "activeCount": zod.number().int().min(listMerchantPaymentLinksResponseTwoActiveCountMin)
+}))
 
 
 /**

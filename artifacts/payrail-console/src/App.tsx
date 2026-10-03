@@ -288,11 +288,15 @@ function SignUpPage() {
   return <div className="auth-page"><div className="auth-side"><Brand /><div className="auth-story"><span className="eyebrow">GREENPAY / OPERATIONS</span><h1>Build your<br />money movement.</h1><p>Start collecting across Africa with operations built for clarity.</p></div><div className="auth-foot">Payments infrastructure for the places business is growing.</div></div><div className="auth-main"><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} /><p className="auth-legal-links">By continuing, you agree to the <a href={`${basePath}/privacy`}>Privacy Policy</a> and <a href={`${basePath}/terms`}>Terms of Service</a>.</p></div></div>;
 }
 
-function Protected({ children }: { children: ReactNode }) {
+function SignedInOnly({ children }: { children: ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth();
   if (!isLoaded) return <div className="auth-loading"><div className="skeleton-line" /><div className="skeleton-line short" /></div>;
   if (!isSignedIn) return <Redirect to="/" />;
-  return <LegalAcceptanceGate>{children}</LegalAcceptanceGate>;
+  return <>{children}</>;
+}
+
+function Protected({ children }: { children: ReactNode }) {
+  return <SignedInOnly><LegalAcceptanceGate>{children}</LegalAcceptanceGate></SignedInOnly>;
 }
 
 function RoleHome() {
@@ -302,7 +306,7 @@ function RoleHome() {
 }
 
 function DashboardRoot() {
-  return <><Show when="signed-in"><Protected><RoleHome /></Protected></Show><Show when="signed-out"><Welcome /></Show></>;
+  return <><Show when="signed-in"><SignedInOnly><RoleHome /></SignedInOnly></Show><Show when="signed-out"><Welcome /></Show></>;
 }
 
 function AppShell({ children }: { children: ReactNode }) {
@@ -1033,7 +1037,10 @@ function PublicCheckout() {
   );
 }
 
-const wrap = (C: () => ReactNode) => () => <Protected><AppShell><C /></AppShell></Protected>;
+const wrap = (C: () => ReactNode, requireLegalAcceptance = true) => () => {
+  const content = <AppShell><C /></AppShell>;
+  return requireLegalAcceptance ? <Protected>{content}</Protected> : <SignedInOnly>{content}</SignedInOnly>;
+};
 const protectedRoutes: [string, () => ReactNode][] = [
   ['/admin/merchants/:merchantId/controls', AdminMerchantControlsPage],
   ['/admin/email-delivery', AdminEmailDeliveryPage], ['/admin/content', AdminContentPage], ['/admin/legal-policies', AdminLegalPoliciesPage],
@@ -1048,7 +1055,7 @@ const protectedRoutes: [string, () => ReactNode][] = [
   ['/team', MerchantTeamPage],
 ];
 protectedRoutes.push(['/operations', () => <Gate need="admin"><Dashboard /></Gate>]);
-const protectedRouteElements = protectedRoutes.map(([path, C]) => <Route key={path} path={path} component={wrap(() => path.startsWith('/admin') ? <Gate need="admin"><C /></Gate> : <C />)} />);
+const protectedRouteElements = protectedRoutes.map(([path, C]) => <Route key={path} path={path} component={wrap(() => path.startsWith('/admin') ? <Gate need="admin"><C /></Gate> : <C />, path !== '/merchant/dashboard')} />);
 const publicContentRoutes = [
   <Route key="privacy-policy" path="/privacy" component={() => <PublicLegalPolicyPage policyType="privacy_policy" />} />,
   <Route key="terms-of-service" path="/terms" component={() => <PublicLegalPolicyPage policyType="terms_of_service" />} />,

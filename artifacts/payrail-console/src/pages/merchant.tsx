@@ -22,12 +22,12 @@ export function MerchantDashboardPage() { return <Gate need="merchant"><Merchant
 function MerchantDashboardInner() {
   const access = useAccess();
   const transactions = useListMerchantTransactions({ page: 1, perPage: 20 });
-  const links = useListMerchantPaymentLinks();
+  const links = useListMerchantPaymentLinks({ overview: true });
   const items = transactions.data?.items ?? [];
   const linkItems = links.data?.items ?? [];
   const recentSuccess = items.filter((item) => item.status === 'success').length;
   const pending = items.filter((item) => item.status === 'pending').length;
-  const activeLinks = linkItems.filter((item) => item.status === 'active').length;
+  const activeLinks = links.data?.activeCount ?? 0;
   const volumes = items.reduce<Record<string, number>>((totals, item) => {
     if (item.status === 'success') totals[item.currency] = (totals[item.currency] ?? 0) + item.amount;
     return totals;

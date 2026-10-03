@@ -851,6 +851,11 @@ export interface PaymentLinkList {
   items: PaymentLink[];
 }
 
+export type MerchantPaymentLinkList = PaymentLinkList & {
+  /** @minimum 0 */
+  activeCount: number;
+};
+
 export type PaymentLinkInputAmountType = typeof PaymentLinkInputAmountType[keyof typeof PaymentLinkInputAmountType];
 
 
@@ -4159,6 +4164,10 @@ page?: number;
  * @maximum 100
  */
 perPage?: number;
+};
+
+export type ListMerchantPaymentLinksParams = {
+overview?: boolean;
 };
 
 export type GetMerchantFxQuoteParams = {

@@ -61,7 +61,7 @@ async function listen(app: express.Express) {
   };
 }
 
-test("legal acceptance gates merchant data and workspace switching but leaves policy setup accessible", async () => {
+test("legal acceptance allows the limited dashboard overview but gates other merchant data and actions", async () => {
   const merchantUserId = `legal-access-${randomUUID()}`;
   const adminUserId = `legal-admin-${randomUUID()}`;
   const adminEmail = `legal-admin-${randomUUID()}@example.invalid`;
@@ -126,8 +126,25 @@ test("legal acceptance gates merchant data and workspace switching but leaves po
     };
     assert.equal(consent.accepted, false);
 
-    const transactionsResponse = await merchantStarted.request("/merchant/transactions");
-    assert.equal(transactionsResponse.status, 428, "merchant data must be blocked without current acceptances");
+    const dashboardTransactions = await merchantStarted.request("/merchant/transactions?page=1&perPage=20");
+    assert.equal(dashboardTransactions.status, 200, "the dashboard may read only its first 20 transactions");
+    const laterTransactions = await merchantStarted.request("/merchant/transactions?page=2&perPage=20");
+    assert.equal(laterTransactions.status, 428, "deeper transaction history remains gated");
+    const fullPaymentLinks = await merchantStarted.request("/merchant/payment-links");
+    assert.equal(fullPaymentLinks.status, 428, "the full payment-link list remains gated");
+    const dashboardLinks = await merchantStarted.request("/merchant/payment-links?overview=true");
+    assert.equal(dashboardLinks.status, 200, "the dashboard may read a limited link overview");
+    const dashboardLinkData = await dashboardLinks.json() as { items: unknown[]; activeCount: number };
+    assert.equal(dashboardLinkData.items.length, 0);
+    assert.equal(dashboardLinkData.activeCount, 0);
+    const createPaymentLink = await merchantStarted.request("/merchant/payment-links?overview=true", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    assert.equal(createPaymentLink.status, 428, "merchant actions remain gated even on dashboard routes");
+    const payoutsResponse = await merchantStarted.request("/merchant/payouts");
+    assert.equal(payoutsResponse.status, 428, "other merchant data remains gated");
     const workspaceResponse = await merchantStarted.request("/me/workspace", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

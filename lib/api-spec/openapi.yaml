@@ -1721,12 +1721,16 @@ paths:
       operationId: listMerchantPaymentLinks
       tags: [merchant]
       summary: List payment links belonging to the current merchant
+      parameters:
+        - name: overview
+          in: query
+          schema: { type: boolean, default: false }
       responses:
         "200":
           description: Merchant payment links
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/PaymentLinkList" }
+              schema: { $ref: "#/components/schemas/MerchantPaymentLinkList" }
     post:
       operationId: createMerchantPaymentLink
       tags: [merchant]
@@ -3574,6 +3578,13 @@ components:
         items:
           type: array
           items: { $ref: "#/components/schemas/PaymentLink" }
+    MerchantPaymentLinkList:
+      allOf:
+        - $ref: "#/components/schemas/PaymentLinkList"
+        - type: object
+          required: [activeCount]
+          properties:
+            activeCount: { type: integer, minimum: 0 }
     PaymentLinkInput:
       type: object
       required: [name, amountType, currency]

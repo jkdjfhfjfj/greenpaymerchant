@@ -39,17 +39,24 @@ const aliases = {
 };
 function getPublicSiteUrl(mode: string): string {
   const env = loadEnv(mode, frontendRoot, '');
-  const configuredSiteUrl = env.VITE_PUBLIC_SITE_URL?.trim() || env.PUBLIC_SITE_URL?.trim();
+  const configuredSiteUrl =
+    env.VITE_PUBLIC_SITE_URL?.trim() || env.PUBLIC_SITE_URL?.trim();
+  const siteUrlCandidate = configuredSiteUrl || env.RENDER_EXTERNAL_URL?.trim();
   let siteUrl = 'https://empty-project.replit.app';
-  if (configuredSiteUrl) {
+  if (siteUrlCandidate) {
     try {
-      const configured = new URL(configuredSiteUrl);
+      const configured = new URL(siteUrlCandidate);
       const hostname = configured.hostname.toLowerCase();
       const isDevelopmentHost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.replit.dev');
       if (configured.protocol === 'https:' && !isDevelopmentHost) siteUrl = configured.origin;
       else if (mode === 'production') throw new Error('VITE_PUBLIC_SITE_URL must be a published HTTPS site URL, not a development host.');
     } catch (error) {
-      if (mode === 'production') throw error instanceof Error ? error : new Error('VITE_PUBLIC_SITE_URL is invalid.');
+      if (mode === 'production') {
+        throw new Error(
+          'VITE_PUBLIC_SITE_URL or PUBLIC_SITE_URL must be a full HTTPS URL (for example, https://greenpay.onrender.com). Leave both unset on Render to use RENDER_EXTERNAL_URL.',
+          { cause: error },
+        );
+      }
     }
   }
   return siteUrl;

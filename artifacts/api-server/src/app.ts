@@ -38,6 +38,11 @@ if (clerkProviderMode === "external" && (!activeClerkPublishableKey || !activeCl
 app.use(
   pinoHttp({
     logger,
+    customLogLevel(_req, res, error) {
+      if (error || res.statusCode >= 500) return "error";
+      if (res.statusCode >= 400) return "warn";
+      return "trace";
+    },
     serializers: {
       req(req) {
         return {

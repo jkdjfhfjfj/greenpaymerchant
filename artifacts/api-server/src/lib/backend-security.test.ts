@@ -78,8 +78,9 @@ test("route policy never treats a bearer header as a cookie-CSRF exemption", () 
 });
 
 test("CORS and cookie mutations accept only exact configured origins", () => {
-  const allowed = ["https://merchant.example", "https://app.example:8443"];
+  const allowed = ["https://merchant.example", "https://app.example:8443", "https://greenpay.co.ke"];
   assert.equal(originIsAllowed("https://merchant.example", allowed), true);
+  assert.equal(originIsAllowed("https://greenpay.co.ke", allowed), true);
   assert.equal(originIsAllowed("https://merchant.example.attacker.invalid", allowed), false);
   assert.equal(originIsAllowed("https://merchant.example/evil", allowed), false);
   assert.equal(originIsAllowed("null", allowed), false);

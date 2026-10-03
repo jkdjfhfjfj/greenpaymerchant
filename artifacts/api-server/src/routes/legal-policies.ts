@@ -95,6 +95,9 @@ export function hasAcceptedCurrentLegalPolicyVersions(
 export const requireCurrentLegalAcceptance: RequestHandler = async (req, res, next) => {
   const userId = signedInUserId(req, res);
   if (!userId) { res.status(401).json({ error: "Sign in to access this workspace." }); return; }
+  // requireAdmin marks the request after verifying the account's current admin role.
+  // Admins must be able to enter operations before publishing or accepting legal policies.
+  if (res.locals.isPlatformAdmin === true) { next(); return; }
   try {
     const rows = await currentPolicies();
     const current = rows.filter((row) => row.publishedVersion > 0 && row.publishedTitle?.trim() && row.publishedContent?.trim());

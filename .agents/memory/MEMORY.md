@@ -16,3 +16,4 @@
 - [Private case-evidence storage](cloudinary-case-evidence.md) — keep evidence in authenticated Cloudinary raw assets and proxy verified bytes through authorized API routes.
 - [Drizzle migration output paths](drizzle-migration-output-paths.md) — compute output paths relative to the current working directory; absolute paths were misjoined by Drizzle Kit.
 - [Greenpay production hostname](greenpay-production-hostname.md) — use `greenpay.co.ke` as the canonical production hostname unless the user changes it.
+- [Render Blueprint environment sync](render-blueprint-env-sync.md) — existing Blueprints ignore `sync: false` variables during updates; non-secret config needs a literal value and a sync/deploy.

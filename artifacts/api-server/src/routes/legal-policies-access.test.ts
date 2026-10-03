@@ -135,6 +135,9 @@ test("legal acceptance gates merchant data and workspace switching but leaves po
     });
     assert.equal(workspaceResponse.status, 428, "workspace switching must be blocked without current acceptances");
 
+    const adminSettingsResponse = await adminStarted.request("/admin/platform-settings");
+    assert.equal(adminSettingsResponse.status, 200, "admins must reach operations before legal policies are published or accepted");
+
     const adminResponse = await adminStarted.request("/admin/legal-policies");
     assert.equal(adminResponse.status, 200, "admins must be able to open policy administration before setup is complete");
     const adminPolicies = await adminResponse.json() as {

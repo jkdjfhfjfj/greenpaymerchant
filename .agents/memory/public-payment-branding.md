@@ -16,3 +16,9 @@ On payment-link checkout pages, keep the secure-checkout notice and “Powered b
 **Why:** The user explicitly requested footer-only placement while refining the Payment Links experience.
 
 **How to apply:** When editing the customer-facing `/pay/:slug` page, keep these trust and platform-attribution labels out of the header and checkout form; preserve merchant identity separately.
+
+On payout screens, do not mention payzaapi.
+
+**Why:** The user explicitly asked.
+
+**How to apply:** Keep payout titles, provider/method labels, and surfaced payout errors free of this name while leaving routing identifiers unchanged.

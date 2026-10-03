@@ -7,6 +7,20 @@ export function mutationRequiresSameOrigin(method: string, path: string): boolea
     !isVersionedApiPath(path);
 }
 
+export function configuredBrowserOrigins(
+  configuredOrigins: string | undefined,
+  publicAppUrl: string | undefined,
+  isProduction: boolean,
+): string[] {
+  const origins = (configuredOrigins ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  if (isProduction) origins.push("https://greenpay.co.ke");
+  if (publicAppUrl) origins.push(publicAppUrl);
+  return [...new Set(origins)];
+}
+
 export function originIsAllowed(origin: string | undefined, allowedOrigins: readonly string[]): boolean {
   if (!origin) return false;
   const normalize = (value: string): string | undefined => {

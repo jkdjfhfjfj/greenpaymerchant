@@ -1,12 +1,15 @@
 import type { RequestHandler } from "express";
 import { getPublicAppUrl } from "../lib/greenpay-provider";
-import { mutationRequiresSameOrigin, originIsAllowed } from "../lib/origin-policy";
+import { configuredBrowserOrigins, mutationRequiresSameOrigin, originIsAllowed } from "../lib/origin-policy";
 
 export function trustedBrowserOrigins(): string[] {
-  const configured = (process.env.CORS_ALLOWED_ORIGINS ?? "")
-    .split(",").map((origin) => origin.trim()).filter(Boolean);
-  try { configured.push(getPublicAppUrl()); } catch {}
-  return [...new Set(configured)];
+  let publicAppUrl: string | undefined;
+  try { publicAppUrl = getPublicAppUrl(); } catch {}
+  return configuredBrowserOrigins(
+    process.env.CORS_ALLOWED_ORIGINS,
+    publicAppUrl,
+    process.env.NODE_ENV === "production",
+  );
 }
 
 export const requireSameOriginForCookieMutations: RequestHandler = (req, res, next) => {

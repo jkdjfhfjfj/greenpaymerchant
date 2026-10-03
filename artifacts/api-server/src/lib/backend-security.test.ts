@@ -16,7 +16,7 @@ import {
   remainingRefundableAmount,
 } from "./payment-safety";
 import { createPinnedWebhookLookup, isPrivateAddress } from "./network-safety";
-import { isVersionedApiPath, mutationRequiresSameOrigin, originIsAllowed } from "./origin-policy";
+import { configuredBrowserOrigins, isVersionedApiPath, mutationRequiresSameOrigin, originIsAllowed } from "./origin-policy";
 
 test("API keys are represented by a SHA-256 digest, not the bearer value", () => {
   const bearer = "gp_live_0123456789012345678901234567890123456789";
@@ -85,6 +85,12 @@ test("CORS and cookie mutations accept only exact configured origins", () => {
   assert.equal(originIsAllowed("https://merchant.example/evil", allowed), false);
   assert.equal(originIsAllowed("null", allowed), false);
   assert.equal(originIsAllowed(undefined, allowed), false);
+});
+
+test("production keeps the canonical app origin trusted when deployment variables are stale", () => {
+  const origins = configuredBrowserOrigins(undefined, undefined, true);
+  assert.equal(originIsAllowed("https://greenpay.co.ke", origins), true);
+  assert.equal(originIsAllowed("https://attacker.invalid", origins), false);
 });
 
 test("developer route access blocks non-active merchant states centrally", () => {

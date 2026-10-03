@@ -86,7 +86,6 @@ import type {
   GetDeveloperFxQuoteParams,
   GetMerchantFxQuoteParams,
   GetMerchantWalletFxQuoteParams,
-  HealthStatus,
   Invoice,
   InvoiceInput,
   InvoiceList,
@@ -1484,11 +1483,11 @@ export const getHealthCheckUrl = () => {
 }
 
 /**
- * @summary Health check
+ * @summary Liveness check
  */
-export const healthCheck = async ( options?: Parameters<typeof customFetch>[1]): Promise<HealthStatus> => {
+export const healthCheck = async ( options?: Parameters<typeof customFetch>[1]): Promise<string> => {
 
-  return customFetch<HealthStatus>(getHealthCheckUrl(),
+  return customFetch<string>(getHealthCheckUrl(),
   {
     ...options,
     method: 'GET'
@@ -1508,7 +1507,7 @@ export const getHealthCheckQueryKey = () => {
     }
 
 
-export const getHealthCheckQueryOptions = <TData = Awaited<ReturnType<typeof healthCheck>>, TError = ErrorType<HealthStatus>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof healthCheck>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getHealthCheckQueryOptions = <TData = Awaited<ReturnType<typeof healthCheck>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof healthCheck>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -1527,14 +1526,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type HealthCheckQueryResult = NonNullable<Awaited<ReturnType<typeof healthCheck>>>
-export type HealthCheckQueryError = ErrorType<HealthStatus>
+export type HealthCheckQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Health check
+ * @summary Liveness check
  */
 
-export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, TError = ErrorType<HealthStatus>>(
+export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, TError = ErrorType<unknown>>(
   options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof healthCheck>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {

@@ -432,27 +432,6 @@ export interface PlatformOperationalStatus {
   services: PlatformOperationalStatusServicesItem[];
 }
 
-export type HealthStatusStatus = typeof HealthStatusStatus[keyof typeof HealthStatusStatus];
-
-
-export const HealthStatusStatus = {
-  ok: 'ok',
-  unavailable: 'unavailable',
-} as const;
-
-export type HealthStatusDatabase = typeof HealthStatusDatabase[keyof typeof HealthStatusDatabase];
-
-
-export const HealthStatusDatabase = {
-  ready: 'ready',
-  unavailable: 'unavailable',
-} as const;
-
-export interface HealthStatus {
-  status: HealthStatusStatus;
-  database: HealthStatusDatabase;
-}
-
 export interface CurrencyVolume {
   currency: string;
   amount: number;

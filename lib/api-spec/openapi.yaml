@@ -266,20 +266,13 @@ paths:
     get:
       operationId: healthCheck
       tags: [health]
-      summary: Health check
+      summary: Liveness check
       responses:
         "200":
-          description: Healthy
+          description: Service is running
           content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HealthStatus"
-        "503":
-          description: Database unavailable
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HealthStatus"
+            text/plain:
+              schema: { type: string, example: "OK" }
   /dashboard:
     get:
       operationId: getDashboard
@@ -3290,12 +3283,6 @@ components:
               name: { type: string }
               status: { type: string, enum: [operational, degraded, unavailable] }
               description: { type: string }
-    HealthStatus:
-      type: object
-      properties:
-        status: { type: string, enum: [ok, unavailable] }
-        database: { type: string, enum: [ready, unavailable] }
-      required: [status, database]
     DashboardSummary:
       type: object
       required: [paymentsToday, successRate, pendingSettlements, settlementsDue, volumeByCurrency, recentTransactions, providerStatus]

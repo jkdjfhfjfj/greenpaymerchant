@@ -378,12 +378,9 @@ export const GetPlatformStatusResponse = zod.object({
 
 
 /**
- * @summary Health check
+ * @summary Liveness check
  */
-export const HealthCheckResponse = zod.object({
-  "status": zod.enum(['ok', 'unavailable']),
-  "database": zod.enum(['ready', 'unavailable'])
-})
+export const HealthCheckResponse = zod.string()
 
 
 /**

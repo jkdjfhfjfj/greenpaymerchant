@@ -6,11 +6,13 @@ import {
   stopMerchantWebhookOutboxWorker,
 } from "./lib/outbound-webhooks";
 
-const rawPort = process.env["PORT"];
+const rawPort =
+  process.env["PORT"] ??
+  (process.env["NODE_ENV"] === "production" ? "10000" : undefined);
 
 if (!rawPort) {
   throw new Error(
-    "PORT environment variable is required but was not provided.",
+    "PORT environment variable is required outside production.",
   );
 }
 

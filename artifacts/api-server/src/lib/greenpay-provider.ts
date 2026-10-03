@@ -169,25 +169,25 @@ export async function getProviderStatuses() {
 }
 
 export async function fetchProviderJson(
-  provider: string,
+  _provider: string,
   url: string,
   init: RequestInit,
 ): Promise<JsonObject> {
   let response: Response;
   try {
     response = await fetch(url, { ...init, signal: AbortSignal.timeout(20_000) });
-  } catch (error) {
-    throw new ApiError(502, `${provider} could not be reached. Try again shortly.`);
+  } catch {
+    throw new ApiError(502, "Payment could not be started. Try again shortly.");
   }
 
   let payload: unknown;
   try {
     payload = await response.json();
   } catch {
-    throw new ApiError(502, `${provider} returned an unreadable response.`);
+    throw new ApiError(502, "Payment could not be started. Try again shortly.");
   }
   if (!response.ok) {
-    throw new ApiError(502, `${provider} rejected the request.`);
+    throw new ApiError(502, "Payment could not be started. Try again shortly.");
   }
   return asObject(payload);
 }
@@ -198,13 +198,13 @@ async function payzaHeaders(): Promise<NonNullable<RequestInit["headers"]>> {
   if (publicKey && secretKey) {
     return { "X-Public-Key": publicKey, "X-Secret-Key": secretKey, "Content-Type": "application/json" };
   }
-  throw new ApiError(503, "Payzaapi is not configured.");
+  throw new ApiError(503, "The selected payment option is temporarily unavailable.");
 }
 
 async function payheroHeaders(): Promise<NonNullable<RequestInit["headers"]>> {
   const token = await providerCredential("payhero", "PAYHERO_BASIC_AUTH");
   const channel = await providerCredential("payhero", "PAYHERO_CHANNEL_ID");
-  if (!token || !Number.isInteger(Number(channel)) || Number(channel) <= 0) throw new ApiError(503, "PayHero is not configured.");
+  if (!token || !Number.isInteger(Number(channel)) || Number(channel) <= 0) throw new ApiError(503, "The selected payment option is temporarily unavailable.");
   return { Authorization: token.toLowerCase().startsWith("basic ") ? token : `Basic ${token}`, "Content-Type": "application/json" };
 }
 
@@ -235,7 +235,7 @@ function normalizeKenyanPhone(phone: string | null): string {
 }
 
 export async function startProviderPayment(input: StartPaymentInput): Promise<StartPaymentResult> {
-  if (!await providerIsConfigured(input.provider)) throw new ApiError(503, `${input.provider} is not configured.`);
+  if (!await providerIsConfigured(input.provider)) throw new ApiError(503, "The selected payment option is temporarily unavailable.");
   const appUrl = getPublicAppUrl();
   const statusUrl = input.paymentLinkSlug
     ? `${appUrl}/pay/${encodeURIComponent(input.paymentLinkSlug)}`
@@ -259,7 +259,7 @@ export async function startProviderPayment(input: StartPaymentInput): Promise<St
     });
     const data = asObject(response.data);
     if (response.status !== true || !stringValue(data.authorization_url)) {
-      throw new ApiError(502, "Paystack did not return a usable checkout URL.");
+      throw new ApiError(502, "Payment could not be started. Try again shortly.");
     }
     return {
       providerReference: stringValue(data.reference) ?? input.reference,
@@ -285,7 +285,7 @@ export async function startProviderPayment(input: StartPaymentInput): Promise<St
       }),
     });
     if (response.success !== true) {
-      throw new ApiError(502, "PayHero did not accept the M-Pesa request.");
+      throw new ApiError(502, "The payment request could not be started. Try again shortly.");
     }
     return { providerReference: stringValue(response.reference) ?? null, paymentUrl: null };
   }
@@ -310,7 +310,7 @@ export async function startProviderPayment(input: StartPaymentInput): Promise<St
   const data = asObject(response.data);
   const paymentUrl = stringValue(data.payment_url) ?? stringValue(response.payment_url);
   if (response.success !== true || !paymentUrl) {
-    throw new ApiError(502, "Payzaapi did not return a hosted checkout URL.");
+    throw new ApiError(502, "Payment could not be started. Try again shortly.");
   }
   return { providerReference: input.reference, paymentUrl };
 }

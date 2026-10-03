@@ -92,18 +92,30 @@ export function hasAcceptedCurrentLegalPolicyVersions(
   });
 }
 
+function legalGatePath(req: Parameters<RequestHandler>[0]): string {
+  const path = req.originalUrl.split("?")[0] || req.path;
+  return path.replace(/^\/api(?=\/|$)/, "") || req.path;
+}
+
 export const requireCurrentLegalAcceptance: RequestHandler = async (req, res, next) => {
   const userId = signedInUserId(req, res);
   if (!userId) { res.status(401).json({ error: "Sign in to access this workspace." }); return; }
   // requireAdmin marks the request after verifying the account's current admin role.
   // Admins must be able to enter operations before publishing or accepting legal policies.
   if (res.locals.isPlatformAdmin === true) { next(); return; }
+  const path = legalGatePath(req);
+  // Application intake and follow-up must remain possible before legal policies
+  // are published or accepted. All other merchant routes remain gated below.
+  const applicationOnboarding = (
+    path === "/merchant" && (req.method === "GET" || req.method === "POST")
+  ) || (path === "/merchant/application" && req.method === "PATCH");
+  if (applicationOnboarding) { next(); return; }
   // The signed-in merchant landing page may read only its first 20 transactions and
   // a four-link overview; full lists and every merchant action remain gated.
   const dashboardHomeRead = req.method === "GET" && (
-    (req.path === "/merchant/transactions" &&
+    (path === "/merchant/transactions" &&
       req.query.page === "1" && req.query.perPage === "20") ||
-    (req.path === "/merchant/payment-links" && req.query.overview === "true")
+    (path === "/merchant/payment-links" && req.query.overview === "true")
   );
   if (dashboardHomeRead) { next(); return; }
   try {

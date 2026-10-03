@@ -42,6 +42,7 @@ import {
   type MerchantActionKey,
 } from "../lib/merchant-access-policy";
 import { verificationTierForMerchant } from "../lib/platform";
+import { notifyMerchantAccountAction } from "../lib/support-service";
 import {
   allowlistedAdminEmails, ClerkApiError, emailIsBootstrapAdmin, existingClerkUserIds, fetchClerkUser, findVerifiedClerkUsersByEmail,
   platformAdminAuditDetails, remainingEffectiveAdminCount, verifiedEmailAddresses,
@@ -744,12 +745,26 @@ router.post("/admin/merchants/:merchantId/status", async (req, res): Promise<voi
       target: `merchant:${merchantId}`,
       details: `Status changed from ${current.status} to ${status}. Reason: ${reason}`,
     });
-    return { kind: "saved" as const, updated };
+    return { kind: "saved" as const, updated, previousStatus: current.status };
   });
   if (saved.kind === "not_found") { res.status(404).json({ error: "Merchant not found." }); return; }
   if (saved.kind === "application_pending") {
     res.status(409).json({ error: "A submitted business application must be approved before activating the merchant." });
     return;
+  }
+  if (saved.previousStatus !== saved.updated.status) {
+    void notifyMerchantAccountAction({
+      merchantId: saved.updated.id,
+      ownerUserId: saved.updated.ownerClerkId,
+      businessName: saved.updated.businessName,
+      action: status === "suspended" ? "suspended" : "active",
+      eventKey: `merchant-status:${saved.updated.id}:${status}:${saved.updated.updatedAt.getTime()}`,
+    }).catch((error) => {
+      req.log.error({
+        merchantId: saved.updated.id,
+        errorKind: error instanceof Error ? error.name : "unknown",
+      }, "Merchant status was updated, but its owner notification could not be queued");
+    });
   }
   res.json({ merchantId: saved.updated.id, status: saved.updated.status, reason, updatedAt: saved.updated.updatedAt });
 });
@@ -792,6 +807,19 @@ router.post("/admin/merchants/:merchantId/application-review", async (req, res):
     res.status(409).json({ error: "Only applications awaiting review can be approved or sent back for information." });
     return;
   }
+  void notifyMerchantAccountAction({
+    merchantId: result.updated.id,
+    ownerUserId: result.updated.ownerClerkId,
+    businessName: result.updated.businessName,
+    action: parsed.data.decision === "approve" ? "application_approved" : "more_info_required",
+    ...(parsed.data.decision === "request_information" ? { reason: parsed.data.reason.trim() } : {}),
+    eventKey: `merchant-application:${result.updated.id}:${result.updated.applicationStatus}:${reviewedAt.getTime()}`,
+  }).catch((error) => {
+    req.log.error({
+      merchantId: result.updated.id,
+      errorKind: error instanceof Error ? error.name : "unknown",
+    }, "Application review was saved, but its owner notification could not be queued");
+  });
   res.json(ReviewAdminMerchantApplicationResponse.parse({
     merchantId: result.updated.id,
     applicationStatus: result.updated.applicationStatus,

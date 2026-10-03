@@ -152,8 +152,10 @@
 .support-status-editor { max-width: 190px; margin-top: 17px; }
 .support-status-editor > small { color: #a44b43; }
 
-.profile-layout { display: grid; grid-template-columns: minmax(0, 1.06fr) minmax(310px, .94fr); align-items: start; gap: 18px; }
+.profile-page { min-width: 0; max-width: 100%; }
+.profile-layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 18px; }
 .support-card { padding: 22px; }
+.profile-layout > .support-card { min-width: 0; }
 .profile-section-heading { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 18px; }
 .profile-section-heading h2 { margin: 0 0 5px; font-size: 16px; letter-spacing: -.3px; }
 .profile-section-heading p { margin: 0; color: #7a857c; font-size: 11px; line-height: 1.55; }
@@ -161,8 +163,11 @@
 .profile-personal-summary { display: flex; flex-direction: column; gap: 4px; padding: 13px 15px; border: 1px solid #ebeee8; border-radius: 10px; background: #fafbf8; }
 .profile-personal-summary strong { font-size: 13px; }
 .profile-personal-summary > span { color: #79847c; font-size: 11px; }
-.clerk-profile-shell { margin-top: 19px; min-height: 340px; overflow: auto; }
-.clerk-profile-shell .cl-rootBox { width: 100%; }
+.clerk-profile-shell { width: 100%; max-width: 100%; min-width: 0; margin-top: 19px; min-height: 340px; overflow-x: auto; }
+.clerk-profile-shell .cl-rootBox,
+.clerk-profile-shell .cl-userProfile-root,
+.clerk-profile-shell .cl-cardBox,
+.clerk-profile-shell .cl-card { width: 100% !important; max-width: 100% !important; min-width: 0 !important; box-sizing: border-box; }
 .profile-business-name { display: flex; flex-direction: column; gap: 5px; padding-bottom: 13px; border-bottom: 1px solid #eeeee8; }
 .profile-business-name span, .profile-readonly-status > span { color: #79847c; font-size: 10px; }
 .profile-business-name strong { font-size: 13px; }

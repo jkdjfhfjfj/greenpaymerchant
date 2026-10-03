@@ -60,7 +60,7 @@ test("email links are restricted to the explicitly configured deployment origin"
       currency: "SLL",
       receiptUrl: "https://app.greenpay.example/status/GP-RECEIPT-4",
     });
-    assert.doesNotMatch(externalReceipt.html, /href=/);
+    assert.doesNotMatch(externalReceipt.html, /attacker\.example/);
     assert.match(officialReceipt.html, /href="https:\/\/app\.greenpay\.example\/status\/GP-RECEIPT-4"/);
   } finally {
     if (previous === undefined) delete process.env.PUBLIC_APP_URL;
@@ -92,7 +92,33 @@ test("invoice reminders include the outstanding balance and only an approved pay
       currency: "USD",
       paymentUrl: "https://attacker.example/pay",
     });
-    assert.doesNotMatch(unapproved.html, /href=/);
+    assert.doesNotMatch(unapproved.html, /attacker\.example/);
+  } finally {
+    if (previous === undefined) delete process.env.PUBLIC_APP_URL;
+    else process.env.PUBLIC_APP_URL = previous;
+  }
+});
+
+test("merchant account email reports application decisions without exposing internal service names", () => {
+  const previous = process.env.PUBLIC_APP_URL;
+  process.env.PUBLIC_APP_URL = "https://app.greenpay.example";
+  try {
+    const requested = renderTransactionalEmail("merchant_account_update", {
+      action: "more_info_required",
+      businessName: "Kono Trading",
+      reason: "<provide a current registration document>",
+    });
+    assert.match(requested.subject, /More information needed/);
+    assert.match(requested.text, /provide a current registration document/);
+    assert.match(requested.html, /&lt;provide a current registration document&gt;/);
+    assert.match(requested.html, /href="https:\/\/app\.greenpay\.example\/merchant"/);
+    assert.doesNotMatch(requested.text, /administrator|processor|provider|Didit/i);
+
+    const approved = renderTransactionalEmail("merchant_account_update", {
+      action: "application_approved",
+      businessName: "Kono Trading",
+    });
+    assert.match(approved.text, /has been approved/);
   } finally {
     if (previous === undefined) delete process.env.PUBLIC_APP_URL;
     else process.env.PUBLIC_APP_URL = previous;

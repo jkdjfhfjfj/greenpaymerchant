@@ -283,7 +283,7 @@ export const AdminReplySupportTicketResponse = zod.object({
 export const ListNotificationsResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().int(),
-  "type": zod.enum(['support_reply', 'kyc_update', 'payment_confirmed', 'payment_failed', 'payout_update', 'merchant_created']),
+  "type": zod.enum(['support_reply', 'kyc_update', 'payment_confirmed', 'payment_failed', 'payout_update', 'merchant_created', 'merchant_account_update']),
   "title": zod.string(),
   "body": zod.string(),
   "href": zod.string(),
@@ -306,7 +306,7 @@ export const MarkNotificationReadParams = zod.object({
 
 export const MarkNotificationReadResponse = zod.object({
   "id": zod.number().int(),
-  "type": zod.enum(['support_reply', 'kyc_update', 'payment_confirmed', 'payment_failed', 'payout_update', 'merchant_created']),
+  "type": zod.enum(['support_reply', 'kyc_update', 'payment_confirmed', 'payment_failed', 'payout_update', 'merchant_created', 'merchant_account_update']),
   "title": zod.string(),
   "body": zod.string(),
   "href": zod.string(),
@@ -6877,7 +6877,7 @@ export const ListAdminEmailDeliveryOutboxQueryParams = zod.object({
   "page": zod.coerce.number().int().min(1).default(listAdminEmailDeliveryOutboxQueryPageDefault),
   "perPage": zod.coerce.number().int().min(1).max(listAdminEmailDeliveryOutboxQueryPerPageMax).default(listAdminEmailDeliveryOutboxQueryPerPageDefault),
   "deliveryState": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured']).optional(),
-  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test', 'admin_broadcast']).optional(),
+  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'merchant_account_update', 'team_invitation', 'admin_test', 'admin_broadcast']).optional(),
   "search": zod.coerce.string().max(listAdminEmailDeliveryOutboxQuerySearchMax).optional()
 })
 
@@ -6894,7 +6894,7 @@ export const ListAdminEmailDeliveryOutboxResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().int(),
   "eventKey": zod.string(),
-  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test', 'admin_broadcast']),
+  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'merchant_account_update', 'team_invitation', 'admin_test', 'admin_broadcast']),
   "recipientEmail": zod.string().email(),
   "deliveryState": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured']),
   "attempts": zod.number().int().min(listAdminEmailDeliveryOutboxResponseItemsItemAttemptsMin),
@@ -6907,7 +6907,7 @@ export const ListAdminEmailDeliveryOutboxResponse = zod.object({
   "legacyHeld": zod.array(zod.object({
   "id": zod.number().int(),
   "eventKey": zod.string(),
-  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test', 'admin_broadcast']),
+  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'merchant_account_update', 'team_invitation', 'admin_test', 'admin_broadcast']),
   "recipientEmail": zod.string().email(),
   "deliveryState": zod.enum(['unconfigured']),
   "createdAt": zod.coerce.date(),
@@ -6936,7 +6936,7 @@ export const retryAdminEmailDeliveryOutboxItemResponseAttemptsMin = 0;
 export const RetryAdminEmailDeliveryOutboxItemResponse = zod.object({
   "id": zod.number().int(),
   "eventKey": zod.string(),
-  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test', 'admin_broadcast']),
+  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'merchant_account_update', 'team_invitation', 'admin_test', 'admin_broadcast']),
   "recipientEmail": zod.string().email(),
   "deliveryState": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured']),
   "attempts": zod.number().int().min(retryAdminEmailDeliveryOutboxItemResponseAttemptsMin),
@@ -6969,7 +6969,7 @@ export const reviewAndRequeueLegacySupportEmailOutboxItemResponseAttemptsMin = 0
 export const ReviewAndRequeueLegacySupportEmailOutboxItemResponse = zod.object({
   "id": zod.number().int(),
   "eventKey": zod.string(),
-  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'team_invitation', 'admin_test', 'admin_broadcast']),
+  "purpose": zod.enum(['payment_receipt', 'payment_success', 'payment_failure', 'payout_update', 'invoice_reminder', 'support_reply', 'support_receipt', 'merchant_account_update', 'team_invitation', 'admin_test', 'admin_broadcast']),
   "recipientEmail": zod.string().email(),
   "deliveryState": zod.enum(['queued', 'sending', 'sent', 'failed', 'uncertain', 'unconfigured']),
   "attempts": zod.number().int().min(reviewAndRequeueLegacySupportEmailOutboxItemResponseAttemptsMin),

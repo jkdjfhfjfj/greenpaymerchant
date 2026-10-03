@@ -202,7 +202,7 @@ function ExchangeInner() {
   const f = fees.data?.schedule;
   const quote = params ? q.data : undefined;
   return <>
-    <Heading eyebrow="EXCHANGE" title="Currency quotes" subtitle="A calculation from active admin-managed rates and your fee schedule. This is a quote, not a provider FX settlement; no funds are converted." />
+    <Heading eyebrow="EXCHANGE" title="Currency quotes" subtitle="A calculation using current exchange rates and your fee schedule. This is an estimate; no funds are converted." />
     <div className="split">
       <Card title="Calculate a quote">
         <form className="form-stack" onSubmit={(e) => { e.preventDefault(); const a = Number(form.amount); if (a > 0) setParams({ amount: a, from: form.from, to: form.to }); }}>
@@ -217,7 +217,7 @@ function ExchangeInner() {
       <div>
         {f && <Card title="Fees applied"><div className="kv"><div><span>Percentage</span><strong>{f.percentage}%</strong></div><div><span>Flat</span><strong>{money(f.flatAmount, f.currency)}</strong></div><div><span>FX markup</span><strong>{f.fxMarkupBps} bps</strong></div></div></Card>}
         {params && q.isError && <Err error={q.error} />}
-        {quote && <div className="quote-hero" data-testid="card-fx-quote"><small>{money(quote.amount, quote.from)} converts to</small><div className="big">{money(quote.convertedAmount, quote.to)}</div><small>Rate {quote.rate} / effective {quote.effectiveRate} - platform fee {money(quote.platformFee, quote.from)}</small><small>Source: {quote.source}. Expires {fmtDate(quote.expiresAt)}</small>{quote.note && <small>{quote.note}</small>}</div>}
+        {quote && <div className="quote-hero" data-testid="card-fx-quote"><small>{money(quote.amount, quote.from)} converts to</small><div className="big">{money(quote.convertedAmount, quote.to)}</div><small>Rate {quote.rate} / effective {quote.effectiveRate} - platform fee {money(quote.platformFee, quote.from)}</small><small>Expires {fmtDate(quote.expiresAt)}</small>{quote.note && <small>{quote.note}</small>}</div>}
         {!quote && !q.isError && <div className="empty-state"><strong>No quote yet</strong><span>Enter an amount and pair to calculate.</span></div>}
       </div>
     </div>
@@ -228,15 +228,14 @@ function ExchangeInner() {
             {CURRENCIES.filter((currency) => currency !== 'SLL').map((currency) => <option key={currency}>{currency}</option>)}
           </select>
         </Field>
-        <div className="notice"><CheckCircle2 size={16} /><div>Source and publication date are shown for each rate. SLL is omitted because its legacy amount scale has not been verified.</div></div>
+        <div className="notice"><CheckCircle2 size={16} /><div>Publication dates are shown for each rate. SLL is omitted because its legacy amount scale has not been verified.</div></div>
       </div>
-      <Async q={rates} empty={!rates.data?.items.length} emptyTitle="No current rates" emptyBody="Current market reference rates could not be loaded. Retry when a rate provider is available.">
+      <Async q={rates} empty={!rates.data?.items.length} emptyTitle="No current rates" emptyBody="Current reference rates could not be loaded. Try again later.">
         <div className="table-wrap"><table className="dt">
-          <thead><tr><th>Pair</th><th className="num">Rate</th><th>Source</th><th>Published</th><th>Fetched</th></tr></thead>
+          <thead><tr><th>Pair</th><th className="num">Rate</th><th>Published</th><th>Fetched</th></tr></thead>
           <tbody>{(rates.data?.items ?? []).map((item) => <tr key={item.currency}>
             <td><strong>1 {ratesBase} = {item.currency}</strong></td>
             <td className="num mono">{item.rate}</td>
-            <td>{item.source}</td>
             <td>{item.sourceDate}</td>
             <td>{fmtDate(item.fetchedAt)}</td>
           </tr>)}</tbody>

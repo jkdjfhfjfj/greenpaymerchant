@@ -303,7 +303,7 @@ router.post("/merchant/invoices/:id/void", requireSignedIn, async (req, res): Pr
       inArray(transactionsTable.status, ["pending", ...PAID_TRANSACTION_STATUSES]),
     )).for("update") : [];
     if (linkedTransactions.some((row) => row.status === "pending")) {
-      throw Object.assign(new Error("An invoice payment is awaiting provider confirmation. Do not void it until the outcome is known."), { statusCode: 409 });
+      throw Object.assign(new Error("The invoice payment is still being confirmed. Do not void it until the outcome is known."), { statusCode: 409 });
     }
     const hasConfirmedPayment = linkedTransactions.some((transaction) => transaction.paidAt !== null);
     if (hasConfirmedPayment || locked.status === "paid" || locked.status === "partially_paid") {

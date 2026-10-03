@@ -17,6 +17,7 @@ export const TransactionalEmailPurpose = {
   invoice_reminder: 'invoice_reminder',
   support_reply: 'support_reply',
   support_receipt: 'support_receipt',
+  merchant_account_update: 'merchant_account_update',
   team_invitation: 'team_invitation',
   admin_test: 'admin_test',
   admin_broadcast: 'admin_broadcast',

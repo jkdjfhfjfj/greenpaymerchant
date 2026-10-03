@@ -51,11 +51,11 @@ export function ProfilePage() {
   return <main className="support-page profile-page">
     <header className="support-app-header"><div><a href="/" className="support-brand" data-testid="link-profile-home">greenpay<span>.</span></a><span className="support-header-divider">/</span><strong>Profile</strong></div><span className="profile-secure-label"><ShieldCheck size={14} /> ACCOUNT SETTINGS</span></header>
     <section className="support-heading-row">
-      <div><div className="support-eyebrow"><BadgeCheck size={14} /> YOUR ACCOUNT</div><h1>Profile settings</h1><p>Manage your personal Clerk profile and business contact information.</p></div>
+      <div><div className="support-eyebrow"><BadgeCheck size={14} /> YOUR ACCOUNT</div><h1>Profile settings</h1><p>Manage your personal profile and business contact information.</p></div>
     </section>
     <div className="profile-layout">
       <section className="support-card profile-personal-card">
-        <div className="profile-section-heading"><span className="profile-icon"><ShieldCheck size={18} /></span><div><h2>Personal profile</h2><p>Identity, sign-in methods, and account security are managed by your secure Clerk profile.</p></div></div>
+        <div className="profile-section-heading"><span className="profile-icon"><ShieldCheck size={18} /></span><div><h2>Personal profile</h2><p>Identity, sign-in methods, and account security are managed in your secure account profile.</p></div></div>
         <div className="profile-personal-summary" data-testid="text-profile-personal-identity">
           <strong>{user?.fullName || user?.primaryEmailAddress?.emailAddress || 'Signed-in account'}</strong>
           <span>{user?.primaryEmailAddress?.emailAddress ?? 'Email address is not available'}</span>

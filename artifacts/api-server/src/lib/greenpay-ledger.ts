@@ -72,6 +72,14 @@ export function transactionDto(row: TransactionRecord) {
   };
 }
 
+export function merchantTransactionDto(row: Parameters<typeof transactionDto>[0]) {
+  const transaction = transactionDto(row);
+  return {
+    ...transaction,
+    failureReason: transaction.failureReason ? "Payment could not be completed." : null,
+  };
+}
+
 export function paymentLinkDto(
   row: PaymentLinkRecord,
   paidCount: number,

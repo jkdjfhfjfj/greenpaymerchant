@@ -61,6 +61,7 @@ export type TransactionalPurpose =
   | "payment_failure_recovery"
   | "support_reply"
   | "support_receipt"
+  | "merchant_account_update"
   | "team_invitation"
   | "admin_test"
   | "admin_broadcast";

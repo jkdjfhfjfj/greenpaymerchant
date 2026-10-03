@@ -195,7 +195,7 @@ const pageInfo: Record<string, { title: string; subtitle: string }> = {
   '/merchant': { title: 'Merchant profile', subtitle: '' }, '/merchant/kyc': { title: 'Verification', subtitle: '' },
   '/merchant/analytics': { title: 'Collection analytics', subtitle: '' },
   '/merchant/dashboard': { title: 'Overview', subtitle: 'A clear view of collections and links for your business.' },
-  '/merchant/payment-links': { title: 'My payment links', subtitle: '' }, '/merchant/transactions': { title: 'My transactions', subtitle: '' }, '/merchant/payouts': { title: 'Admin-operated payouts', subtitle: '' },
+  '/merchant/payment-links': { title: 'My payment links', subtitle: '' }, '/merchant/transactions': { title: 'My transactions', subtitle: '' }, '/merchant/payouts': { title: 'Payout activity', subtitle: '' },
   '/developers': { title: 'API access', subtitle: '' }, '/exchange': { title: 'Exchange quotes', subtitle: '' },
   '/admin': { title: 'Admin summary', subtitle: '' }, '/admin/merchants': { title: 'Merchants', subtitle: '' }, '/admin/fees': { title: 'Fees', subtitle: '' },
   '/admin/exchange': { title: 'Rates', subtitle: '' }, '/admin/credentials': { title: 'Credentials', subtitle: '' }, '/admin/settings': { title: 'Controls', subtitle: '' }, '/admin/audit': { title: 'Audit log', subtitle: '' },
@@ -385,7 +385,7 @@ function CollectionModal({ onClose }: { onClose: () => void }) {
   const supportedCurrencies = currencyCatalog.data?.items ?? [];
   const [currencyCode, setCurrencyCode] = useState('USD');
   const [paymentMethodId, setPaymentMethodId] = useState('');
-  const [checkout, setCheckout] = useState<{ url: string | null; provider: string; reference: string } | null>(null);
+  const [checkout, setCheckout] = useState<{ url: string | null; requiresPhoneConfirmation: boolean; reference: string } | null>(null);
   const [error, setError] = useState('');
   const [working, setWorking] = useState(false);
   const currencyOption = supportedCurrencies.find((item) => item.code === currencyCode);
@@ -411,13 +411,13 @@ function CollectionModal({ onClose }: { onClose: () => void }) {
     const phone = String(form.get('phone') || '').trim();
     if (selectedMethod.requiresPhone && !phone) { setError('Enter a phone number to continue with this payment method.'); return; }
     mutation.mutate({ data: { amount, currency: currencyCode, paymentMethod: selectedMethod.id, customerEmail: String(form.get('email')), customerName: String(form.get('name') || ''), customerPhone: phone, description: String(form.get('description') || '') } }, {
-      onSuccess: (result) => { setCheckout({ url: result.checkoutUrl, provider: result.transaction.provider, reference: result.transaction.reference }); setWorking(false); },
+      onSuccess: (result) => { setCheckout({ url: result.checkoutUrl, requiresPhoneConfirmation: result.transaction.provider === 'payhero', reference: result.transaction.reference }); setWorking(false); },
       onError: (failure) => { setWorking(false); setError(errMsg(failure)); },
     });
     setWorking(true);
   }
   return <Modal title={checkout ? 'Collection initiated' : 'Start a collection'} description={checkout ? 'The payment request is ready. Continue to payment or complete the prompt on your phone.' : 'Greenpay will route this payment by currency and show the available payment options.'} onClose={onClose}>
-    {checkout ? <div className="form-stack"><div className="route-confirm"><CheckCircle2 size={20} /><div><strong>{checkout.provider === 'payhero' ? 'M-Pesa prompt requested' : 'Checkout session created'}</strong><span>{checkout.provider === 'payhero' ? `Check the customer’s phone to complete payment. Reference ${checkout.reference}.` : 'No payment is marked successful until the provider confirms it.'}</span></div></div>{checkout.url && <a href={checkout.url} target="_blank" rel="noreferrer" className="btn btn-primary btn-full">Open checkout <ExternalLink size={15} /></a>}<Button variant="secondary" className="btn-full" onClick={onClose}>Close</Button></div> : <form className="form-stack" onSubmit={submit}>
+    {checkout ? <div className="form-stack"><div className="route-confirm"><CheckCircle2 size={20} /><div><strong>{checkout.requiresPhoneConfirmation ? 'M-Pesa prompt requested' : 'Payment request created'}</strong><span>{checkout.requiresPhoneConfirmation ? `Check the customer’s phone to complete payment. Reference ${checkout.reference}.` : 'Payment status updates after confirmation.'}</span></div></div>{checkout.url && <a href={checkout.url} target="_blank" rel="noreferrer" className="btn btn-primary btn-full">Open checkout <ExternalLink size={15} /></a>}<Button variant="secondary" className="btn-full" onClick={onClose}>Close</Button></div> : <form className="form-stack" onSubmit={submit}>
       <div className="form-grid">
         <Field label="Amount"><input name="amount" type="number" min={currencyMinorUnits(currencyCode) === 0 ? '1' : '0.01'} step={currencyAmountStep(currencyCode)} placeholder="0.00" required data-testid="input-collection-amount" /></Field>
         <Field label="Currency"><select name="currency" value={currencyCode} onChange={(event) => { setCurrencyCode(event.target.value); setPaymentMethodId(''); }} disabled={currencyCatalog.isLoading || !supportedCurrencies.length} data-testid="select-collection-currency">
@@ -434,7 +434,7 @@ function CollectionModal({ onClose }: { onClose: () => void }) {
         : 'The customer can choose an available option when continuing to payment.'}</span>}
       {currencyCatalog.isLoading && <span className="sub">Loading supported currencies and payment options…</span>}
       {currencyCatalog.isError && <div className="provider-warning"><CircleAlert size={15} /><span>Payment availability could not be checked.</span><Button variant="secondary" disabled={currencyCatalog.isFetching} onClick={() => { void currencyCatalog.refetch(); }}>{currencyCatalog.isFetching ? 'Checking…' : 'Retry'}</Button></div>}
-      {currencyOption && currencyOption.comingSoon && <div className="provider-warning"><CircleAlert size={15} /><span>Coming soon: new collections in {currencyOption.code} are disabled by the platform administrator.</span></div>}
+      {currencyOption && currencyOption.comingSoon && <div className="provider-warning"><CircleAlert size={15} /><span>Collections in {currencyOption.code} are not available yet.</span></div>}
       {currencyOption && !currencyOption.comingSoon && !currencyOption.collectionReady && <div className="provider-warning"><CircleAlert size={15} /><span>Payments are not currently available in {currencyOption.code}. This deployment has no ready payment method for this currency.</span><Button variant="secondary" disabled={currencyCatalog.isFetching} onClick={() => { void currencyCatalog.refetch(); }}>{currencyCatalog.isFetching ? 'Checking…' : 'Refresh availability'}</Button></div>}
       {currencyOption?.collectionReady && !paymentMethods.some((item) => item.ready) && <div className="provider-warning"><CircleAlert size={15} /><span>No payment method is currently available for {currencyOption.code}.</span><Button variant="secondary" disabled={currencyCatalog.isFetching} onClick={() => { void currencyCatalog.refetch(); }}>{currencyCatalog.isFetching ? 'Checking…' : 'Refresh availability'}</Button></div>}
       <Field label="Customer email"><input name="email" type="email" placeholder="finance@example.com" required data-testid="input-collection-email" /></Field>
@@ -1055,7 +1055,7 @@ const protectedRoutes: [string, () => ReactNode][] = [
   ['/team', MerchantTeamPage],
 ];
 protectedRoutes.push(['/operations', () => <Gate need="admin"><Dashboard /></Gate>]);
-const protectedRouteElements = protectedRoutes.map(([path, C]) => <Route key={path} path={path} component={wrap(() => path.startsWith('/admin') ? <Gate need="admin"><C /></Gate> : <C />, path !== '/merchant/dashboard')} />);
+const protectedRouteElements = protectedRoutes.map(([path, C]) => <Route key={path} path={path} component={wrap(() => path.startsWith('/admin') ? <Gate need="admin"><C /></Gate> : <C />, !['/merchant/dashboard', '/merchant/new', '/merchant'].includes(path))} />);
 const publicContentRoutes = [
   <Route key="privacy-policy" path="/privacy" component={() => <PublicLegalPolicyPage policyType="privacy_policy" />} />,
   <Route key="terms-of-service" path="/terms" component={() => <PublicLegalPolicyPage policyType="terms_of_service" />} />,

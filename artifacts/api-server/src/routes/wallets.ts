@@ -31,6 +31,61 @@ import { requireSignedIn } from "../middlewares/requireAdmin";
 export const merchantWalletRouter: IRouter = Router();
 export const adminWalletRouter: IRouter = Router();
 
+type MerchantPayoutRequest = Awaited<ReturnType<typeof listMerchantPayoutRequests>>[number];
+type MerchantPayoutDestination = Awaited<ReturnType<typeof listMerchantWalletPayoutDestinations>>[number];
+type MerchantPayoutDestinationChange = Awaited<ReturnType<typeof listMerchantWalletPayoutDestinationChanges>>[number];
+
+function merchantPayoutRequestView(item: MerchantPayoutRequest) {
+  return {
+    ...item,
+    destinationFingerprint: null,
+    requiresSecondApproval: false,
+    largePayoutThreshold: null,
+    thresholdConfigured: false,
+    requestedBy: "",
+    firstApprovedBy: null,
+    firstApprovedAt: null,
+    secondApprovedBy: null,
+    secondApprovedAt: null,
+    rejectedBy: null,
+    rejectedAt: null,
+    reviewHistory: [],
+    providerReference: null,
+    status: item.status === "awaiting_second_approval" ? "requested" : item.status,
+  };
+}
+
+function merchantPayoutDestinationView(item: MerchantPayoutDestination) {
+  return {
+    id: item.id,
+    currency: item.currency,
+    label: item.label,
+    method: item.method,
+    accountName: item.accountName,
+    maskedAccount: item.maskedAccount,
+    status: item.status,
+    approvedAt: item.approvedAt,
+  };
+}
+
+function merchantPayoutDestinationChangeView(item: MerchantPayoutDestinationChange) {
+  return {
+    ...item,
+    destination: { ...item.destination, fingerprint: "" },
+    destinationFingerprint: "",
+    status: item.status === "approved" || item.status === "rejected" ? item.status : "requested",
+    requestedBy: "",
+    firstApprovedBy: null,
+    firstApprovedAt: null,
+    secondApprovedBy: null,
+    secondApprovedAt: null,
+    rejectedBy: null,
+    rejectedAt: null,
+    decisionReason: null,
+    reviewHistory: [],
+  };
+}
+
 function destinationChangeInput(body: unknown): {
   destinationId?: number;
   label: string;
@@ -182,19 +237,21 @@ merchantWalletRouter.get("/wallets/payout-requests", requireSignedIn, async (req
   const merchant = await resolveMerchantAccess(req, res, "read");
   if (!merchant) { res.status(404).json({ error: "Merchant account not found." }); return; }
   const items = await listMerchantPayoutRequests(merchant.id);
-  res.json({ items });
+  res.json({ items: items.map(merchantPayoutRequestView) });
 });
 
 merchantWalletRouter.get("/wallets/payout-destinations", requireSignedIn, async (req, res): Promise<void> => {
   const merchant = await resolveMerchantAccess(req, res, "read");
   if (!merchant) { res.status(404).json({ error: "Merchant account not found." }); return; }
-  res.json({ items: await listMerchantWalletPayoutDestinations(merchant.id) });
+  const items = await listMerchantWalletPayoutDestinations(merchant.id);
+  res.json({ items: items.map(merchantPayoutDestinationView) });
 });
 
 merchantWalletRouter.get("/wallets/payout-destination-changes", requireSignedIn, async (req, res): Promise<void> => {
   const merchant = await resolveMerchantAccess(req, res, "read");
   if (!merchant) { res.status(404).json({ error: "Merchant account not found." }); return; }
-  res.json({ items: await listMerchantWalletPayoutDestinationChanges(merchant.id) });
+  const items = await listMerchantWalletPayoutDestinationChanges(merchant.id);
+  res.json({ items: items.map(merchantPayoutDestinationChangeView) });
 });
 
 merchantWalletRouter.post("/wallets/payout-destinations", requireSignedIn, async (req, res): Promise<void> => {
@@ -215,7 +272,7 @@ merchantWalletRouter.post("/wallets/payout-destinations", requireSignedIn, async
     idempotencyKey,
     requester: getAuth(req).userId ?? "unknown-merchant",
   });
-  res.status(201).json(item);
+  res.status(201).json(merchantPayoutDestinationChangeView(item));
 });
 
 merchantWalletRouter.post("/wallets/payout-requests", requireSignedIn, async (req, res): Promise<void> => {
@@ -234,7 +291,7 @@ merchantWalletRouter.post("/wallets/payout-requests", requireSignedIn, async (re
     idempotencyKey: header.data["Idempotency-Key"],
     requester: getAuth(req).userId ?? "unknown-merchant",
   });
-  res.status(201).json(item);
+  res.status(201).json(merchantPayoutRequestView(item));
 });
 
 adminWalletRouter.get("/admin/wallets", async (_req, res): Promise<void> => {

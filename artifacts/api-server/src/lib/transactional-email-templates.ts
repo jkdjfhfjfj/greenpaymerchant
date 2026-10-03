@@ -8,6 +8,7 @@ export type TransactionalTemplate =
   | "payment_failure_recovery"
   | "support_reply"
   | "support_receipt"
+  | "merchant_account_update"
   | "team_invitation"
   | "admin_test"
   | "admin_broadcast";
@@ -160,6 +161,45 @@ export function renderTransactionalEmail(
       `Support ticket ${value(payload, "ticketReference")}: ${value(payload, "subject")}`,
       value(payload, "body", receipt ? "Our support team will review your request." : "A new message is available in your support conversation."),
     ]);
+  }
+  if (template === "merchant_account_update") {
+    const action = value(payload, "action");
+    const businessName = value(payload, "businessName", "your business");
+    const reason = value(payload, "reason").trim();
+    const copy: Record<string, { subject: string; paragraphs: string[] }> = {
+      application_received: {
+        subject: "Business application received",
+        paragraphs: [`Your application for ${businessName} has been received and is awaiting review.`],
+      },
+      application_resubmitted: {
+        subject: "Updated business application received",
+        paragraphs: [`Your updated application for ${businessName} has been sent for review.`],
+      },
+      application_approved: {
+        subject: "Business application approved",
+        paragraphs: [`Your application for ${businessName} has been approved. You can now access your business workspace.`],
+      },
+      more_info_required: {
+        subject: "More information needed for your business application",
+        paragraphs: [
+          `More information is needed before the application for ${businessName} can continue.`,
+          reason || "Open your business profile to review the requested changes.",
+        ],
+      },
+      suspended: {
+        subject: "Business access paused",
+        paragraphs: [`Access for ${businessName} is temporarily paused. Contact Greenpay support if you need help.`],
+      },
+      active: {
+        subject: "Business access restored",
+        paragraphs: [`Access for ${businessName} is active again.`],
+      },
+    };
+    const content = copy[action];
+    if (!content) throw new Error(`Unsupported merchant account action: ${action}`);
+    const profileUrl = approvedAppPath("/merchant");
+    return branded(content.subject, content.paragraphs,
+      profileUrl ? { label: "Open business profile", href: profileUrl } : undefined);
   }
   if (template === "team_invitation") {
     const inviteUrl = approvedDeploymentUrl(value(payload, "inviteUrl"));

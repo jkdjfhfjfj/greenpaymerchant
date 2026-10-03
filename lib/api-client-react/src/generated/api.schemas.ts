@@ -85,6 +85,7 @@ export const TransactionalEmailPurpose = {
   invoice_reminder: 'invoice_reminder',
   support_reply: 'support_reply',
   support_receipt: 'support_receipt',
+  merchant_account_update: 'merchant_account_update',
   team_invitation: 'team_invitation',
   admin_test: 'admin_test',
   admin_broadcast: 'admin_broadcast',
@@ -180,6 +181,7 @@ export const NotificationType = {
   payment_failed: 'payment_failed',
   payout_update: 'payout_update',
   merchant_created: 'merchant_created',
+  merchant_account_update: 'merchant_account_update',
 } as const;
 
 export interface Notification {

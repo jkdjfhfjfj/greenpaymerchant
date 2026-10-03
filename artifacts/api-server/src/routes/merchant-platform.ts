@@ -49,7 +49,7 @@ import {
 } from "../lib/platform";
 import { apiKeyHash, decryptApiKeySecret, encryptSecret, validateWebhookUrl } from "../lib/secure-storage";
 import {
-  findTransaction, markTransactionStatus, paymentLinkDto, paymentLinkStats, payoutDto, transactionDto,
+  findTransaction, markTransactionStatus, merchantTransactionDto, paymentLinkDto, paymentLinkStats, payoutDto,
 } from "../lib/greenpay-ledger";
 import { verifyProviderPayment } from "../lib/greenpay-provider";
 import { calculateFxQuote } from "../lib/fx-math";
@@ -66,7 +66,11 @@ import { cloudinaryUploadStatus, createCloudinaryUploadSignature } from "../lib/
 import { resolveCloudinaryEnvironment } from "../lib/cloudinary-credentials";
 import { providerCredential } from "../lib/credential-runtime";
 import { ensureMerchantWalletAccounts } from "../lib/wallet-service";
-import { notifyMerchantAccountCreated } from "../lib/support-service";
+import {
+  notifyMerchantAccountAction,
+  notifyMerchantAccountCreated,
+  notifyMerchantApplicationResubmitted,
+} from "../lib/support-service";
 
 const router: IRouter = Router();
 const apiRouter: IRouter = Router();
@@ -291,7 +295,7 @@ router.get("/merchant/collection-analytics", requireSignedIn, async (req, res): 
     .where(filters)
     .groupBy(transactionsTable.currency)
     .orderBy(desc(transactionCount));
-  const rail = sql<string>`coalesce(nullif(${transactionsTable.paymentMethod}, ''), ${transactionsTable.provider})`;
+  const rail = sql<string>`coalesce(nullif(${transactionsTable.paymentMethod}, ''), 'other')`;
   const paymentRails = await db.select({
     value: rail,
     transactionCount,
@@ -351,7 +355,7 @@ router.post("/merchant/shop-profile/upload-signature", requireSignedIn, async (_
   const environment = await resolveCloudinaryEnvironment(providerCredential);
   if (!cloudinaryUploadStatus(environment).configured) {
     res.status(503).json({
-      error: "Cloudinary uploads are not configured. An administrator must add the Cloudinary credentials in Admin → Credentials.",
+      error: "Business document uploads are temporarily unavailable. Contact Greenpay support for help.",
     });
     return;
   }
@@ -391,12 +395,11 @@ router.post("/merchant", requireSignedIn, async (req, res): Promise<void> => {
       applicationSubmittedAt: new Date(),
     }).returning();
   });
-  try {
-    const notificationResult = await notifyMerchantAccountCreated({
+  void notifyMerchantAccountCreated({
       merchantId: merchant.id,
       ownerUserId: userId,
       businessName: merchant.businessName,
-    });
+    }).then((notificationResult) => {
     if (notificationResult.adminCount === 0 || notificationResult.adminLookupFailures > 0) {
       req.log.warn({
         merchantId: merchant.id,
@@ -404,12 +407,12 @@ router.post("/merchant", requireSignedIn, async (req, res): Promise<void> => {
         adminLookupFailures: notificationResult.adminLookupFailures,
       }, "Merchant account was created, but one or more platform-admin notifications could not be addressed");
     }
-  } catch (error) {
+  }).catch((error) => {
     req.log.error({
       merchantId: merchant.id,
       errorKind: error instanceof Error ? error.name : "unknown",
     }, "Merchant account was created, but account notifications could not be fully saved");
-  }
+  });
   await ensureMerchantWalletAccounts(merchant.id, merchant.baseCurrency);
   setMerchantWorkspaceCookie(res, merchant.id);
   res.status(201).json(CreateMerchantProfileResponse.parse({ merchant: profile(merchant) }));
@@ -449,6 +452,38 @@ router.patch("/merchant/application", requireSignedIn, async (req, res): Promise
     res.status(409).json({ error: "This application is no longer awaiting additional information." });
     return;
   }
+  const submittedAt = updated.applicationSubmittedAt ?? new Date();
+  void notifyMerchantAccountAction({
+    merchantId: updated.id,
+    ownerUserId: updated.ownerClerkId,
+    businessName: updated.businessName,
+    action: "application_resubmitted",
+    eventKey: `merchant-application:${updated.id}:resubmitted:${submittedAt.getTime()}`,
+  }).catch((error) => {
+    req.log.error({
+      merchantId: updated.id,
+      errorKind: error instanceof Error ? error.name : "unknown",
+    }, "Updated merchant application was saved, but the owner notification could not be queued");
+  });
+  void notifyMerchantApplicationResubmitted({
+      merchantId: updated.id,
+      ownerUserId: updated.ownerClerkId,
+      businessName: updated.businessName,
+      submittedAt,
+    }).then((noticeResult) => {
+    if (noticeResult.adminCount === 0 || noticeResult.adminLookupFailures > 0) {
+      req.log.warn({
+        merchantId: updated.id,
+        adminCount: noticeResult.adminCount,
+        adminLookupFailures: noticeResult.adminLookupFailures,
+      }, "Updated merchant application was saved, but one or more review notifications could not be addressed");
+    }
+  }).catch((error) => {
+    req.log.error({
+      merchantId: updated.id,
+      errorKind: error instanceof Error ? error.name : "unknown",
+    }, "Updated merchant application was saved, but reviewer notifications could not be saved");
+  });
   res.json(ResubmitMerchantApplicationResponse.parse({ merchant: profile(updated) }));
 });
 
@@ -621,9 +656,7 @@ router.post("/merchant/kyc", requireSignedIn, async (req, res): Promise<void> =>
   const kind = parsed.data.kind;
   const workflowId = await runtime.providerCredential("didit", kind === "kyb" ? "DIDIT_KYB_WORKFLOW_ID" : "DIDIT_WORKFLOW_ID");
   if (!apiKey || !workflowId) {
-    res.status(503).json({ error: kind === "kyb"
-      ? "Didit API credentials or the KYB workflow are not configured."
-      : "Didit API credentials or the KYC workflow are not configured." });
+    res.status(503).json({ error: "Verification is temporarily unavailable. Try again later or contact Greenpay support." });
     return;
   }
   const currentSessionId = kind === "kyb" ? merchant.diditKybSessionId : merchant.diditSessionId;
@@ -641,15 +674,15 @@ router.post("/merchant/kyc", requireSignedIn, async (req, res): Promise<void> =>
       signal: AbortSignal.timeout(15_000),
     });
   } catch {
-    res.status(502).json({ error: "Didit could not be reached. Try again shortly." });
+    res.status(502).json({ error: "Verification could not be started. Try again shortly." });
     return;
   }
   if (!response.ok) {
-    res.status(502).json({ error: "Didit rejected the verification session request." });
+    res.status(502).json({ error: "Verification could not be started. Try again shortly." });
     return;
   }
   const result = await response.json() as { session_id?: string; url?: string; session_token?: string };
-  if (!result.session_id || !result.url) { res.status(502).json({ error: "Didit returned an incomplete verification session." }); return; }
+  if (!result.session_id || !result.url) { res.status(502).json({ error: "Verification could not be started. Try again shortly." }); return; }
   const updated = await db.transaction(async (tx) => {
     const [latest] = await tx.select().from(merchantsTable)
       .where(eq(merchantsTable.id, merchant!.id)).for("update").limit(1);
@@ -686,7 +719,7 @@ router.get("/merchant/transactions", requireSignedIn, async (req, res): Promise<
   const rows = await db.select().from(transactionsTable).where(where).orderBy(desc(transactionsTable.createdAt))
     .limit(query.data.perPage).offset((query.data.page - 1) * query.data.perPage);
   res.json(ListMerchantTransactionsResponse.parse({
-    items: rows.map(transactionDto), total: Number(count?.count ?? 0),
+    items: rows.map(merchantTransactionDto), total: Number(count?.count ?? 0),
     page: query.data.page, perPage: query.data.perPage,
   }));
 });
@@ -969,7 +1002,7 @@ router.get("/merchant/fees", requireSignedIn, async (_req, res): Promise<void> =
       currency: schedule.currency, fxMarkupBps: schedule.fxMarkupBps,
     } : { percentage: 0, flatAmount: 0, currency: merchant.baseCurrency, fxMarkupBps: 0 },
     source: specific ? "merchant" : "default",
-    note: "Platform fees are quoted separately from provider fees and do not represent provider settlement charges.",
+    note: "Platform fees are shown separately from other applicable fees.",
   }));
 });
 
@@ -1007,7 +1040,7 @@ router.get("/merchant/fx-quote", requireSignedIn, async (req, res): Promise<void
   res.json(GetMerchantFxQuoteResponse.parse({
     from, to, amount: query.data.amount, rate, ...calculation,
     source, quotedAt: now, expiresAt,
-    note: "Indicative quote only. This does not execute FX or represent provider fees or settlement.",
+    note: "Indicative estimate only. No conversion or transfer of funds occurs.",
   }));
 });
 
@@ -1036,7 +1069,7 @@ apiRouter.get("/transactions", requireApiScope("read"), async (req, res): Promis
   const rows = await db.select().from(transactionsTable).where(where).orderBy(desc(transactionsTable.createdAt))
     .limit(query.data.perPage).offset((query.data.page - 1) * query.data.perPage);
   res.json(ListDeveloperTransactionsResponse.parse({
-    items: rows.map(transactionDto), total: Number(count?.count ?? 0),
+    items: rows.map(merchantTransactionDto), total: Number(count?.count ?? 0),
     page: query.data.page, perPage: query.data.perPage,
   }));
 });
@@ -1058,7 +1091,7 @@ apiRouter.post("/transactions", requireApiScope("payments:write"), async (req, r
   const paymentMethod = resolveCollectionPaymentMethod(currency, values.paymentMethod);
   const provider = providerForCurrency(currency);
   if (!await providerIsConfigured(provider)) {
-    res.status(503).json({ error: `${provider} is not configured.` });
+    res.status(503).json({ error: "Payments are temporarily unavailable in this currency. Try again later." });
     return;
   }
   if (paymentMethod.requiresPhone && !values.customerPhone?.trim()) {
@@ -1127,7 +1160,7 @@ apiRouter.post("/transactions", requireApiScope("payments:write"), async (req, r
       paymentLinkSlug: link?.slug,
     });
     const response = CreateDeveloperTransactionResponse.parse({
-      transaction: transactionDto(result.transaction), checkoutUrl: result.checkoutUrl,
+      transaction: merchantTransactionDto(result.transaction), checkoutUrl: result.checkoutUrl,
     });
     await db.update(developerIdempotencyTable).set({
       status: "completed", response, updatedAt: new Date(),
@@ -1156,7 +1189,7 @@ apiRouter.get("/transactions/:reference", requireApiScope("read"), async (req, r
     eq(transactionsTable.reference, params.data.reference), eq(transactionsTable.merchantId, merchant.id),
   )).limit(1);
   if (!transaction) { res.status(404).json({ error: "Transaction not found for this merchant." }); return; }
-  res.json(GetDeveloperTransactionResponse.parse(transactionDto(transaction)));
+  res.json(GetDeveloperTransactionResponse.parse(merchantTransactionDto(transaction)));
 });
 
 apiRouter.post("/transactions/:reference/verify", requireApiScope("payments:write"), async (req, res): Promise<void> => {
@@ -1167,10 +1200,17 @@ apiRouter.post("/transactions/:reference/verify", requireApiScope("payments:writ
     eq(transactionsTable.reference, params.data.reference), eq(transactionsTable.merchantId, merchant.id),
   )).limit(1);
   if (!transaction) { res.status(404).json({ error: "Transaction not found for this merchant." }); return; }
-  const verified = await verifyProviderPayment(transaction);
+  const verified = await verifyProviderPayment(transaction).catch((error) => {
+    req.log.warn({ err: error, reference: transaction.reference }, "Developer payment verification failed");
+    return undefined;
+  });
+  if (!verified) {
+    res.status(503).json({ error: "Payment confirmation is temporarily unavailable. Please try again shortly." });
+    return;
+  }
   const updated = await markTransactionStatus(transaction.reference, verified);
   if (!updated) { res.status(404).json({ error: "Transaction not found for this merchant." }); return; }
-  res.json(VerifyDeveloperTransactionResponse.parse(transactionDto(updated)));
+  res.json(VerifyDeveloperTransactionResponse.parse(merchantTransactionDto(updated)));
 });
 
 apiRouter.get("/fx-quote", requireApiScope("read"), async (req, res): Promise<void> => {
@@ -1200,7 +1240,7 @@ apiRouter.get("/fx-quote", requireApiScope("read"), async (req, res): Promise<vo
   const calculation = calculateFxQuote(query.data.amount, rate, percentage, flat, schedule?.fxMarkupBps ?? 0);
   res.json(GetDeveloperFxQuoteResponse.parse({
     from, to, amount: query.data.amount, rate, ...calculation, source, quotedAt: now, expiresAt,
-    note: "Indicative quote only; no FX settlement is performed and provider charges are separate.",
+    note: "Indicative estimate only. No conversion or transfer of funds occurs.",
   }));
 });
 
@@ -1215,7 +1255,7 @@ apiRouter.get("/fees", requireApiScope("read"), async (_req, res): Promise<void>
       currency: schedule.currency, fxMarkupBps: schedule.fxMarkupBps,
     } : { percentage: 0, flatAmount: 0, currency: merchant.baseCurrency, fxMarkupBps: 0 },
     source: specific ? "merchant" : "default",
-    note: "Platform fees are separate from provider fees and settlement charges.",
+    note: "Platform fees are shown separately from other applicable fees.",
   }));
 });
 

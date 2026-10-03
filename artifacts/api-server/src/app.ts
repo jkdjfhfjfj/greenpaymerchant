@@ -28,6 +28,9 @@ import {
 import { legacyClerkIdentityLinkMiddleware } from "./middlewares/legacyClerkIdentityLink";
 
 const app: Express = express();
+// API data is managed by the application query cache; HTTP conditional caching
+// can otherwise return an empty 304 that the generated JSON client cannot consume.
+app.disable("etag");
 const clerkProviderMode = getClerkProviderMode();
 const activeClerkPublishableKey = getActiveClerkPublishableKey();
 const activeClerkSecretKey = getActiveClerkSecretKey();
@@ -61,6 +64,10 @@ app.use(
 );
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
+app.use("/api", (_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 app.use("/api", noindexApiResponses);
 app.use(publicSeoRouter);
 app.use(cors({

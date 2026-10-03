@@ -5,7 +5,7 @@
 - [Historical cash dates](historical-cash-dates.md) — never invent confirmation dates for legacy rows; distinguish fallback dates from authoritative cash dates.
 - [Monorepo test bundles](monorepo-test-bundles.md) — bundling workspace sources changes where external dependencies resolve; preserve declaring-package resolution.
 - [Checkout method capabilities](checkout-method-capabilities.md) — expose only customer actions the adapter can enforce; hosted checkout is not a verified list of card/bank channels.
-- [Customer-facing payment labels](customer-facing-payment-labels.md) — use local method names, identify USD as global, and keep FX feed names out of customer-facing displays.
+- [Customer-facing payment labels](customer-facing-payment-labels.md) — use local method names; keep internal operators, payment processors, and FX feed names out of customer-facing displays.
 - [Tier-currency collection readiness](tier-currency-limit-readiness.md) — provider configuration alone is not checkout readiness; merchant-tier currency limits also gate collections.
 - [Wallet conversion markup allocation](wallet-conversion-margin-split.md) — allocate combined markup proportionally so quote breakdowns and minor-unit journals reconcile.
 - [Admin wallet corrections](admin-wallet-corrections.md) — corrections must use audited, idempotent journal entries and never rewrite settlement history or consume reserved funds.

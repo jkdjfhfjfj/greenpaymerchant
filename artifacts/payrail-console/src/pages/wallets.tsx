@@ -61,18 +61,13 @@ async function walletApi<T>(path: string, options: {
 
 type WalletPayoutDestination = {
   id: number;
-  version: number;
   currency: string;
   label: string;
   method: string;
   accountName: string;
   maskedAccount: string;
-  fingerprint: string;
   status: string;
-  approvedBy: string;
   approvedAt: Date | string;
-  createdAt: Date | string;
-  updatedAt: Date | string;
 };
 type WalletDestinationView = {
   id: number | null;
@@ -206,7 +201,7 @@ function WalletInner() {
   }
 
   return <>
-    <Heading eyebrow="MERCHANT / WALLET" title="Funded balances" subtitle="Only administrator-confirmed provider settlements are withdrawable. Payment success and T+3 forecasts are not wallet funds." />
+    <Heading eyebrow="MERCHANT / WALLET" title="Funded balances" subtitle="Only confirmed settlements are withdrawable. Payment success and T+3 forecasts are not wallet funds." />
     <Async q={wallets} empty={!accounts.length} emptyTitle="No currency wallets" emptyBody="Supported zero-balance wallets are created automatically. Confirmed settlement evidence is still required to fund them.">
       <div className="metric-grid">
         {accounts.map((account) => <section className="metric-card tone-mint" key={account.currency}>
@@ -228,7 +223,7 @@ function WalletInner() {
             <input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required data-testid="input-wallet-conversion-amount" />
           </Field>
           <Async q={quote} empty={!quoteEnabled} emptyTitle="Enter a source amount" emptyBody="A current market rate will be requested after both wallets and an amount are selected.">
-            {quote.data && <div className="route-hint"><ArrowLeftRight size={15} /><span>{money(quote.data.sourceAmount, quote.data.fromCurrency)} at effective rate {quote.data.effectiveRate} → <strong>{money(quote.data.targetAmount, quote.data.toCurrency)}</strong>. Reference value {money(quote.data.marketTargetAmount, quote.data.toCurrency)}; system margin {money(quote.data.systemMarginAmount, quote.data.toCurrency)}; fee {money(quote.data.feeAmount, quote.data.toCurrency)}. Rate from {quote.data.source}, published {quote.data.sourceDate}.</span></div>}
+          {quote.data && <div className="route-hint"><ArrowLeftRight size={15} /><span>{money(quote.data.sourceAmount, quote.data.fromCurrency)} at effective rate {quote.data.effectiveRate} → <strong>{money(quote.data.targetAmount, quote.data.toCurrency)}</strong>. Reference value {money(quote.data.marketTargetAmount, quote.data.toCurrency)}; system margin {money(quote.data.systemMarginAmount, quote.data.toCurrency)}; fee {money(quote.data.feeAmount, quote.data.toCurrency)}. Published {quote.data.sourceDate}.</span></div>}
           </Async>
           {quote.isError && <Note tone="danger">{(quote.error as Error)?.message || 'A fresh market quote is unavailable; conversion is disabled.'}</Note>}
           {message && <Note>{message}</Note>}
@@ -242,7 +237,7 @@ function WalletInner() {
         <div className="form-stack">
           <Note tone="warn">New wallets start at zero. Successful payment transactions, projected settlements, and expected T+3 dates never increase an available balance.</Note>
           <Note>Wallet movements use integer minor units and a balanced, append-only journal. Conversion quotes retain their rate date, execution rate, schedule markup, target-currency spread and fee.</Note>
-          <Note tone="warn">Payout requests reserve funds for administrator review. Provider configuration and approval are required before submission; uncertain outcomes stay held.</Note>
+          <Note tone="warn">Payout requests reserve funds until their outcome is confirmed. Unclear outcomes remain on hold.</Note>
         </div>
       </Card>
     </div>
@@ -259,7 +254,7 @@ function WalletInner() {
           <div><span>Conversion fee</span><strong>− {money(quote.data.feeAmount, quote.data.toCurrency)}</strong></div>
           <div><span>Rate after markup</span><strong>1 {quote.data.fromCurrency} = {quote.data.effectiveRate} {quote.data.toCurrency}</strong></div>
           <div><span>Credited to {quote.data.toCurrency} wallet</span><strong>{money(quote.data.targetAmount, quote.data.toCurrency)}</strong></div>
-          <div><span>Rate source and publication date</span><strong>{quote.data.source} · {quote.data.sourceDate}</strong></div>
+          <div><span>Rate publication date</span><strong>{quote.data.sourceDate}</strong></div>
         </div>
         <Note>On confirmation, both wallet balances and balanced ledger entries update together. This signed quote is tied to the amount and request key shown.</Note>
         <div className="row-actions">
@@ -326,8 +321,8 @@ function PayoutRequestInner() {
       ? 'Merchant permissions could not be verified. Retry before changing a destination.'
       : capabilities.role === 'viewer'
         ? 'Your read-only accountant role cannot change payout destinations.'
-        : !capabilities.controls?.destinationChanges
-          ? 'Destination changes are disabled by the merchant administrator.'
+          : !capabilities.controls?.destinationChanges
+          ? 'Destination changes are currently unavailable. Contact Greenpay support for help.'
           : null;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -346,7 +341,7 @@ function PayoutRequestInner() {
         method: 'POST', body, idempotencyKey: key.current,
       });
       key.current = requestKey();
-      setMessage(`Request ${request.reference} reserved ${money(request.amount + request.fee, request.currency)}. ${request.requiresSecondApproval ? 'Two distinct platform-admin approvals are required before submission.' : 'It is awaiting platform-admin review.'}`);
+      setMessage(`Request ${request.reference} reserved ${money(request.amount + request.fee, request.currency)} and is pending.`);
       formElement.reset();
       await invalidate();
     } catch (failure) {
@@ -376,7 +371,7 @@ function PayoutRequestInner() {
         method: 'POST', body, idempotencyKey: destinationKey.current,
       });
       destinationKey.current = requestKey();
-      setMessage(`Destination change #${change.id} is queued for two distinct platform-admin approvals. The active destination is unchanged until both reviews are complete.`);
+      setMessage(`Destination change submitted. Your current destination remains active until the new details are approved.`);
       formElement.reset();
       setEditDestinationId('');
       setDestinationLabel('');
@@ -389,17 +384,17 @@ function PayoutRequestInner() {
   const activeMethods = methods.data?.available ? methods.data.methods : [];
   const selectedMethod = activeMethods.find((item) => item.value === methodValue) ?? activeMethods[0];
   return <>
-    <Heading eyebrow="MERCHANT / PAYOUTS" title="Payout requests" subtitle="Choose an approved saved destination. Funds are reserved immediately and sensitive payouts are submitted only after two different platform administrators approve." />
+    <Heading eyebrow="MERCHANT / PAYOUTS" title="Payout requests" subtitle="Choose an approved saved destination. Funds are reserved immediately, and you can track each request's status below." />
     <div className="split">
-      <Card title="Request a payout" subtitle={methods.data?.available ? `Provider minimum ${money(methods.data.minimumWithdrawal, currency)} · fees are reserved with the request.` : 'Live methods are loaded from the configured payout provider.'}>
+      <Card title="Request a payout" subtitle={methods.data?.available ? `Minimum withdrawal ${money(methods.data.minimumWithdrawal, currency)} · fees are reserved with the request.` : 'Payout options are temporarily unavailable.'}>
         <form className="form-stack" onSubmit={submit}>
           <Field label="Wallet currency"><select value={currency} onChange={(event) => { setCurrencyCode(event.target.value); setEditDestinationId(''); setDestinationLabel(''); }} required data-testid="select-payout-currency">{balances.map((wallet) => <option key={wallet.currency}>{wallet.currency}</option>)}</select></Field>
           <Field label="Amount to recipient" hint={balances.find((wallet) => wallet.currency === currency) ? `Available before fees: ${money(balances.find((wallet) => wallet.currency === currency)?.availableBalance, currency)}` : 'No balance is available.'}><input name="amount" type="number" min={methods.data?.minimumWithdrawal || 0.01} step="0.01" required data-testid="input-payout-amount" /></Field>
-          <Field label="Approved saved destination"><select name="destinationId" defaultValue="" required disabled={!currentDestinations.length} data-testid="select-payout-destination"><option value="" disabled>{currentDestinations.length ? 'Choose an approved destination' : 'No approved destination for this currency'}</option>{currentDestinations.map((destination) => <option value={destination.id} key={destination.id}>{destination.label} · {destination.accountName} · {destination.maskedAccount} · v{destination.version}</option>)}</select></Field>
-          {!currentDestinations.length && <Note tone="warn">Create a saved destination below. It cannot be used until two distinct platform administrators approve it.</Note>}
+          <Field label="Approved saved destination"><select name="destinationId" defaultValue="" required disabled={!currentDestinations.length} data-testid="select-payout-destination"><option value="" disabled>{currentDestinations.length ? 'Choose an approved destination' : 'No approved destination for this currency'}</option>{currentDestinations.map((destination) => <option value={destination.id} key={destination.id}>{destination.label} · {destination.accountName} · {destination.maskedAccount}</option>)}</select></Field>
+          {!currentDestinations.length && <Note tone="warn">Create a saved destination below. It will be available once approved.</Note>}
           {methods.isError && <Err error={methods.error} />}
-          {methods.data && !methods.data.available && <Note tone="warn">Provider payouts are currently unavailable for {currency}. No request can be submitted.</Note>}
-          {methods.data && <Note>Current provider fee: {methods.data.fee.type === 'flat' ? money(methods.data.fee.amount, currency) : `${methods.data.fee.percent ?? 0}% (minimum ${money(methods.data.fee.floor ?? 0, currency)})`}. The fee is part of the reserved amount.</Note>}
+          {methods.data && !methods.data.available && <Note tone="warn">Payouts are currently unavailable for {currency}. No request can be submitted.</Note>}
+          {methods.data && <Note>Current payout fee: {methods.data.fee.type === 'flat' ? money(methods.data.fee.amount, currency) : `${methods.data.fee.percent ?? 0}% (minimum ${money(methods.data.fee.floor ?? 0, currency)})`}. The fee is part of the reserved amount.</Note>}
           {capabilities.isError && <Err error={capabilities.error} />}
           {!mayRequestPayout && <Note tone="warn">{capabilities.disabledReason('payoutRequests')}</Note>}
           {message && <Note>{message}</Note>}
@@ -414,14 +409,14 @@ function PayoutRequestInner() {
         <div className="form-stack" style={{ marginTop: 14 }}><Note tone="warn">A pending or uncertain payout remains held. Rejected or confirmed failed requests release the reservation; completed payouts post once.</Note></div>
       </Card>
     </div>
-    <Card title="Saved payout destinations" subtitle="Account numbers are encrypted at rest and only masks are returned. Every new or changed destination is immutable and needs two different platform-admin approvals.">
+      <Card title="Saved payout destinations" subtitle="Account numbers are encrypted at rest and only masks are returned. New or changed destinations become active once approved.">
       <div className="split">
         <div className="form-stack">
-          <Async q={destinations} empty={!destinations.data?.items.length} emptyTitle="No approved destinations" emptyBody="Submitted destinations appear here only after two distinct administrator approvals.">
-            <div className="kv">{destinations.data?.items.map((destination) => <div key={destination.id}><span>{destination.currency} · {destination.label}</span><strong>{destination.accountName} · {destination.maskedAccount}</strong><span>{nice(destination.method)} · version {destination.version}</span><span>Approved by {destination.approvedBy} · {fmtDate(String(destination.approvedAt))}</span></div>)}</div>
+          <Async q={destinations} empty={!destinations.data?.items.length} emptyBody="Submitted destinations appear here once approved.">
+            <div className="kv">{destinations.data?.items.map((destination) => <div key={destination.id}><span>{destination.currency} · {destination.label}</span><strong>{destination.accountName} · {destination.maskedAccount}</strong><span>{nice(destination.method)}</span><span>Approved · {fmtDate(String(destination.approvedAt))}</span></div>)}</div>
           </Async>
-          <Async q={changes} empty={!changes.data?.items.length} emptyTitle="No destination changes" emptyBody="Requested destination changes and their review stages will appear here.">
-            <div className="form-stack">{changes.data?.items.map((change) => <div className="route-hint" key={change.id}><ShieldCheck size={15} /><span><strong>{change.destination.currency} · {change.destination.label}</strong><span className="sub">{change.destination.accountName} · {change.destination.maskedAccount} · {nice(change.status)} · fingerprint {change.destinationFingerprint.slice(0, 12)}…</span>{change.decisionReason && <span className="sub">Decision: {change.decisionReason}</span>}{change.reviewHistory.map((entry, index) => <span className="sub" key={`${change.id}-${entry.stage}-${index}`}>{nice(entry.stage)} by {entry.actor} · {fmtDate(String(entry.occurredAt))} · {nice(entry.outcome)}</span>)}</span></div>)}</div>
+            <Async q={changes} empty={!changes.data?.items.length} emptyTitle="No destination changes" emptyBody="Requested destination updates will appear here.">
+            <div className="form-stack">{changes.data?.items.map((change) => <div className="route-hint" key={change.id}><ShieldCheck size={15} /><span><strong>{change.destination.currency} · {change.destination.label}</strong><span className="sub">{change.destination.accountName} · {change.destination.maskedAccount} · {nice(change.status)}</span>{change.status === 'rejected' && <span className="sub">This change was not approved. Submit updated details to try again.</span>}</span></div>)}</div>
           </Async>
         </div>
         <div>
@@ -437,20 +432,17 @@ function PayoutRequestInner() {
             {methods.isError && <Err error={methods.error} />}
             {capabilities.isError && <Err error={capabilities.error} />}
             {!mayChangeDestination && <Note tone="warn">{destinationDisabledReason}</Note>}
-            <Note tone="warn">Submitting never changes the live destination immediately. The old approved version stays active until a second, different admin approves this exact fingerprint.</Note>
+            <Note tone="warn">Submitting does not change the active destination immediately. The current version stays active until the change is approved.</Note>
             <Err error={error} />
-            <Btn type="submit" disabled={!mayChangeDestination || !methods.data?.available || !activeMethods.length} testId="button-submit-destination-change"><ShieldCheck size={15} />Submit for two-person review</Btn>
+            <Btn type="submit" disabled={!mayChangeDestination || !methods.data?.available || !activeMethods.length} testId="button-submit-destination-change"><ShieldCheck size={15} />Submit destination change</Btn>
           </form>
         </div>
       </div>
     </Card>
-    <Card title="Your payout requests" subtitle="Review history retains the amount, fee, masked destination, timestamps and each approver.">
+    <Card title="Your payout requests" subtitle="Track each request's amount, fee, destination and current status.">
       <Async q={requests} empty={!items.length} emptyTitle="No payout requests" emptyBody="A request will appear here after funds have been successfully reserved.">
-        <div className="table-wrap"><table className="dt"><thead><tr><th>Request</th><th>Destination</th><th>Currency</th><th className="num">Amount</th><th>Status</th><th>Review history</th><th>Created</th></tr></thead><tbody>
-          {items.map((item) => {
-            const review = item as unknown as WalletPayoutReviewItem;
-            return <tr key={item.id}><td className="mono">{item.reference}<span className="sub">Destination version {review.destinationVersion ?? 'legacy'}</span></td><td>{item.accountName}<span className="sub">{nice(item.method)} · {item.maskedAccount}</span></td><td>{item.currency}</td><td className="num">{money(item.amount, item.currency)}<span className="sub">Fee {money(item.fee, item.currency)}</span></td><td><Pill value={item.status} />{review.requiresSecondApproval && <span className="sub">Two approvals required</span>}</td><td><details><summary>{review.reviewHistory?.length ?? 1} events</summary><div className="form-stack">{(review.reviewHistory ?? []).map((entry, index) => <span className="sub" key={`${item.id}-${entry.stage}-${index}`}>{nice(entry.stage)} · {entry.actor} · {fmtDate(String(entry.occurredAt))} · {nice(entry.outcome)} · {money(entry.fee, item.currency)} fee · {entry.destination.maskedAccount} · v{entry.destination.versionId ?? 'legacy'}</span>)}</div></details></td><td>{fmtDate(item.createdAt)}</td></tr>;
-          })}
+        <div className="table-wrap"><table className="dt"><thead><tr><th>Request</th><th>Destination</th><th>Currency</th><th className="num">Amount</th><th>Status</th><th>Created</th></tr></thead><tbody>
+          {items.map((item) => <tr key={item.id}><td className="mono">{item.reference}</td><td>{item.accountName}<span className="sub">{nice(item.method)} · {item.maskedAccount}</span></td><td>{item.currency}</td><td className="num">{money(item.amount, item.currency)}<span className="sub">Fee {money(item.fee, item.currency)}</span></td><td><Pill value={item.status} /></td><td>{fmtDate(item.createdAt)}</td></tr>)}
         </tbody></table></div>
       </Async>
     </Card>

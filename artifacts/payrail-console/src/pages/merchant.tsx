@@ -346,25 +346,25 @@ function KycInner() {
   const limitRows = q.data?.limits ?? [];
   const limitLabel = (amount: number | null, currency: string) => amount === null ? 'No configured cap' : money(amount, currency);
   return <>
-    <Heading eyebrow="MERCHANT / VERIFICATION" title="Identity and business verification" subtitle="Hosted verification runs on Didit. Active checks sync automatically and refresh when you return to this page." />
+    <Heading eyebrow="MERCHANT / VERIFICATION" title="Identity and business verification" subtitle="Complete identity or business verification to set account limits. Progress updates automatically." />
     <Async q={q}>{q.data && <div className="split">
       <div className="form-stack">
         <Err error={start.error} />
         <Card title="Personal verification (KYC)" action={<Btn variant="secondary" small onClick={() => { void q.refetch(); }}>Refresh</Btn>}>
-          <div className="kv"><div><span>Status</span><Pill value={q.data.status} /></div><div><span>Session</span><strong className="mono" style={{ fontSize: 12 }}>{q.data.sessionId || 'None'}</strong></div><div><span>Updated</span><strong>{fmtDate(q.data.updatedAt)}</strong></div></div>
-          {active(q.data.status, q.data.sessionId) && <span className="sub" role="status">Checking for Didit KYC status updates every 15 seconds.</span>}
+          <div className="kv"><div><span>Status</span><Pill value={q.data.status} /></div><div><span>Updated</span><strong>{fmtDate(q.data.updatedAt)}</strong></div></div>
+          {active(q.data.status, q.data.sessionId) && <span className="sub" role="status">Checking for identity verification updates every 15 seconds.</span>}
           {!!q.data.requirements?.length && <ul style={{ margin: '14px 0 0', paddingLeft: 18, fontSize: 13 }}>{q.data.requirements.map((r) => <li key={r}>{r}</li>)}</ul>}
           {q.data.sessionUrl && <p style={{ marginTop: 14 }}><a className="text-link" href={q.data.sessionUrl} target="_blank" rel="noreferrer">Resume KYC session <ExternalLink size={13} /></a></p>}
-          {!q.data.configured && <Note tone="warn">The Didit KYC workflow is not configured. An administrator must configure the API key and KYC workflow before you can start personal verification.</Note>}
+          {!q.data.configured && <Note tone="warn">Identity verification is temporarily unavailable. Contact Greenpay support for help.</Note>}
           <div className="form-stack" style={{ marginTop: 12 }}>
             <Btn disabled={start.isPending || !q.data.configured || q.data.status === 'approved' || active(q.data.status, q.data.sessionId)} onClick={() => run('kyc')} testId="button-start-kyc"><ShieldCheck size={15} />Verify identity (KYC)</Btn>
           </div>
         </Card>
         <Card title="Business verification (optional KYB)" subtitle="Approved KYB raises your monetary tier only when personal KYC is also approved.">
-          <div className="kv"><div><span>Status</span><Pill value={q.data.kybStatus} /></div><div><span>Session</span><strong className="mono" style={{ fontSize: 12 }}>{q.data.kybSessionId || 'None'}</strong></div><div><span>Updated</span><strong>{fmtDate(q.data.kybUpdatedAt)}</strong></div></div>
-          {active(q.data.kybStatus, q.data.kybSessionId) && <span className="sub" role="status">Checking for Didit KYB status updates every 15 seconds.</span>}
+          <div className="kv"><div><span>Status</span><Pill value={q.data.kybStatus} /></div><div><span>Updated</span><strong>{fmtDate(q.data.kybUpdatedAt)}</strong></div></div>
+          {active(q.data.kybStatus, q.data.kybSessionId) && <span className="sub" role="status">Checking for business verification updates every 15 seconds.</span>}
           {q.data.kybSessionUrl && <p style={{ marginTop: 14 }}><a className="text-link" href={q.data.kybSessionUrl} target="_blank" rel="noreferrer">Resume KYB session <ExternalLink size={13} /></a></p>}
-          {!q.data.kybConfigured && <Note tone="warn">The Didit KYB workflow is not configured. Business verification is optional and unavailable until an administrator configures its workflow.</Note>}
+          {!q.data.kybConfigured && <Note tone="warn">Business verification is temporarily unavailable. Contact Greenpay support for help.</Note>}
           <div className="form-stack" style={{ marginTop: 12 }}>
             <Btn variant="secondary" disabled={start.isPending || !q.data.kybConfigured || q.data.kybStatus === 'approved' || active(q.data.kybStatus, q.data.kybSessionId)} onClick={() => run('kyb')} testId="button-start-kyb">Verify business (KYB)</Btn>
           </div>
@@ -373,10 +373,10 @@ function KycInner() {
       <div className="form-stack">
         <Card title="Your verification tier">
           <div className="kv"><div><span>Active tier</span><Pill value={q.data.tier} /></div><div><span>Personal KYC</span><Pill value={q.data.status} /></div><div><span>Business KYB</span><Pill value={q.data.kybStatus} /></div></div>
-          <p className="sub" style={{ marginTop: 12 }}>All merchant features remain available subject to administrator account controls. Verification changes monetary limits, not feature access.</p>
+          <p className="sub" style={{ marginTop: 12 }}>Verification changes monetary limits, not feature access. Your account status may affect which services are available.</p>
         </Card>
         <Card title="Per-currency limits" subtitle="Limits are enforced server-side. An uncapped field means no tier-specific cap is configured for that action.">
-          {!limitRows.length ? <Note tone="warn">No limits are configured for the active tier. Contact the platform administrator before making payments.</Note> : <div className="table-wrap"><table className="dt"><thead><tr><th>Currency</th><th>Single collection</th><th>Daily collections</th><th>Monthly collections</th><th>Payout</th><th>Conversion</th></tr></thead><tbody>
+          {!limitRows.length ? <Note tone="warn">No limits are configured for the active tier. Contact Greenpay support before making payments.</Note> : <div className="table-wrap"><table className="dt"><thead><tr><th>Currency</th><th>Single collection</th><th>Daily collections</th><th>Monthly collections</th><th>Payout</th><th>Conversion</th></tr></thead><tbody>
             {limitRows.map((limit) => <tr key={`${limit.tier}-${limit.currency}`}><td><strong>{limit.currency}</strong></td><td>{limitLabel(limit.collectionPerTransactionLimit, limit.currency)}</td><td>{limitLabel(limit.collectionDailyLimit, limit.currency)}</td><td>{limitLabel(limit.collectionMonthlyLimit, limit.currency)}</td><td>{limitLabel(limit.payoutLimit, limit.currency)}</td><td>{limitLabel(limit.conversionLimit, limit.currency)}</td></tr>)}
           </tbody></table></div>}
         </Card>
@@ -514,12 +514,12 @@ function TxInner() {
     <div className="merchant-tx-summary" aria-label="Current page transaction summary">
       <div><span>Page {page} / latest 20</span><strong>{q.isLoading ? '—' : q.data?.total.toLocaleString() ?? items.length}</strong><small>Total merchant records</small></div>
       <div><span>Successful on page</span><strong>{q.isLoading ? '—' : successful}</strong><small>Confirmed collections</small></div>
-      <div><span>Pending on page</span><strong>{q.isLoading ? '—' : awaiting}</strong><small>Awaiting provider update</small></div>
+        <div><span>Pending on page</span><strong>{q.isLoading ? '—' : awaiting}</strong><small>Awaiting payment confirmation</small></div>
       <div><span>Needs attention on page</span><strong>{q.isLoading ? '—' : attention}</strong><small>Failed or cancelled</small></div>
     </div>
     <Async q={q} empty={!items.length} emptyTitle="No transactions yet" emptyBody="Payments made through your links or API appear here.">
       <div className="table-wrap"><table className="dt"><thead><tr><th>Reference</th><th>Customer</th><th className="num">Amount</th><th className="num">Fee</th><th className="num">Net</th><th>Status</th><th>Settlement</th><th>Method</th><th>Created</th><th>Recovery</th></tr></thead><tbody>
-        {items.map((t) => <tr key={t.id} data-testid={`row-tx-${t.id}`}><td className="mono" style={{ fontSize: 12 }}>{t.reference}<span className="sub">{t.description || nice(t.provider)}</span></td><td>{t.customerName || t.customerEmail}<span className="sub">{t.customerName ? t.customerEmail : t.customerPhone || 'Customer'}</span></td><td className="num">{money(t.amount, t.currency)}</td><td className="num">{t.fee != null ? money(t.fee, t.currency) : '—'}</td><td className="num">{t.netAmount != null ? money(t.netAmount, t.currency) : '—'}</td><td><Pill value={t.status} />{t.failureReason && <span className="sub failure-reason">{t.failureReason}</span>}</td><td><Pill value={t.settlementStatus} />{t.settlementAt && <span className="sub">{fmtDate(t.settlementAt)}</span>}</td><td>{nice(t.paymentMethod)}</td><td>{fmtDate(t.createdAt)}</td><td>{(t.status === 'failed' || t.status === 'cancelled') ? <Btn variant="secondary" small disabled={recovery.isPending} onClick={() => { setRecoveryError(''); setRecoveryResult(null); recovery.mutate({ reference: t.reference }, { onSuccess: (result) => { setRecoveryResult(result); void invalidate(); }, onError: (error) => setRecoveryError(error instanceof Error ? error.message : 'Retry link could not be created.') }); }}>{recovery.isPending ? 'Working…' : 'Send retry link'}</Btn> : '—'}</td></tr>)}
+        {items.map((t) => <tr key={t.id} data-testid={`row-tx-${t.id}`}><td className="mono" style={{ fontSize: 12 }}>{t.reference}<span className="sub">{t.description || 'Payment record'}</span></td><td>{t.customerName || t.customerEmail}<span className="sub">{t.customerName ? t.customerEmail : t.customerPhone || 'Customer'}</span></td><td className="num">{money(t.amount, t.currency)}</td><td className="num">{t.fee != null ? money(t.fee, t.currency) : '—'}</td><td className="num">{t.netAmount != null ? money(t.netAmount, t.currency) : '—'}</td><td><Pill value={t.status} />{t.failureReason && <span className="sub failure-reason">{t.failureReason}</span>}</td><td><Pill value={t.settlementStatus} />{t.settlementAt && <span className="sub">{fmtDate(t.settlementAt)}</span>}</td><td>{nice(t.paymentMethod)}</td><td>{fmtDate(t.createdAt)}</td><td>{(t.status === 'failed' || t.status === 'cancelled') ? <Btn variant="secondary" small disabled={recovery.isPending} onClick={() => { setRecoveryError(''); setRecoveryResult(null); recovery.mutate({ reference: t.reference }, { onSuccess: (result) => { setRecoveryResult(result); void invalidate(); }, onError: (error) => setRecoveryError(error instanceof Error ? error.message : 'Retry link could not be created.') }); }}>{recovery.isPending ? 'Working…' : 'Send retry link'}</Btn> : '—'}</td></tr>)}
       </tbody></table></div>
       {q.data && <Pager page={page} total={q.data.total} perPage={q.data.perPage || 20} onPage={setPage} />}
     </Async>
@@ -531,8 +531,8 @@ function PayoutsInner() {
   const q = useListMerchantPayouts();
   const items = q.data?.items ?? [];
   return <>
-    <Heading eyebrow="MERCHANT" title="Admin-operated payouts" subtitle="Payouts the platform team has sent on your behalf. This is a read-only record; there is no balance shown and no automatic withdrawal." />
-    <Async q={q} empty={!items.length} emptyTitle="No payouts attributed to you" emptyBody="Payouts operated by an administrator for your account appear here.">
+    <Heading eyebrow="MERCHANT" title="Payout activity" subtitle="Review payout records for your business. This is a read-only record; there is no balance shown and no automatic withdrawal." />
+    <Async q={q} empty={!items.length} emptyTitle="No payouts attributed to you" emptyBody="Payout records for your account will appear here.">
       <div className="table-wrap"><table className="dt"><thead><tr><th>Reference</th><th>Recipient</th><th className="num">Amount</th><th className="num">Fee</th><th>Status</th><th>Method</th><th>Created</th></tr></thead><tbody>
         {items.map((p) => <tr key={p.id} data-testid={`row-payout-${p.id}`}><td className="mono" style={{ fontSize: 12 }}>{p.reference}</td><td>{p.accountName}<span className="sub">{p.maskedAccount}</span></td><td className="num">{money(p.amount, p.currency)}</td><td className="num">{p.fee != null ? money(p.fee, p.currency) : '-'}</td><td><Pill value={p.status} /></td><td>{nice(p.method)}</td><td>{fmtDate(p.createdAt)}</td></tr>)}
       </tbody></table></div>

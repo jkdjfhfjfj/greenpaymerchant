@@ -3068,7 +3068,7 @@ components:
       enum: [queued, sending, sent, failed, uncertain, unconfigured]
     TransactionalEmailPurpose:
       type: string
-      enum: [payment_receipt, payment_success, payment_failure, payout_update, invoice_reminder, support_reply, support_receipt, team_invitation, admin_test, admin_broadcast]
+      enum: [payment_receipt, payment_success, payment_failure, payout_update, invoice_reminder, support_reply, support_receipt, merchant_account_update, team_invitation, admin_test, admin_broadcast]
     ContactTicketReceipt:
       type: object
       required: [reference, delivery]
@@ -3131,7 +3131,7 @@ components:
       required: [id, type, title, body, href, createdAt, readAt]
       properties:
         id: { type: integer }
-        type: { type: string, enum: [support_reply, kyc_update, payment_confirmed, payment_failed, payout_update, merchant_created] }
+        type: { type: string, enum: [support_reply, kyc_update, payment_confirmed, payment_failed, payout_update, merchant_created, merchant_account_update] }
         title: { type: string }
         body: { type: string }
         href: { type: string }

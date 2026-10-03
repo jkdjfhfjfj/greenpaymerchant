@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildMerchantAccountNotifications } from "./merchant-account-notifications";
+import {
+  buildMerchantAccountNotifications,
+  merchantAccountActionNotification,
+} from "./merchant-account-notifications";
 
 test("merchant account creation notifies the owner and every distinct admin", () => {
   const { ownerNotification, adminNotifications } = buildMerchantAccountNotifications({
@@ -36,4 +39,29 @@ test("merchant account creation notifies the owner and every distinct admin", ()
       href: "/admin/merchants",
     },
   ]);
+});
+
+test("merchant lifecycle notifications tell the owner what changed without exposing internal services", () => {
+  const actions = [
+    "application_resubmitted",
+    "application_approved",
+    "more_info_required",
+    "suspended",
+    "active",
+  ] as const;
+
+  for (const action of actions) {
+    const notification = merchantAccountActionNotification({
+      userId: "merchant-owner",
+      eventKey: `merchant:${action}`,
+      action,
+      businessName: "Kono Trading",
+      reason: "Upload a current registration document.",
+    });
+    assert.equal(notification.type, "merchant_account_update");
+    assert.equal(notification.href, "/merchant");
+    assert.match(notification.body, /Kono Trading/);
+    assert.doesNotMatch(notification.body, /administrator|processor|provider|Didit/i);
+    assert.ok(notification.body.length <= 500);
+  }
 });

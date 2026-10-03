@@ -9,7 +9,7 @@ function noticeIcon(type: UserNotification['type']) {
   if (type === 'support_reply') return <MessageCircle size={17} />;
   if (type === 'kyc_update') return <ShieldCheck size={17} />;
   if (type === 'payment_confirmed') return <CircleDollarSign size={17} />;
-  if (type === 'merchant_created') return <Building2 size={17} />;
+  if (type === 'merchant_created' || type === 'merchant_account_update') return <Building2 size={17} />;
   return <Wallet size={17} />;
 }
 

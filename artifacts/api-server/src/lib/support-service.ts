@@ -15,8 +15,12 @@ import {
 import { redactSupportText } from "./support-rules";
 import { enqueueTransactionalEmail, type EmailDeliveryState } from "./mailtrap-delivery";
 import { logger } from "./logger";
-import { allowlistedAdminEmails, findVerifiedClerkUsersByEmail } from "./platform-admin";
-import { buildMerchantAccountNotifications, type MerchantAccountNotification } from "./merchant-account-notifications";
+import { allowlistedAdminEmails, fetchClerkUser, findVerifiedClerkUsersByEmail, verifiedPrimaryEmail } from "./platform-admin";
+import {
+  buildMerchantAccountNotifications,
+  merchantAccountActionNotification,
+  type MerchantAccountNotification,
+} from "./merchant-account-notifications";
 
 // Contact-ticket creation is still in the legacy held queue until an admin
 // explicitly reviews/requeues it. This value is an actual outbox state, not a
@@ -30,12 +34,103 @@ export function makeSupportReference(): string {
 export async function addNotification(input: MerchantAccountNotification | {
   userId: string;
   eventKey: string;
-  type: "support_reply" | "kyc_update" | "payment_confirmed" | "payment_failed" | "payout_update";
+  type: "support_reply" | "kyc_update" | "payment_confirmed" | "payment_failed" | "payout_update" | "merchant_account_update";
   title: string;
   body: string;
   href: string;
 }): Promise<void> {
   await db.insert(userNotificationsTable).values(input).onConflictDoNothing();
+}
+
+type MerchantAccountAction =
+  | "application_received"
+  | "application_resubmitted"
+  | "application_approved"
+  | "more_info_required"
+  | "suspended"
+  | "active";
+
+async function queueMerchantAccountEmail(input: {
+  merchantId: number;
+  ownerUserId: string;
+  businessName: string;
+  action: MerchantAccountAction;
+  eventKey: string;
+  reason?: string;
+}): Promise<void> {
+  try {
+    const user = await fetchClerkUser(input.ownerUserId);
+    const recipientEmail = verifiedPrimaryEmail(user);
+    if (!recipientEmail) {
+      logger.warn({ merchantId: input.merchantId }, "Merchant account email was not queued because the owner has no verified primary email");
+      return;
+    }
+    await enqueueTransactionalEmail({
+      eventKey: input.eventKey,
+      purpose: "merchant_account_update",
+      recipientEmail,
+      template: "merchant_account_update",
+      payload: {
+        action: input.action,
+        businessName: input.businessName,
+        reason: input.reason ?? "",
+      },
+    });
+  } catch (error) {
+    logger.error({
+      merchantId: input.merchantId,
+      errorKind: error instanceof Error ? error.name : "unknown",
+    }, "Merchant account email could not be queued");
+  }
+}
+
+export async function notifyMerchantAccountAction(input: {
+  merchantId: number;
+  ownerUserId: string;
+  businessName: string;
+  action: Exclude<MerchantAccountAction, "application_received">;
+  eventKey: string;
+  reason?: string;
+}): Promise<void> {
+  try {
+    await addNotification(merchantAccountActionNotification({
+      userId: input.ownerUserId,
+      eventKey: input.eventKey,
+      action: input.action,
+      businessName: input.businessName,
+      reason: input.reason,
+    }));
+  } catch (error) {
+    logger.error({
+      merchantId: input.merchantId,
+      errorKind: error instanceof Error ? error.name : "unknown",
+    }, "Merchant account notification could not be saved");
+  }
+  await queueMerchantAccountEmail({
+    ...input,
+    eventKey: `${input.eventKey}:email`,
+  });
+}
+
+async function activePlatformAdminUserIds(excludedUserId: string) {
+  const assignments = await db.select({
+    userId: platformAdminAssignmentsTable.clerkUserId,
+  }).from(platformAdminAssignmentsTable)
+    .where(isNull(platformAdminAssignmentsTable.revokedAt));
+  const lookupResults = await Promise.allSettled(
+    allowlistedAdminEmails().map((email) => findVerifiedClerkUsersByEmail(email)),
+  );
+  const userIds = new Set(assignments.map(({ userId }) => userId));
+  let lookupFailures = 0;
+  for (const result of lookupResults) {
+    if (result.status === "rejected") {
+      lookupFailures += 1;
+      continue;
+    }
+    for (const user of result.value) userIds.add(user.id);
+  }
+  userIds.delete(excludedUserId);
+  return { userIds: [...userIds], lookupFailures };
 }
 
 export async function notifyMerchantAccountCreated(input: {
@@ -45,34 +140,51 @@ export async function notifyMerchantAccountCreated(input: {
 }): Promise<{ adminCount: number; adminLookupFailures: number }> {
   const notificationInput = { ...input, adminUserIds: [] };
   const { ownerNotification } = buildMerchantAccountNotifications(notificationInput);
-  await addNotification(ownerNotification);
-
-  const assignments = await db.select({
-    userId: platformAdminAssignmentsTable.clerkUserId,
-  }).from(platformAdminAssignmentsTable)
-    .where(isNull(platformAdminAssignmentsTable.revokedAt));
-  const lookupResults = await Promise.allSettled(
-    allowlistedAdminEmails().map((email) => findVerifiedClerkUsersByEmail(email)),
-  );
-  const adminUserIds = new Set(assignments.map(({ userId }) => userId));
-  let adminLookupFailures = 0;
-  for (const result of lookupResults) {
-    if (result.status === "rejected") {
-      adminLookupFailures += 1;
-      continue;
-    }
-    for (const user of result.value) adminUserIds.add(user.id);
+  try {
+    await addNotification(ownerNotification);
+  } catch (error) {
+    logger.error({
+      merchantId: input.merchantId,
+      errorKind: error instanceof Error ? error.name : "unknown",
+    }, "Merchant creation notification could not be saved");
   }
+  await queueMerchantAccountEmail({
+    ...input,
+    action: "application_received",
+    eventKey: `merchant-created:${input.merchantId}:email`,
+  });
 
-  adminUserIds.delete(input.ownerUserId);
+  const admins = await activePlatformAdminUserIds(input.ownerUserId);
   const { adminNotifications } = buildMerchantAccountNotifications({
     ...input,
-    adminUserIds: [...adminUserIds],
+    adminUserIds: admins.userIds,
   });
   if (adminNotifications.length > 0) {
     await db.insert(userNotificationsTable).values(adminNotifications).onConflictDoNothing();
   }
-  return { adminCount: adminNotifications.length, adminLookupFailures };
+  return { adminCount: adminNotifications.length, adminLookupFailures: admins.lookupFailures };
+}
+
+export async function notifyMerchantApplicationResubmitted(input: {
+  merchantId: number;
+  ownerUserId: string;
+  businessName: string;
+  submittedAt: Date;
+}): Promise<{ adminCount: number; adminLookupFailures: number }> {
+  const admins = await activePlatformAdminUserIds(input.ownerUserId);
+  const eventKey = `merchant-application-resubmitted:${input.merchantId}:${input.submittedAt.getTime()}`;
+  const notifications: MerchantAccountNotification[] = admins.userIds.map((userId) => ({
+    userId,
+    eventKey,
+    type: "merchant_account_update",
+    title: "Business application resubmitted",
+    body: `${input.businessName} submitted updated details and is ready for review.`,
+    href: "/admin/merchants",
+  }));
+  if (notifications.length) {
+    await db.insert(userNotificationsTable).values(notifications).onConflictDoNothing();
+  }
+  return { adminCount: notifications.length, adminLookupFailures: admins.lookupFailures };
 }
 
 export async function addSupportMessage(input: {

@@ -126,6 +126,21 @@ test("legal acceptance allows the limited dashboard overview but gates other mer
     };
     assert.equal(consent.accepted, false);
 
+    const merchantProfile = await merchantStarted.request("/merchant");
+    assert.equal(merchantProfile.status, 200, "a signed-in user must be able to view application state before accepting legal policies");
+    const invalidApplication = await merchantStarted.request("/merchant", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    assert.equal(invalidApplication.status, 400, "application submission must reach validation before legal acceptance");
+    const invalidResubmission = await merchantStarted.request("/merchant/application", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    assert.equal(invalidResubmission.status, 400, "application corrections must reach validation before legal acceptance");
+
     const dashboardTransactions = await merchantStarted.request("/merchant/transactions?page=1&perPage=20");
     assert.equal(dashboardTransactions.status, 200, "the dashboard may read only its first 20 transactions");
     const laterTransactions = await merchantStarted.request("/merchant/transactions?page=2&perPage=20");

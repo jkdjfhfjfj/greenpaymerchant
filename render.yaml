@@ -5,7 +5,7 @@ services:
     plan: free
     region: singapore
     buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm run build:render
-    startCommand: 'PORT=${PORT:-10000} pnpm run start:render'
+    startCommand: "PORT=${PORT:-10000} pnpm run start:render"
     healthCheckPath: /api/healthz
     autoDeploy: true
     envVars:

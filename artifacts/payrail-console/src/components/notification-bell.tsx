@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'wouter';
-import { Bell, CircleDollarSign, MessageCircle, ShieldCheck, Wallet } from 'lucide-react';
+import { Bell, Building2, CircleDollarSign, MessageCircle, ShieldCheck, Wallet } from 'lucide-react';
 import { formatSupportDate, markAllUserNotificationsRead, markUserNotificationRead, userNotifications, type UserNotification } from '@/pages/support-api';
 import '@/support.css';
 
@@ -9,6 +9,7 @@ function notificationIcon(type: UserNotification['type']) {
   if (type === 'support_reply') return <MessageCircle size={15} />;
   if (type === 'kyc_update') return <ShieldCheck size={15} />;
   if (type === 'payment_confirmed') return <CircleDollarSign size={15} />;
+  if (type === 'merchant_created') return <Building2 size={15} />;
   return <Wallet size={15} />;
 }
 
@@ -43,7 +44,7 @@ export function NotificationBell() {
       </header>
       {notifications.isLoading && <p className="notification-popover-empty">Loading your notifications…</p>}
       {notifications.isError && <div className="notification-popover-error" role="alert">{notifications.error.message}<button type="button" onClick={() => { void notifications.refetch(); }}>Retry</button></div>}
-      {!notifications.isLoading && !notifications.isError && notifications.data?.items.length === 0 && <p className="notification-popover-empty">Updates from support, verification, payments, and payouts will appear here.</p>}
+      {!notifications.isLoading && !notifications.isError && notifications.data?.items.length === 0 && <p className="notification-popover-empty">Updates about accounts, support, verification, payments, and payouts will appear here.</p>}
       <div className="notification-popover-list">
         {notifications.data?.items.slice(0, 8).map((item) => <Link key={item.id} href={item.href} className={`notification-popover-item ${item.readAt ? '' : 'is-unread'}`} onClick={() => { if (!item.readAt) markRead.mutate(item.id); setOpen(false); }} data-testid={`link-notification-${item.id}`}>
           <span className="notification-popover-icon">{notificationIcon(item.type)}</span>

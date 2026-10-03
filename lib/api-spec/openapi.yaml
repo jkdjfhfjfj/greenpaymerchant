@@ -3127,7 +3127,7 @@ components:
       required: [id, type, title, body, href, createdAt, readAt]
       properties:
         id: { type: integer }
-        type: { type: string, enum: [support_reply, kyc_update, payment_confirmed, payment_failed, payout_update] }
+        type: { type: string, enum: [support_reply, kyc_update, payment_confirmed, payment_failed, payout_update, merchant_created] }
         title: { type: string }
         body: { type: string }
         href: { type: string }

@@ -66,6 +66,7 @@ import { cloudinaryUploadStatus, createCloudinaryUploadSignature } from "../lib/
 import { resolveCloudinaryEnvironment } from "../lib/cloudinary-credentials";
 import { providerCredential } from "../lib/credential-runtime";
 import { ensureMerchantWalletAccounts } from "../lib/wallet-service";
+import { notifyMerchantAccountCreated } from "../lib/support-service";
 
 const router: IRouter = Router();
 const apiRouter: IRouter = Router();
@@ -390,6 +391,25 @@ router.post("/merchant", requireSignedIn, async (req, res): Promise<void> => {
       applicationSubmittedAt: new Date(),
     }).returning();
   });
+  try {
+    const notificationResult = await notifyMerchantAccountCreated({
+      merchantId: merchant.id,
+      ownerUserId: userId,
+      businessName: merchant.businessName,
+    });
+    if (notificationResult.adminCount === 0 || notificationResult.adminLookupFailures > 0) {
+      req.log.warn({
+        merchantId: merchant.id,
+        adminCount: notificationResult.adminCount,
+        adminLookupFailures: notificationResult.adminLookupFailures,
+      }, "Merchant account was created, but one or more platform-admin notifications could not be addressed");
+    }
+  } catch (error) {
+    req.log.error({
+      merchantId: merchant.id,
+      errorKind: error instanceof Error ? error.name : "unknown",
+    }, "Merchant account was created, but account notifications could not be fully saved");
+  }
   await ensureMerchantWalletAccounts(merchant.id, merchant.baseCurrency);
   setMerchantWorkspaceCookie(res, merchant.id);
   res.status(201).json(CreateMerchantProfileResponse.parse({ merchant: profile(merchant) }));

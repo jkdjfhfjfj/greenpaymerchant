@@ -283,7 +283,7 @@ export const AdminReplySupportTicketResponse = zod.object({
 export const ListNotificationsResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().int(),
-  "type": zod.enum(['support_reply', 'kyc_update', 'payment_confirmed', 'payment_failed', 'payout_update']),
+  "type": zod.enum(['support_reply', 'kyc_update', 'payment_confirmed', 'payment_failed', 'payout_update', 'merchant_created']),
   "title": zod.string(),
   "body": zod.string(),
   "href": zod.string(),
@@ -306,7 +306,7 @@ export const MarkNotificationReadParams = zod.object({
 
 export const MarkNotificationReadResponse = zod.object({
   "id": zod.number().int(),
-  "type": zod.enum(['support_reply', 'kyc_update', 'payment_confirmed', 'payment_failed', 'payout_update']),
+  "type": zod.enum(['support_reply', 'kyc_update', 'payment_confirmed', 'payment_failed', 'payout_update', 'merchant_created']),
   "title": zod.string(),
   "body": zod.string(),
   "href": zod.string(),

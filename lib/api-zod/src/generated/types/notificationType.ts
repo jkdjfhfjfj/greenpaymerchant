@@ -15,4 +15,5 @@ export const NotificationType = {
   payment_confirmed: 'payment_confirmed',
   payment_failed: 'payment_failed',
   payout_update: 'payout_update',
+  merchant_created: 'merchant_created',
 } as const;

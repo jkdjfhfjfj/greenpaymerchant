@@ -7,6 +7,7 @@ import {
   supportDeliveryOutboxTable,
   supportMessagesTable,
   supportTicketsTable,
+  platformAdminAssignmentsTable,
   userNotificationsTable,
   type SupportMessage,
   type SupportTicket,
@@ -14,6 +15,8 @@ import {
 import { redactSupportText } from "./support-rules";
 import { enqueueTransactionalEmail, type EmailDeliveryState } from "./mailtrap-delivery";
 import { logger } from "./logger";
+import { allowlistedAdminEmails, findVerifiedClerkUsersByEmail } from "./platform-admin";
+import { buildMerchantAccountNotifications, type MerchantAccountNotification } from "./merchant-account-notifications";
 
 // Contact-ticket creation is still in the legacy held queue until an admin
 // explicitly reviews/requeues it. This value is an actual outbox state, not a
@@ -24,7 +27,7 @@ export function makeSupportReference(): string {
   return `GP-${randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`;
 }
 
-export async function addNotification(input: {
+export async function addNotification(input: MerchantAccountNotification | {
   userId: string;
   eventKey: string;
   type: "support_reply" | "kyc_update" | "payment_confirmed" | "payment_failed" | "payout_update";
@@ -33,6 +36,43 @@ export async function addNotification(input: {
   href: string;
 }): Promise<void> {
   await db.insert(userNotificationsTable).values(input).onConflictDoNothing();
+}
+
+export async function notifyMerchantAccountCreated(input: {
+  merchantId: number;
+  ownerUserId: string;
+  businessName: string;
+}): Promise<{ adminCount: number; adminLookupFailures: number }> {
+  const notificationInput = { ...input, adminUserIds: [] };
+  const { ownerNotification } = buildMerchantAccountNotifications(notificationInput);
+  await addNotification(ownerNotification);
+
+  const assignments = await db.select({
+    userId: platformAdminAssignmentsTable.clerkUserId,
+  }).from(platformAdminAssignmentsTable)
+    .where(isNull(platformAdminAssignmentsTable.revokedAt));
+  const lookupResults = await Promise.allSettled(
+    allowlistedAdminEmails().map((email) => findVerifiedClerkUsersByEmail(email)),
+  );
+  const adminUserIds = new Set(assignments.map(({ userId }) => userId));
+  let adminLookupFailures = 0;
+  for (const result of lookupResults) {
+    if (result.status === "rejected") {
+      adminLookupFailures += 1;
+      continue;
+    }
+    for (const user of result.value) adminUserIds.add(user.id);
+  }
+
+  adminUserIds.delete(input.ownerUserId);
+  const { adminNotifications } = buildMerchantAccountNotifications({
+    ...input,
+    adminUserIds: [...adminUserIds],
+  });
+  if (adminNotifications.length > 0) {
+    await db.insert(userNotificationsTable).values(adminNotifications).onConflictDoNothing();
+  }
+  return { adminCount: adminNotifications.length, adminLookupFailures };
 }
 
 export async function addSupportMessage(input: {

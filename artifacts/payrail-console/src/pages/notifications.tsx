@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'wouter';
-import { ArrowRight, Bell, CheckCheck, CircleDollarSign, MessageCircle, ShieldCheck, Wallet } from 'lucide-react';
+import { ArrowRight, Bell, Building2, CheckCheck, CircleDollarSign, MessageCircle, ShieldCheck, Wallet } from 'lucide-react';
 import { formatSupportDate, markAllUserNotificationsRead, markUserNotificationRead, userNotifications, type UserNotification } from './support-api';
 import '@/support.css';
 
@@ -9,6 +9,7 @@ function noticeIcon(type: UserNotification['type']) {
   if (type === 'support_reply') return <MessageCircle size={17} />;
   if (type === 'kyc_update') return <ShieldCheck size={17} />;
   if (type === 'payment_confirmed') return <CircleDollarSign size={17} />;
+  if (type === 'merchant_created') return <Building2 size={17} />;
   return <Wallet size={17} />;
 }
 
@@ -34,7 +35,7 @@ export function NotificationsPage() {
   return <main className="support-page notifications-page">
     <header className="support-app-header"><div><a href="/" className="support-brand" data-testid="link-notifications-home">greenpay<span>.</span></a><span className="support-header-divider">/</span><strong>Notifications</strong></div><Link href="/support" className="support-header-link" data-testid="link-notifications-support">Support center <ArrowRight size={14} /></Link></header>
     <section className="support-heading-row notification-heading">
-      <div><div className="support-eyebrow"><Bell size={14} /> YOUR UPDATES</div><h1>Notifications</h1><p>Persistent updates from your account, support conversations, payments, and payouts.</p></div>
+      <div><div className="support-eyebrow"><Bell size={14} /> YOUR UPDATES</div><h1>Notifications</h1><p>Persistent updates from your accounts, support conversations, payments, and payouts.</p></div>
       {!!query.data?.unreadCount && <button className="support-button support-button-quiet" type="button" onClick={() => markAll.mutate()} disabled={markAll.isPending} data-testid="button-mark-all-notifications"><CheckCheck size={15} />Mark all as read</button>}
     </section>
     {query.isLoading && <div className="support-card support-skeleton-card"><div className="support-skeleton" /><div className="support-skeleton support-skeleton-long" /></div>}

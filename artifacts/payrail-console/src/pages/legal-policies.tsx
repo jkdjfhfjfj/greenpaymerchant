@@ -13,6 +13,7 @@ import {
   type LegalPolicyType,
 } from '@workspace/api-client-react';
 import { Async, Btn, Err, Field, Heading, Note, useAccess, useInvalidateAll } from '@/components/kit';
+import { LegalPolicyMarkdown } from '@/lib/legal-policy-markdown';
 
 const policyLabels: Record<LegalPolicyType, string> = {
   privacy_policy: 'Privacy Policy',
@@ -33,8 +34,9 @@ export function PublicLegalPolicyPage({ policyType }: { policyType: LegalPolicyT
         policy?.published && policy.title && policy.content ? <>
           <h1>{policy.title}</h1>
           <div className="public-updated">Published {policy.publishedAt ? new Date(policy.publishedAt).toLocaleDateString() : '—'} · Version {policy.version}</div>
-          <article className="public-policy-copy">{policy.content.split(/\n{2,}/).map((paragraph, index) =>
-            <p key={`${index}-${paragraph.slice(0, 20)}`}>{paragraph}</p>)}</article>
+          <article className="public-policy-copy" aria-label={`${policy.title} content`}>
+            <LegalPolicyMarkdown content={policy.content} />
+          </article>
         </> : <div className="content-policy-message"><h1>{policyLabels[policyType]}</h1><p>This document has not been published yet.</p></div>}
       <div className="public-content-links"><Link href="/privacy">Privacy Policy</Link><Link href="/terms">Terms of Service</Link><Link href="/sign-in">Sign in</Link></div>
     </div>

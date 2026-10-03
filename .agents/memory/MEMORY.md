@@ -15,3 +15,4 @@
 - [Invoice payment-link closure](invoice-payment-link-closure.md) — archive a fully paid invoice's checkout link at provider confirmation, not only when another retry or checkout is attempted.
 - [Private case-evidence storage](cloudinary-case-evidence.md) — keep evidence in authenticated Cloudinary raw assets and proxy verified bytes through authorized API routes.
 - [Drizzle migration output paths](drizzle-migration-output-paths.md) — compute output paths relative to the current working directory; absolute paths were misjoined by Drizzle Kit.
+- [Greenpay production hostname](greenpay-production-hostname.md) — use `greenpay.co.ke` as the canonical production hostname unless the user changes it.

@@ -7,4 +7,4 @@ Only administrators supply approved policy wording. Never invent or publish lega
 
 **Why:** No policy wording was supplied; the user explicitly requires administrators to enter approved copy.
 
-**How to apply:** Keep legal drafts empty until administrators enter approved Privacy Policy and Terms text. Publish only that supplied copy, and do not grant workspace access until both current documents are published and accepted.
+**How to apply:** Keep legal drafts empty until administrators enter approved Privacy Policy and Terms text. Publish only that supplied copy, and do not grant workspace access until both current documents are published and accepted. Public-page formatting may render stored Markdown, but must not rewrite its wording.

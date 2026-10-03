@@ -11,6 +11,7 @@ export type LegalBlock =
   | { type: "heading"; level: number; children: LegalInline[] }
   | { type: "unordered-list"; items: LegalInline[][] }
   | { type: "ordered-list"; start: number; items: LegalInline[][] }
+  | { type: "table"; headers: LegalInline[][]; rows: LegalInline[][][] }
   | { type: "blockquote"; children: LegalBlock[] }
   | { type: "code-block"; value: string }
   | { type: "rule" };
@@ -69,10 +70,44 @@ function isRule(line: string): boolean {
   return /^ {0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/.test(line);
 }
 
+function tableCells(line: string): string[] {
+  let value = line.trim();
+  if (value.startsWith("|")) value = value.slice(1);
+  if (value.endsWith("|") && !value.endsWith("\\|")) value = value.slice(0, -1);
+
+  const cells: string[] = [];
+  let cell = "";
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (character === "\\" && value[index + 1] === "|") {
+      cell += "|";
+      index += 1;
+    } else if (character === "|") {
+      cells.push(cell.trim());
+      cell = "";
+    } else {
+      cell += character;
+    }
+  }
+  cells.push(cell.trim());
+  return cells;
+}
+
+function isTableStart(lines: string[], index: number): boolean {
+  const header = lines[index];
+  const divider = lines[index + 1];
+  if (!header?.includes("|") || !divider?.includes("|")) return false;
+  const headerCells = tableCells(header);
+  const dividerCells = tableCells(divider);
+  return headerCells.length === dividerCells.length &&
+    dividerCells.every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+
 function isBlockStart(lines: string[], index: number): boolean {
   const line = lines[index];
   return /^ {0,3}#{1,6}\s+/.test(line) ||
     isRule(line) ||
+    isTableStart(lines, index) ||
     /^ {0,3}>/.test(line) ||
     /^ {0,3}```/.test(line) ||
     Boolean(listMarker(line));
@@ -100,6 +135,22 @@ export function parseLegalMarkdown(markdown: string): LegalBlock[] {
     if (isRule(line)) {
       blocks.push({ type: "rule" });
       index += 1;
+      continue;
+    }
+
+    if (isTableStart(lines, index)) {
+      const headerCells = tableCells(lines[index]);
+      const columnCount = headerCells.length;
+      const headers = headerCells.map(parseLegalInline);
+      index += 2;
+      const rows: LegalInline[][][] = [];
+      while (index < lines.length && lines[index].trim() && lines[index].includes("|")) {
+        const cells = tableCells(lines[index]).slice(0, columnCount);
+        while (cells.length < columnCount) cells.push("");
+        rows.push(cells.map(parseLegalInline));
+        index += 1;
+      }
+      blocks.push({ type: "table", headers, rows });
       continue;
     }
 
@@ -133,7 +184,7 @@ export function parseLegalMarkdown(markdown: string): LegalBlock[] {
       while (index < lines.length) {
         const next = listMarker(lines[index]);
         if (!next || next.kind !== kind) break;
-        if (kind === "ordered" && items.length === 0) start = next.number;
+        if (kind === "ordered" && next.kind === "ordered" && items.length === 0) start = next.number;
         items.push(parseLegalInline(next.content));
         index += 1;
       }
@@ -181,6 +232,19 @@ function renderBlocks(blocks: LegalBlock[]): ReactNode[] {
     if (block.type === "heading") {
       const headingTag = `h${Math.min(block.level + 1, 6)}`;
       return createElement(headingTag, { key: index }, renderInline(block.children));
+    }
+    if (block.type === "table") {
+      return createElement("div", { key: index, className: "public-policy-table-wrap" },
+        createElement("table", null,
+          createElement("thead", null,
+            createElement("tr", null, block.headers.map((header, headerIndex) =>
+              createElement("th", { key: headerIndex, scope: "col" }, renderInline(header)))),
+          ),
+          createElement("tbody", null, block.rows.map((row, rowIndex) =>
+            createElement("tr", { key: rowIndex }, row.map((cell, cellIndex) =>
+              createElement("td", { key: cellIndex }, renderInline(cell)))))),
+        ),
+      );
     }
     if (block.type === "blockquote") {
       return createElement("blockquote", { key: index }, renderBlocks(block.children));

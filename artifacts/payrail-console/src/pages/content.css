@@ -62,11 +62,19 @@
 .public-policy-copy h3{font-size:21px}
 .public-policy-copy h4,.public-policy-copy h5,.public-policy-copy h6{font-size:18px}
 .public-policy-copy ul,.public-policy-copy ol{display:grid;gap:9px;margin:0 0 1.2em;padding-left:1.5em}
+.public-policy-copy ul{list-style:disc}
+.public-policy-copy ol{list-style:decimal}
+.public-policy-copy>:first-child{margin-top:0}
 .public-policy-copy li{padding-left:.2em}
 .public-policy-copy li::marker{color:var(--public-green2)}
 .public-policy-copy blockquote{margin:1.2em 0;padding:12px 18px;border-left:3px solid var(--public-gold);background:#f8f6ef;color:#53665f}
 .public-policy-copy blockquote p{margin:0 0 .8em}
 .public-policy-copy hr{height:1px;margin:1.7em 0;border:0;background:#e4e1d7}
+.public-policy-table-wrap{max-width:100%;overflow-x:auto;margin:1.2em 0;border:1px solid #e4e1d7;border-radius:10px;background:var(--public-paper)}
+.public-policy-copy table{width:100%;min-width:560px;border-collapse:collapse;text-align:left}
+.public-policy-copy th,.public-policy-copy td{padding:11px 13px;border-bottom:1px solid #e4e1d7;vertical-align:top}
+.public-policy-copy th{background:#f5f1e8;color:var(--public-green);font-weight:700}
+.public-policy-copy tr:last-child td{border-bottom:0}
 .public-policy-copy code{padding:.12em .38em;border-radius:5px;background:#f1eee5;font: .9em 'IBM Plex Mono',monospace}
 .public-policy-copy pre{overflow-x:auto;padding:14px;border-radius:10px;background:#f1eee5}
 .public-policy-copy pre code{padding:0;background:transparent}

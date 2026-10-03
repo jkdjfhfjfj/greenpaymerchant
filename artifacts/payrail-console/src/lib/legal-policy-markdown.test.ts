@@ -15,11 +15,15 @@ test("legal Markdown becomes semantic blocks without changing policy wording", (
     "",
     "1. First step",
     "2. Second step",
+    "",
+    "| Section | Coverage |",
+    "| --- | --- |",
+    "| **Acceptance** | Terms are shown. |",
   ].join("\n");
   const blocks = parseLegalMarkdown(source);
 
   assert.deepEqual(blocks.map((block) => block.type), [
-    "paragraph", "rule", "heading", "unordered-list", "ordered-list",
+    "paragraph", "rule", "heading", "unordered-list", "ordered-list", "table",
   ]);
   assert.equal(blocks[0].type, "paragraph");
   if (blocks[0].type === "paragraph") {
@@ -32,6 +36,8 @@ test("legal Markdown becomes semantic blocks without changing policy wording", (
   assert.equal(blocks[2].type === "heading" ? blocks[2].level : -1, 3);
   assert.equal(blocks[3].type === "unordered-list" ? blocks[3].items.length : -1, 2);
   assert.equal(blocks[4].type === "ordered-list" ? blocks[4].start : -1, 1);
+  assert.equal(blocks[5].type === "table" ? blocks[5].headers.length : -1, 2);
+  assert.equal(blocks[5].type === "table" ? blocks[5].rows.length : -1, 1);
 });
 
 test("unsafe Markdown links remain literal text", () => {

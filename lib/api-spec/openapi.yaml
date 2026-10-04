@@ -1670,6 +1670,26 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/KycSessionResponse" }
         "503": { description: Didit credentials or workflow are not configured }
+  /webhooks/didit:
+    post:
+      operationId: receiveDiditWebhook
+      tags: [webhooks, kyc]
+      summary: Refresh a Didit status notification against Didit's decision API
+      description: Public notification endpoint. The incoming status is never trusted; the server confirms the session decision with Didit using the configured API key.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DiditWebhookNotification" }
+      responses:
+        "200":
+          description: Notification accepted, ignored, or already processed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DiditWebhookResponse" }
+        "400": { description: Invalid webhook request body }
+        "503": { description: Didit's decision API could not verify the session }
   /merchant/transactions:
     get:
       operationId: listMerchantTransactions
@@ -3047,6 +3067,18 @@ components:
       scheme: bearer
       bearerFormat: merchant API key
   schemas:
+    DiditWebhookNotification:
+      type: object
+      required: [session_id]
+      properties:
+        session_id: { type: string, minLength: 1, maxLength: 100 }
+        webhook_type: { type: string, maxLength: 120 }
+    DiditWebhookResponse:
+      type: object
+      required: [received, status]
+      properties:
+        received: { type: boolean }
+        status: { type: string }
     ContactTicketInput:
       type: object
       required: [name, email, subject, message]

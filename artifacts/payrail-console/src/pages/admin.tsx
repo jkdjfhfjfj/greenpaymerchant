@@ -640,7 +640,7 @@ function CredEdit({ c, onClose }: { c: ProviderCredential; onClose: () => void }
   const description = c.provider === 'payhero'
     ? 'Enter the PayHero username and password. The channel ID is still required; leave it blank to keep the saved value.'
     : c.provider === 'didit'
-      ? 'KYC sessions use the API key and workflow IDs. Status refreshes from Didit while the verification page is open; no webhook secret is needed.'
+      ? 'KYC sessions use the API key and workflow IDs. Webhook notifications are verified through Didit’s decision API, and the page also polls while open; no webhook secret is needed.'
     : 'Values replace what is stored; blank fields are cleared. Enter every value you want to retain. Existing secrets are never displayed.';
   return <Modal title={`${nice(c.provider)} credentials`} description={description} onClose={onClose}><form className="form-stack" onSubmit={submit} autoComplete="off">
     {names.map((n) => {

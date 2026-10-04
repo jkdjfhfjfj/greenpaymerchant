@@ -4331,6 +4331,27 @@ export const CreateMerchantKycSessionResponse = zod.object({
 
 
 /**
+ * Public notification endpoint. The incoming status is never trusted; the server confirms the session decision with Didit using the configured API key.
+ * @summary Refresh a Didit status notification against Didit's decision API
+ */
+export const receiveDiditWebhookBodySessionIdMax = 100;
+
+export const receiveDiditWebhookBodyWebhookTypeMax = 120;
+
+
+
+export const ReceiveDiditWebhookBody = zod.object({
+  "session_id": zod.string().min(1).max(receiveDiditWebhookBodySessionIdMax),
+  "webhook_type": zod.string().max(receiveDiditWebhookBodyWebhookTypeMax).optional()
+})
+
+export const ReceiveDiditWebhookResponse = zod.object({
+  "received": zod.boolean(),
+  "status": zod.string()
+})
+
+
+/**
  * @summary List transactions belonging to the current merchant only
  */
 export const listMerchantTransactionsQueryPageDefault = 1;

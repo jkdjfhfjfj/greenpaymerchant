@@ -3,8 +3,8 @@ name: Didit KYC polling
 description: Product decision on Didit KYC status delivery.
 ---
 
-Didit KYC should use authenticated API polling for status updates and should not require webhook setup or a webhook signing secret.
+Didit KYC may use an optional unsigned webhook notification, but it must treat the payload only as a session hint and confirm status through Didit's authenticated decision API. Keep polling as a fallback; do not require a webhook signing secret.
 
-**Why:** The user chose polling-only because Didit’s signing secret is not needed to start KYC sessions.
+**Why:** The user asked for a webhook endpoint that does not need a secret; polling remains useful when a callback is delayed or unavailable.
 
-**How to apply:** Keep Didit decision polling intact. Status updates may wait until the verification page is active; do not imply background webhook delivery.
+**How to apply:** Keep the Didit API key for session creation and authoritative decision checks. Never trust status fields from an unsigned notification or imply that a webhook secret is required.

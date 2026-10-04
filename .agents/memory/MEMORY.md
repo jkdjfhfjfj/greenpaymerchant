@@ -18,4 +18,4 @@
 - [Greenpay production hostname](greenpay-production-hostname.md) — use `greenpay.co.ke` as the canonical production hostname unless the user changes it.
 - [Render Blueprint environment sync](render-blueprint-env-sync.md) — existing Blueprints ignore `sync: false` variables during updates; non-secret config needs a literal value and a sync/deploy.
 - [Merchant signup notifications](merchant-signup-notifications.md) — send new merchant account notices to both platform admins and the account owner.
-- [Didit KYC polling](didit-kyc-polling.md) — keep Didit status updates on authenticated API polling; do not require webhook setup.
+- [Didit KYC polling](didit-kyc-polling.md) — treat secretless webhook notices only as triggers for authenticated API checks; retain polling as a fallback.

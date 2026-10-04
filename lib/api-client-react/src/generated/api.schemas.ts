@@ -5,6 +5,21 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+export interface DiditWebhookNotification {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  session_id: string;
+  /** @maxLength 120 */
+  webhook_type?: string;
+}
+
+export interface DiditWebhookResponse {
+  received: boolean;
+  status: string;
+}
+
 export type ContactTicketInputCategory = typeof ContactTicketInputCategory[keyof typeof ContactTicketInputCategory];
 
 

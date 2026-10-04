@@ -112,6 +112,8 @@ export * from './customer';
 export * from './customerList';
 export * from './dashboardSummary';
 export * from './destinationChangeRequestInput';
+export * from './diditWebhookNotification';
+export * from './diditWebhookResponse';
 export * from './emailDeliveryState';
 export * from './feeSchedule';
 export * from './feeScheduleResponse';

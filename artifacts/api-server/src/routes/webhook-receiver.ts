@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import { and, eq, or } from "drizzle-orm";
 import { Router, type IRouter } from "express";
-import { db, payoutsTable, refundsTable, webhookEventsTable } from "@workspace/db";
+import {
+  ReceiveDiditWebhookBody, ReceiveDiditWebhookResponse,
+} from "@workspace/api-zod";
+import { db, merchantsTable, payoutsTable, refundsTable, webhookEventsTable } from "@workspace/db";
 import {
   asObject,
   numberValue,
@@ -13,10 +16,197 @@ import {
 import {
   findTransaction, markTransactionStatus, reconcilePaystackRefund, recordRefund, recordWebhookEvent,
 } from "../lib/greenpay-ledger";
+import { providerCredential } from "../lib/credential-runtime";
 import { payoutConfirmationTimestamp } from "../lib/payment-safety";
+import { diditDecisionStatus, diditStatusNeedsRefresh } from "../lib/security-policy";
 import { setWalletPayoutStatusFromProvider } from "../lib/wallet-service";
 
 const router: IRouter = Router();
+const DIDIT_DECISION_COOLDOWN_MS = 10_000;
+const recentDiditDecisionChecks = new Map<string, number>();
+const inFlightDiditDecisionChecks = new Set<string>();
+
+function claimDiditDecisionCheck(sessionId: string): boolean {
+  const now = Date.now();
+  const lastCheck = recentDiditDecisionChecks.get(sessionId);
+  if (inFlightDiditDecisionChecks.has(sessionId) ||
+      (lastCheck !== undefined && now - lastCheck < DIDIT_DECISION_COOLDOWN_MS)) {
+    return false;
+  }
+  inFlightDiditDecisionChecks.add(sessionId);
+  return true;
+}
+
+function releaseDiditDecisionCheck(sessionId: string, completed: boolean): void {
+  inFlightDiditDecisionChecks.delete(sessionId);
+  if (!completed) return;
+  const now = Date.now();
+  recentDiditDecisionChecks.set(sessionId, now);
+  if (recentDiditDecisionChecks.size > 5_000) {
+    for (const [checkedSessionId, checkedAt] of recentDiditDecisionChecks) {
+      if (now - checkedAt > 60_000) recentDiditDecisionChecks.delete(checkedSessionId);
+      if (recentDiditDecisionChecks.size <= 4_000) break;
+    }
+  }
+}
+
+router.post("/didit", async (req, res): Promise<void> => {
+  const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+  if (rawBody.length === 0) {
+    res.status(400).json({ error: "Webhook body is required." });
+    return;
+  }
+
+  let payload: Record<string, unknown>;
+  try {
+    payload = asObject(JSON.parse(rawBody.toString("utf8")));
+  } catch {
+    res.status(400).json({ error: "Webhook body must be valid JSON." });
+    return;
+  }
+  const parsed = ReceiveDiditWebhookBody.safeParse(payload);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const sessionId = parsed.data.session_id;
+  const event = parsed.data.webhook_type ?? "status.updated";
+  if (event !== "status.updated") {
+    res.json(ReceiveDiditWebhookResponse.parse({ received: true, status: "ignored" }));
+    return;
+  }
+
+  const deliveryKey = `didit:${createHash("sha256").update(rawBody).digest("hex")}`;
+  const [duplicate] = await db.select({
+    id: webhookEventsTable.id,
+    status: webhookEventsTable.status,
+  }).from(webhookEventsTable).where(eq(webhookEventsTable.deliveryKey, deliveryKey)).limit(1);
+  if (duplicate && duplicate.status !== "failed") {
+    res.json(ReceiveDiditWebhookResponse.parse({ received: true, status: "duplicate" }));
+    return;
+  }
+
+  // The unsigned notification only identifies a session. Its status is never trusted.
+  let activeMerchant = await db.transaction(async (tx) => {
+    const [lockedMerchant] = await tx.select().from(merchantsTable)
+      .where(or(
+        eq(merchantsTable.diditSessionId, sessionId),
+        eq(merchantsTable.diditKybSessionId, sessionId),
+      )).for("update").limit(1);
+    if (!lockedMerchant) return undefined;
+
+    let current = lockedMerchant;
+    if (current.diditKind === "kyb" && !current.diditKybSessionId && current.diditSessionId === sessionId) {
+      const [migrated] = await tx.update(merchantsTable).set({
+        diditKybSessionId: current.diditSessionId,
+        diditKybSessionUrl: current.diditSessionUrl,
+        kybStatus: current.kycStatus,
+        kybVerificationUpdatedAt: current.verificationUpdatedAt,
+        diditSessionId: null,
+        diditSessionUrl: null,
+        diditKind: null,
+        kycStatus: "not_started",
+        verificationUpdatedAt: null,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(merchantsTable.id, current.id),
+        eq(merchantsTable.diditSessionId, sessionId),
+      )).returning();
+      if (migrated) current = migrated;
+    }
+    return current;
+  });
+
+  if (!activeMerchant) {
+    res.json(ReceiveDiditWebhookResponse.parse({ received: true, status: "ignored" }));
+    return;
+  }
+
+  const kind = activeMerchant.diditSessionId === sessionId ? "kyc" : "kyb";
+  const currentStatus = kind === "kyc" ? activeMerchant.kycStatus : activeMerchant.kybStatus;
+  if (!diditStatusNeedsRefresh(currentStatus, sessionId)) {
+    await recordWebhookEvent({
+      deliveryKey, provider: "didit", event, reference: sessionId,
+      status: "ignored", httpStatus: 200,
+    });
+    res.json(ReceiveDiditWebhookResponse.parse({ received: true, status: "ignored" }));
+    return;
+  }
+
+  const apiKey = await providerCredential("didit", "DIDIT_API_KEY");
+  if (!apiKey) {
+    res.status(503).json({ error: "Didit API credentials are not configured for decision verification." });
+    return;
+  }
+  if (!claimDiditDecisionCheck(sessionId)) {
+    res.json(ReceiveDiditWebhookResponse.parse({ received: true, status: "already_processing" }));
+    return;
+  }
+
+  let completed = false;
+  try {
+    const decisionResponse = await fetch(
+      `https://verification.didit.me/v3/session/${encodeURIComponent(sessionId)}/decision/`,
+      {
+        headers: { "x-api-key": apiKey, Accept: "application/json" },
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+    if (!decisionResponse.ok) throw new Error(`Didit decision endpoint returned ${decisionResponse.status}.`);
+    const mapped = diditDecisionStatus(await decisionResponse.json(), sessionId);
+    if (!mapped) {
+      await recordWebhookEvent({
+        deliveryKey, provider: "didit", event, reference: sessionId,
+        status: "ignored", httpStatus: 200,
+      });
+      completed = true;
+      res.json(ReceiveDiditWebhookResponse.parse({ received: true, status: "ignored" }));
+      return;
+    }
+
+    const outcome = await db.transaction(async (tx) => {
+      const [latest] = await tx.select().from(merchantsTable)
+        .where(eq(merchantsTable.id, activeMerchant.id)).for("update").limit(1);
+      if (!latest) return { status: "ignored" };
+
+      const latestSessionId = kind === "kyc" ? latest.diditSessionId : latest.diditKybSessionId;
+      const latestStatus = kind === "kyc" ? latest.kycStatus : latest.kybStatus;
+      if (latestSessionId !== sessionId || !diditStatusNeedsRefresh(latestStatus, latestSessionId)) {
+        return { status: "ignored" };
+      }
+      if (latestStatus === mapped) return { status: mapped };
+
+      const now = new Date();
+      const changes = kind === "kyc"
+        ? {
+            kycStatus: mapped,
+            verificationUpdatedAt: now,
+            ...(mapped === "approved" && latest.status === "pending" &&
+              ["approved", "not_submitted"].includes(latest.applicationStatus) ? { status: "active" } : {}),
+            updatedAt: now,
+          }
+        : { kybStatus: mapped, kybVerificationUpdatedAt: now, updatedAt: now };
+      await tx.update(merchantsTable).set(changes).where(and(
+        eq(merchantsTable.id, latest.id),
+        eq(kind === "kyc" ? merchantsTable.diditSessionId : merchantsTable.diditKybSessionId, sessionId),
+      ));
+      return { status: mapped };
+    });
+
+    await recordWebhookEvent({
+      deliveryKey, provider: "didit", event, reference: sessionId,
+      status: outcome.status === "ignored" ? "ignored" : "processed", httpStatus: 200,
+    });
+    completed = true;
+    res.json(ReceiveDiditWebhookResponse.parse({ received: true, status: outcome.status }));
+  } catch (error) {
+    req.log.error({ sessionId, event, err: error }, "Didit notification could not be confirmed through the decision API");
+    res.status(503).json({ error: "Didit decision could not be verified; verification state was not changed." });
+  } finally {
+    releaseDiditDecisionCheck(sessionId, completed);
+  }
+});
 
 function mapPaymentStatus(value: unknown): PaymentStatus {
   const status = typeof value === "string" ? value.toLowerCase() : "";

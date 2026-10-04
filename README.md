@@ -69,16 +69,20 @@ successful verification, collection, or payout.
    and beneficial-owner checks.
 2. Save the workflow identifiers and application API key through the admin
    credential manager or server configuration.
-3. Didit status is refreshed from its decision API while the merchant's
-   verification page is open, so no webhook destination or signing secret is
-   needed.
-4. Use the actual published app URL for the production browser return URL;
-   development preview URLs are not production URLs.
+3. Optionally configure the production webhook destination as
+   `https://greenpay.co.ke/api/webhooks/didit`. No webhook signing secret is
+   needed by Greenpay: the notification only identifies a session, and the
+   server confirms every status through Didit's authenticated decision API
+   before changing KYC state.
+4. Session creation sets the browser return URL to
+   `PUBLIC_APP_URL/merchant/kyc` automatically. This is separate from the
+   webhook URL; development preview URLs are not production URLs.
 
 Didit's `callback` is the browser return URL. Its query-string status is **not**
 proof of approval. Only a server-verified provider decision may update verified
 KYC status. The application retains status/session metadata rather than
-copying identity documents or biometrics into the database.
+copying identity documents or biometrics into the database. The KYC page also
+polls Didit's decision API while open and when the merchant returns.
 
 ## Developer API
 

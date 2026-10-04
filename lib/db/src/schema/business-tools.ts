@@ -119,6 +119,7 @@ export const merchantCaseUploadIntentsTable = pgTable("greenpay_case_upload_inte
 export const merchantApplicationAttachmentsTable = pgTable("greenpay_application_attachments", {
   id: serial("id").primaryKey(),
   merchantId: integer("merchant_id").notNull(),
+  requestId: varchar("request_id", { length: 64 }),
   objectPath: text("object_path").notNull(),
   name: varchar("name", { length: 180 }).notNull(),
   contentType: varchar("content_type", { length: 40 }).notNull(),
@@ -134,6 +135,7 @@ export const merchantApplicationUploadIntentsTable = pgTable("greenpay_applicati
   id: serial("id").primaryKey(),
   token: varchar("token", { length: 64 }).notNull().unique(),
   merchantId: integer("merchant_id").notNull(),
+  requestId: varchar("request_id", { length: 64 }),
   objectPath: text("object_path").notNull().unique(),
   name: varchar("name", { length: 180 }).notNull(),
   contentType: varchar("content_type", { length: 40 }).notNull(),

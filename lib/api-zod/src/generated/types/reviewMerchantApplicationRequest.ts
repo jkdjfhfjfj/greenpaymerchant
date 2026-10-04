@@ -14,4 +14,14 @@ export interface ReviewMerchantApplicationRequest {
      * @maxLength 2000
      */
   reason: string;
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  requestId?: string;
+  /**
+     * @maxItems 5
+     * @items.pattern ^[a-f0-9]{32}$
+     */
+  attachmentUploadTokens?: string[];
 }

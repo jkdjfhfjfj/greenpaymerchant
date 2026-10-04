@@ -1616,6 +1616,38 @@ paths:
             image/png: { schema: { type: string, format: binary } }
             image/jpeg: { schema: { type: string, format: binary } }
         "404": { description: Attachment not found for this merchant }
+  /admin/merchants/{merchantId}/application-request-attachments/upload-intent:
+    post:
+      operationId: createAdminMerchantApplicationRequestAttachmentUploadIntent
+      tags: [admin]
+      summary: Create a short-lived private upload for files attached to an information request
+      parameters:
+        - { name: merchantId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminApplicationRequestAttachmentUploadIntentInput" }
+      responses:
+        "201":
+          description: Signed upload fields and opaque token for the information request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantApplicationAttachmentUploadIntent" }
+        "400": { description: Invalid file metadata }
+        "409": { description: Application is not awaiting review or the request has reached its file limit }
+        "413": { description: Upload exceeds the maximum supported size }
+  /admin/merchants/{merchantId}/application-request-attachments/uploads/{uploadToken}:
+    delete:
+      operationId: deleteAdminMerchantApplicationRequestAttachmentUploadIntent
+      tags: [admin]
+      summary: Cancel an incomplete private information-request file upload
+      parameters:
+        - { name: merchantId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: uploadToken, in: path, required: true, schema: { type: string, pattern: "^[a-f0-9]{32}$" } }
+      responses:
+        "204": { description: Unused upload token and its private object were removed }
+        "404": { description: Upload token not found for this merchant }
   /merchant/collection-analytics:
     get:
       operationId: getMerchantCollectionAnalytics
@@ -2586,7 +2618,7 @@ paths:
           schema: { type: string, enum: [pending, active, suspended, closed] }
         - name: kycStatus
           in: query
-          schema: { type: string, enum: [not_started, pending, approved, declined, in_review, expired] }
+          schema: { type: string, enum: [not_started, pending, approved, declined, in_review, expired, reverification_required] }
       responses:
         "200":
           description: Merchant accounts
@@ -2674,7 +2706,7 @@ paths:
     post:
       operationId: setAdminMerchantStatus
       tags: [admin]
-      summary: Activate or suspend a merchant with an audited reason
+      summary: Set a merchant account to pending, active, or suspended with an audited reason
       parameters:
         - name: merchantId
           in: path
@@ -2716,6 +2748,26 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AdminMerchantApplicationReviewResponse" }
         "409": { description: Application is not awaiting review }
+  /admin/merchants/{merchantId}/verification-request:
+    post:
+      operationId: createAdminMerchantVerificationRequest
+      tags: [admin]
+      summary: Request a new KYC or KYB verification session
+      parameters:
+        - { name: merchantId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminMerchantVerificationRequestInput" }
+      responses:
+        "200":
+          description: Reverification request recorded and owner notified
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminMerchantVerificationRequestResponse" }
+        "400": { description: Invalid verification type or reason }
+        "404": { description: Merchant not found }
   /admin/fee-schedules:
     get:
       operationId: listAdminFeeSchedules
@@ -4516,7 +4568,7 @@ components:
         expiresAt: { type: string, format: date-time }
     MerchantApplicationAttachment:
       type: object
-      required: [id, name, size, contentType, createdAt, downloadPath]
+      required: [id, name, size, contentType, createdAt, downloadPath, direction, requestId]
       properties:
         id: { type: integer }
         name: { type: string, minLength: 1, maxLength: 180 }
@@ -4524,6 +4576,8 @@ components:
         contentType: { type: string, enum: [application/pdf, image/png, image/jpeg] }
         createdAt: { type: string, format: date-time }
         downloadPath: { type: string, description: Authenticated API path; never a public storage URL. }
+        direction: { type: string, enum: [submitted, requested] }
+        requestId: { type: ["string", "null"] }
     MerchantApplicationAttachmentList:
       type: object
       required: [items]
@@ -4551,6 +4605,15 @@ components:
         objectPath: { type: string, description: Opaque authenticated Cloudinary asset reference; never a public URL. }
         uploadToken: { type: string }
         expiresAt: { type: string, format: date-time }
+    AdminApplicationRequestAttachmentUploadIntentInput:
+      type: object
+      required: [name, size, contentType, requestId]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 180 }
+        size: { type: integer, minimum: 1, maximum: 10485760 }
+        contentType: { type: string, enum: [application/pdf, image/png, image/jpeg] }
+        requestId: { type: string, minLength: 1, maxLength: 64 }
+      additionalProperties: false
     ApplicationResubmissionInput:
       type: object
       required: [application]
@@ -4800,8 +4863,8 @@ components:
         id: { type: integer }
         businessName: { type: string }
         role: { $ref: "#/components/schemas/MerchantTeamRole" }
-        kycStatus: { type: string, enum: [not_started, pending, approved, declined, in_review, expired] }
-        kybStatus: { type: string, enum: [not_started, pending, approved, declined, in_review, expired] }
+        kycStatus: { type: string, enum: [not_started, pending, approved, declined, in_review, expired, reverification_required] }
+        kybStatus: { type: string, enum: [not_started, pending, approved, declined, in_review, expired, reverification_required] }
         country: { type: string }
         baseCurrency: { type: string }
     MerchantBusinessCapacity:
@@ -4883,7 +4946,7 @@ components:
         role: { $ref: "#/components/schemas/MerchantTeamInvitationRole" }
     MerchantProfile:
       type: object
-      required: [id, businessName, shopName, shopLogoUrl, country, baseCurrency, status, applicationDetails, applicationStatus, applicationRequestedInfo, applicationSubmittedAt, applicationReviewedAt, kycStatus, kybStatus, createdAt]
+      required: [id, businessName, shopName, shopLogoUrl, country, baseCurrency, status, applicationDetails, applicationStatus, applicationRequestedInfo, applicationRequestId, applicationSubmittedAt, applicationReviewedAt, kycStatus, kycRequestedInfo, kybStatus, kybRequestedInfo, createdAt]
       properties:
         id: { type: integer }
         businessName: { type: string }
@@ -4896,10 +4959,13 @@ components:
         applicationDetails: { oneOf: [{ $ref: "#/components/schemas/BusinessApplicationDetails" }, { type: "null" }] }
         applicationStatus: { type: string, enum: [not_submitted, awaiting_review, more_info_required, approved, declined] }
         applicationRequestedInfo: { type: ["string", "null"], maxLength: 2000 }
+        applicationRequestId: { type: ["string", "null"], maxLength: 64 }
         applicationSubmittedAt: { type: ["string", "null"], format: date-time }
         applicationReviewedAt: { type: ["string", "null"], format: date-time }
-        kycStatus: { type: string, enum: [not_started, pending, approved, declined, in_review, expired] }
-        kybStatus: { type: string, enum: [not_started, pending, approved, declined, in_review, expired] }
+        kycStatus: { type: string, enum: [not_started, pending, approved, declined, in_review, expired, reverification_required] }
+        kycRequestedInfo: { type: ["string", "null"], maxLength: 2000 }
+        kybStatus: { type: string, enum: [not_started, pending, approved, declined, in_review, expired, reverification_required] }
+        kybRequestedInfo: { type: ["string", "null"], maxLength: 2000 }
         paymentsEnabled: { type: boolean }
         payoutsEnabled: { type: boolean }
         refundsEnabled: { type: boolean }
@@ -5026,15 +5092,15 @@ components:
       type: object
       required: [status, reason]
       properties:
-        status: { type: string, enum: [active, suspended] }
-        reason: { type: string, minLength: 1, maxLength: 2000 }
+        status: { type: string, enum: [pending, active, suspended] }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
       additionalProperties: false
     AdminMerchantStatusResponse:
       type: object
       required: [merchantId, status, reason, updatedAt]
       properties:
         merchantId: { type: integer }
-        status: { type: string, enum: [active, suspended] }
+        status: { type: string, enum: [pending, active, suspended] }
         reason: { type: string }
         updatedAt: { type: string, format: date-time }
     CreateMerchantInput:
@@ -5077,6 +5143,13 @@ components:
       properties:
         decision: { type: string, enum: [approve, request_information] }
         reason: { type: string, minLength: 5, maxLength: 2000 }
+        requestId: { type: string, minLength: 1, maxLength: 64 }
+        attachmentUploadTokens:
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, pattern: "^[a-f0-9]{32}$" }
+      additionalProperties: false
     AdminMerchantApplicationReviewResponse:
       type: object
       required: [merchantId, applicationStatus, merchantStatus, applicationRequestedInfo, applicationReviewedAt]
@@ -5086,6 +5159,22 @@ components:
         merchantStatus: { type: string, enum: [pending, active, suspended, closed] }
         applicationRequestedInfo: { type: ["string", "null"] }
         applicationReviewedAt: { type: ["string", "null"], format: date-time }
+    AdminMerchantVerificationRequestInput:
+      type: object
+      required: [kind, reason]
+      properties:
+        kind: { type: string, enum: [kyc, kyb] }
+        reason: { type: string, minLength: 5, maxLength: 2000 }
+      additionalProperties: false
+    AdminMerchantVerificationRequestResponse:
+      type: object
+      required: [merchantId, kind, status, requestedInfo, updatedAt]
+      properties:
+        merchantId: { type: integer }
+        kind: { type: string, enum: [kyc, kyb] }
+        status: { type: string, enum: [reverification_required] }
+        requestedInfo: { type: string, maxLength: 2000 }
+        updatedAt: { type: string, format: date-time }
     MerchantCollectionAnalyticsGroup:
       type: object
       required: [value, transactionCount, successfulCount, successRate, grossVolume, feeTotal, currency, averageSettlementHours]
@@ -5153,18 +5242,20 @@ components:
           items: { $ref: "#/components/schemas/VerificationTierLimitInput" }
     KycStatus:
       type: object
-      required: [status, configured, sessionId, sessionUrl, kybStatus, kybConfigured, kybSessionId, kybSessionUrl, kybUpdatedAt, tier, limits]
+      required: [status, configured, sessionId, sessionUrl, reverificationReason, kybStatus, kybConfigured, kybSessionId, kybSessionUrl, kybReverificationReason, kybUpdatedAt, tier, limits]
       properties:
         status: { type: string }
         configured: { type: boolean }
         sessionId: { type: ["string", "null"] }
         sessionUrl: { type: ["string", "null"] }
         updatedAt: { type: ["string", "null"], format: date-time }
+        reverificationReason: { type: ["string", "null"], maxLength: 2000 }
         kybStatus: { type: string }
         kybConfigured: { type: boolean }
         kybSessionId: { type: ["string", "null"] }
         kybSessionUrl: { type: ["string", "null"] }
         kybUpdatedAt: { type: ["string", "null"], format: date-time }
+        kybReverificationReason: { type: ["string", "null"], maxLength: 2000 }
         tier: { type: string, enum: [unverified, kyc, kyb] }
         limits:
           type: array

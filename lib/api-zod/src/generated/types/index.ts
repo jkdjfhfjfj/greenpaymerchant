@@ -8,6 +8,8 @@
 
 export * from './accessProfile';
 export * from './accessProfileRole';
+export * from './adminApplicationRequestAttachmentUploadIntentInput';
+export * from './adminApplicationRequestAttachmentUploadIntentInputContentType';
 export * from './adminAuditEntry';
 export * from './adminAuditLog';
 export * from './adminCaseRefundRecord';
@@ -54,6 +56,11 @@ export * from './adminMerchantStatusResponse';
 export * from './adminMerchantStatusResponseStatus';
 export * from './adminMerchantUpdate';
 export * from './adminMerchantUpdateStatus';
+export * from './adminMerchantVerificationRequestInput';
+export * from './adminMerchantVerificationRequestInputKind';
+export * from './adminMerchantVerificationRequestResponse';
+export * from './adminMerchantVerificationRequestResponseKind';
+export * from './adminMerchantVerificationRequestResponseStatus';
 export * from './adminSummary';
 export * from './adminWallet';
 export * from './adminWalletAdjustmentRequest';
@@ -192,6 +199,7 @@ export * from './merchantActionRole';
 export * from './merchantApiKeySecret';
 export * from './merchantApplicationAttachment';
 export * from './merchantApplicationAttachmentContentType';
+export * from './merchantApplicationAttachmentDirection';
 export * from './merchantApplicationAttachmentList';
 export * from './merchantApplicationAttachmentUploadIntent';
 export * from './merchantApplicationAttachmentUploadIntentInput';

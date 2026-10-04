@@ -17,6 +17,11 @@ export interface KycStatus {
   sessionUrl: string | null;
   /** @nullable */
   updatedAt?: Date | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  reverificationReason: string | null;
   kybStatus: string;
   kybConfigured: boolean;
   /** @nullable */
@@ -25,6 +30,11 @@ export interface KycStatus {
   kybSessionUrl: string | null;
   /** @nullable */
   kybUpdatedAt: Date | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  kybReverificationReason: string | null;
   tier: KycStatusTier;
   limits: VerificationTierLimit[];
   requirements?: string[];

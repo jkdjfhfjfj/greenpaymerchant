@@ -47,6 +47,9 @@ type MerchantAccountAction =
   | "application_resubmitted"
   | "application_approved"
   | "more_info_required"
+  | "kyc_reverification_required"
+  | "kyb_reverification_required"
+  | "pending"
   | "suspended"
   | "active";
 

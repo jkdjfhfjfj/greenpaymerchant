@@ -2306,6 +2306,14 @@ export const MerchantApplicationAttachmentContentType = {
   'image/jpeg': 'image/jpeg',
 } as const;
 
+export type MerchantApplicationAttachmentDirection = typeof MerchantApplicationAttachmentDirection[keyof typeof MerchantApplicationAttachmentDirection];
+
+
+export const MerchantApplicationAttachmentDirection = {
+  submitted: 'submitted',
+  requested: 'requested',
+} as const;
+
 export interface MerchantApplicationAttachment {
   id: number;
   /**
@@ -2322,6 +2330,9 @@ export interface MerchantApplicationAttachment {
   createdAt: string;
   /** Authenticated API path; never a public storage URL. */
   downloadPath: string;
+  direction: MerchantApplicationAttachmentDirection;
+  /** @nullable */
+  requestId: string | null;
 }
 
 export interface MerchantApplicationAttachmentList {
@@ -2365,6 +2376,34 @@ export interface MerchantApplicationAttachmentUploadIntent {
   objectPath: string;
   uploadToken: string;
   expiresAt: string;
+}
+
+export type AdminApplicationRequestAttachmentUploadIntentInputContentType = typeof AdminApplicationRequestAttachmentUploadIntentInputContentType[keyof typeof AdminApplicationRequestAttachmentUploadIntentInputContentType];
+
+
+export const AdminApplicationRequestAttachmentUploadIntentInputContentType = {
+  'application/pdf': 'application/pdf',
+  'image/png': 'image/png',
+  'image/jpeg': 'image/jpeg',
+} as const;
+
+export interface AdminApplicationRequestAttachmentUploadIntentInput {
+  /**
+     * @minLength 1
+     * @maxLength 180
+     */
+  name: string;
+  /**
+     * @minimum 1
+     * @maximum 10485760
+     */
+  size: number;
+  contentType: AdminApplicationRequestAttachmentUploadIntentInputContentType;
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  requestId: string;
 }
 
 export type BusinessApplicationDetailsBusinessType = typeof BusinessApplicationDetailsBusinessType[keyof typeof BusinessApplicationDetailsBusinessType];
@@ -2778,6 +2817,7 @@ export const MerchantProfileKycStatus = {
   declined: 'declined',
   in_review: 'in_review',
   expired: 'expired',
+  reverification_required: 'reverification_required',
 } as const;
 
 export type MerchantProfileKybStatus = typeof MerchantProfileKybStatus[keyof typeof MerchantProfileKybStatus];
@@ -2790,6 +2830,7 @@ export const MerchantProfileKybStatus = {
   declined: 'declined',
   in_review: 'in_review',
   expired: 'expired',
+  reverification_required: 'reverification_required',
 } as const;
 
 export interface MerchantProfile {
@@ -2818,12 +2859,27 @@ export interface MerchantProfile {
      * @nullable
      */
   applicationRequestedInfo: string | null;
+  /**
+     * @maxLength 64
+     * @nullable
+     */
+  applicationRequestId: string | null;
   /** @nullable */
   applicationSubmittedAt: string | null;
   /** @nullable */
   applicationReviewedAt: string | null;
   kycStatus: MerchantProfileKycStatus;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  kycRequestedInfo: string | null;
   kybStatus: MerchantProfileKybStatus;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  kybRequestedInfo: string | null;
   paymentsEnabled?: boolean;
   payoutsEnabled?: boolean;
   refundsEnabled?: boolean;
@@ -2850,6 +2906,7 @@ export const MerchantWorkspaceKycStatus = {
   declined: 'declined',
   in_review: 'in_review',
   expired: 'expired',
+  reverification_required: 'reverification_required',
 } as const;
 
 export type MerchantWorkspaceKybStatus = typeof MerchantWorkspaceKybStatus[keyof typeof MerchantWorkspaceKybStatus];
@@ -2862,6 +2919,7 @@ export const MerchantWorkspaceKybStatus = {
   declined: 'declined',
   in_review: 'in_review',
   expired: 'expired',
+  reverification_required: 'reverification_required',
 } as const;
 
 export interface MerchantWorkspace {
@@ -3234,6 +3292,7 @@ export type SetAdminMerchantStatusRequestStatus = typeof SetAdminMerchantStatusR
 
 
 export const SetAdminMerchantStatusRequestStatus = {
+  pending: 'pending',
   active: 'active',
   suspended: 'suspended',
 } as const;
@@ -3242,7 +3301,7 @@ export interface SetAdminMerchantStatusRequest {
   status: SetAdminMerchantStatusRequestStatus;
   /**
      * @minLength 1
-     * @maxLength 2000
+     * @maxLength 1000
      */
   reason: string;
 }
@@ -3251,6 +3310,7 @@ export type AdminMerchantStatusResponseStatus = typeof AdminMerchantStatusRespon
 
 
 export const AdminMerchantStatusResponseStatus = {
+  pending: 'pending',
   active: 'active',
   suspended: 'suspended',
 } as const;
@@ -3298,6 +3358,16 @@ export interface ReviewMerchantApplicationRequest {
      * @maxLength 2000
      */
   reason: string;
+  /**
+     * @minLength 1
+     * @maxLength 64
+     */
+  requestId?: string;
+  /**
+     * @maxItems 5
+     * @items.pattern ^[a-f0-9]{32}$
+     */
+  attachmentUploadTokens?: string[];
 }
 
 export type AdminMerchantApplicationReviewResponseApplicationStatus = typeof AdminMerchantApplicationReviewResponseApplicationStatus[keyof typeof AdminMerchantApplicationReviewResponseApplicationStatus];
@@ -3328,6 +3398,47 @@ export interface AdminMerchantApplicationReviewResponse {
   applicationRequestedInfo: string | null;
   /** @nullable */
   applicationReviewedAt: string | null;
+}
+
+export type AdminMerchantVerificationRequestInputKind = typeof AdminMerchantVerificationRequestInputKind[keyof typeof AdminMerchantVerificationRequestInputKind];
+
+
+export const AdminMerchantVerificationRequestInputKind = {
+  kyc: 'kyc',
+  kyb: 'kyb',
+} as const;
+
+export interface AdminMerchantVerificationRequestInput {
+  kind: AdminMerchantVerificationRequestInputKind;
+  /**
+     * @minLength 5
+     * @maxLength 2000
+     */
+  reason: string;
+}
+
+export type AdminMerchantVerificationRequestResponseKind = typeof AdminMerchantVerificationRequestResponseKind[keyof typeof AdminMerchantVerificationRequestResponseKind];
+
+
+export const AdminMerchantVerificationRequestResponseKind = {
+  kyc: 'kyc',
+  kyb: 'kyb',
+} as const;
+
+export type AdminMerchantVerificationRequestResponseStatus = typeof AdminMerchantVerificationRequestResponseStatus[keyof typeof AdminMerchantVerificationRequestResponseStatus];
+
+
+export const AdminMerchantVerificationRequestResponseStatus = {
+  reverification_required: 'reverification_required',
+} as const;
+
+export interface AdminMerchantVerificationRequestResponse {
+  merchantId: number;
+  kind: AdminMerchantVerificationRequestResponseKind;
+  status: AdminMerchantVerificationRequestResponseStatus;
+  /** @maxLength 2000 */
+  requestedInfo: string;
+  updatedAt: string;
 }
 
 export interface MerchantCollectionAnalyticsGroup {
@@ -3434,6 +3545,11 @@ export interface KycStatus {
   sessionUrl: string | null;
   /** @nullable */
   updatedAt?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  reverificationReason: string | null;
   kybStatus: string;
   kybConfigured: boolean;
   /** @nullable */
@@ -3442,6 +3558,11 @@ export interface KycStatus {
   kybSessionUrl: string | null;
   /** @nullable */
   kybUpdatedAt: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  kybReverificationReason: string | null;
   tier: KycStatusTier;
   limits: VerificationTierLimit[];
   requirements?: string[];
@@ -4375,6 +4496,7 @@ export const ListAdminMerchantsKycStatus = {
   declined: 'declined',
   in_review: 'in_review',
   expired: 'expired',
+  reverification_required: 'reverification_required',
 } as const;
 
 export type ListAdminEmailDeliveryOutboxParams = {

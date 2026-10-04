@@ -36,7 +36,8 @@ export function useInvalidateAll() {
 
 export function Pill({ value }: { value?: string | null }) {
   const v = (value || 'unknown').toLowerCase();
-  return <span className={`status-pill status-${v}`} data-testid={`status-${v}`}><i />{nice(value)}</span>;
+  const label = v === 'awaiting_review' ? 'Under review' : v === 'reverification_required' ? 'Reverification required' : nice(value);
+  return <span className={`status-pill status-${v}`} data-testid={`status-${v}`}><i />{label}</span>;
 }
 export function Btn({ children, variant = 'primary', className = '', onClick, type = 'button', disabled, testId, small }: { children: ReactNode; variant?: 'primary' | 'secondary' | 'quiet' | 'danger'; className?: string; onClick?: () => void; type?: 'button' | 'submit'; disabled?: boolean; testId?: string; small?: boolean }) {
   return <button type={type} onClick={onClick} disabled={disabled} data-testid={testId} className={`btn btn-${variant} ${small ? 'btn-sm' : ''} ${className}`}>{children}</button>;

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Search, LoaderCircle, Pencil, Trash2, Plus, ShieldCheck, Eye } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRoute } from 'wouter';
@@ -10,6 +10,9 @@ import {
   useFindAdminPlatformUsers, useGrantPlatformAdmin, useRevokePlatformAdmin, getFindAdminPlatformUsersQueryKey, getGetAccessProfileQueryKey,
   useReviewAdminMerchantApplication, getListAdminMerchantsQueryKey,
   useListAdminMerchantApplicationAttachments,
+  useCreateAdminMerchantApplicationRequestAttachmentUploadIntent,
+  useDeleteAdminMerchantApplicationRequestAttachmentUploadIntent,
+  useCreateAdminMerchantVerificationRequest,
   useListAdminCollectionCurrencyAvailability, useUpdateAdminCollectionCurrencyAvailability,
   getListAdminCollectionCurrencyAvailabilityQueryKey, useListSupportedCurrencies,
   type AdminMerchant, type AdminFxRate, type AdminFeeSchedule, type ProviderCredential, type ListAdminMerchantsParams, type PlatformSettings,
@@ -125,7 +128,7 @@ function MerchantsInner() {
   return <><Heading eyebrow="ADMIN" title="Merchants" subtitle="Review, activate, suspend and annotate merchant accounts." />
     <div className="toolbar"><div className="search-box"><Search size={14} /><input placeholder="Search business name" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-merchant-search" /></div>
       <select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="select-merchant-status"><option value="">Any status</option>{['pending', 'active', 'suspended', 'closed'].map((s) => <option key={s} value={s}>{nice(s)}</option>)}</select>
-      <select value={kyc} onChange={(e) => setKyc(e.target.value)} data-testid="select-merchant-kyc"><option value="">Any verification</option>{['not_started', 'pending', 'in_review', 'approved', 'declined', 'expired'].map((s) => <option key={s} value={s}>{nice(s)}</option>)}</select></div>
+      <select value={kyc} onChange={(e) => setKyc(e.target.value)} data-testid="select-merchant-kyc"><option value="">Any verification</option>{['not_started', 'pending', 'in_review', 'approved', 'declined', 'expired', 'reverification_required'].map((s) => <option key={s} value={s}>{nice(s)}</option>)}</select></div>
     <Async q={q} empty={!items.length} emptyTitle="No merchants match" emptyBody="Adjust the search or filters."><div className="table-wrap"><table className="dt"><thead><tr><th>Business</th><th>Country</th><th>Base</th><th>Account</th><th>Application</th><th>Verification</th><th>Created</th><th /></tr></thead><tbody>
        {items.map((m) => <tr key={m.id} data-testid={`row-merchant-${m.id}`}><td><strong>{m.businessName}</strong><span className="sub">{m.riskNote || m.ownerUserId}</span></td><td>{m.country}</td><td>{m.baseCurrency}</td><td><Pill value={m.status} /></td><td><Pill value={m.applicationStatus} />{m.applicationSubmittedAt && <span className="sub">Submitted {fmtDate(m.applicationSubmittedAt)}</span>}</td><td><Pill value={m.kycStatus} /></td><td>{fmtDate(m.createdAt)}</td><td><div className="row-actions">{m.applicationStatus === 'awaiting_review' && m.applicationDetails && <Btn small onClick={() => setReview(m)}><ShieldCheck size={13} />Review</Btn>}<Btn variant="secondary" small onClick={() => setDetails(m)}><Eye size={13} />Details</Btn><a className="btn btn-secondary btn-sm" href={`/admin/merchants/${m.id}/controls`}>Manage status</a><Btn variant="secondary" small onClick={() => setEdit(m)}><Pencil size={13} />Edit</Btn></div></td></tr>)}
     </tbody></table></div></Async>
@@ -137,19 +140,105 @@ function MerchantsInner() {
 function MerchantApplicationReview({ m, onClose }: { m: AdminMerchant; onClose: () => void }) {
   const mutation = useReviewAdminMerchantApplication();
   const attachments = useListAdminMerchantApplicationAttachments(m.id);
+  const createUploadIntent = useCreateAdminMerchantApplicationRequestAttachmentUploadIntent();
+  const deleteUploadIntent = useDeleteAdminMerchantApplicationRequestAttachmentUploadIntent();
   const queryClient = useQueryClient();
   const [reason, setReason] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ key: string; token: string }>>([]);
+  const [uploadError, setUploadError] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const requestId = useRef(globalThis.crypto.randomUUID());
+  const requestSaved = useRef(false);
   const application = m.applicationDetails;
   if (!application) return null;
-  const canSubmit = reason.trim().length >= 5 && reason.trim().length <= 2000 && !mutation.isPending;
-  function decide(decision: 'approve' | 'request_information') {
-    mutation.mutate({ merchantId: m.id, data: { decision, reason: reason.trim() } }, { onSuccess: async () => {
+  const canSubmit = reason.trim().length >= 5 && reason.trim().length <= 2000 &&
+    !mutation.isPending && !uploading && !createUploadIntent.isPending;
+  const fileKey = (file: File) => `${file.name}:${file.size}:${file.lastModified}:${file.type}`;
+  function closeReview() {
+    if (!requestSaved.current) {
+      for (const uploaded of uploadedFiles) {
+        void deleteUploadIntent.mutateAsync({ merchantId: m.id, uploadToken: uploaded.token }).catch(() => undefined);
+      }
+    }
+    onClose();
+  }
+  async function stageFiles(): Promise<string[]> {
+    const tokens: string[] = [];
+    for (const file of files) {
+      const key = fileKey(file);
+      const existing = uploadedFiles.find((uploaded) => uploaded.key === key);
+      if (existing) {
+        tokens.push(existing.token);
+        continue;
+      }
+      const intent = await createUploadIntent.mutateAsync({ merchantId: m.id, data: {
+        name: file.name,
+        size: file.size,
+        contentType: file.type as 'application/pdf' | 'image/png' | 'image/jpeg',
+        requestId: requestId.current,
+      } });
+      const uploadBody = new FormData();
+      for (const [key, value] of Object.entries(intent.uploadParameters)) uploadBody.append(key, value);
+      uploadBody.append('file', file);
+      try {
+        const response = await fetch(intent.uploadURL, { method: 'POST', body: uploadBody });
+        if (!response.ok) throw new Error(`Private upload failed for ${file.name} (${response.status}).`);
+      } catch (error) {
+        await deleteUploadIntent.mutateAsync({ merchantId: m.id, uploadToken: intent.uploadToken }).catch(() => undefined);
+        throw error;
+      }
+      setUploadedFiles((current) => [...current, { key, token: intent.uploadToken }]);
+      tokens.push(intent.uploadToken);
+    }
+    return tokens;
+  }
+  async function decide(decision: 'approve' | 'request_information') {
+    setUploadError('');
+    setUploading(true);
+    try {
+      const tokens = decision === 'request_information' ? await stageFiles() : [];
+      await mutation.mutateAsync({ merchantId: m.id, data: {
+        decision,
+        reason: reason.trim(),
+        ...(decision === 'request_information' ? { requestId: requestId.current } : {}),
+        ...(tokens.length ? { attachmentUploadTokens: tokens } : {}),
+      } });
+      requestSaved.current = true;
       await queryClient.invalidateQueries({ queryKey: getListAdminMerchantsQueryKey() });
       await queryClient.invalidateQueries({ queryKey: getGetAdminMerchantDetailsQueryKey(m.id) });
       onClose();
-    } });
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Could not save the application decision.');
+    } finally {
+      setUploading(false);
+    }
   }
-  return <Modal title={`Review · ${m.businessName}`} description="Review the submitted business details and record a reason for the decision." onClose={() => { if (!mutation.isPending) onClose(); }} wide>
+  function selectFiles(event: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = '';
+    if (files.length + selected.length > 5) {
+      setUploadError('Attach no more than five files to one document request.');
+      return;
+    }
+    if (selected.some((file) => !['application/pdf', 'image/png', 'image/jpeg'].includes(file.type) || file.size > 10 * 1024 * 1024)) {
+      setUploadError('Choose PDF, PNG, or JPEG files no larger than 10 MB each.');
+      return;
+    }
+    setUploadError('');
+    setFiles((current) => [...current, ...selected]);
+  }
+  function removeFile(file: File) {
+    const uploaded = uploadedFiles.find((item) => item.key === fileKey(file));
+    if (uploaded) {
+      void deleteUploadIntent.mutateAsync({ merchantId: m.id, uploadToken: uploaded.token }).catch((error) => {
+        setUploadError(error instanceof Error ? error.message : 'Could not cancel the private upload.');
+      });
+      setUploadedFiles((current) => current.filter((item) => item.token !== uploaded.token));
+    }
+    setFiles((current) => current.filter((item) => fileKey(item) !== fileKey(file)));
+  }
+  return <Modal title={`Review · ${m.businessName}`} description="Review the submitted business details and record a reason for the decision." onClose={() => { if (!mutation.isPending && !uploading) closeReview(); }} wide>
     <div className="form-stack">
       <div className="kv">
         <div><span>Application status</span><Pill value={m.applicationStatus} /></div>
@@ -176,21 +265,29 @@ function MerchantApplicationReview({ m, onClose }: { m: AdminMerchant; onClose: 
           <div><span>Source of funds</span><p>{application.sourceOfFunds}</p></div>
         </div>
       </Card>
-      <Card title="Submitted documents and media" subtitle="Private files are available only to authorized reviewers.">
+      <Card title="Application documents and media" subtitle="Private files are available only to authorized reviewers.">
         {attachments.isLoading ? <span className="sub">Loading submitted files…</span> : attachments.isError ? <Note tone="warn">Submitted files could not be loaded. Close and reopen this review to retry.</Note> : attachments.data?.items.length ? <div className="form-stack">
-          {attachments.data.items.map((file) => <a key={file.id} className="text-link" href={file.downloadPath} download>{file.name} · {file.contentType} · {(file.size / 1024 / 1024).toFixed(2)} MB</a>)}
+          {attachments.data.items.map((file) => <a key={file.id} className="text-link" data-testid={`link-admin-application-file-${m.id}-${file.id}`} href={file.downloadPath} download>{file.direction === 'requested' ? 'Shared by Greenpay · ' : 'Submitted by merchant · '}{file.name} · {file.contentType} · {(file.size / 1024 / 1024).toFixed(2)} MB</a>)}
         </div> : <span className="sub">No application files have been submitted.</span>}
       </Card>
       {m.applicationRequestedInfo && <Note tone="warn">Previously requested: {m.applicationRequestedInfo}</Note>}
       {m.applicationStatus === 'awaiting_review' ? <Field label="Decision reason" hint="Required · at least 5 characters · visible in the application decision record">
         <textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={5} maxLength={2000} required placeholder="Record the reason for this decision" data-testid={`input-application-review-reason-${m.id}`} />
       </Field> : <Note tone="warn">This application is not awaiting review. Decision actions are unavailable; refresh the merchant list for its current status.</Note>}
+      {m.applicationStatus === 'awaiting_review' && <Field label="Files to share with the merchant" hint="Optional · PDF, PNG, or JPEG · up to five files · 10 MB each · attached only when you request information">
+        <input type="file" multiple accept="application/pdf,image/png,image/jpeg" disabled={uploading || mutation.isPending} onChange={selectFiles} data-testid={`input-admin-request-attachment-${m.id}`} />
+        {files.length > 0 && <div className="form-stack">{files.map((file, index) => <div key={fileKey(file)} className="setting-row">
+          <span data-testid={`text-admin-request-file-${m.id}-${index}`}>{file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB</span>
+          <button type="button" className="btn btn-secondary btn-sm" data-testid={`button-remove-admin-request-file-${m.id}-${index}`} disabled={uploading || mutation.isPending} onClick={() => removeFile(file)}>Remove</button>
+        </div>)}</div>}
+      </Field>}
       <Err error={mutation.error} />
+      {uploadError && <Note tone="warn">{uploadError}</Note>}
       <div className="row-actions application-review-actions">
-        <Btn variant="secondary" disabled={mutation.isPending} onClick={onClose}>Cancel</Btn>
+        <Btn variant="secondary" disabled={mutation.isPending || uploading} onClick={closeReview}>Cancel</Btn>
         {m.applicationStatus === 'awaiting_review' && <>
-          <Btn variant="secondary" disabled={!canSubmit} onClick={() => decide('request_information')} testId={`button-request-information-${m.id}`}>Request information</Btn>
-          <Btn disabled={!canSubmit} onClick={() => decide('approve')} testId={`button-approve-application-${m.id}`}><ShieldCheck size={14} />Approve application</Btn>
+          <Btn variant="secondary" disabled={!canSubmit} onClick={() => void decide('request_information')} testId={`button-request-information-${m.id}`}>{uploading && <LoaderCircle size={14} className="spin" />}Request information</Btn>
+          <Btn disabled={!canSubmit} onClick={() => void decide('approve')} testId={`button-approve-application-${m.id}`}><ShieldCheck size={14} />Approve application</Btn>
         </>}
       </div>
     </div>
@@ -219,11 +316,24 @@ function MerchantDetails({ m, onClose }: { m: AdminMerchant; onClose: () => void
   const q = useGetAdminMerchantDetails(m.id, {
     query: { queryKey: ['admin-merchant-details', m.id], refetchOnMount: 'always', staleTime: 30_000 },
   });
+  const queryClient = useQueryClient();
+  const verificationRequest = useCreateAdminMerchantVerificationRequest();
+  const [verificationReason, setVerificationReason] = useState('');
   const merchant = q.data?.merchant;
   const owner = q.data?.owner;
   const verifiedEmails = owner?.verifiedEmails.join(' · ') || '—';
   const verifiedPhones = owner?.verifiedPhones.join(' · ') || '—';
   const ownerName = [owner?.firstName, owner?.lastName].filter(Boolean).join(' ') || 'Name not provided';
+  const verificationReasonValid = verificationReason.trim().length >= 5 && verificationReason.trim().length <= 2000;
+  function requestReverification(kind: 'kyc' | 'kyb') {
+    verificationRequest.mutate({ merchantId: m.id, data: { kind, reason: verificationReason.trim() } }, {
+      onSuccess: async () => {
+        setVerificationReason('');
+        await q.refetch();
+        await queryClient.invalidateQueries({ queryKey: getListAdminMerchantsQueryKey() });
+      },
+    });
+  }
   return <Modal title={`Merchant details — ${merchant?.businessName ?? m.businessName}`} onClose={onClose}>
     <Async q={q}>
       {merchant && owner && <div className="form-stack">
@@ -281,6 +391,20 @@ function MerchantDetails({ m, onClose }: { m: AdminMerchant; onClose: () => void
             <div><span className="sub">KYB updated</span><strong>{fmtDate(merchant.kybVerificationUpdatedAt)}</strong></div>
             <div><span className="sub">KYC session ID</span><strong className="mono">{merchant.diditSessionId || '—'}</strong></div>
             <div><span className="sub">KYB session ID</span><strong className="mono">{merchant.diditKybSessionId || '—'}</strong></div>
+          </div>
+          {(merchant.kycRequestedInfo || merchant.kybRequestedInfo) && <div className="form-stack" style={{ marginTop: 12 }}>
+            {merchant.kycRequestedInfo && <Note tone="warn">KYC reverification requested: {merchant.kycRequestedInfo}</Note>}
+            {merchant.kybRequestedInfo && <Note tone="warn">KYB reverification requested: {merchant.kybRequestedInfo}</Note>}
+          </div>}
+          <div className="form-stack" style={{ marginTop: 14 }}>
+            <Field label="Reason for reverification" hint="Required · visible to the merchant and included in their alert">
+              <textarea data-testid={`input-verification-request-reason-${m.id}`} value={verificationReason} onChange={(event) => setVerificationReason(event.target.value)} minLength={5} maxLength={2000} placeholder="Explain what the merchant needs to verify again" />
+            </Field>
+            <Err error={verificationRequest.error} />
+            <div className="row-actions">
+              <Btn variant="secondary" disabled={!verificationReasonValid || verificationRequest.isPending} onClick={() => requestReverification('kyc')} testId={`button-request-kyc-reverification-${m.id}`}>Request KYC reverification</Btn>
+              <Btn variant="secondary" disabled={!verificationReasonValid || verificationRequest.isPending} onClick={() => requestReverification('kyb')} testId={`button-request-kyb-reverification-${m.id}`}>Request KYB reverification</Btn>
+            </div>
           </div>
         </Card>
         <Card title="Platform capabilities and internal notes">
@@ -375,7 +499,7 @@ function AdminMerchantControlsInner() {
     },
   });
   const updateStatus = useMutation({
-    mutationFn: (body: { status: 'active' | 'suspended'; reason: string }) =>
+    mutationFn: (body: { status: 'pending' | 'active' | 'suspended'; reason: string }) =>
       requestMerchantControls(`/admin/merchants/${merchantId}/status`, {
         method: 'POST', body: JSON.stringify(body),
       }),
@@ -389,6 +513,7 @@ function AdminMerchantControlsInner() {
   const [thresholds, setThresholds] = useState<Record<string, string>>({});
   const [dualApproval, setDualApproval] = useState(true);
   const [reason, setReason] = useState('');
+  const [nextStatus, setNextStatus] = useState<'pending' | 'active' | 'suspended'>('pending');
   const [dirty, setDirty] = useState(false);
   const [changedActions, setChangedActions] = useState<Set<MerchantActionKey>>(new Set());
   const [newCurrency, setNewCurrency] = useState<string>(CURRENCIES[0] ?? 'USD');
@@ -398,6 +523,11 @@ function AdminMerchantControlsInner() {
     setThresholds(Object.fromEntries(Object.entries(q.data.payoutSafety.largePayoutThresholds).map(([currency, amount]) => [currency, String(amount)])));
     setDualApproval(q.data.payoutSafety.dualApprovalEnabled);
   }, [q.data, dirty]);
+  useEffect(() => {
+    if (q.data && ['pending', 'active', 'suspended'].includes(q.data.status)) {
+      setNextStatus(q.data.status as 'pending' | 'active' | 'suspended');
+    }
+  }, [q.data?.status]);
 
   if (!validId) return <><Heading eyebrow="ADMIN / MERCHANT" title="Merchant controls" /><Note tone="danger">A valid merchant ID is required to load controls.</Note></>;
   const hasReason = reason.trim().length > 0 && reason.trim().length <= 1000;
@@ -411,12 +541,18 @@ function AdminMerchantControlsInner() {
       {q.data && controls && <div className="form-stack">
         <Card title="Account status" subtitle="Suspending blocks new actions; historical merchant records remain readable. Every status change requires a reason.">
           <div className="setting-row"><div><strong>Current status</strong><span>Last updated {fmtDate(q.data.updatedAt)}</span></div><Pill value={q.data.status} /></div>
+          <Field label="Set account status">
+            <select value={nextStatus} disabled={q.data.status === 'closed' || updateStatus.isPending} onChange={(event) => setNextStatus(event.target.value as 'pending' | 'active' | 'suspended')}>
+              <option value="pending">Pending</option>
+              <option value="active">Active</option>
+              <option value="suspended">Suspended</option>
+            </select>
+          </Field>
           <Field label="Audit reason"><textarea value={reason} onChange={(event) => setReason(event.target.value)} maxLength={1000} placeholder="Explain why this account is being changed" /></Field>
           <div className="row-actions">
-            {q.data.status !== 'suspended'
-              ? <Btn variant="danger" disabled={!hasReason || updateStatus.isPending} onClick={() => updateStatus.mutate({ status: 'suspended', reason: reason.trim() })}>Suspend account</Btn>
-              : <Btn disabled={!hasReason || updateStatus.isPending} onClick={() => updateStatus.mutate({ status: 'active', reason: reason.trim() })}>Reactivate account</Btn>}
+            <Btn variant={nextStatus === 'suspended' ? 'danger' : 'primary'} disabled={!hasReason || updateStatus.isPending || q.data.status === 'closed' || nextStatus === q.data.status} onClick={() => updateStatus.mutate({ status: nextStatus, reason: reason.trim() })}>Save account status</Btn>
           </div>
+          {q.data.status === 'closed' && <Note tone="warn">Closed accounts cannot be changed from this page.</Note>}
           <Err error={updateStatus.error} />
         </Card>
         <Card title="Merchant actions" subtitle="Disabled actions are explicitly reported to merchant clients. Reads of prior transactions, invoices and cases remain available.">

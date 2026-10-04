@@ -5,6 +5,7 @@ import { Activity, ArrowRight, CheckCircle2, Clock3, ExternalLink, Link2, Loader
 import {
   useCreateMerchantProfile, useGetMerchantProfile, getGetMerchantProfileQueryKey, useResubmitMerchantApplication,
   useCreateMerchantApplicationAttachmentUploadIntent, useListMerchantApplicationAttachments,
+  getListMerchantApplicationAttachmentsQueryKey,
   useDeleteMerchantApplicationAttachmentUploadIntent,
   useGetMerchantFees, useGetMerchantKyc, getGetMerchantKycQueryKey, useCreateMerchantKycSession,
   useCreateMerchantCloudinaryUploadSignature, useUpdateMerchantShopProfile,
@@ -97,6 +98,9 @@ export function MerchantPage({ addBusiness = false }: { addBusiness?: boolean } 
   const canCreateBusiness = !!capacity && capacity.businessCount < capacity.businessLimit;
   const fees = useGetMerchantFees({ query: { enabled: !!access.merchant && !addBusiness } as never });
   const m = access.merchant;
+  const applicationAttachments = useListMerchantApplicationAttachments({
+    query: { queryKey: getListMerchantApplicationAttachmentsQueryKey(), enabled: !addBusiness && !!m },
+  });
   const businessLimitNotice = <Card title="Business limit reached" subtitle={`Your current ${capacity?.tier === 'kyc' ? 'KYC' : 'unverified'} level allows ${capacity?.businessLimit ?? 1} owned business${capacity?.businessLimit === 1 ? '' : 'es'}.`}>
     <Note tone="warn">Complete {capacity?.tier === 'kyc' ? 'KYB' : 'KYC'} verification to increase your business limit.</Note>
     <Link href="/merchant/kyc" className="btn btn-primary">Open verification <ArrowRight size={14} /></Link>
@@ -136,6 +140,13 @@ export function MerchantPage({ addBusiness = false }: { addBusiness?: boolean } 
           </Card>}
           {m.applicationStatus === 'more_info_required' && <ApplicationResubmission merchant={profileQuery.data?.merchant ?? m} mutation={resubmit} queryClient={queryClient} />}
           {m.applicationRequestedInfo && <Note tone="warn"><strong>Information requested:</strong> {m.applicationRequestedInfo}</Note>}
+          {applicationAttachments.isError && <Note tone="warn">Application documents could not be loaded. <Btn variant="secondary" small onClick={() => { void applicationAttachments.refetch(); }}>Retry</Btn></Note>}
+          {applicationAttachments.isLoading && <span className="sub">Loading application documents…</span>}
+          {applicationAttachments.data?.items.length ? <Card title="Application documents" subtitle="Private files shared by Greenpay and documents submitted by your business.">
+            <div className="form-stack">{applicationAttachments.data.items.map((file) => <a key={file.id} className="text-link" data-testid={`link-merchant-application-file-${file.id}`} href={file.downloadPath} download>
+              {file.direction === 'requested' ? 'Shared by Greenpay · ' : 'Submitted by your business · '}{file.name} · {file.contentType} · {(file.size / 1024 / 1024).toFixed(2)} MB
+            </a>)}</div>
+          </Card> : null}
           {profileQuery.isError && <Note tone="warn">Application details could not be refreshed. <Btn variant="secondary" small onClick={() => { void profileQuery.refetch(); }}>Retry</Btn></Note>}
           <ShopProfileEditor merchant={m} isOwner={access.data?.role === 'owner'} />
           {m.kycStatus !== 'approved' && <Note tone="warn">Verification is {nice(m.kycStatus).toLowerCase()}. <Link href="/merchant/kyc" className="text-link">Open verification <ArrowRight size={13} /></Link></Note>}
@@ -305,8 +316,8 @@ function ApplicationResubmission({ merchant, mutation, queryClient }: {
   return <Card title="Resubmit your application" subtitle="Update the requested information and send the application back for review.">
     {merchant.applicationRequestedInfo && <Note tone="warn"><strong>Requested:</strong> {merchant.applicationRequestedInfo}</Note>}
     {attachments.data?.items.length ? <div className="form-stack">
-      <strong>Previously submitted files</strong>
-      {attachments.data.items.map((file) => <a key={file.id} className="text-link" href={file.downloadPath} download>{file.name} · {file.contentType}</a>)}
+      <strong>Files on your application</strong>
+      {attachments.data.items.map((file) => <a key={file.id} className="text-link" data-testid={`link-merchant-resubmission-file-${file.id}`} href={file.downloadPath} download>{file.direction === 'requested' ? 'Shared by Greenpay · ' : 'Submitted by your business · '}{file.name} · {file.contentType}</a>)}
     </div> : null}
     {prior && <form className="form-stack application-wizard" onSubmit={submit}>
       <div className="form-grid"><Field label="Business type"><select name="businessType" defaultValue={prior.businessType}><option value="sole_proprietor">Sole proprietor</option><option value="limited_company">Limited company</option><option value="partnership">Partnership</option><option value="nonprofit">Nonprofit</option><option value="other">Other</option></select></Field><Field label="Website"><input name="website" type="url" defaultValue={prior.website ?? ''} /></Field></div>
@@ -431,6 +442,7 @@ function KycInner() {
         <Err error={start.error} />
         <Card title="Personal verification (KYC)" action={<Btn variant="secondary" small onClick={() => { void q.refetch(); }}>Refresh</Btn>}>
           <div className="kv"><div><span>Status</span><Pill value={q.data.status} /></div><div><span>Updated</span><strong>{fmtDate(q.data.updatedAt)}</strong></div></div>
+          {q.data.reverificationReason && <Note tone="warn"><strong>KYC reverification requested:</strong> {q.data.reverificationReason}</Note>}
           {active(q.data.status, q.data.sessionId) && <span className="sub" role="status">Checking for identity verification updates every 15 seconds.</span>}
           {!!q.data.requirements?.length && <ul style={{ margin: '14px 0 0', paddingLeft: 18, fontSize: 13 }}>{q.data.requirements.map((r) => <li key={r}>{r}</li>)}</ul>}
           {q.data.sessionUrl && <p style={{ marginTop: 14 }}><a className="text-link" href={q.data.sessionUrl} target="_blank" rel="noreferrer">Resume KYC session <ExternalLink size={13} /></a></p>}
@@ -441,6 +453,7 @@ function KycInner() {
         </Card>
         <Card title="Business verification (optional KYB)" subtitle="Approved KYB raises your monetary tier only when personal KYC is also approved.">
           <div className="kv"><div><span>Status</span><Pill value={q.data.kybStatus} /></div><div><span>Updated</span><strong>{fmtDate(q.data.kybUpdatedAt)}</strong></div></div>
+          {q.data.kybReverificationReason && <Note tone="warn"><strong>KYB reverification requested:</strong> {q.data.kybReverificationReason}</Note>}
           {active(q.data.kybStatus, q.data.kybSessionId) && <span className="sub" role="status">Checking for business verification updates every 15 seconds.</span>}
           {q.data.kybSessionUrl && <p style={{ marginTop: 14 }}><a className="text-link" href={q.data.kybSessionUrl} target="_blank" rel="noreferrer">Resume KYB session <ExternalLink size={13} /></a></p>}
           {!q.data.kybConfigured && <Note tone="warn">Business verification is temporarily unavailable. Contact Greenpay support for help.</Note>}

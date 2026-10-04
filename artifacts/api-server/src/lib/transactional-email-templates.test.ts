@@ -108,7 +108,7 @@ test("merchant account email reports application decisions without exposing inte
       businessName: "Kono Trading",
       reason: "<provide a current registration document>",
     });
-    assert.match(requested.subject, /More information needed/);
+    assert.match(requested.subject, /Additional documents requested/);
     assert.match(requested.text, /provide a current registration document/);
     assert.match(requested.html, /&lt;provide a current registration document&gt;/);
     assert.match(requested.html, /href="https:\/\/app\.greenpay\.example\/merchant"/);
@@ -119,6 +119,15 @@ test("merchant account email reports application decisions without exposing inte
       businessName: "Kono Trading",
     });
     assert.match(approved.text, /has been approved/);
+
+    const reverification = renderTransactionalEmail("merchant_account_update", {
+      action: "kyb_reverification_required",
+      businessName: "Kono Trading",
+      reason: "Upload a current business registration certificate.",
+    });
+    assert.match(reverification.subject, /KYB reverification requested/);
+    assert.match(reverification.text, /current business registration certificate/);
+    assert.match(reverification.html, /href="https:\/\/app\.greenpay\.example\/merchant\/kyc"/);
   } finally {
     if (previous === undefined) delete process.env.PUBLIC_APP_URL;
     else process.env.PUBLIC_APP_URL = previous;

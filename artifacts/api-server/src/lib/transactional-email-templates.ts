@@ -180,11 +180,30 @@ export function renderTransactionalEmail(
         paragraphs: [`Your application for ${businessName} has been approved. You can now access your business workspace.`],
       },
       more_info_required: {
-        subject: "More information needed for your business application",
+        subject: "Additional documents requested for your business application",
         paragraphs: [
           `More information is needed before the application for ${businessName} can continue.`,
           reason || "Open your business profile to review the requested changes.",
+          "Any files shared by Greenpay and a secure upload form are available in your business profile.",
         ],
+      },
+      kyc_reverification_required: {
+        subject: "KYC reverification requested",
+        paragraphs: [
+          `Greenpay needs you to verify your identity again for ${businessName}.`,
+          reason || "Open verification to continue.",
+        ],
+      },
+      kyb_reverification_required: {
+        subject: "KYB reverification requested",
+        paragraphs: [
+          `Greenpay needs you to verify your business again for ${businessName}.`,
+          reason || "Open verification to continue.",
+        ],
+      },
+      pending: {
+        subject: "Business account set to pending",
+        paragraphs: [`Greenpay set ${businessName} to pending. Account access remains unavailable while the required review is in progress.`],
       },
       suspended: {
         subject: "Business access paused",
@@ -197,9 +216,18 @@ export function renderTransactionalEmail(
     };
     const content = copy[action];
     if (!content) throw new Error(`Unsupported merchant account action: ${action}`);
-    const profileUrl = approvedAppPath("/merchant");
+    const profileUrl = approvedAppPath(
+      action === "kyc_reverification_required" || action === "kyb_reverification_required"
+        ? "/merchant/kyc"
+        : "/merchant",
+    );
     return branded(content.subject, content.paragraphs,
-      profileUrl ? { label: "Open business profile", href: profileUrl } : undefined);
+      profileUrl ? {
+        label: action === "kyc_reverification_required" || action === "kyb_reverification_required"
+          ? "Open verification"
+          : "Open business profile",
+        href: profileUrl,
+      } : undefined);
   }
   if (template === "team_invitation") {
     const inviteUrl = approvedDeploymentUrl(value(payload, "inviteUrl"));

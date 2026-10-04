@@ -16,4 +16,5 @@ export const MerchantProfileKybStatus = {
   declined: 'declined',
   in_review: 'in_review',
   expired: 'expired',
+  reverification_required: 'reverification_required',
 } as const;

@@ -41,7 +41,8 @@ export function buildMerchantAccountNotifications(input: {
 export function merchantAccountActionNotification(input: {
   userId: string;
   eventKey: string;
-  action: "application_resubmitted" | "application_approved" | "more_info_required" | "suspended" | "active";
+  action: "application_resubmitted" | "application_approved" | "more_info_required" |
+    "kyc_reverification_required" | "kyb_reverification_required" | "pending" | "suspended" | "active";
   businessName: string;
   reason?: string;
 }): MerchantAccountNotification {
@@ -58,24 +59,41 @@ export function merchantAccountActionNotification(input: {
         }
       : input.action === "more_info_required"
         ? {
-            title: "More information needed",
-            body: `Please update your application for ${input.businessName}: ${reason || "Review the requested changes in your business profile."}`,
+            title: "Additional documents requested",
+            body: `Please update your application for ${input.businessName}: ${reason || "Review the requested changes in your business profile."} Check your business profile for any files shared by Greenpay.`,
           }
-        : input.action === "suspended"
+        : input.action === "kyc_reverification_required"
           ? {
-              title: "Business access paused",
-              body: `${input.businessName} is temporarily unavailable. Contact Greenpay support if you need help.`,
+              title: "KYC reverification requested",
+              body: `Greenpay needs you to verify your identity again for ${input.businessName}: ${reason || "Open verification to continue."}`,
             }
-          : {
-              title: "Business access restored",
-              body: `${input.businessName} is active again.`,
-            };
+          : input.action === "kyb_reverification_required"
+            ? {
+                title: "KYB reverification requested",
+                body: `Greenpay needs you to verify your business again for ${input.businessName}: ${reason || "Open verification to continue."}`,
+              }
+            : input.action === "pending"
+              ? {
+                  title: "Business account set to pending",
+                  body: `Greenpay set ${input.businessName} to pending. Account access remains unavailable while the required review is in progress.`,
+                }
+              : input.action === "suspended"
+                ? {
+                    title: "Business access paused",
+                    body: `${input.businessName} is temporarily unavailable. Contact Greenpay support if you need help.`,
+                  }
+                : {
+                    title: "Business access restored",
+                    body: `${input.businessName} is active again.`,
+                  };
   return {
     userId: input.userId,
     eventKey: input.eventKey,
     type: "merchant_account_update",
     title: content.title,
     body: content.body.slice(0, 500),
-    href: "/merchant",
+    href: input.action === "kyc_reverification_required" || input.action === "kyb_reverification_required"
+      ? "/merchant/kyc"
+      : "/merchant",
   };
 }

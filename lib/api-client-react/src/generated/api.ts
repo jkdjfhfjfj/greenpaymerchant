@@ -21,6 +21,7 @@ import type {
 
 import type {
   AccessProfile,
+  AdminApplicationRequestAttachmentUploadIntentInput,
   AdminAuditLog,
   AdminCaseRefundRecord,
   AdminCaseRefundRecordInput,
@@ -49,6 +50,8 @@ import type {
   AdminMerchantList,
   AdminMerchantStatusResponse,
   AdminMerchantUpdate,
+  AdminMerchantVerificationRequestInput,
+  AdminMerchantVerificationRequestResponse,
   AdminSummary,
   AdminWalletAdjustmentRequest,
   AdminWalletAdjustmentResponse,
@@ -7975,6 +7978,171 @@ export function useDownloadAdminMerchantApplicationAttachment<TData = Awaited<Re
 
 
 
+export const getCreateAdminMerchantApplicationRequestAttachmentUploadIntentUrl = (merchantId: number,) => {
+
+
+
+
+  return `/api/admin/merchants/${merchantId}/application-request-attachments/upload-intent`
+}
+
+/**
+ * @summary Create a short-lived private upload for files attached to an information request
+ */
+export const createAdminMerchantApplicationRequestAttachmentUploadIntent = async (merchantId: number,
+    adminApplicationRequestAttachmentUploadIntentInput: AdminApplicationRequestAttachmentUploadIntentInput, options?: Parameters<typeof customFetch>[1]): Promise<MerchantApplicationAttachmentUploadIntent> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<MerchantApplicationAttachmentUploadIntent>(getCreateAdminMerchantApplicationRequestAttachmentUploadIntentUrl(merchantId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminApplicationRequestAttachmentUploadIntentInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAdminMerchantApplicationRequestAttachmentUploadIntentMutationKey = () => ['createAdminMerchantApplicationRequestAttachmentUploadIntent'] as const;
+
+export const getCreateAdminMerchantApplicationRequestAttachmentUploadIntentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminMerchantApplicationRequestAttachmentUploadIntent>>, TError,CreateAdminMerchantApplicationRequestAttachmentUploadIntentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdminMerchantApplicationRequestAttachmentUploadIntent>>, TError,CreateAdminMerchantApplicationRequestAttachmentUploadIntentMutationVariables, TContext> => {
+
+const mutationKey = getCreateAdminMerchantApplicationRequestAttachmentUploadIntentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminMerchantApplicationRequestAttachmentUploadIntent>>, CreateAdminMerchantApplicationRequestAttachmentUploadIntentMutationVariables> = (props) => {
+          const {merchantId,data} = props ?? {};
+
+          return  createAdminMerchantApplicationRequestAttachmentUploadIntent(merchantId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAdminMerchantApplicationRequestAttachmentUploadIntentMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminMerchantApplicationRequestAttachmentUploadIntent>>>
+    export type CreateAdminMerchantApplicationRequestAttachmentUploadIntentMutationBody = BodyType<AdminApplicationRequestAttachmentUploadIntentInput>
+    export type CreateAdminMerchantApplicationRequestAttachmentUploadIntentMutationError = ErrorType<void>
+    export type CreateAdminMerchantApplicationRequestAttachmentUploadIntentMutationVariables = {merchantId: number;data: BodyType<AdminApplicationRequestAttachmentUploadIntentInput>}
+
+    /**
+ * @summary Create a short-lived private upload for files attached to an information request
+ */
+export const useCreateAdminMerchantApplicationRequestAttachmentUploadIntent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminMerchantApplicationRequestAttachmentUploadIntent>>, TError,CreateAdminMerchantApplicationRequestAttachmentUploadIntentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAdminMerchantApplicationRequestAttachmentUploadIntent>>,
+        TError,
+        CreateAdminMerchantApplicationRequestAttachmentUploadIntentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateAdminMerchantApplicationRequestAttachmentUploadIntentMutationOptions(options));
+    }
+
+export const getDeleteAdminMerchantApplicationRequestAttachmentUploadIntentUrl = (merchantId: number,
+    uploadToken: string,) => {
+
+
+
+
+  return `/api/admin/merchants/${merchantId}/application-request-attachments/uploads/${uploadToken}`
+}
+
+/**
+ * @summary Cancel an incomplete private information-request file upload
+ */
+export const deleteAdminMerchantApplicationRequestAttachmentUploadIntent = async (merchantId: number,
+    uploadToken: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteAdminMerchantApplicationRequestAttachmentUploadIntentUrl(merchantId,uploadToken),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAdminMerchantApplicationRequestAttachmentUploadIntentMutationKey = () => ['deleteAdminMerchantApplicationRequestAttachmentUploadIntent'] as const;
+
+export const getDeleteAdminMerchantApplicationRequestAttachmentUploadIntentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminMerchantApplicationRequestAttachmentUploadIntent>>, TError,DeleteAdminMerchantApplicationRequestAttachmentUploadIntentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminMerchantApplicationRequestAttachmentUploadIntent>>, TError,DeleteAdminMerchantApplicationRequestAttachmentUploadIntentMutationVariables, TContext> => {
+
+const mutationKey = getDeleteAdminMerchantApplicationRequestAttachmentUploadIntentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAdminMerchantApplicationRequestAttachmentUploadIntent>>, DeleteAdminMerchantApplicationRequestAttachmentUploadIntentMutationVariables> = (props) => {
+          const {merchantId,uploadToken} = props ?? {};
+
+          return  deleteAdminMerchantApplicationRequestAttachmentUploadIntent(merchantId,uploadToken,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAdminMerchantApplicationRequestAttachmentUploadIntentMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminMerchantApplicationRequestAttachmentUploadIntent>>>
+
+    export type DeleteAdminMerchantApplicationRequestAttachmentUploadIntentMutationError = ErrorType<void>
+    export type DeleteAdminMerchantApplicationRequestAttachmentUploadIntentMutationVariables = {merchantId: number;uploadToken: string}
+
+    /**
+ * @summary Cancel an incomplete private information-request file upload
+ */
+export const useDeleteAdminMerchantApplicationRequestAttachmentUploadIntent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminMerchantApplicationRequestAttachmentUploadIntent>>, TError,DeleteAdminMerchantApplicationRequestAttachmentUploadIntentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAdminMerchantApplicationRequestAttachmentUploadIntent>>,
+        TError,
+        DeleteAdminMerchantApplicationRequestAttachmentUploadIntentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteAdminMerchantApplicationRequestAttachmentUploadIntentMutationOptions(options));
+    }
+
 export const getGetMerchantCollectionAnalyticsUrl = () => {
 
 
@@ -13255,7 +13423,7 @@ export const getSetAdminMerchantStatusUrl = (merchantId: number,) => {
 }
 
 /**
- * @summary Activate or suspend a merchant with an audited reason
+ * @summary Set a merchant account to pending, active, or suspended with an audited reason
  */
 export const setAdminMerchantStatus = async (merchantId: number,
     setAdminMerchantStatusRequest: SetAdminMerchantStatusRequest, options?: Parameters<typeof customFetch>[1]): Promise<AdminMerchantStatusResponse> => {
@@ -13322,7 +13490,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SetAdminMerchantStatusMutationVariables = {merchantId: number;data: BodyType<SetAdminMerchantStatusRequest>}
 
     /**
- * @summary Activate or suspend a merchant with an audited reason
+ * @summary Set a merchant account to pending, active, or suspended with an audited reason
  */
 export const useSetAdminMerchantStatus = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminMerchantStatus>>, TError,SetAdminMerchantStatusMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -13422,6 +13590,95 @@ export const useReviewAdminMerchantApplication = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getReviewAdminMerchantApplicationMutationOptions(options));
+    }
+
+export const getCreateAdminMerchantVerificationRequestUrl = (merchantId: number,) => {
+
+
+
+
+  return `/api/admin/merchants/${merchantId}/verification-request`
+}
+
+/**
+ * @summary Request a new KYC or KYB verification session
+ */
+export const createAdminMerchantVerificationRequest = async (merchantId: number,
+    adminMerchantVerificationRequestInput: AdminMerchantVerificationRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminMerchantVerificationRequestResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminMerchantVerificationRequestResponse>(getCreateAdminMerchantVerificationRequestUrl(merchantId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminMerchantVerificationRequestInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAdminMerchantVerificationRequestMutationKey = () => ['createAdminMerchantVerificationRequest'] as const;
+
+export const getCreateAdminMerchantVerificationRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminMerchantVerificationRequest>>, TError,CreateAdminMerchantVerificationRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdminMerchantVerificationRequest>>, TError,CreateAdminMerchantVerificationRequestMutationVariables, TContext> => {
+
+const mutationKey = getCreateAdminMerchantVerificationRequestMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminMerchantVerificationRequest>>, CreateAdminMerchantVerificationRequestMutationVariables> = (props) => {
+          const {merchantId,data} = props ?? {};
+
+          return  createAdminMerchantVerificationRequest(merchantId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAdminMerchantVerificationRequestMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminMerchantVerificationRequest>>>
+    export type CreateAdminMerchantVerificationRequestMutationBody = BodyType<AdminMerchantVerificationRequestInput>
+    export type CreateAdminMerchantVerificationRequestMutationError = ErrorType<void>
+    export type CreateAdminMerchantVerificationRequestMutationVariables = {merchantId: number;data: BodyType<AdminMerchantVerificationRequestInput>}
+
+    /**
+ * @summary Request a new KYC or KYB verification session
+ */
+export const useCreateAdminMerchantVerificationRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminMerchantVerificationRequest>>, TError,CreateAdminMerchantVerificationRequestMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAdminMerchantVerificationRequest>>,
+        TError,
+        CreateAdminMerchantVerificationRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateAdminMerchantVerificationRequestMutationOptions(options));
     }
 
 export const getListAdminFeeSchedulesUrl = () => {

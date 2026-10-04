@@ -37,12 +37,27 @@ export interface MerchantProfile {
      * @nullable
      */
   applicationRequestedInfo: string | null;
+  /**
+     * @maxLength 64
+     * @nullable
+     */
+  applicationRequestId: string | null;
   /** @nullable */
   applicationSubmittedAt: Date | null;
   /** @nullable */
   applicationReviewedAt: Date | null;
   kycStatus: MerchantProfileKycStatus;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  kycRequestedInfo: string | null;
   kybStatus: MerchantProfileKybStatus;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  kybRequestedInfo: string | null;
   paymentsEnabled?: boolean;
   payoutsEnabled?: boolean;
   refundsEnabled?: boolean;

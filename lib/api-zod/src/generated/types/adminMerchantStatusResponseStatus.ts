@@ -10,6 +10,7 @@ export type AdminMerchantStatusResponseStatus = typeof AdminMerchantStatusRespon
 
 
 export const AdminMerchantStatusResponseStatus = {
+  pending: 'pending',
   active: 'active',
   suspended: 'suspended',
 } as const;

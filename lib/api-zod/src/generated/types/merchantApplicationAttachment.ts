@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MerchantApplicationAttachmentContentType } from './merchantApplicationAttachmentContentType';
+import type { MerchantApplicationAttachmentDirection } from './merchantApplicationAttachmentDirection';
 
 export interface MerchantApplicationAttachment {
   id: number;
@@ -23,4 +24,7 @@ export interface MerchantApplicationAttachment {
   createdAt: Date;
   /** Authenticated API path; never a public storage URL. */
   downloadPath: string;
+  direction: MerchantApplicationAttachmentDirection;
+  /** @nullable */
+  requestId: string | null;
 }

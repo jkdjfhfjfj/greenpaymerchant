@@ -10,6 +10,7 @@ export type SetAdminMerchantStatusRequestStatus = typeof SetAdminMerchantStatusR
 
 
 export const SetAdminMerchantStatusRequestStatus = {
+  pending: 'pending',
   active: 'active',
   suspended: 'suspended',
 } as const;

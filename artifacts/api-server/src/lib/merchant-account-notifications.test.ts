@@ -46,6 +46,9 @@ test("merchant lifecycle notifications tell the owner what changed without expos
     "application_resubmitted",
     "application_approved",
     "more_info_required",
+    "kyc_reverification_required",
+    "kyb_reverification_required",
+    "pending",
     "suspended",
     "active",
   ] as const;
@@ -59,7 +62,10 @@ test("merchant lifecycle notifications tell the owner what changed without expos
       reason: "Upload a current registration document.",
     });
     assert.equal(notification.type, "merchant_account_update");
-    assert.equal(notification.href, "/merchant");
+    assert.equal(
+      notification.href,
+      action === "kyc_reverification_required" || action === "kyb_reverification_required" ? "/merchant/kyc" : "/merchant",
+    );
     assert.match(notification.body, /Kono Trading/);
     assert.doesNotMatch(notification.body, /administrator|processor|provider|Didit/i);
     assert.ok(notification.body.length <= 500);

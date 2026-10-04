@@ -100,10 +100,13 @@ function profile(row: typeof merchantsTable.$inferSelect) {
     applicationDetails: row.applicationDetails,
     applicationStatus: row.applicationStatus,
     applicationRequestedInfo: row.applicationRequestedInfo,
+    applicationRequestId: row.applicationRequestId,
     applicationSubmittedAt: row.applicationSubmittedAt,
     applicationReviewedAt: row.applicationReviewedAt,
     kycStatus: row.kycStatus,
+    kycRequestedInfo: row.kycRequestedInfo,
     kybStatus: row.kybStatus,
+    kybRequestedInfo: row.kybRequestedInfo,
     paymentsEnabled: row.paymentsEnabled,
     payoutsEnabled: row.payoutsEnabled,
     refundsEnabled: row.refundsEnabled,
@@ -444,6 +447,8 @@ router.get("/merchant/application/attachments", requireSignedIn, async (_req, re
       size: row.size,
       contentType: row.contentType,
       createdAt: row.createdAt,
+      direction: row.requestId ? "requested" : "submitted",
+      requestId: row.requestId,
       downloadPath: `/api/merchant/application/attachments/${row.id}/download`,
     })),
   }));
@@ -502,6 +507,7 @@ router.post("/merchant/application/attachments/upload-intent", requireSignedIn, 
     await db.insert(merchantApplicationUploadIntentsTable).values({
       token,
       merchantId: merchant.id,
+      requestId: null,
       objectPath: upload.objectPath,
       name,
       contentType: parsed.data.contentType,
@@ -649,6 +655,7 @@ router.patch("/merchant/application", requireSignedIn, async (req, res): Promise
         if (!verified) throw Object.assign(new Error("An uploaded application file could not be verified."), { statusCode: 409 });
         await tx.insert(merchantApplicationAttachmentsTable).values({
           merchantId: merchant.id,
+          requestId: null,
           objectPath: verified.objectPath,
           name: verified.name,
           contentType: verified.contentType,
@@ -882,9 +889,11 @@ router.get("/merchant/kyc", requireSignedIn, async (req, res): Promise<void> => 
   res.json(GetMerchantKycResponse.parse({
     status: merchant.kycStatus, configured: Boolean(apiKey && individualWorkflow),
     sessionId: merchant.diditSessionId, sessionUrl: merchant.diditSessionUrl,
+    reverificationReason: merchant.kycRequestedInfo,
     updatedAt: merchant.verificationUpdatedAt, requirements: ["identity", "liveness", "AML", "address"],
     kybStatus: merchant.kybStatus, kybConfigured: Boolean(apiKey && businessWorkflow),
     kybSessionId: merchant.diditKybSessionId, kybSessionUrl: merchant.diditKybSessionUrl,
+    kybReverificationReason: merchant.kybRequestedInfo,
     kybUpdatedAt: merchant.kybVerificationUpdatedAt, tier, limits: limits.map(verificationLimitDto),
   }));
 });
@@ -967,10 +976,10 @@ router.post("/merchant/kyc", requireSignedIn, async (req, res): Promise<void> =>
     const now = new Date();
     const fields = kind === "kyb" ? {
       diditKybSessionId: sessionId, diditKybSessionUrl: sessionUrl,
-      diditKind: "kyb", kybStatus: "pending", kybVerificationUpdatedAt: now, updatedAt: now,
+      diditKind: "kyb", kybStatus: "pending", kybRequestedInfo: null, kybVerificationUpdatedAt: now, updatedAt: now,
     } : {
       diditSessionId: sessionId, diditSessionUrl: sessionUrl,
-      diditKind: "kyc", kycStatus: "pending", verificationUpdatedAt: now, updatedAt: now,
+      diditKind: "kyc", kycStatus: "pending", kycRequestedInfo: null, verificationUpdatedAt: now, updatedAt: now,
     };
     const [saved] = await tx.update(merchantsTable).set(fields)
       .where(eq(merchantsTable.id, latest.id)).returning();

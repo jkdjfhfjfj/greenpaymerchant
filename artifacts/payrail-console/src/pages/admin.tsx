@@ -249,6 +249,7 @@ function MerchantApplicationReview({ m, onClose }: { m: AdminMerchant; onClose: 
         {m.addressVerificationStatus === 'manual_review' && <Note tone="warn">
           The address was submitted manually. Approving this application also records approval of the address.
           {m.addressVerificationReason ? ` Applicant note: ${m.addressVerificationReason}` : ''}
+          {' '}If the applicant supplied address proof, it is listed below under Application documents and media.
         </Note>}
         <div className="application-review-grid">
           <div><span>Business type</span><strong>{application.businessType.replaceAll('_', ' ')}</strong></div>
@@ -799,7 +800,7 @@ function CredEdit({ c, onClose }: { c: ProviderCredential; onClose: () => void }
     : c.provider === 'didit'
       ? 'KYC sessions use the API key and workflow IDs. Webhook notifications are verified through Didit’s decision API, and the page also polls while open; no webhook secret is needed.'
       : c.provider === 'geoapify'
-        ? 'Used server-side to look up addresses from device coordinates for unverified merchant applications. The browser never receives this key; address results include Geoapify attribution.'
+        ? 'Open https://myprojects.geoapify.com/, sign in or create an account, select or create a project, and copy its API key. Paste it here. This key is used server-side; the browser never receives it.'
     : 'Values replace what is stored; blank fields are cleared. Enter every value you want to retain. Existing secrets are never displayed.';
   return <Modal title={`${nice(c.provider)} credentials`} description={description} onClose={onClose}><form className="form-stack" onSubmit={submit} autoComplete="off">
     {names.map((n) => {
@@ -905,6 +906,7 @@ function SettingsInner() {
         {providerCredentials.isLoading ? <span className="sub">Checking address lookup configuration…</span>
           : providerCredentials.isError ? <Err error={providerCredentials.error} />
             : <div className="form-stack">
+              <Note>Get the key from <a href="https://myprojects.geoapify.com/" target="_blank" rel="noreferrer">Geoapify My Projects</a>: sign in, create or select a project, then copy its API key into Greenpay’s Geoapify credentials.</Note>
               {geoapifyCredential?.configured
                 ? <Note>Automatic address lookup is enabled. Applicants can still choose manual review.</Note>
                 : <Note tone="warn">Automatic lookup is unavailable. Applicants can still submit a manual address for review.</Note>}

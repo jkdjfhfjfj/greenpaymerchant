@@ -3,9 +3,12 @@ import { providerCredential } from "./credential-runtime";
 
 const ADDRESS_PROOF_TTL_MS = 10 * 60_000;
 const GEOAPIFY_REVERSE_URL = "https://api.geoapify.com/v1/geocode/reverse";
+const GEOAPIFY_AUTOCOMPLETE_URL = "https://api.geoapify.com/v1/geocode/autocomplete";
 
 type GeoapifyAddress = {
   formatted?: unknown;
+  lat?: unknown;
+  lon?: unknown;
 };
 
 type GeoapifyResponse = {
@@ -130,4 +133,56 @@ export async function reverseGeocodeMerchantAddress(
     address,
     verificationToken: createAddressVerificationToken(userId, address),
   };
+}
+
+export async function suggestMerchantAddresses(
+  text: string,
+): Promise<Array<{ address: string; latitude: number; longitude: number }>> {
+  const query = text.trim();
+  if (query.length < 3) return [];
+  const apiKey = await providerCredential("geoapify", "GEOAPIFY_API_KEY");
+  if (!apiKey) throw new AddressVerificationError("provider_unconfigured");
+
+  const url = new URL(GEOAPIFY_AUTOCOMPLETE_URL);
+  url.searchParams.set("text", query);
+  url.searchParams.set("limit", "5");
+  url.searchParams.set("lang", "en");
+  url.searchParams.set("format", "json");
+  url.searchParams.set("apiKey", apiKey);
+
+  let payload: GeoapifyResponse;
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(8_000) });
+    if (!response.ok) throw new AddressVerificationError("provider_unavailable");
+    const result = await response.json() as unknown;
+    if (typeof result !== "object" || result === null) {
+      throw new AddressVerificationError("provider_unavailable");
+    }
+    payload = result as GeoapifyResponse;
+  } catch (error) {
+    if (error instanceof AddressVerificationError) throw error;
+    throw new AddressVerificationError("provider_unavailable");
+  }
+
+  const candidates = payload.results ?? payload.features?.map((feature) => feature.properties ?? {}) ?? [];
+  const suggestions: Array<{ address: string; latitude: number; longitude: number }> = [];
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    const address = typeof candidate.formatted === "string"
+      ? candidate.formatted.trim().replace(/\s+/g, " ")
+      : "";
+    const latitude = candidate.lat;
+    const longitude = candidate.lon;
+    if (address.length < 5 || address.length > 500 ||
+        typeof latitude !== "number" || !Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+        typeof longitude !== "number" || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+      continue;
+    }
+    const key = normalizedAddress(address);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    suggestions.push({ address, latitude, longitude });
+    if (suggestions.length === 5) break;
+  }
+  return suggestions;
 }

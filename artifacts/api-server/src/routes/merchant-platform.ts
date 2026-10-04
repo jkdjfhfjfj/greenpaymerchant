@@ -18,7 +18,8 @@ import {
   UpdateMerchantShopProfileResponse,
   DeleteMerchantWebhookEndpointResponse, GetAccessProfileResponse, GetMerchantFeesResponse,
   GetMerchantFxQuoteQueryParams, GetMerchantFxQuoteResponse, GetMerchantKycResponse,
-  GetMerchantProfileResponse, ListDeveloperPaymentLinksResponse, ListDeveloperTransactionsQueryParams,
+  GetMerchantProfileResponse, GetMerchantAddressSuggestionsQueryParams,
+  GetMerchantAddressSuggestionsResponse, ListDeveloperPaymentLinksResponse, ListDeveloperTransactionsQueryParams,
   ListDeveloperTransactionsResponse, ListMerchantApiKeysResponse, ListMerchantPaymentLinksResponse,
   ListMerchantTransactionsQueryParams, ListMerchantTransactionsResponse, ListMerchantWebhookEndpointsResponse,
   RevokeMerchantApiKeyParams, UpdateMerchantPaymentLinkBody, UpdateMerchantPaymentLinkParams,
@@ -55,7 +56,8 @@ import {
 } from "../lib/platform";
 import { apiKeyHash, decryptApiKeySecret, encryptSecret, validateWebhookUrl } from "../lib/secure-storage";
 import {
-  AddressVerificationError, reverseGeocodeMerchantAddress, verifyAddressVerificationToken,
+  AddressVerificationError, reverseGeocodeMerchantAddress, suggestMerchantAddresses,
+  verifyAddressVerificationToken,
 } from "../lib/merchant-address-verification";
 import {
   findTransaction, markTransactionStatus, merchantTransactionDto, paymentLinkDto, paymentLinkStats, payoutDto,
@@ -410,6 +412,33 @@ function addressVerificationDecision(
   if (reason.length < 5) throw new ApiError(400, "Explain why the registered address needs manual review.");
   return { status: "manual_review", reason };
 }
+
+router.get("/merchant/address-suggestions", requireSignedIn, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "private, no-store");
+  const parsed = GetMerchantAddressSuggestionsQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  try {
+    const suggestions = await suggestMerchantAddresses(parsed.data.text);
+    res.json(GetMerchantAddressSuggestionsResponse.parse({ suggestions }));
+  } catch (error) {
+    if (error instanceof AddressVerificationError) {
+      req.log.warn({ errorCode: error.code }, "Address autocomplete is unavailable");
+      res.status(503).json({
+        error: "Address suggestions are unavailable. Continue typing or use device location or manual review.",
+      });
+      return;
+    }
+    req.log.error({
+      errorKind: error instanceof Error ? error.name : "unknown",
+    }, "Address autocomplete failed");
+    res.status(503).json({
+      error: "Address suggestions are temporarily unavailable. Continue typing or use device location or manual review.",
+    });
+  }
+});
 
 router.post("/merchant/address-lookup", requireSignedIn, async (req, res): Promise<void> => {
   res.setHeader("Cache-Control", "private, no-store");

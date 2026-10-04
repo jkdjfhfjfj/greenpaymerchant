@@ -4096,6 +4096,39 @@ export const ReverseGeocodeMerchantAddressResponse = zod.object({
 
 
 /**
+ * @summary Get private address autocomplete suggestions from Geoapify
+ */
+export const getMerchantAddressSuggestionsQueryTextMax = 180;
+
+
+
+export const GetMerchantAddressSuggestionsQueryParams = zod.object({
+  "text": zod.coerce.string().max(getMerchantAddressSuggestionsQueryTextMax)
+})
+
+export const getMerchantAddressSuggestionsResponseSuggestionsItemAddressMin = 5;
+export const getMerchantAddressSuggestionsResponseSuggestionsItemAddressMax = 500;
+
+export const getMerchantAddressSuggestionsResponseSuggestionsItemLatitudeMin = -90;
+export const getMerchantAddressSuggestionsResponseSuggestionsItemLatitudeMax = 90;
+
+export const getMerchantAddressSuggestionsResponseSuggestionsItemLongitudeMin = -180;
+export const getMerchantAddressSuggestionsResponseSuggestionsItemLongitudeMax = 180;
+
+export const getMerchantAddressSuggestionsResponseSuggestionsMax = 5;
+
+
+
+export const GetMerchantAddressSuggestionsResponse = zod.object({
+  "suggestions": zod.array(zod.object({
+  "address": zod.string().min(getMerchantAddressSuggestionsResponseSuggestionsItemAddressMin).max(getMerchantAddressSuggestionsResponseSuggestionsItemAddressMax),
+  "latitude": zod.number().min(getMerchantAddressSuggestionsResponseSuggestionsItemLatitudeMin).max(getMerchantAddressSuggestionsResponseSuggestionsItemLatitudeMax),
+  "longitude": zod.number().min(getMerchantAddressSuggestionsResponseSuggestionsItemLongitudeMin).max(getMerchantAddressSuggestionsResponseSuggestionsItemLongitudeMax)
+})).max(getMerchantAddressSuggestionsResponseSuggestionsMax)
+})
+
+
+/**
  * @summary List private files submitted with the current merchant application
  */
 export const listMerchantApplicationAttachmentsResponseItemsItemNameMax = 180;
@@ -4151,7 +4184,7 @@ export const AddMerchantApplicationAttachmentsResponse = zod.object({
 
 
 /**
- * @summary Create a short-lived signed private application-file upload
+ * @summary Create a short-lived signed private application-file upload for resubmission or pending manual address review
  */
 export const createMerchantApplicationAttachmentUploadIntentBodyNameMax = 180;
 

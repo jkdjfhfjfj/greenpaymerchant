@@ -1551,6 +1551,24 @@ paths:
         "400": { description: Coordinates are invalid }
         "422": { description: No usable address was found for these coordinates }
         "503": { description: Address lookup is temporarily unavailable }
+  /merchant/address-suggestions:
+    get:
+      operationId: getMerchantAddressSuggestions
+      tags: [merchant]
+      summary: Get private address autocomplete suggestions from Geoapify
+      parameters:
+        - name: text
+          in: query
+          required: true
+          schema: { type: string, maxLength: 180 }
+      responses:
+        "200":
+          description: Address suggestions with coordinates for selection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantAddressSuggestionsResponse" }
+        "400": { description: Search text is invalid }
+        "503": { description: Address suggestions are temporarily unavailable }
   /merchant/application/attachments:
     get:
       operationId: listMerchantApplicationAttachments
@@ -1579,11 +1597,12 @@ paths:
               schema: { $ref: "#/components/schemas/MerchantApplicationAttachmentList" }
         "400": { description: Upload tokens are invalid }
         "409": { description: The application is no longer awaiting manual address review or its upload is invalid }
+        "503": { description: Private file storage is temporarily unavailable }
   /merchant/application/attachments/upload-intent:
     post:
       operationId: createMerchantApplicationAttachmentUploadIntent
       tags: [merchant]
-      summary: Create a short-lived signed private application-file upload
+      summary: Create a short-lived signed private application-file upload for resubmission or pending manual address review
       requestBody:
         required: true
         content:
@@ -1591,11 +1610,11 @@ paths:
             schema: { $ref: "#/components/schemas/MerchantApplicationAttachmentUploadIntentInput" }
       responses:
         "201":
-          description: Signed upload fields and opaque token for the final application resubmission
+          description: Signed upload fields and opaque token for private application-file attachment
           content:
             application/json:
               schema: { $ref: "#/components/schemas/MerchantApplicationAttachmentUploadIntent" }
-        "409": { description: Application is not awaiting additional information or has reached its file limit }
+        "409": { description: "Application is not awaiting additional information or manual address review, or has reached its file limit" }
         "413": { description: Upload exceeds the maximum supported size }
   /merchant/application/attachments/uploads/{uploadToken}:
     delete:
@@ -4673,6 +4692,21 @@ components:
       properties:
         address: { type: string, minLength: 5, maxLength: 500 }
         verificationToken: { type: string, minLength: 1, maxLength: 2048 }
+    MerchantAddressSuggestion:
+      type: object
+      required: [address, latitude, longitude]
+      properties:
+        address: { type: string, minLength: 5, maxLength: 500 }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+    MerchantAddressSuggestionsResponse:
+      type: object
+      required: [suggestions]
+      properties:
+        suggestions:
+          type: array
+          maxItems: 5
+          items: { $ref: "#/components/schemas/MerchantAddressSuggestion" }
     AddressVerificationStatus:
       type: string
       enum: [not_required, auto_verified, manual_review, admin_approved]

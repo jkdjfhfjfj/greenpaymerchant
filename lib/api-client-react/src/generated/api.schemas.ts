@@ -2441,6 +2441,29 @@ export interface AddressGeocodeResult {
   verificationToken: string;
 }
 
+export interface MerchantAddressSuggestion {
+  /**
+     * @minLength 5
+     * @maxLength 500
+     */
+  address: string;
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  latitude: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  longitude: number;
+}
+
+export interface MerchantAddressSuggestionsResponse {
+  /** @maxItems 5 */
+  suggestions: MerchantAddressSuggestion[];
+}
+
 export type AddressVerificationStatus = typeof AddressVerificationStatus[keyof typeof AddressVerificationStatus];
 
 
@@ -4469,6 +4492,13 @@ export const ListWebhookEventsStatus = {
   failed: 'failed',
   ignored: 'ignored',
 } as const;
+
+export type GetMerchantAddressSuggestionsParams = {
+/**
+ * @maxLength 180
+ */
+text: string;
+};
 
 export type ListMerchantTransactionsParams = {
 /**

@@ -92,6 +92,7 @@ import type {
   FindAdminPlatformUsersParams,
   FxQuote,
   GetDeveloperFxQuoteParams,
+  GetMerchantAddressSuggestionsParams,
   GetMerchantFxQuoteParams,
   GetMerchantWalletFxQuoteParams,
   Invoice,
@@ -132,6 +133,7 @@ import type {
   ListTransactionsParams,
   ListWebhookEventsParams,
   MerchantActionControlsResponse,
+  MerchantAddressSuggestionsResponse,
   MerchantApiKeySecret,
   MerchantApplicationAttachmentList,
   MerchantApplicationAttachmentUploadIntent,
@@ -7594,6 +7596,90 @@ export const useReverseGeocodeMerchantAddress = <TError = ErrorType<void>,
       return useMutation(getReverseGeocodeMerchantAddressMutationOptions(options));
     }
 
+export const getGetMerchantAddressSuggestionsUrl = (params: GetMerchantAddressSuggestionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/merchant/address-suggestions?${stringifiedParams}` : `/api/merchant/address-suggestions`
+}
+
+/**
+ * @summary Get private address autocomplete suggestions from Geoapify
+ */
+export const getMerchantAddressSuggestions = async (params: GetMerchantAddressSuggestionsParams, options?: Parameters<typeof customFetch>[1]): Promise<MerchantAddressSuggestionsResponse> => {
+
+  return customFetch<MerchantAddressSuggestionsResponse>(getGetMerchantAddressSuggestionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMerchantAddressSuggestionsQueryKey = (params?: GetMerchantAddressSuggestionsParams,) => {
+    return [
+    `/api/merchant/address-suggestions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMerchantAddressSuggestionsQueryOptions = <TData = Awaited<ReturnType<typeof getMerchantAddressSuggestions>>, TError = ErrorType<void>>(params: GetMerchantAddressSuggestionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMerchantAddressSuggestions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMerchantAddressSuggestionsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMerchantAddressSuggestions>>> = ({ signal }) => getMerchantAddressSuggestions(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMerchantAddressSuggestions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMerchantAddressSuggestionsQueryResult = NonNullable<Awaited<ReturnType<typeof getMerchantAddressSuggestions>>>
+export type GetMerchantAddressSuggestionsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get private address autocomplete suggestions from Geoapify
+ */
+
+export function useGetMerchantAddressSuggestions<TData = Awaited<ReturnType<typeof getMerchantAddressSuggestions>>, TError = ErrorType<void>>(
+ params: GetMerchantAddressSuggestionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMerchantAddressSuggestions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMerchantAddressSuggestionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListMerchantApplicationAttachmentsUrl = () => {
 
 
@@ -7768,7 +7854,7 @@ export const getCreateMerchantApplicationAttachmentUploadIntentUrl = () => {
 }
 
 /**
- * @summary Create a short-lived signed private application-file upload
+ * @summary Create a short-lived signed private application-file upload for resubmission or pending manual address review
  */
 export const createMerchantApplicationAttachmentUploadIntent = async (merchantApplicationAttachmentUploadIntentInput: MerchantApplicationAttachmentUploadIntentInput, options?: Parameters<typeof customFetch>[1]): Promise<MerchantApplicationAttachmentUploadIntent> => {
 
@@ -7834,7 +7920,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateMerchantApplicationAttachmentUploadIntentMutationVariables = {data: BodyType<MerchantApplicationAttachmentUploadIntentInput>}
 
     /**
- * @summary Create a short-lived signed private application-file upload
+ * @summary Create a short-lived signed private application-file upload for resubmission or pending manual address review
  */
 export const useCreateMerchantApplicationAttachmentUploadIntent = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMerchantApplicationAttachmentUploadIntent>>, TError,CreateMerchantApplicationAttachmentUploadIntentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}

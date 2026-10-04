@@ -2,96 +2,100 @@
 
 ## Director's treatment
 
-- **Promise:** Greenpay gives merchants two ways to collect—shareable payment links or a developer API—and keeps confirmed payment details easy to review.
-- **Audience:** African-market merchants and product teams integrating payments.
+- **Promise:** Create and send invoices or payment links, keep a developer API path, and show customers familiar payment choices where each route supports them.
+- **Audience:** African-market small businesses and the teams integrating their payments.
 - **Format/runtime:** 9:16 vertical, exactly 15 seconds.
 - **Identity:** Greenpay forest `#294c43`, paper `#fffdf8`, mint `#61c99b`, and gold `#e5b865`; DM Sans with IBM Plex Mono for interface labels.
-- **Hero:** A payment request card that unfolds into a verified transaction record; a thin circular route motif carries the viewer between beats.
-- **Motion:** Snapped kinetic typography, card-fold/scale reveals, and matched circular apertures.
-- **Arc/payoff:** Geographic scope opens the film; link creation and API records make the offer concrete; the ending resolves the circular route into Greenpay's official mark and URL.
-- **Market-availability wording:** The published catalog spans 25 African country markets plus global USD. The film does not imply every route is live; it states that collection availability varies by currency and merchant verification.
-- **Sound:** One original instrumental fintech bed, no voiceover or sound effects. Beat alignment is not claimed.
+- **Hero:** An adult African educator explaining the product with a wooden pointer and chalkboard; invoice and link graphics become the bridge to a precise live-market list.
+- **Motion:** Chalk-traced type, a document-to-link transformation, and a multi-row country reveal.
+- **Arc/payoff:** A warm human opener introduces the business tools; the middle makes invoices, links, payment choices, and coverage concrete; the end returns to Greenpay's official mark and URL.
+- **Market-availability wording:** Checked against Greenpay's public live currency endpoint on 4 October 2026. It currently reports collection-ready routes corresponding to 20 African country markets plus global USD. Merchant verification and currency limits still apply. The five other currencies in the wider catalog are not presented as live collection routes.
+- **Payment-method wording:** Name the Kenya route as an M-Pesa mobile prompt. Show “Card · where available” because card availability is not exposed country by country by the public currency endpoint. Never show an internal routing ID or imply that every country has the same options.
+- **Voice:** Short Swahili narration with English on-screen copy, locally synthesized from eSpeak NG. Use one composite audio track with the existing instrumental bed ducked under the voice; no SFX.
 
 ## Timeline
 
 | Time | Focus | Main action | Composition | Handoff |
 | --- | --- | --- | --- | --- |
-| 0.00–3.20 | African-market scope | Three market points snap into a route; “COLLECT” locks over the orbit | Deep forest, asymmetric oversized type; gold ring at centre | Ring expands and turns into the circular edge of a payment-link card |
-| 3.20–7.00 | Shareable payment links | A request card folds open; a link line draws out, then the customer-choice panel settles | Warm paper card floats over forest; card occupies the centre | Link line whips into a code underline while card splits into API and record panes |
-| 7.00–11.00 | Developer API and records | Code is revealed in a quick vertical scan; a confirmed transaction record assembles from reference, status, and fee rows | Cream technical field with dark API pane and mint confirmation stamp | The confirmation ring pulls through the camera and opens a clean green brand field |
-| 11.00–15.00 | Greenpay close | The market route contracts into the official mark; wordmark, claim, URL, and availability note resolve | Centered cream end card, logo green visible against light field | Gold route ring grows past frame edge and aligns to the opener's first-frame ring |
+| 0.00–3.15 | Human hook | A teacher presents the invoice-to-payment flow on a classroom board | Full-bleed classroom portrait, copy on the clear board area | A centered chalk circle carries into the invoice card |
+| 3.15–6.70 | Merchant tools | A paper invoice turns into a shareable payment link; method labels and the API arrive in order | Close classroom-board crop, large invoice and URL card | A gold rule carries the link's underline motif into the market board |
+| 6.70–11.45 | Supported markets and methods | The 20 currently collection-ready African country markets appear in two columns; method chips resolve beneath | Forest-green chalkboard, cream type, gold method accents | A centered chalk circle opens into the Greenpay close |
+| 11.45–15.00 | Brand close | Official mark, product summary, URL, and a readable availability note settle | Warm paper field; centered lockup with clear negative space | Gold ring expands from the same centered opening point |
 
 ## Shot script
 
-### Shot 01 / 0.00–3.20s / 3.20s — “COLLECT ACROSS AFRICA.”
+### Shot 01 / 0.00–3.15s / 3.15s — “INVOICE. LINK. PAID.”
 
-- **Purpose:** Establish that Greenpay is designed for merchants operating across African markets without overstating live route readiness.
+- **Purpose:** Introduce Greenpay through a person explaining it, not a developer-only interface.
 - **Exact content:**
-  - 0.00–0.35s: small label `GREENPAY / BUSINESS PAYMENTS`
-  - 0.18–0.58s: `COLLECT`
-  - 0.65–1.15s: `ACROSS AFRICA`
-  - 1.35–2.40s: `25 African markets in the catalog`
-  - 2.40–3.20s: `USD globally · Collection availability varies by currency and verification`
-- **Composition:** Full-bleed forest. “COLLECT” begins large and cropped near the upper third; “ACROSS AFRICA” cuts across the center. Three route nodes occupy the lower middle. A mint hairline loops through the nodes into one gold ring, all within the central 80% safe region.
-- **Artistic idea:** The word “ACROSS” is physically threaded by one continuous route line, which resolves into a ring rather than becoming a decorative map.
-- **Timed choreography:** 0.00s the ring is already visible as a 2vmin outline in the center. 0.18s “COLLECT” snaps in; 0.65s “ACROSS AFRICA” punches through a mask. 1.10–1.60s three nodes snap on at 0.45s intervals. 1.70–2.15s the route traces through them. 2.15–2.40s the 25-market copy scales into a readable position. 2.40–3.20s the availability note appears while the ring begins to enlarge and rotate for the cut.
-- **Transition contract:** At 3.20s the gold ring expands toward the viewer and becomes the circular border of Shot 02's payment-link card. The incoming card is already visible behind the ring; its corner radius and center align to the outgoing ring.
-- **Assets/technique:** Existing Greenpay palette and DM Sans / IBM Plex Mono; code-drawn SVG route and nodes; no external map or third-party marks.
-- **Sound intent:** Instrumental pulse begins restrained; no unverified beat synchronization.
+  - 0.00s: `GREENPAY · BUSINESS PAYMENTS` and `INVOICE`
+  - 0.75–1.35s: `PAYMENT LINK`
+  - 1.35–1.90s: `GET PAID`; the small flow line `INVOICE · PAYMENT LINK · PAID` resolves below
+  - 1.90–3.15s: `A SIMPLER WAY / TO COLLECT` over the same flow line
+- **Composition:** Full-bleed classroom portrait. The educator and wooden pointer hold the left half; the chalkboard remains clear on the right for large white and gold copy. A soft forest overlay preserves contrast without obscuring the face or pointer.
+- **Artistic idea:** Chalk copy changes in the board space beside the pointer, with a gold underline and centered mint/gold circle connecting the lesson to the document reveal.
+- **Timed choreography:** The teacher and first word are visible on frame one. At 0.75s the board copy changes to “PAYMENT LINK”; at 1.35s it changes to “GET PAID” as the short flow line resolves. At 1.90s the copy changes to “A SIMPLER WAY / TO COLLECT.” The camera drifts toward the board while the centered chalk circle grows into Shot 02.
+- **Transition contract:** Shot 01 and Shot 02 share the same circle center, color, and scale direction; the invoice card resolves inside that opening.
+- **Assets/technique:** Generated portrait of an adult African educator with a wooden pointer; original Greenpay palette; DM Sans/IBM Plex Mono; overlaid vector chalk marks only.
+- **Voice:** Begins at 0.08s: “Karibu! Tuma ankara ya Greenpay.” (“Welcome! Send a Greenpay invoice.”)
+- **Sound intent:** Swahili voice starts over a low instrumental bed; no unverified beat sync or SFX.
 
-### Shot 02 / 3.20–7.00s / 3.80s — “MAKE A LINK. SHARE IT.”
+### Shot 02 / 3.15–6.70s / 3.55s — “INVOICE TO PAYMENT LINK.”
 
-- **Purpose:** Show the no-storefront payment-link path in one understandable product action.
+- **Purpose:** Make the non-developer workflow tangible while retaining the API as an additional path.
 - **Exact content:**
-  - 3.20–3.70s: `PAYMENT LINKS`
-  - 3.70–4.35s: `MAKE A LINK.`
-  - 4.35–5.10s: a noninteractive visual link row: `greenpay.co.ke/pay/…`
-  - 5.10–5.85s: `SHARE IT.`
-  - 5.85–7.00s: `Customers choose an available option for their currency`
-- **Composition:** Cream vertical card, angled a few degrees over a dark forest field. The payment-link row owns the center; a thin route ring from Shot 01 remains visible behind the card, offset toward the right. Text uses dark green and gold; no fake customer name, amount, or live payment method is shown.
-- **Artistic idea:** The route ring becomes the card's aperture; the shareable URL extends from it as a single drawn line, showing the link as the continuation of the route.
-- **Timed choreography:** 0.00–0.55s the card opens from the gold ring with a short split-fold and perspective settle. 0.55–1.15s the “MAKE A LINK.” headline masks on. 1.15–1.75s the URL line draws left-to-right, then a single gold dot travels along it. 1.75–2.35s the line breaks into two short share arcs and “SHARE IT.” snaps on. 2.35–3.10s the customer-choice caption resolves beneath the card. 3.10–3.80s the URL line stretches upward into a code underline as the card divides for Shot 03.
-- **Transition contract:** The moving URL line persists into Shot 03 as the underline beneath the API request. The card's top edge splits into two cream panes; one pane reveals code, the other a payment record.
-- **Assets/technique:** CSS/SVG product-card artwork; actual public payment-link route pattern shown with ellipsis; no fabricated active checkout.
-- **Sound intent:** Same instrumental continues, with a light lift; no VO or SFX.
+  - 3.15s: `INVOICE TO / PAYMENT LINK`
+  - 3.15–4.40s: a clean invoice illustration with line items, no customer details or invented amount
+  - 4.40–5.10s: the invoice folds into `greenpay.co.ke/pay/…`
+- **Composition:** Close crop of the same chalkboard, with the teacher mostly out of frame. A large cream invoice sheet fills the center, then gives way to the payment-link card. The two method labels are separate, readable chips; the API label remains a smaller supporting route.
+- **Artistic idea:** One paper invoice folds toward a URL card; the gold connector line links the two stages without inventing customer details or a payment amount.
+- **Timed choreography:** The centered circle opens onto the invoice. The document settles in; at 1.25s it folds into the URL card. “CARDS · WHERE AVAILABLE” resolves at 1.95s, “M-PESA PROMPT · KENYA” at 2.70s, and the smaller “DEVELOPER API” note at 3.15s. The connector line stays active through the country-board handoff.
+- **Transition contract:** The centered circle carries into Shot 03, whose gold rule enters above the country list.
+- **Assets/technique:** Same generated photo used once more as a close board crop; CSS/SVG invoice and URL artwork; no processor marks or internal payment identifiers.
+- **Voice:** Begins at 3.20s: “Shiriki kiungo cha malipo, au tumia API.” (“Share a payment link, or use the API.”)
+- **Sound intent:** Voice continues over the same instrumental, ducked beneath speech.
 
-### Shot 03 / 7.00–11.00s / 4.00s — “API IN. CONFIRMED RECORDS OUT.”
+### Shot 03 / 6.70–11.45s / 4.75s — “20 AFRICAN MARKETS.”
 
-- **Purpose:** Communicate the developer API and the value of confirmed financial records.
+- **Purpose:** Show the live collection-country coverage and familiar method names without suggesting every method is available everywhere.
 - **Exact content:**
-  - 7.00–7.55s: `DEVELOPER API`
-  - 7.55–8.70s: `POST /api/v1/payment-links`
-  - 8.70–9.20s: `CONFIRMED`
-  - 9.20–10.10s: `Reference · Status · Fee`
-  - 10.10–11.00s: `Transactions and payout records in one workspace`
-- **Composition:** Cream technical surface. The left half is a dark code pane, the right half is a tall transaction record. The record is dominant after 8.70s; mint status chip contrasts with the paper card. Type and edges remain inside the vertical safe area.
-- **Artistic idea:** The underline from Shot 02 becomes the code cursor; its final node drops into the transaction record and triggers a mint confirmation ring.
-- **Timed choreography:** 0.00–0.45s the URL underline draws the first API line. 0.45–1.25s code lines reveal in a fast vertical scan. 1.25–1.85s the code pane folds back on its vertical spine and exposes the record beneath. 1.85–2.30s the mint “CONFIRMED” chip stamps into the record; the ring ripples once from the exact stamp point. 2.30–3.10s the reference/status/fee rows assemble sequentially. 3.10–3.55s the final records caption settles. 3.55–4.00s the confirmation ring expands and pulls the scene into the closing green field.
-- **Transition contract:** The mint confirmation ring expands into a cream aperture around Shot 04's official Greenpay mark. The record rows rotate into a route arc; no gateway or processor brand is shown.
-- **Assets/technique:** UI-inspired artwork based on the product's documented API/transaction terminology; no customer data, sample monetary values, or unverified payment claims.
-- **Sound intent:** Instrumental reaches its central lift around the record reveal; exact beat alignment is unverified.
+  - 6.70–7.25s: `CURRENT COLLECTION MARKETS`
+  - 7.25–10.25s: country names in two columns: `Benin`, `Burkina Faso`, `Cameroon`, `Central African Republic`, `Chad`, `Côte d’Ivoire`, `DR Congo`, `Equatorial Guinea`, `Gabon`, `Guinea-Bissau`, `Kenya`, `Mali`, `Niger`, `Nigeria`, `Republic of the Congo`, `Rwanda`, `Senegal`, `Togo`, `Uganda`, `Zambia`
+  - 9.05s: `M-PESA PROMPT · KENYA`
+  - 9.45s: `CARD · WHERE AVAILABLE`
+  - 10.70s: `USD GLOBALLY · Options vary by currency and merchant verification`
+- **Composition:** A deep-green chalkboard fills the frame. “20 African markets” occupies the top quarter; the 20 names sit in two columns with consistent spacing; method chips occupy a separate bottom band so they cannot be mistaken for country-specific card guarantees.
+- **Artistic idea:** The incoming URL line draws the board's chalk rule; each country is written as a paired chalk tap, and the final country node circles the method band.
+- **Timed choreography:** 0.00–0.45s the gold rule draws onto the board. At 0.42s the market title and country names begin appearing; the final names resolve by about 1.5s, then remain legible. The M-Pesa chip arrives at 2.35s and the qualified card chip at 2.75s. At 4.00s the USD/verification note resolves as the centered chalk circle grows into Shot 04.
+- **Transition contract:** Keep the circle centered at 50% width/49% height across the market-board exit and end-card entrance.
+- **Assets/technique:** Country names derived from the 20 currently collection-ready currency routes in the public live response; typography drawn as a crisp overlay, not generated in the photograph.
+- **Voice:** Begins at 6.88s: “Lipa kwa kadi pale zinapopatikana, au kwa M-Pesa nchini Kenya.” (“Pay by card where available, or by M-Pesa in Kenya.”)
+- **Sound intent:** Keep narration clear and the instrumental restrained; no SFX.
 
-### Shot 04 / 11.00–15.00s / 4.00s — “GREENPAY.”
+### Shot 04 / 11.45–15.00s / 3.55s — “GREENPAY.”
 
-- **Purpose:** End on the brand and one clear next step, while keeping the market caveat readable.
+- **Purpose:** Close on the brand and URL while preserving the payment-availability qualification.
 - **Exact content:**
-  - 11.00–11.70s: `PAYMENT LINKS · DEVELOPER API · CLEAR RECORDS`
-  - 11.70–12.35s: official Greenpay mark and wordmark `Greenpay`
-  - 12.35–15.00s: `greenpay.co.ke`
-  - 12.35–15.00s: `25 African markets in the catalog + global USD`
-  - 12.35–15.00s: `Collection availability varies by currency and merchant verification`
-- **Composition:** Warm paper background. The authentic Greenpay mark is centered above the wordmark, both in the central safe region. The URL and product summary sit below. The availability note uses readable 3.2vmin type, not a legal-print footnote.
-- **Artistic idea:** The confirmation ring from Shot 03 contracts into the circular geometry of the official mark; the wordmark remains still while the URL route traces beneath it.
-- **Timed choreography:** 0.00–0.55s the green field opens through a circular aperture. 0.55–1.15s the route contracts into the official logo mark. 1.15–1.75s the product summary resolves above the mark. 1.75–2.35s the Greenpay wordmark and website appear. 2.35–3.20s the catalog statement and live-availability note settle as two clear lines. 3.20–3.55s a thin gold route ring grows around the lockup. 3.55–4.00s the ring expands past frame edges, leaving the same centered outline ring as Shot 01's opening frame for a deliberate loop.
-- **Transition contract:** The final frame hands directly to Shot 01's opening ring with the same center, stroke, scale, and color.
-- **Assets/technique:** Existing official Greenpay logo SVG, forest/mint/gold palette, DM Sans and IBM Plex Mono. Do not recolor or redraw the logo.
-- **Sound intent:** Music resolves cleanly at 15.00s and loops to the opening. No voiceover or SFX.
+  - 11.45–12.00s: official Greenpay mark resolves from the centered circle
+  - 12.00–12.60s: `INVOICES · PAYMENT LINKS · DEVELOPER API`
+  - 11.45–15.00s: `Greenpay`
+  - 12.60–15.00s: `greenpay.co.ke`
+  - 12.80–15.00s: `20 African collection markets + global USD`
+  - 12.80–15.00s: `M-Pesa in Kenya · Cards where available`
+  - 12.80–15.00s: `Card and collection options vary by currency and merchant verification`
+- **Composition:** Warm paper background. The authentic mark sits above the wordmark; the URL and product summary use the lower center. The availability note is a readable supporting line, not legal-print fine text.
+- **Artistic idea:** Chalkboard color gives way to a warm paper field; the official Greenpay mark resolves above the wordmark. The end card is brighter and more centered than the classroom opener.
+- **Timed choreography:** The circle reveals the logo at 11.45s. The product summary arrives at 12.00s; the URL appears at 12.60s; market coverage and method caveat appear at 12.80s and stay readable through the end. From 14.30s, the thin gold ring expands around the centered lockup for the loop.
+- **Transition contract:** End ring and opener ring share position, color, and initial visible scale, preserving the film loop.
+- **Assets/technique:** Existing official Greenpay logo SVG; forest/mint/gold palette; DM Sans and IBM Plex Mono. Do not redraw or recolor the logo.
+- **Voice:** Begins at 11.53s: “Upatikanaji hutegemea nchi na sarafu.” (“Availability depends on country and currency.”)
+- **Sound intent:** Instrumental resolves at exactly 15.00s; the same composite voice/music track loops with the film.
 
 ## Pre-code review
 
-- Adjacent beats vary between kinetic type/orbit, a large floating payment card, a split code-and-record interface, and a centered end card.
-- The opening has a visible ring on frame one and a change every 0.5 seconds; no blank incoming shot.
-- All words and the availability qualification stay within the central 80% vertical safe region.
-- The 25-market claim describes catalog scope only; active collection availability is qualified on screen.
-- No user, provider, or payment-value data is depicted. The API endpoint and transaction terminology follow Greenpay's public developer documentation.
-- The last 0.8 seconds is an intentional ring handoff, not an empty frame; the brand lockup and URL remain readable for more than two seconds.
+- The film now leads with invoices and payment links for non-developers and keeps the developer API as a secondary route.
+- The live public endpoint reports 20 African country routes currently collection-ready across KES, NGN, XOF, RWF, UGX, ZMW, CDF, and XAF; USD remains global. The displayed country list matches those currency groups.
+- Ghana, Tanzania, Malawi, Sierra Leone, and Mozambique are not listed as live collection countries in this snapshot.
+- Only M-Pesa in Kenya is named as a local prompt. Card copy is explicitly qualified “where available”; the public response does not provide a country-by-country card-channel list.
+- No internal method IDs, processors, customer data, example invoice values, or universal-availability claims appear on screen.
+- The final availability note remains on screen for more than two seconds, and the loop retains a visible ring handoff.

@@ -11,12 +11,13 @@ import { Scene2 } from './video_scenes/Scene2';
 import { Scene3 } from './video_scenes/Scene3';
 import { Scene4 } from './video_scenes/Scene4';
 import './film.css';
+import './classroom-film.css';
 
 export const SCENE_DURATIONS = {
-  scope: 3200,
-  links: 3800,
-  api: 4000,
-  close: 4000,
+  scope: 3150,
+  links: 3550,
+  api: 4750,
+  close: 3550,
 } as const;
 
 const VIDEO_ASPECT_RATIO: VideoAspectRatio = '9:16';
@@ -66,7 +67,7 @@ export default function VideoTemplate({
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.volume = 0.42;
+    audio.volume = 1;
     if (paused) {
       audio.pause();
       return;
@@ -93,7 +94,7 @@ export default function VideoTemplate({
         </AnimatePresence>
         <audio
           ref={audioRef}
-          src={`${import.meta.env.BASE_URL}audio/bg_music.wav`}
+          src={`${import.meta.env.BASE_URL}audio/greenpay-voice-mix.wav`}
           preload="auto"
           autoPlay
           muted={muted}

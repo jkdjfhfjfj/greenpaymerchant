@@ -117,9 +117,14 @@ export async function providerIsConfigured(provider: ProviderName): Promise<bool
   if (!await providerEnabled(provider)) return false;
   if (provider === "paystack") return Boolean(await providerCredential(provider, "PAYSTACK_SECRET_KEY"));
   if (provider === "payhero") {
-    const auth = await providerCredential(provider, "PAYHERO_BASIC_AUTH");
-    const channel = await providerCredential(provider, "PAYHERO_CHANNEL_ID");
-    return Boolean(auth && Number.isInteger(Number(channel)) && Number(channel) > 0);
+    const [username, password, legacyAuth, channel] = await Promise.all([
+      providerCredential(provider, "PAYHERO_USERNAME"),
+      providerCredential(provider, "PAYHERO_PASSWORD"),
+      providerCredential(provider, "PAYHERO_BASIC_AUTH"),
+      providerCredential(provider, "PAYHERO_CHANNEL_ID"),
+    ]);
+    const hasAuth = Boolean((username && password) || legacyAuth);
+    return Boolean(hasAuth && Number.isInteger(Number(channel)) && Number(channel) > 0);
   }
   const publicKey = await providerCredential(provider, "PAYZA_PUBLIC_KEY");
   const secretKey = await providerCredential(provider, "PAYZA_SECRET_KEY");
@@ -202,10 +207,22 @@ async function payzaHeaders(): Promise<NonNullable<RequestInit["headers"]>> {
 }
 
 async function payheroHeaders(): Promise<NonNullable<RequestInit["headers"]>> {
-  const token = await providerCredential("payhero", "PAYHERO_BASIC_AUTH");
-  const channel = await providerCredential("payhero", "PAYHERO_CHANNEL_ID");
-  if (!token || !Number.isInteger(Number(channel)) || Number(channel) <= 0) throw new ApiError(503, "The selected payment option is temporarily unavailable.");
-  return { Authorization: token.toLowerCase().startsWith("basic ") ? token : `Basic ${token}`, "Content-Type": "application/json" };
+  const [username, password, legacyAuth, channel] = await Promise.all([
+    providerCredential("payhero", "PAYHERO_USERNAME"),
+    providerCredential("payhero", "PAYHERO_PASSWORD"),
+    providerCredential("payhero", "PAYHERO_BASIC_AUTH"),
+    providerCredential("payhero", "PAYHERO_CHANNEL_ID"),
+  ]);
+  if (!Number.isInteger(Number(channel)) || Number(channel) <= 0) {
+    throw new ApiError(503, "The selected payment option is temporarily unavailable.");
+  }
+  const authorization = username && password
+    ? `Basic ${Buffer.from(`${username}:${password}`, "utf8").toString("base64")}`
+    : legacyAuth
+      ? legacyAuth.toLowerCase().startsWith("basic ") ? legacyAuth : `Basic ${legacyAuth}`
+      : null;
+  if (!authorization) throw new ApiError(503, "The selected payment option is temporarily unavailable.");
+  return { Authorization: authorization, "Content-Type": "application/json" };
 }
 
 export interface StartPaymentInput {

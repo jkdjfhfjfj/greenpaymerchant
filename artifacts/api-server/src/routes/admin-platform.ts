@@ -476,16 +476,23 @@ const defaultSettings = {
 async function credentialDto(provider: typeof providers[number]) {
   const stored = await readProviderCredentials(provider);
   const fields = await Promise.all(providerCredentialFields(provider).map(async (name) => {
-    const value = await providerCredential(provider, name) ?? "";
+    const value = await providerCredential(provider, name) ??
+      (provider === "payhero" && name === "PAYHERO_CHANNEL_ID"
+        ? stored?.credentials.PAYHERO_CHANNEL_ID?.trim()
+        : undefined) ?? "";
     return {
       name, present: Boolean(value),
       masked: value ? `${"•".repeat(Math.min(8, Math.max(4, value.length - 4)))}${value.slice(-4)}` : "",
     };
   }));
+  const payheroLegacyAuth = provider === "payhero"
+    ? await providerCredential("payhero", "PAYHERO_BASIC_AUTH")
+    : null;
   const configured = provider === "paystack"
     ? fields.some((field) => field.name === "PAYSTACK_SECRET_KEY" && field.present)
     : provider === "payhero"
-      ? fields.some((field) => field.name === "PAYHERO_BASIC_AUTH" && field.present) &&
+      ? ((fields.some((field) => field.name === "PAYHERO_USERNAME" && field.present) &&
+          fields.some((field) => field.name === "PAYHERO_PASSWORD" && field.present)) || Boolean(payheroLegacyAuth)) &&
         fields.some((field) => field.name === "PAYHERO_CHANNEL_ID" && field.present)
       : provider === "didit"
         ? fields.some((field) => field.name === "DIDIT_API_KEY" && field.present) &&
@@ -938,6 +945,13 @@ router.put("/admin/provider-credentials/:provider", async (req, res): Promise<vo
   const invalid = Object.keys(parsed.data.credentials).filter((key) => !allowed.includes(key));
   if (invalid.length) { res.status(400).json({ error: `Unsupported credential field(s): ${invalid.join(", ")}.` }); return; }
   const credentials = Object.fromEntries(Object.entries(parsed.data.credentials).map(([key, value]) => [key, value.trim()]).filter(([, value]) => value));
+  if (params.data.provider === "payhero" && !credentials.PAYHERO_CHANNEL_ID) {
+    const stored = await readProviderCredentials("payhero");
+    const savedChannelId = stored?.credentials.PAYHERO_CHANNEL_ID?.trim();
+    const environmentChannelId = process.env.PAYHERO_CHANNEL_ID?.trim();
+    const channelId = savedChannelId || environmentChannelId;
+    if (channelId) credentials.PAYHERO_CHANNEL_ID = channelId;
+  }
   const saved = await encryptProviderCredentials(params.data.provider, credentials, parsed.data.enabled, actor(req));
   const items = await Promise.all(providers.map(credentialDto));
   const item = items.find((entry) => entry.provider === params.data.provider);

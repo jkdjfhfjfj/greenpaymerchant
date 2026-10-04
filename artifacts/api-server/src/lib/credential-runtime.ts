@@ -2,6 +2,8 @@ import { readProviderCredentials } from "./secure-storage";
 
 const ENV_ALIASES: Record<string, string[]> = {
   PAYSTACK_SECRET_KEY: ["PAYSTACK_SECRET_KEY"],
+  PAYHERO_USERNAME: ["PAYHERO_USERNAME"],
+  PAYHERO_PASSWORD: ["PAYHERO_PASSWORD"],
   PAYHERO_BASIC_AUTH: ["PAYHERO_BASIC_AUTH", "PAYHERO_AUTH_TOKEN"],
   PAYHERO_AUTH_TOKEN: ["PAYHERO_BASIC_AUTH", "PAYHERO_AUTH_TOKEN"],
   PAYHERO_CHANNEL_ID: ["PAYHERO_CHANNEL_ID"],
@@ -44,7 +46,7 @@ export async function providerEnabled(provider: string): Promise<boolean> {
 export function providerCredentialFields(provider: string): string[] {
   switch (provider) {
     case "paystack": return ["PAYSTACK_SECRET_KEY"];
-    case "payhero": return ["PAYHERO_BASIC_AUTH", "PAYHERO_AUTH_TOKEN", "PAYHERO_CHANNEL_ID"];
+    case "payhero": return ["PAYHERO_USERNAME", "PAYHERO_PASSWORD", "PAYHERO_CHANNEL_ID"];
     case "payzaapi": return ["PAYZAAPI_API_KEY", "PAYZA_PUBLIC_KEY", "PAYZA_SECRET_KEY", "PAYZA_WEBHOOK_SECRET"];
     case "didit": return ["DIDIT_API_KEY", "DIDIT_WEBHOOK_SECRET", "DIDIT_WORKFLOW_ID", "DIDIT_KYB_WORKFLOW_ID"];
     case "currencyapi": return ["CURRENCYAPI_API_KEY"];

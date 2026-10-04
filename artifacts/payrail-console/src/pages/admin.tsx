@@ -590,7 +590,7 @@ function WalletFxSpreadSettings() {
 }
 
 const CRED_FIELDS: Record<string, string[]> = {
-  paystack: ['PAYSTACK_SECRET_KEY'], payhero: ['PAYHERO_BASIC_AUTH', 'PAYHERO_CHANNEL_ID'], payzaapi: ['PAYZAAPI_API_KEY', 'PAYZA_PUBLIC_KEY', 'PAYZA_SECRET_KEY', 'PAYZA_WEBHOOK_SECRET'],
+  paystack: ['PAYSTACK_SECRET_KEY'], payhero: ['PAYHERO_USERNAME', 'PAYHERO_PASSWORD', 'PAYHERO_CHANNEL_ID'], payzaapi: ['PAYZAAPI_API_KEY', 'PAYZA_PUBLIC_KEY', 'PAYZA_SECRET_KEY', 'PAYZA_WEBHOOK_SECRET'],
   currencyapi: ['CURRENCYAPI_API_KEY'],
   didit: ['DIDIT_API_KEY', 'DIDIT_WEBHOOK_SECRET', 'DIDIT_WORKFLOW_ID', 'DIDIT_KYB_WORKFLOW_ID'],
   cloudinary: ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'],
@@ -629,6 +629,7 @@ function CredEdit({ c, onClose }: { c: ProviderCredential; onClose: () => void }
   const inv = useInvalidateAll();
   const [enabled, setEnabled] = useState(true);
   const names = [...new Set([...c.fields.map((f) => f.name), ...(CRED_FIELDS[c.provider] ?? [])])];
+  const hasSavedPayheroChannelId = c.fields.some((field) => field.name === 'PAYHERO_CHANNEL_ID' && field.present);
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
@@ -636,8 +637,19 @@ function CredEdit({ c, onClose }: { c: ProviderCredential; onClose: () => void }
     names.forEach((n) => { const v = String(f.get(n) || '').trim(); if (v) credentials[n] = v; });
     save.mutate({ provider: c.provider, data: { enabled, credentials } }, { onSuccess: () => { void inv(); onClose(); } });
   }
-  return <Modal title={`${nice(c.provider)} credentials`} description="Values replace what is stored; blank fields are cleared. Enter every value you want to retain. Existing secrets are never displayed." onClose={onClose}><form className="form-stack" onSubmit={submit} autoComplete="off">
-    {names.map((n) => <Field key={n} label={n} hint={OPTIONAL.has(n) ? 'Optional here, but required before verification sessions can start' : REQUIRED_HINT[n]}><input name={n} type={PLAIN.has(n) ? 'text' : 'password'} autoComplete="off" spellCheck={false} placeholder={c.fields.find((f) => f.name === n)?.present ? c.fields.find((f) => f.name === n)?.masked : ''} data-testid={`input-${n}`} /></Field>)}
+  const description = c.provider === 'payhero'
+    ? 'Enter the PayHero username and password. The channel ID is still required; leave it blank to keep the saved value.'
+    : 'Values replace what is stored; blank fields are cleared. Enter every value you want to retain. Existing secrets are never displayed.';
+  return <Modal title={`${nice(c.provider)} credentials`} description={description} onClose={onClose}><form className="form-stack" onSubmit={submit} autoComplete="off">
+    {names.map((n) => {
+      const hint = c.provider === 'payhero' && n === 'PAYHERO_CHANNEL_ID'
+        ? hasSavedPayheroChannelId ? 'Leave blank to keep the saved channel ID, or enter a new one to replace it.' : 'Required by PayHero for payment requests.'
+        : OPTIONAL.has(n) ? 'Optional here, but required before verification sessions can start' : REQUIRED_HINT[n];
+      const label = c.provider === 'payhero'
+        ? ({ PAYHERO_USERNAME: 'Username', PAYHERO_PASSWORD: 'Password', PAYHERO_CHANNEL_ID: 'Channel ID' } as Record<string, string>)[n] ?? n
+        : n;
+      return <Field key={n} label={label} hint={hint}><input name={n} type={PLAIN.has(n) ? 'text' : 'password'} autoComplete="off" spellCheck={false} placeholder={c.fields.find((f) => f.name === n)?.present ? c.fields.find((f) => f.name === n)?.masked : ''} data-testid={`input-${n}`} /></Field>;
+    })}
     <div className="setting-row"><span>Enable provider</span><Switch on={enabled} onChange={setEnabled} label="enable provider" /></div>
     <Err error={save.error} /><Btn type="submit" disabled={save.isPending} testId="button-save-credentials">{save.isPending && <LoaderCircle size={14} className="spin" />}Save to vault</Btn></form></Modal>;
 }

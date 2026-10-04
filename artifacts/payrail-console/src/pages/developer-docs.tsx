@@ -92,6 +92,7 @@ export function PublicApiDocsPage() {
 }
 
 function DeveloperDocsContent({ publicView = false }: { publicView?: boolean }) {
+  const docsOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://greenpay.co.ke';
   const currencies = useListSupportedCurrencies();
   const [apiKey, setApiKey] = useState('');
   const [endpoint, setEndpoint] = useState<ReadEndpoint>('merchant');
@@ -108,7 +109,7 @@ function DeveloperDocsContent({ publicView = false }: { publicView?: boolean }) 
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [idempotencyKey, setIdempotencyKey] = useState<string>(() => crypto.randomUUID());
+  const [idempotencyKey, setIdempotencyKey] = useState('');
   const [result, setResult] = useState<CallResult>(null);
   const [busy, setBusy] = useState(false);
   const [requestError, setRequestError] = useState('');
@@ -116,13 +117,16 @@ function DeveloperDocsContent({ publicView = false }: { publicView?: boolean }) 
   const paymentMethods = paymentCurrencyOption?.paymentMethods ?? [];
   const selectedPaymentMethod = paymentMethods.find((method) => method.id === paymentMethodId && method.ready)
     ?? paymentMethods.find((method) => method.ready);
+  useEffect(() => {
+    setIdempotencyKey(crypto.randomUUID());
+  }, []);
 
   async function send(path: string, method: 'GET' | 'POST', kind: 'read' | 'payment', body?: Record<string, unknown>, idempotency?: string) {
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (apiKey.trim()) headers.Authorization = `Bearer ${apiKey.trim()}`;
     if (body) headers['Content-Type'] = 'application/json';
     if (idempotency) headers['Idempotency-Key'] = idempotency;
-    const url = new URL(`${API_ORIGIN}${path}`, window.location.origin);
+    const url = new URL(`${API_ORIGIN}${path}`, docsOrigin);
     const response = await fetch(url, {
       method,
       headers,
@@ -252,7 +256,7 @@ function DeveloperDocsContent({ publicView = false }: { publicView?: boolean }) 
       <section id="api-authentication" className="api-docs-section">
     <Card title="Base URL and authentication" subtitle="All merchant API requests use this deployment's API host.">
       <div className="form-stack">
-        <pre className="code">{`Base URL: ${window.location.origin}${API_ORIGIN}
+        <pre className="code">{`Base URL: ${docsOrigin}${API_ORIGIN}
 Authentication: Authorization: Bearer <merchant API key>
 Content type: application/json
 Environment: this Greenpay deployment; there is no separate Greenpay sandbox hostname.`}</pre>
@@ -297,7 +301,7 @@ Environment: this Greenpay deployment; there is no separate Greenpay sandbox hos
           <li><strong>Confirm before fulfillment.</strong> Save <code>transaction.reference</code>. Use the signed-webhook procedure below for order fulfillment, match the reference, amount, and currency to your order, and treat <code>pending</code> as unpaid.</li>
         </ol>
         <h3>Example server request</h3>
-        <pre className="code">{`POST ${window.location.origin}${API_ORIGIN}/v1/transactions
+        <pre className="code">{`POST ${docsOrigin}${API_ORIGIN}/v1/transactions
 Authorization: Bearer $GREENPAY_API_KEY
 Idempotency-Key: order-1042-attempt-1
 Content-Type: application/json
@@ -306,14 +310,14 @@ Content-Type: application/json
         <p>Use a new idempotency key for each distinct attempt and reuse it only when retrying the same request. Return the checkout URL and transaction reference to your frontend, never the API key.</p>
         <h3>Run safe connection and status checks</h3>
         <pre className="code">{`# Currency and method readiness; no API key required
-curl "${window.location.origin}${API_ORIGIN}/currencies"
+curl "${docsOrigin}${API_ORIGIN}/currencies"
 
 # Confirm the merchant API key (requires the read scope)
-curl "${window.location.origin}${API_ORIGIN}/v1/merchant" \\
+curl "${docsOrigin}${API_ORIGIN}/v1/merchant" \\
   -H "Authorization: Bearer $GREENPAY_API_KEY"
 
 # Customer-safe status lookup; no API key required
-curl "${window.location.origin}${API_ORIGIN}/public/transactions/TRANSACTION_REFERENCE"`}</pre>
+curl "${docsOrigin}${API_ORIGIN}/public/transactions/TRANSACTION_REFERENCE"`}</pre>
         <p>Use <code>GET /public/transactions/:reference</code> to display customer-safe status, or <code>GET /v1/transactions/:reference</code> with the <code>read</code> scope for merchant details. Greenpay has no separate public sandbox hostname: a payment-creation request can start a real collection. Use the read-only checks above for connectivity, and only run end-to-end payment tests after confirming the currency route is configured for test mode.</p>
       </div>
     </Card>
@@ -375,9 +379,9 @@ curl "${window.location.origin}${API_ORIGIN}/public/transactions/TRANSACTION_REF
       <div className="form-stack">
         <p>Payout requests are handled in the signed-in merchant workspace, not with a developer API bearer key. Currency must be one of Greenpay's supported three-letter currency codes, and the payout provider must return that currency as available. Provider methods, minimum withdrawals, and fees can vary by currency and deployment.</p>
         <h3>Check current payout methods (signed-in merchant session)</h3>
-        <pre className="code">{`GET ${window.location.origin}/api/wallets/payout-methods?currency=KES`}</pre>
+        <pre className="code">{`GET ${docsOrigin}/api/wallets/payout-methods?currency=KES`}</pre>
         <h3>Request a payout from an approved destination</h3>
-        <pre className="code">{`POST ${window.location.origin}/api/wallets/payout-requests
+        <pre className="code">{`POST ${docsOrigin}/api/wallets/payout-requests
 Idempotency-Key: payout-request-1042
 Content-Type: application/json
 
@@ -421,32 +425,32 @@ app.post('/webhooks/greenpay', express.raw({ type: 'application/json' }), (req, 
       <div className="form-stack">
         <Note tone="warn">For a website integration, keep <code>GREENPAY_API_KEY</code> in your server-side secret manager. The browser should call your own backend, which attaches the key when it calls Greenpay. Never put the key in browser JavaScript, HTML, a public build-time environment variable, or a mobile app.{!publicView && ' The built-in playground is a temporary, explicit same-origin tool—not a production integration pattern.'}</Note>
         <h3>Read the merchant and a paginated transaction list</h3>
-        <pre className="code">{`curl "${window.location.origin}/api/v1/merchant" \\
+        <pre className="code">{`curl "${docsOrigin}/api/v1/merchant" \\
   -H "Authorization: Bearer $GREENPAY_API_KEY"
 
-curl "${window.location.origin}/api/v1/transactions?page=1&perPage=25" \\
+curl "${docsOrigin}/api/v1/transactions?page=1&perPage=25" \\
   -H "Authorization: Bearer $GREENPAY_API_KEY"`}</pre>
         <h3>Read a transaction or calculate a quote</h3>
-        <pre className="code">{`curl "${window.location.origin}/api/v1/transactions/TRANSACTION_REFERENCE" \\
+        <pre className="code">{`curl "${docsOrigin}/api/v1/transactions/TRANSACTION_REFERENCE" \\
   -H "Authorization: Bearer $GREENPAY_API_KEY"
 
-curl "${window.location.origin}/api/v1/fx-quote?amount=100&from=USD&to=KES" \\
+curl "${docsOrigin}/api/v1/fx-quote?amount=100&from=USD&to=KES" \\
   -H "Authorization: Bearer $GREENPAY_API_KEY"`}</pre>
         <h3>Create a payment (money-moving; opt-in required)</h3>
-        <pre className="code">{`curl -X POST "${window.location.origin}/api/v1/transactions" \\
+        <pre className="code">{`curl -X POST "${docsOrigin}/api/v1/transactions" \\
   -H "Authorization: Bearer $GREENPAY_API_KEY" \\
   -H "Idempotency-Key: order-1042-attempt-1" \\
   -H "Content-Type: application/json" \\
   -d '{"amount":10,"currency":"USD","paymentMethod":"hosted_checkout","customerEmail":"buyer@example.com"}'`}</pre>
         <p>The request's <code>paymentMethod</code> must use a designated method ID returned for the selected currency, such as <code>hosted_checkout</code> or <code>mobile_prompt</code>; do not send a display label or provider name. With <code>hosted_checkout</code>, the provider checkout displays the methods it actually supports, so it is not a card-only guarantee.</p>
         <h3>Create a payment link</h3>
-        <pre className="code">{`curl -X POST "${window.location.origin}/api/v1/payment-links" \\
+        <pre className="code">{`curl -X POST "${docsOrigin}/api/v1/payment-links" \\
   -H "Authorization: Bearer $GREENPAY_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"name":"Invoice 1042","amountType":"fixed","amount":10,"currency":"USD","description":"Invoice 1042"}'`}</pre>
         <p>Use <code>amountType: "customer_choice"</code> when the customer chooses the amount; omit <code>amount</code> in that case. The response includes the shareable link URL.</p>
         <h3>Check payment status after checkout</h3>
-        <pre className="code">{`curl "${window.location.origin}/api/public/transactions/TRANSACTION_REFERENCE"`}</pre>
+        <pre className="code">{`curl "${docsOrigin}/api/public/transactions/TRANSACTION_REFERENCE"`}</pre>
         <p>This public endpoint needs no API key and returns a customer-safe status payload. It may refresh pending provider status; prefer the signed webhook flow above for ongoing updates.</p>
         <Note tone="warn">Do not use a live payment request as a connectivity test. A request can initiate a real collection when live upstream credentials are active. The API does not offer a distinct public sandbox hostname.</Note>
       </div>

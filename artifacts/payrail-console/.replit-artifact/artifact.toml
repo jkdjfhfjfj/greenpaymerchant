@@ -28,6 +28,38 @@ from = "/contact/"
 to = "/contact/index.html"
 
 [[services.production.rewrites]]
+from = "/about"
+to = "/about/index.html"
+
+[[services.production.rewrites]]
+from = "/about/"
+to = "/about/index.html"
+
+[[services.production.rewrites]]
+from = "/api-docs"
+to = "/api-docs/index.html"
+
+[[services.production.rewrites]]
+from = "/api-docs/"
+to = "/api-docs/index.html"
+
+[[services.production.rewrites]]
+from = "/sign-in"
+to = "/sign-in/index.html"
+
+[[services.production.rewrites]]
+from = "/sign-in/"
+to = "/sign-in/index.html"
+
+[[services.production.rewrites]]
+from = "/sign-up"
+to = "/sign-up/index.html"
+
+[[services.production.rewrites]]
+from = "/sign-up/"
+to = "/sign-up/index.html"
+
+[[services.production.rewrites]]
 from = "/*"
 to = "/index.html"
 

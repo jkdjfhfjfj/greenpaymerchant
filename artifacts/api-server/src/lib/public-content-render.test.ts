@@ -9,7 +9,7 @@ import {
   type PublicContentDocument,
 } from "./public-content-render";
 
-const productionBase = "https://empty-project.replit.app";
+const productionBase = "https://greenpay.co.ke";
 const published: PublicContentDocument = {
   id: 4,
   kind: "article",
@@ -36,17 +36,19 @@ test("published content is crawlable raw HTML with route-specific SEO and JSON-L
   assert.match(html, /<title>Greenpay confirmed payment records \| Greenpay<\/title>/);
   assert.match(html, /name="description" content="A pending payment is not a confirmed Greenpay receipt\."/);
   assert.match(html, /property="og:title" content="Greenpay confirmed payment records \| Greenpay"/);
-  assert.match(html, /property="og:url" content="https:\/\/empty-project\.replit\.app\/articles\/confirmed-payment-records"/);
-  assert.match(html, /rel="canonical" href="https:\/\/empty-project\.replit\.app\/articles\/confirmed-payment-records"/);
+  assert.match(html, /property="og:url" content="https:\/\/greenpay\.co\.ke\/articles\/confirmed-payment-records"/);
+  assert.match(html, /rel="canonical" href="https:\/\/greenpay\.co\.ke\/articles\/confirmed-payment-records"/);
   assert.match(html, /"@type":"Organization"/);
   assert.match(html, /"@type":"WebSite"/);
   assert.match(html, /"@type":"Article"/);
   assert.match(html, /"@type":"BreadcrumbList"/);
   assert.match(html, /A receipt is available only after successful provider confirmation\./);
+  assert.match(html, /href="\/about">About/);
+  assert.match(html, /href="\/api-docs">API docs/);
   assert.match(html, /href="\/learn">Help &amp; FAQs/);
   assert.match(html, /href="\/contact">Contact support/);
   assert.match(html, /href="\/sign-in">Sign in/);
-  assert.match(html, /href="\/admin\/content">Content admin/);
+  assert.doesNotMatch(html, /href="\/admin\/content"/);
   assert.match(html, /&lt;script&gt;alert\(&#39;not executable&#39;\)&lt;\/script&gt;/);
   assert.doesNotMatch(html, /<script>alert\(/i);
   assert.doesNotMatch(html, /type="module"|id="root"/i);
@@ -59,11 +61,16 @@ test("drafts and private references are absent from help, sitemap and llms outpu
   assert.match(help, /When is a Greenpay payment receipt confirmed\?/);
   assert.match(help, /published-payment-faq/);
   assert.doesNotMatch(help, /Private draft|customer@example\.test|GP-PRIVATE-12345/);
-  assert.match(sitemap, /https:\/\/empty-project\.replit\.app\/learn\/published-payment-faq/);
-  assert.match(sitemap, /https:\/\/empty-project\.replit\.app\/guides/);
-  assert.match(sitemap, /https:\/\/empty-project\.replit\.app\/articles/);
+  assert.match(sitemap, /https:\/\/greenpay\.co\.ke\/about/);
+  assert.match(sitemap, /https:\/\/greenpay\.co\.ke\/api-docs/);
+  assert.match(sitemap, /https:\/\/greenpay\.co\.ke\/contact/);
+  assert.match(sitemap, /https:\/\/greenpay\.co\.ke\/learn\/published-payment-faq/);
+  assert.match(sitemap, /https:\/\/greenpay\.co\.ke\/guides/);
+  assert.match(sitemap, /https:\/\/greenpay\.co\.ke\/articles/);
   assert.doesNotMatch(sitemap, /private-draft|GP-PRIVATE|customer@example|\/admin|\/receipt\/12345/);
   assert.match(llms, /published-payment-faq/);
+  assert.match(llms, /About Greenpay/);
+  assert.match(llms, /API documentation/);
   assert.doesNotMatch(llms, /private-draft|GP-PRIVATE|customer@example/);
 });
 
@@ -76,8 +83,10 @@ test("unpublished direct requests return noindex HTML without exposing the draft
 
 test("robots advertises only the verified production sitemap and excludes account surfaces", () => {
   const robots = renderRobotsTxt(productionBase);
-  assert.match(robots, /Sitemap: https:\/\/empty-project\.replit\.app\/sitemap\.xml/);
-  assert.match(robots, /Disallow: \/api/);
+  assert.match(robots, /Sitemap: https:\/\/greenpay\.co\.ke\/sitemap\.xml/);
+  assert.match(robots, /Disallow: \/api\//);
+  assert.doesNotMatch(robots, /Disallow: \/api-docs/);
+  assert.doesNotMatch(robots, /Disallow: \/sign-in|Disallow: \/sign-up/);
   assert.match(robots, /Disallow: \/invoices/);
   assert.match(robots, /Disallow: \/receipt/);
   assert.doesNotMatch(robots, /\.replit\.dev|localhost/);

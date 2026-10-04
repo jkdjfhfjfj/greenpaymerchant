@@ -27,7 +27,7 @@ type ContentListResponse = { items: ContentRecord[] };
 type VersionsResponse = { items: ContentVersion[] };
 
 const adminKey = ['greenpay-content', 'admin'];
-const verifiedPublicBase = import.meta.env.VITE_PUBLIC_SITE_URL?.trim() || 'https://empty-project.replit.app';
+const verifiedPublicBase = import.meta.env.VITE_PUBLIC_SITE_URL?.trim() || 'https://greenpay.co.ke';
 const kindLabel: Record<ContentKind, string> = { guide: 'Guide', article: 'Article', faq: 'FAQ' };
 const emptyDraft: ContentInput = { kind: 'guide', title: '', slug: '', summary: '', body: '' };
 

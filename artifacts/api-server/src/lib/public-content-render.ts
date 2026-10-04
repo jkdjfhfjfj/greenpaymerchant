@@ -35,7 +35,7 @@ export const greenpayFaqs = [
 
 const siteName = "Greenpay";
 const canonicalSiteUrl = (configured?: string) => {
-  const base = configured?.trim() || process.env.PUBLIC_SITE_URL?.trim() || "https://empty-project.replit.app";
+  const base = configured?.trim() || process.env.PUBLIC_SITE_URL?.trim() || "https://greenpay.co.ke";
   return new URL(base).origin;
 };
 
@@ -126,9 +126,9 @@ function pageDocument(input: {
 </style>
 </head>
 <body>
-<header class="site-header"><a class="brand" href="/" aria-label="Greenpay home">Green<b>pay</b></a><nav aria-label="Primary"><a href="/learn">Help &amp; FAQs</a><a href="/guides">Guides</a><a href="/articles">Articles</a><a href="/contact">Contact support</a><a href="/sign-in">Sign in</a><a href="/admin/content">Content admin</a></nav></header>
+<header class="site-header"><a class="brand" href="/" aria-label="Greenpay home">Green<b>pay</b></a><nav aria-label="Primary"><a href="/about">About</a><a href="/api-docs">API docs</a><a href="/learn">Help &amp; FAQs</a><a href="/guides">Guides</a><a href="/articles">Articles</a><a href="/contact">Contact support</a><a href="/sign-in">Sign in</a></nav></header>
 ${input.content}
-<footer class="site-footer"><a class="brand" href="/">Green<b>pay</b></a><span>Payment records that distinguish requests, forecasts and confirmed money.</span><a href="/learn">Help center</a><a href="/contact">Contact support</a><a href="/admin/content">Content admin</a><a href="${escapeHtml(`${input.base}/`)}" aria-label="Powered by ${siteName} — visit homepage">Powered by ${siteName}</a></footer>
+<footer class="site-footer"><a class="brand" href="/">Green<b>pay</b></a><span>Payment records that distinguish requests, forecasts and confirmed money.</span><a href="/about">About Greenpay</a><a href="/api-docs">API documentation</a><a href="/learn">Help center</a><a href="/contact">Contact support</a><a href="${escapeHtml(`${input.base}/`)}" aria-label="Powered by ${siteName} — visit homepage">Powered by ${siteName}</a></footer>
 </body></html>`;
 }
 
@@ -259,6 +259,9 @@ export function renderSitemapXml(documents: PublicContentDocument[], baseUrl?: s
   const base = canonicalSiteUrl(baseUrl);
   const urls = [
     { path: "/", updatedAt: null as string | null },
+    { path: "/about", updatedAt: null as string | null },
+    { path: "/api-docs", updatedAt: null as string | null },
+    { path: "/contact", updatedAt: null as string | null },
     { path: "/learn", updatedAt: null as string | null },
     { path: "/guides", updatedAt: null as string | null },
     { path: "/articles", updatedAt: null as string | null },
@@ -275,7 +278,7 @@ export function renderSitemapXml(documents: PublicContentDocument[], baseUrl?: s
 
 export function renderRobotsTxt(baseUrl?: string): string {
   const base = canonicalSiteUrl(baseUrl);
-  return `User-agent: *\nAllow: /\nDisallow: /api\nDisallow: /admin\nDisallow: /merchant\nDisallow: /customers\nDisallow: /transactions\nDisallow: /invoices\nDisallow: /receipts\nDisallow: /payment-links\nDisallow: /wallets\nDisallow: /payouts\nDisallow: /payout-requests\nDisallow: /team\nDisallow: /pay\nDisallow: /receipt\nDisallow: /status\nDisallow: /sign-in\nDisallow: /sign-up\nDisallow: /profile\nDisallow: /notifications\nDisallow: /statements\nDisallow: /cases\nDisallow: /developers\nDisallow: /settings\nDisallow: /operations\nDisallow: /settlements\nDisallow: /support\nDisallow: /exchange\nDisallow: /webhooks\nSitemap: ${base}/sitemap.xml\n`;
+  return `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin\nDisallow: /merchant\nDisallow: /customers\nDisallow: /transactions\nDisallow: /invoices\nDisallow: /receipts\nDisallow: /payment-links\nDisallow: /wallets\nDisallow: /payouts\nDisallow: /payout-requests\nDisallow: /team\nDisallow: /pay\nDisallow: /receipt\nDisallow: /status\nDisallow: /profile\nDisallow: /notifications\nDisallow: /statements\nDisallow: /cases\nDisallow: /developers\nDisallow: /settings\nDisallow: /operations\nDisallow: /settlements\nDisallow: /support\nDisallow: /exchange\nDisallow: /webhooks\nSitemap: ${base}/sitemap.xml\n`;
 }
 
 export function renderLlmsTxt(documents: PublicContentDocument[], baseUrl?: string): string {
@@ -297,6 +300,11 @@ export function renderLlmsTxt(documents: PublicContentDocument[], baseUrl?: stri
     "# Greenpay",
     "",
     "> Greenpay provides payment collection tools and records for merchants. Public documentation distinguishes confirmed transactions and settlement evidence from pending requests and forecasts.",
+    "",
+    "## About and product",
+    `- [About Greenpay](${base}/about): Payment collection tools, payment links, a developer API, and business-finance records for merchants.`,
+    `- [Contact Greenpay](${base}/contact): Public support form for payment, account, verification, and technical questions.`,
+    `- [API documentation](${base}/api-docs): Merchant authentication, collections, supported currencies, payouts, and signed webhooks.`,
     "",
     "## Public help",
     `- [Help and payment FAQs](${base}/learn): Answers about confirmed receipts, verified settlement wallet balances, invoices, refunds, and merchant team roles.`,

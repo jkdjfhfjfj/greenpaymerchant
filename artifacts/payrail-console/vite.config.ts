@@ -42,7 +42,7 @@ function getPublicSiteUrl(mode: string): string {
   const configuredSiteUrl =
     env.VITE_PUBLIC_SITE_URL?.trim() || env.PUBLIC_SITE_URL?.trim();
   const siteUrlCandidate = configuredSiteUrl || env.RENDER_EXTERNAL_URL?.trim();
-  let siteUrl = 'https://empty-project.replit.app';
+  let siteUrl = 'https://greenpay.co.ke';
   if (siteUrlCandidate) {
     try {
       const configured = new URL(siteUrlCandidate);
@@ -53,7 +53,7 @@ function getPublicSiteUrl(mode: string): string {
     } catch (error) {
       if (mode === 'production') {
         throw new Error(
-          'VITE_PUBLIC_SITE_URL or PUBLIC_SITE_URL must be a full HTTPS URL (for example, https://greenpay.onrender.com). Leave both unset on Render to use RENDER_EXTERNAL_URL.',
+          'VITE_PUBLIC_SITE_URL or PUBLIC_SITE_URL must be a full HTTPS URL (for example, https://greenpay.co.ke). Leave both unset on Render to use RENDER_EXTERNAL_URL.',
           { cause: error },
         );
       }
@@ -83,7 +83,7 @@ function escapeHtml(value: string): string {
 
 function prerenderHead(
   html: string,
-  input: { title: string; description: string; path: string; siteUrl: string },
+  input: { title: string; description: string; path: string; siteUrl: string; robots?: string },
 ): string {
   const canonical = new URL(input.path, `${input.siteUrl}/`).toString();
   const title = escapeHtml(input.title);
@@ -118,7 +118,7 @@ function prerenderHead(
   return html
     .replace(/<title>[\s\S]*?<\/title>/i, `<title>${title}</title>`)
     .replace(/<meta name="description"[^>]*>/i, `<meta name="description" content="${description}">`)
-    .replace(/<meta name="robots"[^>]*>/i, '<meta name="robots" content="index, follow">')
+    .replace(/<meta name="robots"[^>]*>/i, `<meta name="robots" content="${escapeHtml(input.robots ?? 'index, follow')}">`)
     .replace(/<link rel="canonical"[^>]*>/i, `<link rel="canonical" href="${escapeHtml(canonical)}">`)
     .replace(/<meta property="og:site_name"[^>]*>/i, '<meta property="og:site_name" content="Greenpay">')
     .replace(/<meta property="og:title"[^>]*>/i, `<meta property="og:title" content="${title}">`)
@@ -148,9 +148,16 @@ function prerenderPublicPages(siteUrl: string): Plugin {
         logLevel: 'error',
       });
       try {
-        const [{ default: HomePage }, { ContactPage }] = await Promise.all([
+        const [
+          { default: HomePage },
+          { ContactPage },
+          { AboutPage },
+          { PublicApiDocsPage },
+        ] = await Promise.all([
           ssrServer.ssrLoadModule('/src/pages/home.tsx'),
           ssrServer.ssrLoadModule('/src/pages/contact.tsx'),
+          ssrServer.ssrLoadModule('/src/pages/about.tsx'),
+          ssrServer.ssrLoadModule('/src/pages/developer-docs.tsx'),
         ]);
         const homeMarkup = renderToStaticMarkup(createElement(
           QueryClientProvider,
@@ -166,6 +173,16 @@ function prerenderPublicPages(siteUrl: string): Plugin {
           QueryClientProvider,
           { client: new QueryClient() },
           createElement(ContactPage),
+        ));
+        const aboutMarkup = renderToStaticMarkup(createElement(
+          QueryClientProvider,
+          { client: new QueryClient() },
+          createElement(AboutPage),
+        ));
+        const apiDocsMarkup = renderToStaticMarkup(createElement(
+          QueryClientProvider,
+          { client: new QueryClient() },
+          createElement(PublicApiDocsPage),
         ));
         const indexPath = path.join(outDir, 'index.html');
         const indexTemplate = await readFile(indexPath, 'utf8');
@@ -186,6 +203,39 @@ function prerenderPublicPages(siteUrl: string): Plugin {
         const contactDir = path.join(outDir, 'contact');
         await mkdir(contactDir, { recursive: true });
         await writeFile(path.join(contactDir, 'index.html'), contactHtml);
+
+        const aboutHtml = prerenderHead(indexTemplate, {
+          title: 'About Greenpay | Payment collection for African businesses',
+          description: 'Learn about Greenpay payment collection for African businesses, including payment links, a developer API, and clear transaction and settlement records.',
+          path: '/about',
+          siteUrl,
+        }).replace('<div id="root"></div>', `<div id="root">${aboutMarkup}</div>`);
+        const aboutDir = path.join(outDir, 'about');
+        await mkdir(aboutDir, { recursive: true });
+        await writeFile(path.join(aboutDir, 'index.html'), aboutHtml);
+
+        const apiDocsHtml = prerenderHead(indexTemplate, {
+          title: 'Greenpay API Documentation | Payments API',
+          description: 'Read the Greenpay API reference for merchant authentication, payment links, collections, supported currencies, payouts, and signed webhooks.',
+          path: '/api-docs',
+          siteUrl,
+        }).replace('<div id="root"></div>', `<div id="root">${apiDocsMarkup}</div>`);
+        const apiDocsDir = path.join(outDir, 'api-docs');
+        await mkdir(apiDocsDir, { recursive: true });
+        await writeFile(path.join(apiDocsDir, 'index.html'), apiDocsHtml);
+
+        for (const route of ['sign-in', 'sign-up']) {
+          const authHtml = prerenderHead(indexTemplate, {
+            title: `${route === 'sign-in' ? 'Sign in' : 'Create your account'} | Greenpay`,
+            description: `${route === 'sign-in' ? 'Sign in to' : 'Create an account with'} Greenpay to access the merchant workspace.`,
+            path: `/${route}`,
+            siteUrl,
+            robots: 'noindex, follow',
+          });
+          const authDir = path.join(outDir, route);
+          await mkdir(authDir, { recursive: true });
+          await writeFile(path.join(authDir, 'index.html'), authHtml);
+        }
       } finally {
         await ssrServer.close();
       }

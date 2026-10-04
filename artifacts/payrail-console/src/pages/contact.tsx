@@ -16,7 +16,7 @@ export function ContactPage() {
   useEffect(() => {
     const title = `Contact ${branding.platformName} Support`;
     const description = `Contact ${branding.platformName} about payments, your account, business verification or a technical issue. Do not include passwords or payment credentials.`;
-    const publicBase = import.meta.env.VITE_PUBLIC_SITE_URL?.trim() || 'https://empty-project.replit.app';
+    const publicBase = import.meta.env.VITE_PUBLIC_SITE_URL?.trim() || 'https://greenpay.co.ke';
     const canonicalUrl = new URL('/contact', `${publicBase.replace(/\/$/, '')}/`).toString();
     document.title = title;
     const setMeta = (selector: string, attribute: 'name' | 'property', key: string, content: string) => {

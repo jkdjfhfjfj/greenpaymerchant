@@ -1,6 +1,6 @@
 User-agent: *
 Allow: /
-Disallow: /api
+Disallow: /api/
 Disallow: /admin
 Disallow: /merchant
 Disallow: /customers
@@ -15,8 +15,6 @@ Disallow: /team
 Disallow: /pay
 Disallow: /receipt
 Disallow: /status
-Disallow: /sign-in
-Disallow: /sign-up
 Disallow: /profile
 Disallow: /notifications
 Disallow: /statements
@@ -28,4 +26,4 @@ Disallow: /settlements
 Disallow: /support
 Disallow: /exchange
 Disallow: /webhooks
-Sitemap: https://empty-project.replit.app/sitemap.xml
+Sitemap: https://greenpay.co.ke/sitemap.xml

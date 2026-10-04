@@ -31,6 +31,7 @@ import { PlatformBrand, PlatformBrandingProvider, usePlatformBranding } from '@/
 import { collectionMethodDisplayOptions } from '@/lib/collection-method-display';
 import { NotificationBell } from '@/components/notification-bell';
 import { ContactPage } from '@/pages/contact';
+import { AboutPage } from '@/pages/about';
 import { SupportPage } from '@/pages/support';
 import { AdminSupportPage } from '@/pages/admin-support';
 import { ProfilePage } from '@/pages/profile';
@@ -180,6 +181,8 @@ const adminSection: { title: string; items: NavItem[] } = { title: 'PLATFORM ADM
   { label: 'Privacy & terms', href: '/admin/legal-policies', icon: ShieldCheck },
 ] };
 const pageInfo: Record<string, { title: string; subtitle: string }> = {
+  '/about': { title: 'About Greenpay', subtitle: '' },
+  '/api-docs': { title: 'Greenpay API documentation', subtitle: '' },
   '/admin/email-delivery': { title: 'Email delivery', subtitle: '' },
   '/admin/content': { title: 'Public content', subtitle: '' },
   '/admin/legal-policies': { title: 'Privacy & terms', subtitle: '' },
@@ -1057,6 +1060,7 @@ const protectedRoutes: [string, () => ReactNode][] = [
 protectedRoutes.push(['/operations', () => <Gate need="admin"><Dashboard /></Gate>]);
 const protectedRouteElements = protectedRoutes.map(([path, C]) => <Route key={path} path={path} component={wrap(() => path.startsWith('/admin') ? <Gate need="admin"><C /></Gate> : <C />, !['/merchant/dashboard', '/merchant/new', '/merchant'].includes(path))} />);
 const publicContentRoutes = [
+  <Route key="about" path="/about" component={AboutPage} />,
   <Route key="privacy-policy" path="/privacy" component={() => <PublicLegalPolicyPage policyType="privacy_policy" />} />,
   <Route key="terms-of-service" path="/terms" component={() => <PublicLegalPolicyPage policyType="terms_of_service" />} />,
   <Route key="api-docs" path="/api-docs" component={PublicApiDocsPage} />,
@@ -1086,7 +1090,7 @@ function PageMetadata() {
   useEffect(() => {
     const publicContent = /^\/(?:learn|guides|articles)(?:\/|$)/.test(location);
     if (publicContent) return;
-    const indexable = location === '/' || location === '/contact';
+    const indexable = location === '/' || location === '/contact' || location === '/about' || location === '/api-docs';
     let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
     if (!robots) { robots = document.createElement('meta'); robots.name = 'robots'; document.head.appendChild(robots); }
     robots.content = indexable ? 'index, follow' : 'noindex, nofollow';
@@ -1099,13 +1103,17 @@ function PageMetadata() {
     const descriptions: Record<string, string> = {
       '/': `${platformName} helps businesses collect payments, create payment links, and track transaction and settlement status.`,
       '/contact': `Contact ${platformName} for help with payment collection, merchant onboarding, and platform support.`,
+      '/about': `Learn about ${platformName} payment collection for African businesses, including payment links, a developer API, and clear transaction and settlement records.`,
+      '/api-docs': `Read the ${platformName} API reference for merchant authentication, payment links, collections, supported currencies, payouts, and signed webhooks.`,
     };
     const descriptionText = descriptions[location] || `${title} in ${platformName}.`;
     const description = document.querySelector<HTMLMetaElement>('meta[name="description"]');
     if (description) description.content = descriptionText;
     const canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
     if (indexable) {
-      const canonicalUrl = new URL(`${basePath}${location === '/' ? '/' : location}`, window.location.origin).toString();
+      const canonicalBase = import.meta.env.VITE_PUBLIC_SITE_URL?.trim() || 'https://greenpay.co.ke';
+      const canonicalPath = `${basePath}${location === '/' ? '/' : location}`;
+      const canonicalUrl = new URL(canonicalPath, `${canonicalBase.replace(/\/$/, '')}/`).toString();
       const canonicalLink = canonical ?? document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'canonical' }));
       canonicalLink.href = canonicalUrl;
       const ogUrl = document.querySelector<HTMLMetaElement>('meta[property="og:url"]');

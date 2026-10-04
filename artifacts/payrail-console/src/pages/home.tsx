@@ -95,7 +95,7 @@ export default function HomePage() {
   useEffect(() => {
     const title = `${branding.platformName} | Payment collection and business finance records`;
     const description = `${branding.platformName} helps businesses collect payments across African markets with payment links and a developer API, then review confirmed transactions, fees and payout records.`;
-    const publicBase = import.meta.env.VITE_PUBLIC_SITE_URL?.trim() || 'https://empty-project.replit.app';
+    const publicBase = import.meta.env.VITE_PUBLIC_SITE_URL?.trim() || 'https://greenpay.co.ke';
     const canonicalUrl = new URL('/', `${publicBase.replace(/\/$/, '')}/`).toString();
     document.title = title;
     const setMeta = (selector: string, attribute: 'name' | 'property', key: string, content: string) => {
@@ -135,6 +135,7 @@ export default function HomePage() {
           <a href="/learn" data-testid="link-nav-help">Help & FAQs</a>
           <a href="/guides" data-testid="link-nav-guides">Guides</a>
           <a href="/articles">Articles</a>
+        <a href="/about" data-testid="link-nav-about">About</a>
         <a href="/contact" data-testid="link-nav-support">Contact</a>
         <a href="/platform-status" data-testid="link-nav-platform-status">Platform status</a>
       </nav>
@@ -296,7 +297,7 @@ Content-Type: application/json
 
     <footer className="hp-footer">
       <Mark /><span>Payments for businesses, backed by clear records.</span>
-      <div><a href="/api-docs" data-testid="link-footer-api-docs">API docs</a><a href="/learn" data-testid="link-footer-help">Help & FAQs</a><a href="/guides">Guides</a><a href="/articles">Articles</a><a href="/sign-in" data-testid="link-footer-sign-in">Sign in</a><a href="/sign-up" data-testid="link-footer-sign-up">Sign up</a><a href="/contact" data-testid="link-footer-support">Contact</a><a href="/platform-status" data-testid="link-footer-platform-status">Platform status</a><a href={import.meta.env.BASE_URL} aria-label={`Powered by ${branding.platformName} — visit homepage`}>Powered by {branding.platformName}</a></div>
+      <div><a href="/api-docs" data-testid="link-footer-api-docs">API docs</a><a href="/learn" data-testid="link-footer-help">Help & FAQs</a><a href="/guides">Guides</a><a href="/articles">Articles</a><a href="/about">About Greenpay</a><a href="/sign-in" data-testid="link-footer-sign-in">Sign in</a><a href="/sign-up" data-testid="link-footer-sign-up">Sign up</a><a href="/contact" data-testid="link-footer-support">Contact</a><a href="/platform-status" data-testid="link-footer-platform-status">Platform status</a><a href={import.meta.env.BASE_URL} aria-label={`Powered by ${branding.platformName} — visit homepage`}>Powered by {branding.platformName}</a></div>
     </footer>
   </div>;
 }

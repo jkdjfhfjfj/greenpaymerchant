@@ -109,7 +109,7 @@ function setHtmlHeaders(
   indexable = true,
 ) {
   res.status(status);
-  res.type("html; charset=utf-8");
+  res.type("html");
   res.setHeader("Cache-Control", "public, max-age=0, s-maxage=60, stale-while-revalidate=30");
   res.setHeader("X-Robots-Tag", indexable ? "index, follow" : "noindex, nofollow");
 }

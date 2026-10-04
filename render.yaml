@@ -65,8 +65,6 @@ services:
         sync: false
       - key: DIDIT_API_KEY
         sync: false
-      - key: DIDIT_WEBHOOK_SECRET
-        sync: false
       - key: DIDIT_WORKFLOW_ID
         sync: false
       - key: DIDIT_KYB_WORKFLOW_ID

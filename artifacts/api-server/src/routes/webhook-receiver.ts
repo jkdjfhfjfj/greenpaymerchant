@@ -1,7 +1,7 @@
-import { createHash, createHmac } from "node:crypto";
+import { createHash } from "node:crypto";
 import { and, eq, or } from "drizzle-orm";
 import { Router, type IRouter } from "express";
-import { db, payoutsTable, refundsTable, merchantsTable, webhookEventsTable } from "@workspace/db";
+import { db, payoutsTable, refundsTable, webhookEventsTable } from "@workspace/db";
 import {
   asObject,
   numberValue,
@@ -13,142 +13,10 @@ import {
 import {
   findTransaction, markTransactionStatus, reconcilePaystackRefund, recordRefund, recordWebhookEvent,
 } from "../lib/greenpay-ledger";
-import { providerCredential } from "../lib/credential-runtime";
-import { equalSignature } from "../lib/secure-storage";
-import { diditDecisionStatus, diditStatusNeedsRefresh, timestampIsFresh } from "../lib/security-policy";
 import { payoutConfirmationTimestamp } from "../lib/payment-safety";
 import { setWalletPayoutStatusFromProvider } from "../lib/wallet-service";
 
 const router: IRouter = Router();
-
-router.post("/didit", async (req, res): Promise<void> => {
-  const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
-  const timestamp = req.get("x-timestamp") ?? undefined;
-  const received = req.get("x-signature") ?? undefined;
-  const secret = await providerCredential("didit", "DIDIT_WEBHOOK_SECRET");
-  if (!secret || !timestampIsFresh(timestamp) || !received) {
-    res.status(401).json({ error: "Invalid or expired Didit webhook signature." });
-    return;
-  }
-  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
-  if (!equalSignature(expected, received)) {
-    res.status(401).json({ error: "Invalid or expired Didit webhook signature." });
-    return;
-  }
-  let payload: Record<string, unknown>;
-  try { payload = asObject(JSON.parse(rawBody.toString("utf8"))); }
-  catch { res.status(400).json({ error: "Webhook body must be valid JSON." }); return; }
-
-  const sessionId = stringValue(payload.session_id);
-  const event = stringValue(payload.webhook_type) ?? "status.updated";
-  const bodyHash = createHash("sha256").update(rawBody).digest("hex");
-  const deliveryKey = `didit:${bodyHash}`;
-  const [duplicate] = await db.select({ id: webhookEventsTable.id }).from(webhookEventsTable)
-    .where(eq(webhookEventsTable.deliveryKey, deliveryKey)).limit(1);
-  if (duplicate) {
-    res.json({ received: true, status: "duplicate" });
-    return;
-  }
-  if (!sessionId || event !== "status.updated") {
-    await recordWebhookEvent({
-      deliveryKey, provider: "didit", event,
-      reference: sessionId, status: "ignored", httpStatus: 200,
-    });
-    res.json({ received: true, status: "ignored" });
-    return;
-  }
-  const apiKey = await providerCredential("didit", "DIDIT_API_KEY");
-  if (!apiKey) { res.status(503).json({ error: "Didit API credentials are not configured for authoritative decision verification." }); return; }
-  let outcome: { status: string };
-  try {
-    outcome = await db.transaction(async (tx) => {
-      const [lockedMerchant] = await tx.select().from(merchantsTable)
-        .where(or(
-          eq(merchantsTable.diditSessionId, sessionId),
-          eq(merchantsTable.diditKybSessionId, sessionId),
-        )).for("update").limit(1);
-      if (!lockedMerchant) {
-        await tx.insert(webhookEventsTable).values({
-          deliveryKey, provider: "didit", event, reference: sessionId,
-          status: "ignored", httpStatus: 200,
-        }).onConflictDoNothing();
-        return { status: "ignored" };
-      }
-      const [existingEvent] = await tx.select({ id: webhookEventsTable.id }).from(webhookEventsTable)
-        .where(eq(webhookEventsTable.deliveryKey, deliveryKey)).limit(1);
-      if (existingEvent) return { status: "duplicate" };
-
-      let activeMerchant = lockedMerchant;
-      if (activeMerchant.diditKind === "kyb" && !activeMerchant.diditKybSessionId && activeMerchant.diditSessionId === sessionId) {
-        const [migrated] = await tx.update(merchantsTable).set({
-          diditKybSessionId: activeMerchant.diditSessionId,
-          diditKybSessionUrl: activeMerchant.diditSessionUrl,
-          kybStatus: activeMerchant.kycStatus,
-          kybVerificationUpdatedAt: activeMerchant.verificationUpdatedAt,
-          diditSessionId: null,
-          diditSessionUrl: null,
-          diditKind: null,
-          kycStatus: "not_started",
-          verificationUpdatedAt: null,
-          updatedAt: new Date(),
-        }).where(and(
-          eq(merchantsTable.id, activeMerchant.id),
-          eq(merchantsTable.diditSessionId, sessionId),
-        )).returning();
-        if (migrated) activeMerchant = migrated;
-      }
-      const kind = activeMerchant.diditSessionId === sessionId ? "kyc" : "kyb";
-      const currentStatus = kind === "kyc" ? activeMerchant.kycStatus : activeMerchant.kybStatus;
-      if (!diditStatusNeedsRefresh(currentStatus, sessionId)) {
-        await tx.insert(webhookEventsTable).values({
-          deliveryKey, provider: "didit", event, reference: sessionId,
-          status: "ignored", httpStatus: 200,
-        }).onConflictDoNothing();
-        return { status: "ignored" };
-      }
-
-      const decisionResponse = await fetch(`https://verification.didit.me/v3/session/${encodeURIComponent(sessionId)}/decision/`, {
-        headers: { "x-api-key": apiKey },
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!decisionResponse.ok) throw new Error("Didit decision service could not confirm the session.");
-      const mapped = diditDecisionStatus(await decisionResponse.json(), sessionId);
-      if (!mapped) {
-        await tx.insert(webhookEventsTable).values({
-          deliveryKey, provider: "didit", event, reference: sessionId,
-          status: "ignored", httpStatus: 200,
-        }).onConflictDoNothing();
-        return { status: "ignored" };
-      }
-      if (currentStatus !== mapped) {
-        const now = new Date();
-        const changes = kind === "kyc"
-          ? {
-              kycStatus: mapped, verificationUpdatedAt: now,
-              ...(mapped === "approved" && activeMerchant.status === "pending" &&
-                ["approved", "not_submitted"].includes(activeMerchant.applicationStatus) ? { status: "active" } : {}),
-              updatedAt: now,
-            }
-          : { kybStatus: mapped, kybVerificationUpdatedAt: now, updatedAt: now };
-        await tx.update(merchantsTable).set(changes).where(and(
-          eq(merchantsTable.id, activeMerchant.id),
-          kind === "kyc"
-            ? eq(merchantsTable.diditSessionId, sessionId)
-            : eq(merchantsTable.diditKybSessionId, sessionId),
-        ));
-      }
-      await tx.insert(webhookEventsTable).values({
-        deliveryKey, provider: "didit", event, reference: sessionId,
-        status: "processed", httpStatus: 200,
-      }).onConflictDoNothing();
-      return { status: mapped };
-    });
-  } catch {
-    res.status(503).json({ error: "Didit decision could not be verified; verification state was not changed." });
-    return;
-  }
-  res.json({ received: true, status: outcome.status });
-});
 
 function mapPaymentStatus(value: unknown): PaymentStatus {
   const status = typeof value === "string" ? value.toLowerCase() : "";

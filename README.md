@@ -56,7 +56,7 @@ manager.
 | Paystack | `PAYSTACK_SECRET_KEY` |
 | PayHero | `PAYHERO_BASIC_AUTH` (existing `PAYHERO_AUTH_TOKEN` is an alias), `PAYHERO_CHANNEL_ID` |
 | Payzaapi | `PAYZA_PUBLIC_KEY`, `PAYZA_SECRET_KEY` / `PAYZAAPI_API_KEY`, optional `PAYZA_WEBHOOK_SECRET` |
-| Didit | `DIDIT_API_KEY`, `DIDIT_WEBHOOK_SECRET`, `DIDIT_WORKFLOW_ID`, optional `DIDIT_KYB_WORKFLOW_ID` |
+| Didit | `DIDIT_API_KEY`, `DIDIT_WORKFLOW_ID`, optional `DIDIT_KYB_WORKFLOW_ID` |
 
 Credentials may also be provided through server environment configuration.
 Missing or disabled providers fail explicitly; the app does not simulate
@@ -69,10 +69,11 @@ successful verification, collection, or payout.
    and beneficial-owner checks.
 2. Save the workflow identifiers and application API key through the admin
    credential manager or server configuration.
-3. Configure the Didit webhook destination to the app's API route
-   `/api/webhooks/didit`, with its destination shared signing secret.
-4. Use the actual published app URL for production callbacks and webhook
-   destinations; development preview URLs are not production URLs.
+3. Didit status is refreshed from its decision API while the merchant's
+   verification page is open, so no webhook destination or signing secret is
+   needed.
+4. Use the actual published app URL for the production browser return URL;
+   development preview URLs are not production URLs.
 
 Didit's `callback` is the browser return URL. Its query-string status is **not**
 proof of approval. Only a server-verified provider decision may update verified

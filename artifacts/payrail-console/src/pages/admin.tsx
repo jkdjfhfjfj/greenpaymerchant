@@ -592,7 +592,7 @@ function WalletFxSpreadSettings() {
 const CRED_FIELDS: Record<string, string[]> = {
   paystack: ['PAYSTACK_SECRET_KEY'], payhero: ['PAYHERO_USERNAME', 'PAYHERO_PASSWORD', 'PAYHERO_CHANNEL_ID'], payzaapi: ['PAYZAAPI_API_KEY', 'PAYZA_PUBLIC_KEY', 'PAYZA_SECRET_KEY', 'PAYZA_WEBHOOK_SECRET'],
   currencyapi: ['CURRENCYAPI_API_KEY'],
-  didit: ['DIDIT_API_KEY', 'DIDIT_WEBHOOK_SECRET', 'DIDIT_WORKFLOW_ID', 'DIDIT_KYB_WORKFLOW_ID'],
+  didit: ['DIDIT_API_KEY', 'DIDIT_WORKFLOW_ID', 'DIDIT_KYB_WORKFLOW_ID'],
   cloudinary: ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'],
 };
 const OPTIONAL = new Set(['DIDIT_WORKFLOW_ID', 'DIDIT_KYB_WORKFLOW_ID']);
@@ -639,6 +639,8 @@ function CredEdit({ c, onClose }: { c: ProviderCredential; onClose: () => void }
   }
   const description = c.provider === 'payhero'
     ? 'Enter the PayHero username and password. The channel ID is still required; leave it blank to keep the saved value.'
+    : c.provider === 'didit'
+      ? 'KYC sessions use the API key and workflow IDs. Status refreshes from Didit while the verification page is open; no webhook secret is needed.'
     : 'Values replace what is stored; blank fields are cleared. Enter every value you want to retain. Existing secrets are never displayed.';
   return <Modal title={`${nice(c.provider)} credentials`} description={description} onClose={onClose}><form className="form-stack" onSubmit={submit} autoComplete="off">
     {names.map((n) => {

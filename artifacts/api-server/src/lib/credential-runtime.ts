@@ -12,7 +12,6 @@ const ENV_ALIASES: Record<string, string[]> = {
   PAYZA_SECRET_KEY: ["PAYZA_SECRET_KEY", "PAYZAAPI_API_KEY", "PAYZAAPI_SECRET_KEY"],
   PAYZA_WEBHOOK_SECRET: ["PAYZA_WEBHOOK_SECRET", "PAYZAAPI_WEBHOOK_SECRET"],
   DIDIT_API_KEY: ["DIDIT_API_KEY"],
-  DIDIT_WEBHOOK_SECRET: ["DIDIT_WEBHOOK_SECRET"],
   DIDIT_WORKFLOW_ID: ["DIDIT_WORKFLOW_ID"],
   DIDIT_KYB_WORKFLOW_ID: ["DIDIT_KYB_WORKFLOW_ID"],
   CURRENCYAPI_API_KEY: ["CURRENCYAPI_API_KEY"],
@@ -48,7 +47,7 @@ export function providerCredentialFields(provider: string): string[] {
     case "paystack": return ["PAYSTACK_SECRET_KEY"];
     case "payhero": return ["PAYHERO_USERNAME", "PAYHERO_PASSWORD", "PAYHERO_CHANNEL_ID"];
     case "payzaapi": return ["PAYZAAPI_API_KEY", "PAYZA_PUBLIC_KEY", "PAYZA_SECRET_KEY", "PAYZA_WEBHOOK_SECRET"];
-    case "didit": return ["DIDIT_API_KEY", "DIDIT_WEBHOOK_SECRET", "DIDIT_WORKFLOW_ID", "DIDIT_KYB_WORKFLOW_ID"];
+    case "didit": return ["DIDIT_API_KEY", "DIDIT_WORKFLOW_ID", "DIDIT_KYB_WORKFLOW_ID"];
     case "currencyapi": return ["CURRENCYAPI_API_KEY"];
     case "cloudinary": return ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"];
     default: return [];

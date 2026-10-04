@@ -57,15 +57,15 @@ async function queueMerchantAccountEmail(input: {
   action: MerchantAccountAction;
   eventKey: string;
   reason?: string;
-}): Promise<void> {
+}): Promise<EmailDeliveryState | "unconfigured" | null> {
   try {
     const user = await fetchClerkUser(input.ownerUserId);
     const recipientEmail = verifiedPrimaryEmail(user);
     if (!recipientEmail) {
       logger.warn({ merchantId: input.merchantId }, "Merchant account email was not queued because the owner has no verified primary email");
-      return;
+      return "unconfigured";
     }
-    await enqueueTransactionalEmail({
+    const result = await enqueueTransactionalEmail({
       eventKey: input.eventKey,
       purpose: "merchant_account_update",
       recipientEmail,
@@ -76,11 +76,13 @@ async function queueMerchantAccountEmail(input: {
         reason: input.reason ?? "",
       },
     });
+    return result.deliveryState;
   } catch (error) {
     logger.error({
       merchantId: input.merchantId,
       errorKind: error instanceof Error ? error.name : "unknown",
     }, "Merchant account email could not be queued");
+    return null;
   }
 }
 
@@ -91,7 +93,8 @@ export async function notifyMerchantAccountAction(input: {
   action: Exclude<MerchantAccountAction, "application_received">;
   eventKey: string;
   reason?: string;
-}): Promise<void> {
+}): Promise<{ notificationSaved: boolean; emailDeliveryState: EmailDeliveryState | "unconfigured" | null }> {
+  let notificationSaved = true;
   try {
     await addNotification(merchantAccountActionNotification({
       userId: input.ownerUserId,
@@ -101,15 +104,17 @@ export async function notifyMerchantAccountAction(input: {
       reason: input.reason,
     }));
   } catch (error) {
+    notificationSaved = false;
     logger.error({
       merchantId: input.merchantId,
       errorKind: error instanceof Error ? error.name : "unknown",
     }, "Merchant account notification could not be saved");
   }
-  await queueMerchantAccountEmail({
+  const emailDeliveryState = await queueMerchantAccountEmail({
     ...input,
     eventKey: `${input.eventKey}:email`,
   });
+  return { notificationSaved, emailDeliveryState };
 }
 
 async function activePlatformAdminUserIds(excludedUserId: string) {

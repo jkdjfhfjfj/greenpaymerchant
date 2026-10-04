@@ -4,6 +4,8 @@ import { Link, useLocation } from 'wouter';
 import { Activity, ArrowRight, CheckCircle2, Clock3, ExternalLink, Link2, LoaderCircle, Plus, Trash2, Pause, Play, ShieldCheck, Send } from 'lucide-react';
 import {
   useCreateMerchantProfile, useGetMerchantProfile, getGetMerchantProfileQueryKey, useResubmitMerchantApplication,
+  useCreateMerchantApplicationAttachmentUploadIntent, useListMerchantApplicationAttachments,
+  useDeleteMerchantApplicationAttachmentUploadIntent,
   useGetMerchantFees, useGetMerchantKyc, getGetMerchantKycQueryKey, useCreateMerchantKycSession,
   useCreateMerchantCloudinaryUploadSignature, useUpdateMerchantShopProfile,
   useListMerchantPaymentLinks, useCreateMerchantPaymentLink, useUpdateMerchantPaymentLink, useDeleteMerchantPaymentLink,
@@ -227,8 +229,17 @@ function ApplicationResubmission({ merchant, mutation, queryClient }: {
   queryClient: ReturnType<typeof useQueryClient>;
 }) {
   const prior = merchant.applicationDetails;
-  function submit(event: FormEvent<HTMLFormElement>) {
+  const createUploadIntent = useCreateMerchantApplicationAttachmentUploadIntent();
+  const deleteUploadIntent = useDeleteMerchantApplicationAttachmentUploadIntent();
+  const attachments = useListMerchantApplicationAttachments();
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ key: string; token: string }>>([]);
+  const [uploadError, setUploadError] = useState('');
+  const fileKey = (file: File) => `${file.name}:${file.size}:${file.lastModified}:${file.type}`;
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setUploadError('');
     const form = new FormData(event.currentTarget);
     const details: BusinessApplicationDetails = {
       businessType: String(form.get('businessType')) as BusinessApplicationDetails['businessType'],
@@ -243,12 +254,60 @@ function ApplicationResubmission({ merchant, mutation, queryClient }: {
       expectedCollectionCurrencies: String(form.get('expectedCollectionCurrencies')).split(',').map((v) => v.trim().toUpperCase()).filter(Boolean),
       sourceOfFunds: String(form.get('sourceOfFunds')).trim(),
     };
-    mutation.mutate({ data: details }, { onSuccess: async () => {
+    try {
+      const tokens: string[] = [];
+      for (const file of files) {
+        const key = fileKey(file);
+        const priorUpload = uploadedFiles.find((uploaded) => uploaded.key === key);
+        if (priorUpload) {
+          tokens.push(priorUpload.token);
+          continue;
+        }
+        const intent = await createUploadIntent.mutateAsync({ data: {
+          name: file.name,
+          size: file.size,
+          contentType: file.type as 'application/pdf' | 'image/png' | 'image/jpeg',
+        } });
+        const uploadBody = new FormData();
+        for (const [key, value] of Object.entries(intent.uploadParameters)) uploadBody.append(key, value);
+        uploadBody.append('file', file);
+        let uploaded: Response;
+        try {
+          uploaded = await fetch(intent.uploadURL, { method: 'POST', body: uploadBody });
+          if (!uploaded.ok) throw new Error(`Private upload failed for ${file.name} (${uploaded.status}).`);
+        } catch (failure) {
+          await deleteUploadIntent.mutateAsync({ uploadToken: intent.uploadToken }).catch(() => undefined);
+          throw failure;
+        }
+        setUploadedFiles((current) => [...current, { key, token: intent.uploadToken }]);
+        tokens.push(intent.uploadToken);
+      }
+      await mutation.mutateAsync({ data: {
+        application: details,
+        ...(tokens.length ? { attachmentUploadTokens: tokens } : {}),
+      } });
       await Promise.all([queryClient.invalidateQueries({ queryKey: getGetMerchantProfileQueryKey() }), queryClient.invalidateQueries()]);
-    } });
+    } catch (failure) {
+      setUploadError(String((failure as Error).message || 'The application could not be resubmitted.'));
+    }
+  }
+  function removeFile(file: File) {
+    const key = fileKey(file);
+    const uploaded = uploadedFiles.find((item) => item.key === key);
+    setFiles((current) => current.filter((item) => item !== file));
+    setUploadedFiles((current) => current.filter((item) => item.key !== key));
+    if (uploaded) {
+      void deleteUploadIntent.mutateAsync({ uploadToken: uploaded.token }).catch(() => {
+        setUploadError('The file was removed from this form, but its temporary upload could not be canceled.');
+      });
+    }
   }
   return <Card title="Resubmit your application" subtitle="Update the requested information and send the application back for review.">
     {merchant.applicationRequestedInfo && <Note tone="warn"><strong>Requested:</strong> {merchant.applicationRequestedInfo}</Note>}
+    {attachments.data?.items.length ? <div className="form-stack">
+      <strong>Previously submitted files</strong>
+      {attachments.data.items.map((file) => <a key={file.id} className="text-link" href={file.downloadPath} download>{file.name} · {file.contentType}</a>)}
+    </div> : null}
     {prior && <form className="form-stack application-wizard" onSubmit={submit}>
       <div className="form-grid"><Field label="Business type"><select name="businessType" defaultValue={prior.businessType}><option value="sole_proprietor">Sole proprietor</option><option value="limited_company">Limited company</option><option value="partnership">Partnership</option><option value="nonprofit">Nonprofit</option><option value="other">Other</option></select></Field><Field label="Website"><input name="website" type="url" defaultValue={prior.website ?? ''} /></Field></div>
       <Field label="Nature of business"><textarea name="natureOfBusiness" required minLength={10} defaultValue={prior.natureOfBusiness} /></Field>
@@ -258,8 +317,28 @@ function ApplicationResubmission({ merchant, mutation, queryClient }: {
       <Field label="Customer countries" hint="Comma-separated country codes"><input name="expectedCustomerCountries" required defaultValue={prior.expectedCustomerCountries.join(', ')} /></Field>
       <Field label="Collection currencies" hint="Comma-separated currency codes"><input name="expectedCollectionCurrencies" required defaultValue={prior.expectedCollectionCurrencies.join(', ')} /></Field>
       <Field label="Source of funds"><textarea name="sourceOfFunds" required minLength={10} defaultValue={prior.sourceOfFunds} /></Field>
+      <Field label="Supporting documents or images" hint="Optional · PDF, PNG or JPEG · up to five files, 10 MB each">
+        <input type="file" accept="application/pdf,image/png,image/jpeg" multiple disabled={mutation.isPending || createUploadIntent.isPending || deleteUploadIntent.isPending} onChange={(event) => {
+          const selected = Array.from(event.currentTarget.files ?? []);
+          event.currentTarget.value = '';
+          if (files.length + selected.length > 5) {
+            setUploadError('Attach no more than five files to one resubmission.');
+            return;
+          }
+          if (selected.some((file) => !['application/pdf', 'image/png', 'image/jpeg'].includes(file.type) || file.size > 10 * 1024 * 1024)) {
+            setUploadError('Choose PDF, PNG or JPEG files no larger than 10 MB each.');
+            return;
+          }
+          setUploadError('');
+          setFiles((current) => [...current, ...selected]);
+        }} data-testid="input-application-attachments" />
+      </Field>
+      {files.length > 0 && <div className="form-stack">
+        {files.map((file) => <div className="row-actions" key={fileKey(file)}><span>{file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB{uploadedFiles.some((item) => item.key === fileKey(file)) ? ' · uploaded' : ''}</span><Btn type="button" variant="secondary" small disabled={mutation.isPending || createUploadIntent.isPending || deleteUploadIntent.isPending} onClick={() => removeFile(file)}>Remove</Btn></div>)}
+      </div>}
+      {uploadError && <Err error={uploadError} />}
       <Err error={mutation.error} />
-      <Btn type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Submitting…' : 'Resubmit application'}</Btn>
+      <Btn type="submit" disabled={mutation.isPending || createUploadIntent.isPending || deleteUploadIntent.isPending}>{mutation.isPending || createUploadIntent.isPending || deleteUploadIntent.isPending ? 'Submitting…' : 'Resubmit application'}</Btn>
     </form>}
   </Card>;
 }

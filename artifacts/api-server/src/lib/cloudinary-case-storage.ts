@@ -66,10 +66,10 @@ function signCloudinaryParameters(parameters: Record<string, string>, apiSecret:
 }
 
 function parseCloudinaryObjectPath(objectPath: string): CloudinaryAsset {
-  if (!objectPath.startsWith(OBJECT_PATH_PREFIX)) throw new Error("Invalid Cloudinary case evidence reference.");
+  if (!objectPath.startsWith(OBJECT_PATH_PREFIX)) throw new Error("Invalid Cloudinary private evidence reference.");
   const publicId = objectPath.slice(OBJECT_PATH_PREFIX.length);
-  const match = /^greenpay\/case-evidence\/m[1-9]\d*\/c[1-9]\d*\/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\.(pdf|png|jpg)$/.exec(publicId);
-  if (!match) throw new Error("Invalid Cloudinary case evidence reference.");
+  const match = /^greenpay\/(?:case-evidence\/m[1-9]\d*\/c[1-9]\d*|application-evidence\/m[1-9]\d*)\/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\.(pdf|png|jpg)$/.exec(publicId);
+  if (!match) throw new Error("Invalid Cloudinary private evidence reference.");
   return { publicId, format: match[2] };
 }
 
@@ -89,10 +89,31 @@ export async function createPrivateCaseUpload(
     throw new Error("Invalid private evidence owner.");
   }
   const format = formatForContentType(contentType);
+  return createPrivateEvidenceUpload(`greenpay/case-evidence/m${merchantId}/c${caseId}`, format, contentType, options);
+}
+
+export async function createPrivateApplicationUpload(
+  merchantId: number,
+  contentType: CaseFileType,
+  options: CaseStorageOptions = {},
+) {
+  if (!Number.isSafeInteger(merchantId) || merchantId < 1) {
+    throw new Error("Invalid private application owner.");
+  }
+  const format = formatForContentType(contentType);
+  return createPrivateEvidenceUpload(`greenpay/application-evidence/m${merchantId}`, format, contentType, options);
+}
+
+async function createPrivateEvidenceUpload(
+  folder: string,
+  format: string,
+  contentType: CaseFileType,
+  options: CaseStorageOptions,
+) {
   const credentials = await getCredentials(options.environment);
   const now = options.now?.() ?? Date.now();
   const timestamp = Math.floor(now / 1000);
-  const publicId = `greenpay/case-evidence/m${merchantId}/c${caseId}/${randomUUID()}.${format}`;
+  const publicId = `${folder}/${randomUUID()}.${format}`;
   const signedParameters = {
     overwrite: "false",
     public_id: publicId,

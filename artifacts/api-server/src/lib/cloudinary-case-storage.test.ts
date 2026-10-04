@@ -4,6 +4,7 @@ import { Readable } from "node:stream";
 import { test } from "node:test";
 import {
   createPrivateCaseUpload,
+  createPrivateApplicationUpload,
   deletePrivateCaseObject,
   getPrivateCaseObject,
   verifyPrivateCaseObject,
@@ -57,6 +58,32 @@ test("case uploads use one-time signed authenticated raw Cloudinary assets", asy
   assert.equal(upload.uploadParameters.overwrite, "false");
   assert.equal(upload.uploadParameters.signature, signatureFor(signedParameters, environment.CLOUDINARY_API_SECRET));
   assert.equal(upload.expiresAt.getTime(), fixedNow + 10 * 60_000);
+});
+
+test("application uploads use a separate authenticated Cloudinary folder", async () => {
+  const upload = await createPrivateApplicationUpload(12, "image/png", {
+    environment,
+    now: () => fixedNow,
+  });
+  const publicId = upload.objectPath.replace("cloudinary:raw:authenticated:", "");
+  assert.match(publicId, /^greenpay\/application-evidence\/m12\/[0-9a-f-]+\.png$/);
+  assert.equal(upload.uploadParameters.public_id, publicId);
+  assert.equal(upload.uploadParameters.type, "authenticated");
+  assert.equal(upload.uploadParameters.overwrite, "false");
+
+  const bytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3]);
+  const verified = await verifyPrivateCaseObject({
+    objectPath: upload.objectPath,
+    name: "registration.png",
+    size: bytes.length,
+    contentType: "image/png",
+  }, {
+    environment,
+    fetcher: async () => new Response(bytes, { status: 200 }),
+    now: () => fixedNow,
+  });
+  assert.equal(verified.objectPath, upload.objectPath);
+  assert.equal(verified.sha256, createHash("sha256").update(bytes).digest("hex"));
 });
 
 test("uploaded evidence is downloaded privately and checked for its declared size and file signature", async () => {

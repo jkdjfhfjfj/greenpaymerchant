@@ -9,6 +9,7 @@ import {
   useGetAdminCloudinaryUploadStatus, useCreateAdminCloudinaryUploadSignature,
   useFindAdminPlatformUsers, useGrantPlatformAdmin, useRevokePlatformAdmin, getFindAdminPlatformUsersQueryKey, getGetAccessProfileQueryKey,
   useReviewAdminMerchantApplication, getListAdminMerchantsQueryKey,
+  useListAdminMerchantApplicationAttachments,
   useListAdminCollectionCurrencyAvailability, useUpdateAdminCollectionCurrencyAvailability,
   getListAdminCollectionCurrencyAvailabilityQueryKey, useListSupportedCurrencies,
   type AdminMerchant, type AdminFxRate, type AdminFeeSchedule, type ProviderCredential, type ListAdminMerchantsParams, type PlatformSettings,
@@ -126,7 +127,7 @@ function MerchantsInner() {
       <select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="select-merchant-status"><option value="">Any status</option>{['pending', 'active', 'suspended', 'closed'].map((s) => <option key={s} value={s}>{nice(s)}</option>)}</select>
       <select value={kyc} onChange={(e) => setKyc(e.target.value)} data-testid="select-merchant-kyc"><option value="">Any verification</option>{['not_started', 'pending', 'in_review', 'approved', 'declined', 'expired'].map((s) => <option key={s} value={s}>{nice(s)}</option>)}</select></div>
     <Async q={q} empty={!items.length} emptyTitle="No merchants match" emptyBody="Adjust the search or filters."><div className="table-wrap"><table className="dt"><thead><tr><th>Business</th><th>Country</th><th>Base</th><th>Account</th><th>Application</th><th>Verification</th><th>Created</th><th /></tr></thead><tbody>
-      {items.map((m) => <tr key={m.id} data-testid={`row-merchant-${m.id}`}><td><strong>{m.businessName}</strong><span className="sub">{m.riskNote || m.ownerUserId}</span></td><td>{m.country}</td><td>{m.baseCurrency}</td><td><Pill value={m.status} /></td><td><Pill value={m.applicationStatus} />{m.applicationSubmittedAt && <span className="sub">Submitted {fmtDate(m.applicationSubmittedAt)}</span>}</td><td><Pill value={m.kycStatus} /></td><td>{fmtDate(m.createdAt)}</td><td><div className="row-actions">{['awaiting_review', 'more_info_required'].includes(m.applicationStatus) && m.applicationDetails && <Btn small onClick={() => setReview(m)}><ShieldCheck size={13} />Review</Btn>}<Btn variant="secondary" small onClick={() => setDetails(m)}><Eye size={13} />Details</Btn><a className="btn btn-secondary btn-sm" href={`/admin/merchants/${m.id}/controls`}>Controls</a><Btn variant="secondary" small onClick={() => setEdit(m)}><Pencil size={13} />Edit</Btn></div></td></tr>)}
+      {items.map((m) => <tr key={m.id} data-testid={`row-merchant-${m.id}`}><td><strong>{m.businessName}</strong><span className="sub">{m.riskNote || m.ownerUserId}</span></td><td>{m.country}</td><td>{m.baseCurrency}</td><td><Pill value={m.status} /></td><td><Pill value={m.applicationStatus} />{m.applicationSubmittedAt && <span className="sub">Submitted {fmtDate(m.applicationSubmittedAt)}</span>}</td><td><Pill value={m.kycStatus} /></td><td>{fmtDate(m.createdAt)}</td><td><div className="row-actions">{m.applicationStatus === 'awaiting_review' && m.applicationDetails && <Btn small onClick={() => setReview(m)}><ShieldCheck size={13} />Review</Btn>}<Btn variant="secondary" small onClick={() => setDetails(m)}><Eye size={13} />Details</Btn><a className="btn btn-secondary btn-sm" href={`/admin/merchants/${m.id}/controls`}>Controls</a><Btn variant="secondary" small onClick={() => setEdit(m)}><Pencil size={13} />Edit</Btn></div></td></tr>)}
     </tbody></table></div></Async>
     {edit && <MerchantEdit m={edit} onClose={() => setEdit(null)} />}
     {details && <MerchantDetails m={details} onClose={() => setDetails(null)} />}
@@ -135,6 +136,7 @@ function MerchantsInner() {
 
 function MerchantApplicationReview({ m, onClose }: { m: AdminMerchant; onClose: () => void }) {
   const mutation = useReviewAdminMerchantApplication();
+  const attachments = useListAdminMerchantApplicationAttachments(m.id);
   const queryClient = useQueryClient();
   const [reason, setReason] = useState('');
   const application = m.applicationDetails;
@@ -174,15 +176,22 @@ function MerchantApplicationReview({ m, onClose }: { m: AdminMerchant; onClose: 
           <div><span>Source of funds</span><p>{application.sourceOfFunds}</p></div>
         </div>
       </Card>
+      <Card title="Submitted documents and media" subtitle="Private files are available only to authorized reviewers.">
+        {attachments.isLoading ? <span className="sub">Loading submitted files…</span> : attachments.isError ? <Note tone="warn">Submitted files could not be loaded. Close and reopen this review to retry.</Note> : attachments.data?.items.length ? <div className="form-stack">
+          {attachments.data.items.map((file) => <a key={file.id} className="text-link" href={file.downloadPath} download>{file.name} · {file.contentType} · {(file.size / 1024 / 1024).toFixed(2)} MB</a>)}
+        </div> : <span className="sub">No application files have been submitted.</span>}
+      </Card>
       {m.applicationRequestedInfo && <Note tone="warn">Previously requested: {m.applicationRequestedInfo}</Note>}
-      <Field label="Decision reason" hint="Required · at least 5 characters · visible in the application decision record">
+      {m.applicationStatus === 'awaiting_review' ? <Field label="Decision reason" hint="Required · at least 5 characters · visible in the application decision record">
         <textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={5} maxLength={2000} required placeholder="Record the reason for this decision" data-testid={`input-application-review-reason-${m.id}`} />
-      </Field>
+      </Field> : <Note tone="warn">This application is not awaiting review. Decision actions are unavailable; refresh the merchant list for its current status.</Note>}
       <Err error={mutation.error} />
       <div className="row-actions application-review-actions">
         <Btn variant="secondary" disabled={mutation.isPending} onClick={onClose}>Cancel</Btn>
-        <Btn variant="secondary" disabled={!canSubmit} onClick={() => decide('request_information')} testId={`button-request-information-${m.id}`}>Request information</Btn>
-        <Btn disabled={!canSubmit} onClick={() => decide('approve')} testId={`button-approve-application-${m.id}`}><ShieldCheck size={14} />Approve application</Btn>
+        {m.applicationStatus === 'awaiting_review' && <>
+          <Btn variant="secondary" disabled={!canSubmit} onClick={() => decide('request_information')} testId={`button-request-information-${m.id}`}>Request information</Btn>
+          <Btn disabled={!canSubmit} onClick={() => decide('approve')} testId={`button-approve-application-${m.id}`}><ShieldCheck size={14} />Approve application</Btn>
+        </>}
       </div>
     </div>
   </Modal>;

@@ -3828,59 +3828,65 @@ export const CreateMerchantProfileResponse = zod.object({
 /**
  * @summary Submit requested additional business application information
  */
-export const resubmitMerchantApplicationBodyNatureOfBusinessMin = 10;
-export const resubmitMerchantApplicationBodyNatureOfBusinessMax = 2000;
+export const resubmitMerchantApplicationBodyApplicationNatureOfBusinessMin = 10;
+export const resubmitMerchantApplicationBodyApplicationNatureOfBusinessMax = 2000;
 
-export const resubmitMerchantApplicationBodyRegisteredAddressMin = 5;
-export const resubmitMerchantApplicationBodyRegisteredAddressMax = 500;
+export const resubmitMerchantApplicationBodyApplicationRegisteredAddressMin = 5;
+export const resubmitMerchantApplicationBodyApplicationRegisteredAddressMax = 500;
 
-export const resubmitMerchantApplicationBodyWebsiteMax = 500;
+export const resubmitMerchantApplicationBodyApplicationWebsiteMax = 500;
 
-export const resubmitMerchantApplicationBodyExpectedMonthlyVolumeMin = 0;
-export const resubmitMerchantApplicationBodyExpectedMonthlyVolumeMax = 1000000000000;
+export const resubmitMerchantApplicationBodyApplicationExpectedMonthlyVolumeMin = 0;
+export const resubmitMerchantApplicationBodyApplicationExpectedMonthlyVolumeMax = 1000000000000;
 
-export const resubmitMerchantApplicationBodyExpectedMonthlyVolumeCurrencyMin = 3;
-export const resubmitMerchantApplicationBodyExpectedMonthlyVolumeCurrencyMax = 3;
-
-
-export const resubmitMerchantApplicationBodyExpectedMonthlyVolumeCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
-export const resubmitMerchantApplicationBodyExpectedMonthlyTransactionsMin = 0;
-export const resubmitMerchantApplicationBodyExpectedMonthlyTransactionsMax = 1000000000;
-
-export const resubmitMerchantApplicationBodyExpectedAverageTransactionValueMin = 0;
-export const resubmitMerchantApplicationBodyExpectedAverageTransactionValueMax = 1000000000000;
-
-export const resubmitMerchantApplicationBodyExpectedCustomerCountriesItemMin = 2;
-export const resubmitMerchantApplicationBodyExpectedCustomerCountriesItemMax = 2;
+export const resubmitMerchantApplicationBodyApplicationExpectedMonthlyVolumeCurrencyMin = 3;
+export const resubmitMerchantApplicationBodyApplicationExpectedMonthlyVolumeCurrencyMax = 3;
 
 
-export const resubmitMerchantApplicationBodyExpectedCustomerCountriesItemRegExp = new RegExp('^[A-Za-z]{2}$');
-export const resubmitMerchantApplicationBodyExpectedCustomerCountriesMax = 30;
+export const resubmitMerchantApplicationBodyApplicationExpectedMonthlyVolumeCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
+export const resubmitMerchantApplicationBodyApplicationExpectedMonthlyTransactionsMin = 0;
+export const resubmitMerchantApplicationBodyApplicationExpectedMonthlyTransactionsMax = 1000000000;
 
-export const resubmitMerchantApplicationBodyExpectedCollectionCurrenciesItemMin = 3;
-export const resubmitMerchantApplicationBodyExpectedCollectionCurrenciesItemMax = 3;
+export const resubmitMerchantApplicationBodyApplicationExpectedAverageTransactionValueMin = 0;
+export const resubmitMerchantApplicationBodyApplicationExpectedAverageTransactionValueMax = 1000000000000;
+
+export const resubmitMerchantApplicationBodyApplicationExpectedCustomerCountriesItemMin = 2;
+export const resubmitMerchantApplicationBodyApplicationExpectedCustomerCountriesItemMax = 2;
 
 
-export const resubmitMerchantApplicationBodyExpectedCollectionCurrenciesItemRegExp = new RegExp('^[A-Za-z]{3}$');
-export const resubmitMerchantApplicationBodyExpectedCollectionCurrenciesMax = 30;
+export const resubmitMerchantApplicationBodyApplicationExpectedCustomerCountriesItemRegExp = new RegExp('^[A-Za-z]{2}$');
+export const resubmitMerchantApplicationBodyApplicationExpectedCustomerCountriesMax = 30;
 
-export const resubmitMerchantApplicationBodySourceOfFundsMin = 10;
-export const resubmitMerchantApplicationBodySourceOfFundsMax = 1000;
+export const resubmitMerchantApplicationBodyApplicationExpectedCollectionCurrenciesItemMin = 3;
+export const resubmitMerchantApplicationBodyApplicationExpectedCollectionCurrenciesItemMax = 3;
+
+
+export const resubmitMerchantApplicationBodyApplicationExpectedCollectionCurrenciesItemRegExp = new RegExp('^[A-Za-z]{3}$');
+export const resubmitMerchantApplicationBodyApplicationExpectedCollectionCurrenciesMax = 30;
+
+export const resubmitMerchantApplicationBodyApplicationSourceOfFundsMin = 10;
+export const resubmitMerchantApplicationBodyApplicationSourceOfFundsMax = 1000;
+
+export const resubmitMerchantApplicationBodyAttachmentUploadTokensItemRegExp = new RegExp('^[a-f0-9]{32}$');
+export const resubmitMerchantApplicationBodyAttachmentUploadTokensMax = 5;
 
 
 
 export const ResubmitMerchantApplicationBody = zod.object({
+  "application": zod.object({
   "businessType": zod.enum(['sole_proprietor', 'limited_company', 'partnership', 'nonprofit', 'other']),
-  "natureOfBusiness": zod.string().min(resubmitMerchantApplicationBodyNatureOfBusinessMin).max(resubmitMerchantApplicationBodyNatureOfBusinessMax),
-  "registeredAddress": zod.string().min(resubmitMerchantApplicationBodyRegisteredAddressMin).max(resubmitMerchantApplicationBodyRegisteredAddressMax),
-  "website": zod.string().url().max(resubmitMerchantApplicationBodyWebsiteMax).nullable(),
-  "expectedMonthlyVolume": zod.number().min(resubmitMerchantApplicationBodyExpectedMonthlyVolumeMin).max(resubmitMerchantApplicationBodyExpectedMonthlyVolumeMax),
-  "expectedMonthlyVolumeCurrency": zod.string().min(resubmitMerchantApplicationBodyExpectedMonthlyVolumeCurrencyMin).max(resubmitMerchantApplicationBodyExpectedMonthlyVolumeCurrencyMax).regex(resubmitMerchantApplicationBodyExpectedMonthlyVolumeCurrencyRegExp),
-  "expectedMonthlyTransactions": zod.number().int().min(resubmitMerchantApplicationBodyExpectedMonthlyTransactionsMin).max(resubmitMerchantApplicationBodyExpectedMonthlyTransactionsMax),
-  "expectedAverageTransactionValue": zod.number().min(resubmitMerchantApplicationBodyExpectedAverageTransactionValueMin).max(resubmitMerchantApplicationBodyExpectedAverageTransactionValueMax),
-  "expectedCustomerCountries": zod.array(zod.string().min(resubmitMerchantApplicationBodyExpectedCustomerCountriesItemMin).max(resubmitMerchantApplicationBodyExpectedCustomerCountriesItemMax).regex(resubmitMerchantApplicationBodyExpectedCustomerCountriesItemRegExp)).min(1).max(resubmitMerchantApplicationBodyExpectedCustomerCountriesMax),
-  "expectedCollectionCurrencies": zod.array(zod.string().min(resubmitMerchantApplicationBodyExpectedCollectionCurrenciesItemMin).max(resubmitMerchantApplicationBodyExpectedCollectionCurrenciesItemMax).regex(resubmitMerchantApplicationBodyExpectedCollectionCurrenciesItemRegExp)).min(1).max(resubmitMerchantApplicationBodyExpectedCollectionCurrenciesMax),
-  "sourceOfFunds": zod.string().min(resubmitMerchantApplicationBodySourceOfFundsMin).max(resubmitMerchantApplicationBodySourceOfFundsMax)
+  "natureOfBusiness": zod.string().min(resubmitMerchantApplicationBodyApplicationNatureOfBusinessMin).max(resubmitMerchantApplicationBodyApplicationNatureOfBusinessMax),
+  "registeredAddress": zod.string().min(resubmitMerchantApplicationBodyApplicationRegisteredAddressMin).max(resubmitMerchantApplicationBodyApplicationRegisteredAddressMax),
+  "website": zod.string().url().max(resubmitMerchantApplicationBodyApplicationWebsiteMax).nullable(),
+  "expectedMonthlyVolume": zod.number().min(resubmitMerchantApplicationBodyApplicationExpectedMonthlyVolumeMin).max(resubmitMerchantApplicationBodyApplicationExpectedMonthlyVolumeMax),
+  "expectedMonthlyVolumeCurrency": zod.string().min(resubmitMerchantApplicationBodyApplicationExpectedMonthlyVolumeCurrencyMin).max(resubmitMerchantApplicationBodyApplicationExpectedMonthlyVolumeCurrencyMax).regex(resubmitMerchantApplicationBodyApplicationExpectedMonthlyVolumeCurrencyRegExp),
+  "expectedMonthlyTransactions": zod.number().int().min(resubmitMerchantApplicationBodyApplicationExpectedMonthlyTransactionsMin).max(resubmitMerchantApplicationBodyApplicationExpectedMonthlyTransactionsMax),
+  "expectedAverageTransactionValue": zod.number().min(resubmitMerchantApplicationBodyApplicationExpectedAverageTransactionValueMin).max(resubmitMerchantApplicationBodyApplicationExpectedAverageTransactionValueMax),
+  "expectedCustomerCountries": zod.array(zod.string().min(resubmitMerchantApplicationBodyApplicationExpectedCustomerCountriesItemMin).max(resubmitMerchantApplicationBodyApplicationExpectedCustomerCountriesItemMax).regex(resubmitMerchantApplicationBodyApplicationExpectedCustomerCountriesItemRegExp)).min(1).max(resubmitMerchantApplicationBodyApplicationExpectedCustomerCountriesMax),
+  "expectedCollectionCurrencies": zod.array(zod.string().min(resubmitMerchantApplicationBodyApplicationExpectedCollectionCurrenciesItemMin).max(resubmitMerchantApplicationBodyApplicationExpectedCollectionCurrenciesItemMax).regex(resubmitMerchantApplicationBodyApplicationExpectedCollectionCurrenciesItemRegExp)).min(1).max(resubmitMerchantApplicationBodyApplicationExpectedCollectionCurrenciesMax),
+  "sourceOfFunds": zod.string().min(resubmitMerchantApplicationBodyApplicationSourceOfFundsMin).max(resubmitMerchantApplicationBodyApplicationSourceOfFundsMax)
+}),
+  "attachmentUploadTokens": zod.array(zod.string().regex(resubmitMerchantApplicationBodyAttachmentUploadTokensItemRegExp)).max(resubmitMerchantApplicationBodyAttachmentUploadTokensMax).optional()
 })
 
 export const resubmitMerchantApplicationResponseMerchantShopNameMax = 100;
@@ -3964,6 +3970,120 @@ export const ResubmitMerchantApplicationResponse = zod.object({
   "createdAt": zod.coerce.date()
 })
 })
+
+
+/**
+ * @summary List private files submitted with the current merchant application
+ */
+export const listMerchantApplicationAttachmentsResponseItemsItemNameMax = 180;
+
+export const listMerchantApplicationAttachmentsResponseItemsItemSizeMax = 10485760;
+
+
+
+export const ListMerchantApplicationAttachmentsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string().min(1).max(listMerchantApplicationAttachmentsResponseItemsItemNameMax),
+  "size": zod.number().int().min(1).max(listMerchantApplicationAttachmentsResponseItemsItemSizeMax),
+  "contentType": zod.enum(['application/pdf', 'image/png', 'image/jpeg']),
+  "createdAt": zod.coerce.date(),
+  "downloadPath": zod.string().describe('Authenticated API path; never a public storage URL.')
+}))
+})
+
+
+/**
+ * @summary Create a short-lived signed private application-file upload
+ */
+export const createMerchantApplicationAttachmentUploadIntentBodyNameMax = 180;
+
+export const createMerchantApplicationAttachmentUploadIntentBodySizeMax = 10485760;
+
+
+
+export const CreateMerchantApplicationAttachmentUploadIntentBody = zod.object({
+  "name": zod.string().min(1).max(createMerchantApplicationAttachmentUploadIntentBodyNameMax),
+  "size": zod.number().int().min(1).max(createMerchantApplicationAttachmentUploadIntentBodySizeMax),
+  "contentType": zod.enum(['application/pdf', 'image/png', 'image/jpeg'])
+})
+
+export const CreateMerchantApplicationAttachmentUploadIntentResponse = zod.object({
+  "uploadURL": zod.string().url().describe('Cloudinary raw upload endpoint.'),
+  "uploadParameters": zod.record(zod.string(), zod.string()).describe('Per-asset signed upload fields. The API secret is never returned.'),
+  "objectPath": zod.string().describe('Opaque authenticated Cloudinary asset reference; never a public URL.'),
+  "uploadToken": zod.string(),
+  "expiresAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Cancel an incomplete private application-file upload
+ */
+export const deleteMerchantApplicationAttachmentUploadIntentPathUploadTokenRegExp = new RegExp('^[a-f0-9]{32}$');
+
+
+export const DeleteMerchantApplicationAttachmentUploadIntentParams = zod.object({
+  "uploadToken": zod.coerce.string().regex(deleteMerchantApplicationAttachmentUploadIntentPathUploadTokenRegExp)
+})
+
+export const DeleteMerchantApplicationAttachmentUploadIntentResponse = zod.void()
+
+
+/**
+ * @summary Download an application attachment after ownership verification
+ */
+
+
+
+export const DownloadMerchantApplicationAttachmentParams = zod.object({
+  "attachmentId": zod.coerce.number().int().min(1)
+})
+
+export const DownloadMerchantApplicationAttachmentResponse = zod.unknown()
+
+
+/**
+ * @summary List private application attachments for review
+ */
+
+
+
+export const ListAdminMerchantApplicationAttachmentsParams = zod.object({
+  "merchantId": zod.coerce.number().int().min(1)
+})
+
+export const listAdminMerchantApplicationAttachmentsResponseItemsItemNameMax = 180;
+
+export const listAdminMerchantApplicationAttachmentsResponseItemsItemSizeMax = 10485760;
+
+
+
+export const ListAdminMerchantApplicationAttachmentsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string().min(1).max(listAdminMerchantApplicationAttachmentsResponseItemsItemNameMax),
+  "size": zod.number().int().min(1).max(listAdminMerchantApplicationAttachmentsResponseItemsItemSizeMax),
+  "contentType": zod.enum(['application/pdf', 'image/png', 'image/jpeg']),
+  "createdAt": zod.coerce.date(),
+  "downloadPath": zod.string().describe('Authenticated API path; never a public storage URL.')
+}))
+})
+
+
+/**
+ * @summary Download a private application attachment after administrator authorization
+ */
+
+
+
+
+export const DownloadAdminMerchantApplicationAttachmentParams = zod.object({
+  "merchantId": zod.coerce.number().int().min(1),
+  "attachmentId": zod.coerce.number().int().min(1)
+})
+
+export const DownloadAdminMerchantApplicationAttachmentResponse = zod.unknown()
 
 
 /**

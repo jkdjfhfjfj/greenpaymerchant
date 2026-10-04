@@ -19,13 +19,14 @@ import {
   UpdateAdminPlatformSettingsResponse,
   ListAdminCollectionCurrencyAvailabilityResponse, UpdateAdminCollectionCurrencyAvailabilityBody,
   UpdateAdminCollectionCurrencyAvailabilityResponse, ReviewAdminMerchantApplicationBody,
-  ReviewAdminMerchantApplicationResponse,
+  ReviewAdminMerchantApplicationResponse, ListAdminMerchantApplicationAttachmentsParams,
+  ListAdminMerchantApplicationAttachmentsResponse, DownloadAdminMerchantApplicationAttachmentParams,
 } from "@workspace/api-zod";
 import {
   adminAuditLogTable, db, feeSchedulesTable, fxRatesTable, merchantApiKeysTable,
   merchantsTable, platformSettingsTable, providerCredentialsTable, transactionsTable,
   platformAdminAssignmentsTable, verificationTierLimitsTable, verificationUsageReservationsTable,
-  collectionCurrencyAvailabilityTable,
+  collectionCurrencyAvailabilityTable, merchantApplicationAttachmentsTable,
 } from "@workspace/db";
 import type { MerchantApplicationDetails } from "@workspace/db";
 import { encryptProviderCredentials, readProviderCredentials } from "../lib/secure-storage";
@@ -43,6 +44,7 @@ import {
 } from "../lib/merchant-access-policy";
 import { verificationTierForMerchant } from "../lib/platform";
 import { notifyMerchantAccountAction } from "../lib/support-service";
+import { getPrivateCaseObject, type CaseFileType } from "../lib/cloudinary-case-storage";
 import {
   allowlistedAdminEmails, ClerkApiError, emailIsBootstrapAdmin, existingClerkUserIds, fetchClerkUser, findVerifiedClerkUsersByEmail,
   platformAdminAuditDetails, remainingEffectiveAdminCount, verifiedEmailAddresses,
@@ -562,6 +564,56 @@ router.get("/admin/merchants", async (req, res): Promise<void> => {
   }
 });
 
+router.get("/admin/merchants/:merchantId/application-attachments", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "private, no-store");
+  const params = ListAdminMerchantApplicationAttachmentsParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const [merchant] = await db.select({ id: merchantsTable.id }).from(merchantsTable)
+    .where(eq(merchantsTable.id, params.data.merchantId)).limit(1);
+  if (!merchant) { res.status(404).json({ error: "Merchant not found." }); return; }
+  const rows = await db.select().from(merchantApplicationAttachmentsTable).where(
+    eq(merchantApplicationAttachmentsTable.merchantId, merchant.id),
+  ).orderBy(merchantApplicationAttachmentsTable.createdAt);
+  res.json(ListAdminMerchantApplicationAttachmentsResponse.parse({
+    items: rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      size: row.size,
+      contentType: row.contentType,
+      createdAt: row.createdAt,
+      downloadPath: `/api/admin/merchants/${merchant.id}/application-attachments/${row.id}/download`,
+    })),
+  }));
+});
+
+router.get("/admin/merchants/:merchantId/application-attachments/:attachmentId/download", async (req, res): Promise<void> => {
+  const params = DownloadAdminMerchantApplicationAttachmentParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const [attachment] = await db.select().from(merchantApplicationAttachmentsTable).where(and(
+    eq(merchantApplicationAttachmentsTable.id, params.data.attachmentId),
+    eq(merchantApplicationAttachmentsTable.merchantId, params.data.merchantId),
+  )).limit(1);
+  if (!attachment) { res.status(404).json({ error: "Application attachment was not found for this merchant." }); return; }
+  try {
+    const file = await getPrivateCaseObject(attachment.objectPath, {
+      size: attachment.size,
+      contentType: attachment.contentType as CaseFileType,
+      sha256: attachment.sha256,
+    });
+    const safeName = attachment.name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
+    res.setHeader("Content-Type", attachment.contentType);
+    res.setHeader("Content-Length", String(attachment.size));
+    res.setHeader("Content-Disposition", `attachment; filename="${safeName}"; filename*=UTF-8''${encodeURIComponent(attachment.name)}`);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("Pragma", "no-cache");
+    file.createReadStream().pipe(res);
+  } catch (error) {
+    req.log.error({ err: error, merchantId: params.data.merchantId, attachmentId: attachment.id }, "Private application attachment download failed");
+    if (!res.headersSent) res.status(503).json({ error: "The private application attachment is unavailable." });
+  }
+});
+
 router.get("/admin/merchants/:id", async (req, res): Promise<void> => {
   res.setHeader("Cache-Control", "no-store");
   const params = GetAdminMerchantDetailsParams.safeParse(req.params);
@@ -814,19 +866,26 @@ router.post("/admin/merchants/:merchantId/application-review", async (req, res):
     res.status(409).json({ error: "Only applications awaiting review can be approved or sent back for information." });
     return;
   }
-  void notifyMerchantAccountAction({
+  const ownerNotice = await notifyMerchantAccountAction({
     merchantId: result.updated.id,
     ownerUserId: result.updated.ownerClerkId,
     businessName: result.updated.businessName,
     action: parsed.data.decision === "approve" ? "application_approved" : "more_info_required",
     ...(parsed.data.decision === "request_information" ? { reason: parsed.data.reason.trim() } : {}),
     eventKey: `merchant-application:${result.updated.id}:${result.updated.applicationStatus}:${reviewedAt.getTime()}`,
-  }).catch((error) => {
+  });
+  if (!ownerNotice.notificationSaved) {
     req.log.error({
       merchantId: result.updated.id,
-      errorKind: error instanceof Error ? error.name : "unknown",
-    }, "Application review was saved, but its owner notification could not be queued");
-  });
+    }, "Application review was saved, but its owner in-app notification could not be saved");
+  }
+  if (ownerNotice.emailDeliveryState !== "queued" && ownerNotice.emailDeliveryState !== "sending" &&
+      ownerNotice.emailDeliveryState !== "sent") {
+    req.log.warn({
+      merchantId: result.updated.id,
+      emailDeliveryState: ownerNotice.emailDeliveryState,
+    }, "Application review was saved with an in-app notice, but no owner email was queued");
+  }
   res.json(ReviewAdminMerchantApplicationResponse.parse({
     merchantId: result.updated.id,
     applicationStatus: result.updated.applicationStatus,

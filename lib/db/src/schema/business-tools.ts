@@ -116,6 +116,35 @@ export const merchantCaseUploadIntentsTable = pgTable("greenpay_case_upload_inte
   index("greenpay_case_upload_intents_case_idx").on(table.merchantId, table.caseId, table.expiresAt),
 ]);
 
+export const merchantApplicationAttachmentsTable = pgTable("greenpay_application_attachments", {
+  id: serial("id").primaryKey(),
+  merchantId: integer("merchant_id").notNull(),
+  objectPath: text("object_path").notNull(),
+  name: varchar("name", { length: 180 }).notNull(),
+  contentType: varchar("content_type", { length: 40 }).notNull(),
+  size: integer("size").notNull(),
+  sha256: varchar("sha256", { length: 64 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("greenpay_application_attachments_object_path_unique_idx").on(table.objectPath),
+  index("greenpay_application_attachments_merchant_created_idx").on(table.merchantId, table.createdAt),
+]);
+
+export const merchantApplicationUploadIntentsTable = pgTable("greenpay_application_upload_intents", {
+  id: serial("id").primaryKey(),
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  merchantId: integer("merchant_id").notNull(),
+  objectPath: text("object_path").notNull().unique(),
+  name: varchar("name", { length: 180 }).notNull(),
+  contentType: varchar("content_type", { length: 40 }).notNull(),
+  size: integer("size").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("greenpay_application_upload_intents_merchant_idx").on(table.merchantId, table.expiresAt),
+]);
+
 export const merchantCaseRefundsTable = pgTable("greenpay_case_refunds", {
   id: serial("id").primaryKey(),
   merchantId: integer("merchant_id").notNull(),

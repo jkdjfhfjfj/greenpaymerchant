@@ -54,8 +54,8 @@ import type {
   AdminWalletAdjustmentResponse,
   AdminWalletList,
   ApiKeyList,
+  ApplicationResubmissionInput,
   BankList,
-  BusinessApplicationDetails,
   BusinessContact,
   BusinessContactInput,
   CaseInput,
@@ -127,6 +127,9 @@ import type {
   ListWebhookEventsParams,
   MerchantActionControlsResponse,
   MerchantApiKeySecret,
+  MerchantApplicationAttachmentList,
+  MerchantApplicationAttachmentUploadIntent,
+  MerchantApplicationAttachmentUploadIntentInput,
   MerchantCaseAttachmentUploadIntent,
   MerchantCaseAttachmentUploadIntentInput,
   MerchantCollectionAnalyticsResponse,
@@ -7420,7 +7423,7 @@ export const getResubmitMerchantApplicationUrl = () => {
 /**
  * @summary Submit requested additional business application information
  */
-export const resubmitMerchantApplication = async (businessApplicationDetails: BusinessApplicationDetails, options?: Parameters<typeof customFetch>[1]): Promise<MerchantProfileResponse> => {
+export const resubmitMerchantApplication = async (applicationResubmissionInput: ApplicationResubmissionInput, options?: Parameters<typeof customFetch>[1]): Promise<MerchantProfileResponse> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -7441,7 +7444,7 @@ return customFetch<MerchantProfileResponse>(getResubmitMerchantApplicationUrl(),
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(businessApplicationDetails)
+    body: JSON.stringify(applicationResubmissionInput)
   }
 );}
 
@@ -7479,9 +7482,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type ResubmitMerchantApplicationMutationResult = NonNullable<Awaited<ReturnType<typeof resubmitMerchantApplication>>>
-    export type ResubmitMerchantApplicationMutationBody = BodyType<BusinessApplicationDetails>
+    export type ResubmitMerchantApplicationMutationBody = BodyType<ApplicationResubmissionInput>
     export type ResubmitMerchantApplicationMutationError = ErrorType<void>
-    export type ResubmitMerchantApplicationMutationVariables = {data: BodyType<BusinessApplicationDetails>}
+    export type ResubmitMerchantApplicationMutationVariables = {data: BodyType<ApplicationResubmissionInput>}
 
     /**
  * @summary Submit requested additional business application information
@@ -7496,6 +7499,481 @@ export const useResubmitMerchantApplication = <TError = ErrorType<void>,
       > => {
       return useMutation(getResubmitMerchantApplicationMutationOptions(options));
     }
+
+export const getListMerchantApplicationAttachmentsUrl = () => {
+
+
+
+
+  return `/api/merchant/application/attachments`
+}
+
+/**
+ * @summary List private files submitted with the current merchant application
+ */
+export const listMerchantApplicationAttachments = async ( options?: Parameters<typeof customFetch>[1]): Promise<MerchantApplicationAttachmentList> => {
+
+  return customFetch<MerchantApplicationAttachmentList>(getListMerchantApplicationAttachmentsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMerchantApplicationAttachmentsQueryKey = () => {
+    return [
+    `/api/merchant/application/attachments`
+    ] as const;
+    }
+
+
+export const getListMerchantApplicationAttachmentsQueryOptions = <TData = Awaited<ReturnType<typeof listMerchantApplicationAttachments>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMerchantApplicationAttachments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMerchantApplicationAttachmentsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMerchantApplicationAttachments>>> = ({ signal }) => listMerchantApplicationAttachments({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMerchantApplicationAttachments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMerchantApplicationAttachmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listMerchantApplicationAttachments>>>
+export type ListMerchantApplicationAttachmentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List private files submitted with the current merchant application
+ */
+
+export function useListMerchantApplicationAttachments<TData = Awaited<ReturnType<typeof listMerchantApplicationAttachments>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMerchantApplicationAttachments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMerchantApplicationAttachmentsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateMerchantApplicationAttachmentUploadIntentUrl = () => {
+
+
+
+
+  return `/api/merchant/application/attachments/upload-intent`
+}
+
+/**
+ * @summary Create a short-lived signed private application-file upload
+ */
+export const createMerchantApplicationAttachmentUploadIntent = async (merchantApplicationAttachmentUploadIntentInput: MerchantApplicationAttachmentUploadIntentInput, options?: Parameters<typeof customFetch>[1]): Promise<MerchantApplicationAttachmentUploadIntent> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<MerchantApplicationAttachmentUploadIntent>(getCreateMerchantApplicationAttachmentUploadIntentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(merchantApplicationAttachmentUploadIntentInput)
+  }
+);}
+
+
+
+
+
+export const getCreateMerchantApplicationAttachmentUploadIntentMutationKey = () => ['createMerchantApplicationAttachmentUploadIntent'] as const;
+
+export const getCreateMerchantApplicationAttachmentUploadIntentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMerchantApplicationAttachmentUploadIntent>>, TError,CreateMerchantApplicationAttachmentUploadIntentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMerchantApplicationAttachmentUploadIntent>>, TError,CreateMerchantApplicationAttachmentUploadIntentMutationVariables, TContext> => {
+
+const mutationKey = getCreateMerchantApplicationAttachmentUploadIntentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMerchantApplicationAttachmentUploadIntent>>, CreateMerchantApplicationAttachmentUploadIntentMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createMerchantApplicationAttachmentUploadIntent(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMerchantApplicationAttachmentUploadIntentMutationResult = NonNullable<Awaited<ReturnType<typeof createMerchantApplicationAttachmentUploadIntent>>>
+    export type CreateMerchantApplicationAttachmentUploadIntentMutationBody = BodyType<MerchantApplicationAttachmentUploadIntentInput>
+    export type CreateMerchantApplicationAttachmentUploadIntentMutationError = ErrorType<void>
+    export type CreateMerchantApplicationAttachmentUploadIntentMutationVariables = {data: BodyType<MerchantApplicationAttachmentUploadIntentInput>}
+
+    /**
+ * @summary Create a short-lived signed private application-file upload
+ */
+export const useCreateMerchantApplicationAttachmentUploadIntent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMerchantApplicationAttachmentUploadIntent>>, TError,CreateMerchantApplicationAttachmentUploadIntentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMerchantApplicationAttachmentUploadIntent>>,
+        TError,
+        CreateMerchantApplicationAttachmentUploadIntentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateMerchantApplicationAttachmentUploadIntentMutationOptions(options));
+    }
+
+export const getDeleteMerchantApplicationAttachmentUploadIntentUrl = (uploadToken: string,) => {
+
+
+
+
+  return `/api/merchant/application/attachments/uploads/${uploadToken}`
+}
+
+/**
+ * @summary Cancel an incomplete private application-file upload
+ */
+export const deleteMerchantApplicationAttachmentUploadIntent = async (uploadToken: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteMerchantApplicationAttachmentUploadIntentUrl(uploadToken),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteMerchantApplicationAttachmentUploadIntentMutationKey = () => ['deleteMerchantApplicationAttachmentUploadIntent'] as const;
+
+export const getDeleteMerchantApplicationAttachmentUploadIntentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMerchantApplicationAttachmentUploadIntent>>, TError,DeleteMerchantApplicationAttachmentUploadIntentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMerchantApplicationAttachmentUploadIntent>>, TError,DeleteMerchantApplicationAttachmentUploadIntentMutationVariables, TContext> => {
+
+const mutationKey = getDeleteMerchantApplicationAttachmentUploadIntentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMerchantApplicationAttachmentUploadIntent>>, DeleteMerchantApplicationAttachmentUploadIntentMutationVariables> = (props) => {
+          const {uploadToken} = props ?? {};
+
+          return  deleteMerchantApplicationAttachmentUploadIntent(uploadToken,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMerchantApplicationAttachmentUploadIntentMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMerchantApplicationAttachmentUploadIntent>>>
+
+    export type DeleteMerchantApplicationAttachmentUploadIntentMutationError = ErrorType<void>
+    export type DeleteMerchantApplicationAttachmentUploadIntentMutationVariables = {uploadToken: string}
+
+    /**
+ * @summary Cancel an incomplete private application-file upload
+ */
+export const useDeleteMerchantApplicationAttachmentUploadIntent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMerchantApplicationAttachmentUploadIntent>>, TError,DeleteMerchantApplicationAttachmentUploadIntentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMerchantApplicationAttachmentUploadIntent>>,
+        TError,
+        DeleteMerchantApplicationAttachmentUploadIntentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteMerchantApplicationAttachmentUploadIntentMutationOptions(options));
+    }
+
+export const getDownloadMerchantApplicationAttachmentUrl = (attachmentId: number,) => {
+
+
+
+
+  return `/api/merchant/application/attachments/${attachmentId}/download`
+}
+
+/**
+ * @summary Download an application attachment after ownership verification
+ */
+export const downloadMerchantApplicationAttachment = async (attachmentId: number, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadMerchantApplicationAttachmentUrl(attachmentId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadMerchantApplicationAttachmentQueryKey = (attachmentId: number,) => {
+    return [
+    `/api/merchant/application/attachments/${attachmentId}/download`
+    ] as const;
+    }
+
+
+export const getDownloadMerchantApplicationAttachmentQueryOptions = <TData = Awaited<ReturnType<typeof downloadMerchantApplicationAttachment>>, TError = ErrorType<void>>(attachmentId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadMerchantApplicationAttachment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadMerchantApplicationAttachmentQueryKey(attachmentId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadMerchantApplicationAttachment>>> = ({ signal }) => downloadMerchantApplicationAttachment(attachmentId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: attachmentId !== null && attachmentId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadMerchantApplicationAttachment>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadMerchantApplicationAttachmentQueryResult = NonNullable<Awaited<ReturnType<typeof downloadMerchantApplicationAttachment>>>
+export type DownloadMerchantApplicationAttachmentQueryError = ErrorType<void>
+
+
+/**
+ * @summary Download an application attachment after ownership verification
+ */
+
+export function useDownloadMerchantApplicationAttachment<TData = Awaited<ReturnType<typeof downloadMerchantApplicationAttachment>>, TError = ErrorType<void>>(
+ attachmentId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadMerchantApplicationAttachment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadMerchantApplicationAttachmentQueryOptions(attachmentId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListAdminMerchantApplicationAttachmentsUrl = (merchantId: number,) => {
+
+
+
+
+  return `/api/admin/merchants/${merchantId}/application-attachments`
+}
+
+/**
+ * @summary List private application attachments for review
+ */
+export const listAdminMerchantApplicationAttachments = async (merchantId: number, options?: Parameters<typeof customFetch>[1]): Promise<MerchantApplicationAttachmentList> => {
+
+  return customFetch<MerchantApplicationAttachmentList>(getListAdminMerchantApplicationAttachmentsUrl(merchantId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminMerchantApplicationAttachmentsQueryKey = (merchantId: number,) => {
+    return [
+    `/api/admin/merchants/${merchantId}/application-attachments`
+    ] as const;
+    }
+
+
+export const getListAdminMerchantApplicationAttachmentsQueryOptions = <TData = Awaited<ReturnType<typeof listAdminMerchantApplicationAttachments>>, TError = ErrorType<void>>(merchantId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminMerchantApplicationAttachments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminMerchantApplicationAttachmentsQueryKey(merchantId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminMerchantApplicationAttachments>>> = ({ signal }) => listAdminMerchantApplicationAttachments(merchantId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: merchantId !== null && merchantId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminMerchantApplicationAttachments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminMerchantApplicationAttachmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminMerchantApplicationAttachments>>>
+export type ListAdminMerchantApplicationAttachmentsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List private application attachments for review
+ */
+
+export function useListAdminMerchantApplicationAttachments<TData = Awaited<ReturnType<typeof listAdminMerchantApplicationAttachments>>, TError = ErrorType<void>>(
+ merchantId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminMerchantApplicationAttachments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminMerchantApplicationAttachmentsQueryOptions(merchantId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDownloadAdminMerchantApplicationAttachmentUrl = (merchantId: number,
+    attachmentId: number,) => {
+
+
+
+
+  return `/api/admin/merchants/${merchantId}/application-attachments/${attachmentId}/download`
+}
+
+/**
+ * @summary Download a private application attachment after administrator authorization
+ */
+export const downloadAdminMerchantApplicationAttachment = async (merchantId: number,
+    attachmentId: number, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadAdminMerchantApplicationAttachmentUrl(merchantId,attachmentId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadAdminMerchantApplicationAttachmentQueryKey = (merchantId: number,
+    attachmentId: number,) => {
+    return [
+    `/api/admin/merchants/${merchantId}/application-attachments/${attachmentId}/download`
+    ] as const;
+    }
+
+
+export const getDownloadAdminMerchantApplicationAttachmentQueryOptions = <TData = Awaited<ReturnType<typeof downloadAdminMerchantApplicationAttachment>>, TError = ErrorType<void>>(merchantId: number,
+    attachmentId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadAdminMerchantApplicationAttachment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadAdminMerchantApplicationAttachmentQueryKey(merchantId,attachmentId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadAdminMerchantApplicationAttachment>>> = ({ signal }) => downloadAdminMerchantApplicationAttachment(merchantId,attachmentId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: merchantId !== null && merchantId !== undefined && attachmentId !== null && attachmentId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadAdminMerchantApplicationAttachment>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadAdminMerchantApplicationAttachmentQueryResult = NonNullable<Awaited<ReturnType<typeof downloadAdminMerchantApplicationAttachment>>>
+export type DownloadAdminMerchantApplicationAttachmentQueryError = ErrorType<void>
+
+
+/**
+ * @summary Download a private application attachment after administrator authorization
+ */
+
+export function useDownloadAdminMerchantApplicationAttachment<TData = Awaited<ReturnType<typeof downloadAdminMerchantApplicationAttachment>>, TError = ErrorType<void>>(
+ merchantId: number,
+    attachmentId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadAdminMerchantApplicationAttachment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadAdminMerchantApplicationAttachmentQueryOptions(merchantId,attachmentId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetMerchantCollectionAnalyticsUrl = () => {
 

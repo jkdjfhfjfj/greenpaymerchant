@@ -2289,6 +2289,157 @@ export interface MerchantCaseAttachmentUploadIntent {
   expiresAt: string;
 }
 
+export type MerchantApplicationAttachmentContentType = typeof MerchantApplicationAttachmentContentType[keyof typeof MerchantApplicationAttachmentContentType];
+
+
+export const MerchantApplicationAttachmentContentType = {
+  'application/pdf': 'application/pdf',
+  'image/png': 'image/png',
+  'image/jpeg': 'image/jpeg',
+} as const;
+
+export interface MerchantApplicationAttachment {
+  id: number;
+  /**
+     * @minLength 1
+     * @maxLength 180
+     */
+  name: string;
+  /**
+     * @minimum 1
+     * @maximum 10485760
+     */
+  size: number;
+  contentType: MerchantApplicationAttachmentContentType;
+  createdAt: string;
+  /** Authenticated API path; never a public storage URL. */
+  downloadPath: string;
+}
+
+export interface MerchantApplicationAttachmentList {
+  items: MerchantApplicationAttachment[];
+}
+
+export type MerchantApplicationAttachmentUploadIntentInputContentType = typeof MerchantApplicationAttachmentUploadIntentInputContentType[keyof typeof MerchantApplicationAttachmentUploadIntentInputContentType];
+
+
+export const MerchantApplicationAttachmentUploadIntentInputContentType = {
+  'application/pdf': 'application/pdf',
+  'image/png': 'image/png',
+  'image/jpeg': 'image/jpeg',
+} as const;
+
+export interface MerchantApplicationAttachmentUploadIntentInput {
+  /**
+     * @minLength 1
+     * @maxLength 180
+     */
+  name: string;
+  /**
+     * @minimum 1
+     * @maximum 10485760
+     */
+  size: number;
+  contentType: MerchantApplicationAttachmentUploadIntentInputContentType;
+}
+
+/**
+ * Per-asset signed upload fields. The API secret is never returned.
+ */
+export type MerchantApplicationAttachmentUploadIntentUploadParameters = {[key: string]: string};
+
+export interface MerchantApplicationAttachmentUploadIntent {
+  /** Cloudinary raw upload endpoint. */
+  uploadURL: string;
+  /** Per-asset signed upload fields. The API secret is never returned. */
+  uploadParameters: MerchantApplicationAttachmentUploadIntentUploadParameters;
+  /** Opaque authenticated Cloudinary asset reference; never a public URL. */
+  objectPath: string;
+  uploadToken: string;
+  expiresAt: string;
+}
+
+export type BusinessApplicationDetailsBusinessType = typeof BusinessApplicationDetailsBusinessType[keyof typeof BusinessApplicationDetailsBusinessType];
+
+
+export const BusinessApplicationDetailsBusinessType = {
+  sole_proprietor: 'sole_proprietor',
+  limited_company: 'limited_company',
+  partnership: 'partnership',
+  nonprofit: 'nonprofit',
+  other: 'other',
+} as const;
+
+export interface BusinessApplicationDetails {
+  businessType: BusinessApplicationDetailsBusinessType;
+  /**
+     * @minLength 10
+     * @maxLength 2000
+     */
+  natureOfBusiness: string;
+  /**
+     * @minLength 5
+     * @maxLength 500
+     */
+  registeredAddress: string;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  website: string | null;
+  /**
+     * @minimum 0
+     * @maximum 1000000000000
+     */
+  expectedMonthlyVolume: number;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     * @pattern ^[A-Za-z]{3}$
+     */
+  expectedMonthlyVolumeCurrency: string;
+  /**
+     * @minimum 0
+     * @maximum 1000000000
+     */
+  expectedMonthlyTransactions: number;
+  /**
+     * @minimum 0
+     * @maximum 1000000000000
+     */
+  expectedAverageTransactionValue: number;
+  /**
+     * @minItems 1
+     * @maxItems 30
+     * @items.minLength 2
+     * @items.maxLength 2
+     * @items.pattern ^[A-Za-z]{2}$
+     */
+  expectedCustomerCountries: string[];
+  /**
+     * @minItems 1
+     * @maxItems 30
+     * @items.minLength 3
+     * @items.maxLength 3
+     * @items.pattern ^[A-Za-z]{3}$
+     */
+  expectedCollectionCurrencies: string[];
+  /**
+     * @minLength 10
+     * @maxLength 1000
+     */
+  sourceOfFunds: string;
+}
+
+export interface ApplicationResubmissionInput {
+  application: BusinessApplicationDetails;
+  /**
+     * @maxItems 5
+     * @items.pattern ^[a-f0-9]{32}$
+     */
+  attachmentUploadTokens?: string[];
+}
+
 export interface AdminCaseRefundRecordInput {
   /** @exclusiveMinimum 0 */
   amount: number;
@@ -2597,78 +2748,6 @@ export const MerchantProfileStatus = {
   suspended: 'suspended',
   closed: 'closed',
 } as const;
-
-export type BusinessApplicationDetailsBusinessType = typeof BusinessApplicationDetailsBusinessType[keyof typeof BusinessApplicationDetailsBusinessType];
-
-
-export const BusinessApplicationDetailsBusinessType = {
-  sole_proprietor: 'sole_proprietor',
-  limited_company: 'limited_company',
-  partnership: 'partnership',
-  nonprofit: 'nonprofit',
-  other: 'other',
-} as const;
-
-export interface BusinessApplicationDetails {
-  businessType: BusinessApplicationDetailsBusinessType;
-  /**
-     * @minLength 10
-     * @maxLength 2000
-     */
-  natureOfBusiness: string;
-  /**
-     * @minLength 5
-     * @maxLength 500
-     */
-  registeredAddress: string;
-  /**
-     * @maxLength 500
-     * @nullable
-     */
-  website: string | null;
-  /**
-     * @minimum 0
-     * @maximum 1000000000000
-     */
-  expectedMonthlyVolume: number;
-  /**
-     * @minLength 3
-     * @maxLength 3
-     * @pattern ^[A-Za-z]{3}$
-     */
-  expectedMonthlyVolumeCurrency: string;
-  /**
-     * @minimum 0
-     * @maximum 1000000000
-     */
-  expectedMonthlyTransactions: number;
-  /**
-     * @minimum 0
-     * @maximum 1000000000000
-     */
-  expectedAverageTransactionValue: number;
-  /**
-     * @minItems 1
-     * @maxItems 30
-     * @items.minLength 2
-     * @items.maxLength 2
-     * @items.pattern ^[A-Za-z]{2}$
-     */
-  expectedCustomerCountries: string[];
-  /**
-     * @minItems 1
-     * @maxItems 30
-     * @items.minLength 3
-     * @items.maxLength 3
-     * @items.pattern ^[A-Za-z]{3}$
-     */
-  expectedCollectionCurrencies: string[];
-  /**
-     * @minLength 10
-     * @maxLength 1000
-     */
-  sourceOfFunds: string;
-}
 
 export type MerchantProfileApplicationStatus = typeof MerchantProfileApplicationStatus[keyof typeof MerchantProfileApplicationStatus];
 

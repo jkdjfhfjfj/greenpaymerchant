@@ -1524,7 +1524,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/BusinessApplicationDetails" }
+            schema: { $ref: "#/components/schemas/ApplicationResubmissionInput" }
       responses:
         "200":
           description: Application resubmitted for review
@@ -1532,6 +1532,90 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/MerchantProfileResponse" }
         "409": { description: The application is not awaiting additional information }
+  /merchant/application/attachments:
+    get:
+      operationId: listMerchantApplicationAttachments
+      tags: [merchant]
+      summary: List private files submitted with the current merchant application
+      responses:
+        "200":
+          description: Application attachments with owner-authorized download paths
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantApplicationAttachmentList" }
+  /merchant/application/attachments/upload-intent:
+    post:
+      operationId: createMerchantApplicationAttachmentUploadIntent
+      tags: [merchant]
+      summary: Create a short-lived signed private application-file upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MerchantApplicationAttachmentUploadIntentInput" }
+      responses:
+        "201":
+          description: Signed upload fields and opaque token for the final application resubmission
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantApplicationAttachmentUploadIntent" }
+        "409": { description: Application is not awaiting additional information or has reached its file limit }
+        "413": { description: Upload exceeds the maximum supported size }
+  /merchant/application/attachments/uploads/{uploadToken}:
+    delete:
+      operationId: deleteMerchantApplicationAttachmentUploadIntent
+      tags: [merchant]
+      summary: Cancel an incomplete private application-file upload
+      parameters:
+        - { name: uploadToken, in: path, required: true, schema: { type: string, pattern: "^[a-f0-9]{32}$" } }
+      responses:
+        "204": { description: Unused upload token and its private object were removed }
+        "404": { description: Upload token not found for this merchant }
+  /merchant/application/attachments/{attachmentId}/download:
+    get:
+      operationId: downloadMerchantApplicationAttachment
+      tags: [merchant]
+      summary: Download an application attachment after ownership verification
+      parameters:
+        - { name: attachmentId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200":
+          description: Private application attachment
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+        "404": { description: Attachment not found for this merchant }
+  /admin/merchants/{merchantId}/application-attachments:
+    get:
+      operationId: listAdminMerchantApplicationAttachments
+      tags: [admin]
+      summary: List private application attachments for review
+      parameters:
+        - { name: merchantId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200":
+          description: Application attachments with admin-authorized download paths
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantApplicationAttachmentList" }
+        "404": { description: Merchant not found }
+  /admin/merchants/{merchantId}/application-attachments/{attachmentId}/download:
+    get:
+      operationId: downloadAdminMerchantApplicationAttachment
+      tags: [admin]
+      summary: Download a private application attachment after administrator authorization
+      parameters:
+        - { name: merchantId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: attachmentId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200":
+          description: Private application attachment
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+        "404": { description: Attachment not found for this merchant }
   /merchant/collection-analytics:
     get:
       operationId: getMerchantCollectionAnalytics
@@ -4426,6 +4510,54 @@ components:
         objectPath: { type: string, description: Opaque authenticated Cloudinary asset reference; never a public URL. }
         uploadToken: { type: string }
         expiresAt: { type: string, format: date-time }
+    MerchantApplicationAttachment:
+      type: object
+      required: [id, name, size, contentType, createdAt, downloadPath]
+      properties:
+        id: { type: integer }
+        name: { type: string, minLength: 1, maxLength: 180 }
+        size: { type: integer, minimum: 1, maximum: 10485760 }
+        contentType: { type: string, enum: [application/pdf, image/png, image/jpeg] }
+        createdAt: { type: string, format: date-time }
+        downloadPath: { type: string, description: Authenticated API path; never a public storage URL. }
+    MerchantApplicationAttachmentList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/MerchantApplicationAttachment" }
+    MerchantApplicationAttachmentUploadIntentInput:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 180 }
+        size: { type: integer, minimum: 1, maximum: 10485760 }
+        contentType: { type: string, enum: [application/pdf, image/png, image/jpeg] }
+      additionalProperties: false
+    MerchantApplicationAttachmentUploadIntent:
+      type: object
+      required: [uploadURL, uploadParameters, objectPath, uploadToken, expiresAt]
+      properties:
+        uploadURL: { type: string, format: uri, description: Cloudinary raw upload endpoint. }
+        uploadParameters:
+          type: object
+          description: Per-asset signed upload fields. The API secret is never returned.
+          additionalProperties: { type: string }
+        objectPath: { type: string, description: Opaque authenticated Cloudinary asset reference; never a public URL. }
+        uploadToken: { type: string }
+        expiresAt: { type: string, format: date-time }
+    ApplicationResubmissionInput:
+      type: object
+      required: [application]
+      properties:
+        application: { $ref: "#/components/schemas/BusinessApplicationDetails" }
+        attachmentUploadTokens:
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, pattern: "^[a-f0-9]{32}$" }
+      additionalProperties: false
     AdminCaseRefundRecordInput:
       type: object
       required: [amount, providerReference, idempotencyKey, evidenceReference, note]

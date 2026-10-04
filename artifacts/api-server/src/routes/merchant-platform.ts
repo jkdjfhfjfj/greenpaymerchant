@@ -1,6 +1,5 @@
-import { gte } from "drizzle-orm";
 import { randomBytes, randomUUID } from "node:crypto";
-import { and, desc, eq, ilike, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, isNull, lt, sql } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import {
   GetAdminVerificationLimitsResponse,
@@ -8,6 +7,9 @@ import {
   CreateMerchantKycSessionResponse, CreateMerchantPaymentLinkBody, CreateMerchantPaymentLinkResponse,
   CreateMerchantProfileBody, CreateMerchantProfileResponse, ResubmitMerchantApplicationBody,
   ResubmitMerchantApplicationResponse, CreateMerchantWebhookEndpointBody,
+  CreateMerchantApplicationAttachmentUploadIntentBody, CreateMerchantApplicationAttachmentUploadIntentResponse,
+  ListMerchantApplicationAttachmentsResponse, DownloadMerchantApplicationAttachmentParams,
+  DeleteMerchantApplicationAttachmentUploadIntentParams,
   CreateMerchantWebhookEndpointResponse, CreateMerchantWebhookTestDeliveryResponse,
   ListMerchantWebhookDeliveriesResponse, ReplayMerchantWebhookDeliveryResponse,
   RevokeMerchantApiKeyResponse, DeleteMerchantPaymentLinkResponse,
@@ -32,6 +34,7 @@ import {
 import {
   adminAuditLogTable, db, developerIdempotencyTable, feeSchedulesTable, fxRatesTable, merchantApiKeysTable,
   merchantWebhookEndpointsTable, merchantWebhookOutboxTable, merchantsTable, paymentLinksTable, payoutsTable, transactionsTable,
+  merchantApplicationAttachmentsTable, merchantApplicationUploadIntentsTable,
   verificationTierLimitsTable,
 } from "@workspace/db";
 import { assertCollectionAmountPrecision, createCollection } from "../lib/greenpay-collection";
@@ -65,6 +68,11 @@ import { cleanPublicUrl } from "../lib/platform-branding";
 import { cloudinaryUploadStatus, createCloudinaryUploadSignature } from "../lib/cloudinary-upload";
 import { resolveCloudinaryEnvironment } from "../lib/cloudinary-credentials";
 import { providerCredential } from "../lib/credential-runtime";
+import {
+  CASE_FILE_MAX_BYTES, CASE_FILE_TYPES, createPrivateApplicationUpload, deletePrivateCaseObject,
+  getPrivateCaseObject, verifyPrivateCaseObject, type CaseFileType,
+} from "../lib/cloudinary-case-storage";
+import { caseAttachmentName } from "../lib/merchant-business-tools";
 import { ensureMerchantWalletAccounts } from "../lib/wallet-service";
 import {
   notifyMerchantAccountAction,
@@ -74,6 +82,10 @@ import {
 
 const router: IRouter = Router();
 const apiRouter: IRouter = Router();
+const CASE_FILE_CONTENT_TYPES = new Set(Object.keys(CASE_FILE_TYPES));
+const MAX_APPLICATION_ATTACHMENTS_PER_SUBMISSION = 5;
+const MAX_APPLICATION_ATTACHMENTS = 25;
+const APPLICATION_UPLOAD_TTL_MS = 10 * 60_000;
 
 function profile(row: typeof merchantsTable.$inferSelect) {
   return {
@@ -150,7 +162,7 @@ async function ownedMerchant(res: Parameters<Parameters<IRouter["get"]>[1]>[1]) 
   const path = res.req.path;
   const method = res.req.method.toUpperCase();
   const ownerOnly = path === "/merchant" ||
-    /^\/merchant\/(?:kyc|shop-profile(?:\/|$)|api-keys(?:\/|$)|webhook-endpoints(?:\/|$))/.test(path);
+    /^\/merchant\/(?:application(?:\/|$)|kyc|shop-profile(?:\/|$)|api-keys(?:\/|$)|webhook-endpoints(?:\/|$))/.test(path);
   const permission = ownerOnly ? "owner" : ["POST", "PATCH", "PUT", "DELETE"].includes(method) ? "finance" : "read";
   return resolveMerchantAccess(res.req, res, permission);
 }
@@ -418,6 +430,143 @@ router.post("/merchant", requireSignedIn, async (req, res): Promise<void> => {
   res.status(201).json(CreateMerchantProfileResponse.parse({ merchant: profile(merchant) }));
 });
 
+router.get("/merchant/application/attachments", requireSignedIn, async (_req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "private, no-store");
+  const merchant = await ownedMerchant(res);
+  if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  const rows = await db.select().from(merchantApplicationAttachmentsTable).where(
+    eq(merchantApplicationAttachmentsTable.merchantId, merchant.id),
+  ).orderBy(merchantApplicationAttachmentsTable.createdAt);
+  res.json(ListMerchantApplicationAttachmentsResponse.parse({
+    items: rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      size: row.size,
+      contentType: row.contentType,
+      createdAt: row.createdAt,
+      downloadPath: `/api/merchant/application/attachments/${row.id}/download`,
+    })),
+  }));
+});
+
+router.post("/merchant/application/attachments/upload-intent", requireSignedIn, async (req, res): Promise<void> => {
+  const parsed = CreateMerchantApplicationAttachmentUploadIntentBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  if (parsed.data.size > CASE_FILE_MAX_BYTES || !CASE_FILE_CONTENT_TYPES.has(parsed.data.contentType)) {
+    res.status(400).json({ error: "Choose a PDF, PNG, or JPEG file no larger than 10 MB." });
+    return;
+  }
+  let name: string;
+  try { name = caseAttachmentName(parsed.data.name, parsed.data.contentType); }
+  catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Invalid filename." }); return; }
+  const merchant = await ownedMerchant(res);
+  if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  if (merchant.applicationStatus !== "more_info_required") {
+    res.status(409).json({ error: "This application is not awaiting additional information." });
+    return;
+  }
+
+  const expiredIntents = await db.select().from(merchantApplicationUploadIntentsTable).where(and(
+    eq(merchantApplicationUploadIntentsTable.merchantId, merchant.id),
+    isNull(merchantApplicationUploadIntentsTable.consumedAt),
+    lt(merchantApplicationUploadIntentsTable.expiresAt, new Date()),
+  ));
+  for (const expired of expiredIntents) await deletePrivateCaseObject(expired.objectPath);
+  if (expiredIntents.length) {
+    await db.delete(merchantApplicationUploadIntentsTable)
+      .where(inArray(merchantApplicationUploadIntentsTable.id, expiredIntents.map(({ id }) => id)));
+  }
+
+  const activeIntents = await db.select({ id: merchantApplicationUploadIntentsTable.id })
+    .from(merchantApplicationUploadIntentsTable).where(and(
+      eq(merchantApplicationUploadIntentsTable.merchantId, merchant.id),
+      isNull(merchantApplicationUploadIntentsTable.consumedAt),
+      gte(merchantApplicationUploadIntentsTable.expiresAt, new Date()),
+    ));
+  if (activeIntents.length >= MAX_APPLICATION_ATTACHMENTS_PER_SUBMISSION) {
+    res.status(409).json({ error: "Finish or retry the current uploads before starting more." });
+    return;
+  }
+  const [existing] = await db.select({ count: sql<number>`count(*)::int` })
+    .from(merchantApplicationAttachmentsTable)
+    .where(eq(merchantApplicationAttachmentsTable.merchantId, merchant.id));
+  if (Number(existing?.count ?? 0) + activeIntents.length >= MAX_APPLICATION_ATTACHMENTS) {
+    res.status(409).json({ error: "This application has reached the 25-file attachment limit." });
+    return;
+  }
+
+  try {
+    const upload = await createPrivateApplicationUpload(merchant.id, parsed.data.contentType as CaseFileType);
+    const token = randomUUID().replaceAll("-", "");
+    const expiresAt = new Date(Math.min(upload.expiresAt.getTime(), Date.now() + APPLICATION_UPLOAD_TTL_MS));
+    await db.insert(merchantApplicationUploadIntentsTable).values({
+      token,
+      merchantId: merchant.id,
+      objectPath: upload.objectPath,
+      name,
+      contentType: parsed.data.contentType,
+      size: parsed.data.size,
+      expiresAt,
+    });
+    res.setHeader("Cache-Control", "no-store");
+    res.status(201).json(CreateMerchantApplicationAttachmentUploadIntentResponse.parse({
+      ...upload,
+      uploadToken: token,
+      expiresAt,
+    }));
+  } catch (error) {
+    req.log.error({ err: error, merchantId: merchant.id }, "Could not create private application attachment upload");
+    res.status(503).json({ error: "Private application-file storage is temporarily unavailable. No file was attached." });
+  }
+});
+
+router.delete("/merchant/application/attachments/uploads/:uploadToken", requireSignedIn, async (req, res): Promise<void> => {
+  const params = DeleteMerchantApplicationAttachmentUploadIntentParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const merchant = await ownedMerchant(res);
+  if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  const [intent] = await db.select().from(merchantApplicationUploadIntentsTable).where(and(
+    eq(merchantApplicationUploadIntentsTable.merchantId, merchant.id),
+    eq(merchantApplicationUploadIntentsTable.token, params.data.uploadToken),
+    isNull(merchantApplicationUploadIntentsTable.consumedAt),
+  )).limit(1);
+  if (!intent) { res.status(404).json({ error: "Unused application upload was not found." }); return; }
+  await deletePrivateCaseObject(intent.objectPath);
+  await db.delete(merchantApplicationUploadIntentsTable)
+    .where(eq(merchantApplicationUploadIntentsTable.id, intent.id));
+  res.sendStatus(204);
+});
+
+router.get("/merchant/application/attachments/:attachmentId/download", requireSignedIn, async (req, res): Promise<void> => {
+  const params = DownloadMerchantApplicationAttachmentParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const merchant = await ownedMerchant(res);
+  if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  const [attachment] = await db.select().from(merchantApplicationAttachmentsTable).where(and(
+    eq(merchantApplicationAttachmentsTable.id, params.data.attachmentId),
+    eq(merchantApplicationAttachmentsTable.merchantId, merchant.id),
+  )).limit(1);
+  if (!attachment) { res.status(404).json({ error: "Application attachment was not found." }); return; }
+  try {
+    const file = await getPrivateCaseObject(attachment.objectPath, {
+      size: attachment.size,
+      contentType: attachment.contentType as CaseFileType,
+      sha256: attachment.sha256,
+    });
+    const safeName = attachment.name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
+    res.setHeader("Content-Type", attachment.contentType);
+    res.setHeader("Content-Length", String(attachment.size));
+    res.setHeader("Content-Disposition", `attachment; filename="${safeName}"; filename*=UTF-8''${encodeURIComponent(attachment.name)}`);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("Pragma", "no-cache");
+    file.createReadStream().pipe(res);
+  } catch (error) {
+    req.log.error({ err: error, merchantId: merchant.id, attachmentId: attachment.id }, "Private application attachment download failed");
+    if (!res.headersSent) res.status(503).json({ error: "The private application attachment is unavailable." });
+  }
+});
+
 router.patch("/merchant/application", requireSignedIn, async (req, res): Promise<void> => {
   const parsed = ResubmitMerchantApplicationBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -430,41 +579,136 @@ router.patch("/merchant/application", requireSignedIn, async (req, res): Promise
     res.status(409).json({ error: "This application is not awaiting additional information." });
     return;
   }
-  const [updated] = await db.update(merchantsTable).set({
-    applicationDetails: {
-      ...parsed.data,
-      expectedMonthlyVolumeCurrency: parsed.data.expectedMonthlyVolumeCurrency.toUpperCase(),
-      expectedCustomerCountries: parsed.data.expectedCustomerCountries.map((value) => value.toUpperCase()),
-      expectedCollectionCurrencies: parsed.data.expectedCollectionCurrencies.map((value) => value.toUpperCase()),
-    },
-    applicationStatus: "awaiting_review",
-    applicationRequestedInfo: null,
-    applicationSubmittedAt: new Date(),
-    applicationReviewedAt: null,
-    applicationReviewedBy: null,
-    updatedAt: new Date(),
-  }).where(and(
-    eq(merchantsTable.id, merchant.id),
-    eq(merchantsTable.ownerClerkId, res.locals.clerkUserId as string),
-    eq(merchantsTable.applicationStatus, "more_info_required"),
-  )).returning();
-  if (!updated) {
-    res.status(409).json({ error: "This application is no longer awaiting additional information." });
+  const tokens = parsed.data.attachmentUploadTokens ?? [];
+  if (tokens.length > MAX_APPLICATION_ATTACHMENTS_PER_SUBMISSION || new Set(tokens).size !== tokens.length) {
+    res.status(400).json({ error: "Attach no more than five unique, valid application files." });
+    return;
+  }
+  let intents: typeof merchantApplicationUploadIntentsTable.$inferSelect[] = [];
+  const verifiedObjects = new Map<string, Awaited<ReturnType<typeof verifyPrivateCaseObject>>>();
+  if (tokens.length) {
+    intents = await db.select().from(merchantApplicationUploadIntentsTable).where(and(
+      eq(merchantApplicationUploadIntentsTable.merchantId, merchant.id),
+      inArray(merchantApplicationUploadIntentsTable.token, tokens),
+      isNull(merchantApplicationUploadIntentsTable.consumedAt),
+      gte(merchantApplicationUploadIntentsTable.expiresAt, new Date()),
+    ));
+    if (intents.length !== tokens.length) {
+      res.status(409).json({ error: "One or more upload links expired or were already used. Upload those files again." });
+      return;
+    }
+    try {
+      for (const intent of intents) {
+        const verified = await verifyPrivateCaseObject({
+          objectPath: intent.objectPath,
+          name: intent.name,
+          size: intent.size,
+          contentType: intent.contentType as CaseFileType,
+        });
+        verifiedObjects.set(intent.token, verified);
+      }
+    } catch (error) {
+      await Promise.all([
+        ...intents.map((intent) => deletePrivateCaseObject(intent.objectPath)),
+        ...[...verifiedObjects.values()].map((verified) => deletePrivateCaseObject(verified.objectPath)),
+      ]);
+      await db.delete(merchantApplicationUploadIntentsTable)
+        .where(inArray(merchantApplicationUploadIntentsTable.id, intents.map(({ id }) => id)));
+      res.status(400).json({ error: error instanceof Error ? error.message : "An uploaded file did not pass validation." });
+      return;
+    }
+  }
+
+  let updated: typeof merchantsTable.$inferSelect | undefined;
+  try {
+    updated = await db.transaction(async (tx) => {
+      const [lockedMerchant] = await tx.select().from(merchantsTable).where(and(
+        eq(merchantsTable.id, merchant.id),
+        eq(merchantsTable.ownerClerkId, res.locals.clerkUserId as string),
+      )).for("update").limit(1);
+      if (!lockedMerchant || lockedMerchant.applicationStatus !== "more_info_required") {
+        throw Object.assign(new Error("This application is no longer awaiting additional information."), { statusCode: 409 });
+      }
+      const [currentCount] = await tx.select({ count: sql<number>`count(*)::int` })
+        .from(merchantApplicationAttachmentsTable)
+        .where(eq(merchantApplicationAttachmentsTable.merchantId, merchant.id));
+      if (Number(currentCount?.count ?? 0) + tokens.length > MAX_APPLICATION_ATTACHMENTS) {
+        throw Object.assign(new Error("This application has reached the 25-file attachment limit."), { statusCode: 409 });
+      }
+      const lockedIntents = tokens.length ? await tx.select().from(merchantApplicationUploadIntentsTable).where(and(
+        eq(merchantApplicationUploadIntentsTable.merchantId, merchant.id),
+        inArray(merchantApplicationUploadIntentsTable.token, tokens),
+        isNull(merchantApplicationUploadIntentsTable.consumedAt),
+        gte(merchantApplicationUploadIntentsTable.expiresAt, new Date()),
+      )).for("update") : [];
+      if (lockedIntents.length !== tokens.length) {
+        throw Object.assign(new Error("One or more upload links expired or were already used. Upload those files again."), { statusCode: 409 });
+      }
+      for (const intent of lockedIntents) {
+        const verified = verifiedObjects.get(intent.token);
+        if (!verified) throw Object.assign(new Error("An uploaded application file could not be verified."), { statusCode: 409 });
+        await tx.insert(merchantApplicationAttachmentsTable).values({
+          merchantId: merchant.id,
+          objectPath: verified.objectPath,
+          name: verified.name,
+          contentType: verified.contentType,
+          size: verified.size,
+          sha256: verified.sha256,
+        });
+        await tx.update(merchantApplicationUploadIntentsTable).set({ consumedAt: new Date() })
+          .where(eq(merchantApplicationUploadIntentsTable.id, intent.id));
+      }
+      const [resubmitted] = await tx.update(merchantsTable).set({
+        applicationDetails: {
+          ...parsed.data.application,
+          expectedMonthlyVolumeCurrency: parsed.data.application.expectedMonthlyVolumeCurrency.toUpperCase(),
+          expectedCustomerCountries: parsed.data.application.expectedCustomerCountries.map((value) => value.toUpperCase()),
+          expectedCollectionCurrencies: parsed.data.application.expectedCollectionCurrencies.map((value) => value.toUpperCase()),
+        },
+        applicationStatus: "awaiting_review",
+        applicationRequestedInfo: null,
+        applicationSubmittedAt: new Date(),
+        applicationReviewedAt: null,
+        applicationReviewedBy: null,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(merchantsTable.id, merchant.id),
+        eq(merchantsTable.ownerClerkId, res.locals.clerkUserId as string),
+        eq(merchantsTable.applicationStatus, "more_info_required"),
+      )).returning();
+      if (!resubmitted) {
+        throw Object.assign(new Error("This application is no longer awaiting additional information."), { statusCode: 409 });
+      }
+      return resubmitted;
+    });
+  } catch (error) {
+    const statusCode = typeof error === "object" && error !== null && "statusCode" in error &&
+      typeof error.statusCode === "number" ? error.statusCode : 500;
+    res.status(statusCode).json({
+      error: error instanceof Error ? error.message : "The application could not be resubmitted.",
+    });
     return;
   }
   const submittedAt = updated.applicationSubmittedAt ?? new Date();
-  void notifyMerchantAccountAction({
+  const ownerNotice = await notifyMerchantAccountAction({
     merchantId: updated.id,
     ownerUserId: updated.ownerClerkId,
     businessName: updated.businessName,
     action: "application_resubmitted",
     eventKey: `merchant-application:${updated.id}:resubmitted:${submittedAt.getTime()}`,
-  }).catch((error) => {
+  });
+  if (!ownerNotice.notificationSaved) {
     req.log.error({
       merchantId: updated.id,
-      errorKind: error instanceof Error ? error.name : "unknown",
-    }, "Updated merchant application was saved, but the owner notification could not be queued");
-  });
+    }, "Updated merchant application was saved, but its owner in-app notification could not be saved");
+  }
+  if (ownerNotice.emailDeliveryState !== "queued" && ownerNotice.emailDeliveryState !== "sending" &&
+      ownerNotice.emailDeliveryState !== "sent") {
+    req.log.warn({
+      merchantId: updated.id,
+      emailDeliveryState: ownerNotice.emailDeliveryState,
+    }, "Updated merchant application was saved with an in-app notice, but no owner email was queued");
+  }
   void notifyMerchantApplicationResubmitted({
       merchantId: updated.id,
       ownerUserId: updated.ownerClerkId,

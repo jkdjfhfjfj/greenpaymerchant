@@ -19,6 +19,7 @@ import { Async, Btn, Card, COUNTRIES, CURRENCIES, Confirm, CopyBtn, Err, Field, 
 import { usePlatformBranding } from '@/components/platform-brand';
 import { CloudinaryImageUpload } from '@/components/cloudinary-image-upload';
 import { LinkCollectedTotals } from '@/components/link-collected-totals';
+import { ApplicationProofUpload } from '@/components/application-proof-upload';
 import {
   AddressVerificationField, addressVerificationSubmission,
   type AddressVerificationDraft,
@@ -132,6 +133,7 @@ export function MerchantPage({ addBusiness = false }: { addBusiness?: boolean } 
           {m.addressVerificationStatus === 'manual_review' && <Note tone="warn">
             Your manually submitted registered address is awaiting review{m.addressVerificationReason ? `: ${m.addressVerificationReason}` : ''}.
           </Note>}
+          {m.applicationStatus === 'awaiting_review' && m.addressVerificationStatus === 'manual_review' && <ApplicationProofUpload />}
           {m.addressVerificationStatus === 'admin_approved' && <Note>Your manually submitted address was approved by Greenpay.</Note>}
           {m.applicationDetails && <Card title="Submitted business application" subtitle="These are the business and collection details attached to your current application.">
             <div className="application-review-grid">

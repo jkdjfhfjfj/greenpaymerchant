@@ -1562,6 +1562,23 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/MerchantApplicationAttachmentList" }
+    post:
+      operationId: addMerchantApplicationAttachments
+      tags: [merchant]
+      summary: Attach uploaded proof documents to a pending manual address review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApplicationAttachmentUploadCommitInput" }
+      responses:
+        "201":
+          description: Private application documents attached
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantApplicationAttachmentList" }
+        "400": { description: Upload tokens are invalid }
+        "409": { description: The application is no longer awaiting manual address review or its upload is invalid }
   /merchant/application/attachments/upload-intent:
     post:
       operationId: createMerchantApplicationAttachmentUploadIntent
@@ -4611,6 +4628,16 @@ components:
         name: { type: string, minLength: 1, maxLength: 180 }
         size: { type: integer, minimum: 1, maximum: 10485760 }
         contentType: { type: string, enum: [application/pdf, image/png, image/jpeg] }
+    ApplicationAttachmentUploadCommitInput:
+      type: object
+      required: [uploadTokens]
+      properties:
+        uploadTokens:
+          type: array
+          minItems: 1
+          maxItems: 5
+          uniqueItems: true
+          items: { type: string, pattern: "^[a-f0-9]{32}$" }
       additionalProperties: false
     MerchantApplicationAttachmentUploadIntent:
       type: object

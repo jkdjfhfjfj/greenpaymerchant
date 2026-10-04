@@ -4119,6 +4119,38 @@ export const ListMerchantApplicationAttachmentsResponse = zod.object({
 
 
 /**
+ * @summary Attach uploaded proof documents to a pending manual address review
+ */
+export const addMerchantApplicationAttachmentsBodyUploadTokensItemRegExp = new RegExp('^[a-f0-9]{32}$');
+export const addMerchantApplicationAttachmentsBodyUploadTokensMax = 5;
+
+
+
+export const AddMerchantApplicationAttachmentsBody = zod.object({
+  "uploadTokens": zod.array(zod.string().regex(addMerchantApplicationAttachmentsBodyUploadTokensItemRegExp)).min(1).max(addMerchantApplicationAttachmentsBodyUploadTokensMax)
+})
+
+export const addMerchantApplicationAttachmentsResponseItemsItemNameMax = 180;
+
+export const addMerchantApplicationAttachmentsResponseItemsItemSizeMax = 10485760;
+
+
+
+export const AddMerchantApplicationAttachmentsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string().min(1).max(addMerchantApplicationAttachmentsResponseItemsItemNameMax),
+  "size": zod.number().int().min(1).max(addMerchantApplicationAttachmentsResponseItemsItemSizeMax),
+  "contentType": zod.enum(['application/pdf', 'image/png', 'image/jpeg']),
+  "createdAt": zod.coerce.date(),
+  "downloadPath": zod.string().describe('Authenticated API path; never a public storage URL.'),
+  "direction": zod.enum(['submitted', 'requested']),
+  "requestId": zod.string().nullable()
+}))
+})
+
+
+/**
  * @summary Create a short-lived signed private application-file upload
  */
 export const createMerchantApplicationAttachmentUploadIntentBodyNameMax = 180;

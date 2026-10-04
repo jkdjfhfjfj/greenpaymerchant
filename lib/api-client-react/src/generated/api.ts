@@ -59,6 +59,7 @@ import type {
   AdminWalletAdjustmentResponse,
   AdminWalletList,
   ApiKeyList,
+  ApplicationAttachmentUploadCommitInput,
   ApplicationResubmissionInput,
   BankList,
   BusinessContact,
@@ -7669,6 +7670,94 @@ export function useListMerchantApplicationAttachments<TData = Awaited<ReturnType
 
 
 
+
+export const getAddMerchantApplicationAttachmentsUrl = () => {
+
+
+
+
+  return `/api/merchant/application/attachments`
+}
+
+/**
+ * @summary Attach uploaded proof documents to a pending manual address review
+ */
+export const addMerchantApplicationAttachments = async (applicationAttachmentUploadCommitInput: ApplicationAttachmentUploadCommitInput, options?: Parameters<typeof customFetch>[1]): Promise<MerchantApplicationAttachmentList> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<MerchantApplicationAttachmentList>(getAddMerchantApplicationAttachmentsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(applicationAttachmentUploadCommitInput)
+  }
+);}
+
+
+
+
+
+export const getAddMerchantApplicationAttachmentsMutationKey = () => ['addMerchantApplicationAttachments'] as const;
+
+export const getAddMerchantApplicationAttachmentsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addMerchantApplicationAttachments>>, TError,AddMerchantApplicationAttachmentsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addMerchantApplicationAttachments>>, TError,AddMerchantApplicationAttachmentsMutationVariables, TContext> => {
+
+const mutationKey = getAddMerchantApplicationAttachmentsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addMerchantApplicationAttachments>>, AddMerchantApplicationAttachmentsMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  addMerchantApplicationAttachments(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddMerchantApplicationAttachmentsMutationResult = NonNullable<Awaited<ReturnType<typeof addMerchantApplicationAttachments>>>
+    export type AddMerchantApplicationAttachmentsMutationBody = BodyType<ApplicationAttachmentUploadCommitInput>
+    export type AddMerchantApplicationAttachmentsMutationError = ErrorType<void>
+    export type AddMerchantApplicationAttachmentsMutationVariables = {data: BodyType<ApplicationAttachmentUploadCommitInput>}
+
+    /**
+ * @summary Attach uploaded proof documents to a pending manual address review
+ */
+export const useAddMerchantApplicationAttachments = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addMerchantApplicationAttachments>>, TError,AddMerchantApplicationAttachmentsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addMerchantApplicationAttachments>>,
+        TError,
+        AddMerchantApplicationAttachmentsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAddMerchantApplicationAttachmentsMutationOptions(options));
+    }
 
 export const getCreateMerchantApplicationAttachmentUploadIntentUrl = () => {
 

@@ -2362,6 +2362,15 @@ export interface MerchantApplicationAttachmentUploadIntentInput {
   contentType: MerchantApplicationAttachmentUploadIntentInputContentType;
 }
 
+export interface ApplicationAttachmentUploadCommitInput {
+  /**
+     * @minItems 1
+     * @maxItems 5
+     * @items.pattern ^[a-f0-9]{32}$
+     */
+  uploadTokens: string[];
+}
+
 /**
  * Per-asset signed upload fields. The API secret is never returned.
  */

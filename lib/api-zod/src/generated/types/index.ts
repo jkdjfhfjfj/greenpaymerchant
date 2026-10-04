@@ -75,6 +75,7 @@ export * from './adminWalletList';
 export * from './apiKey';
 export * from './apiKeyList';
 export * from './apiKeyScopesItem';
+export * from './applicationAttachmentUploadCommitInput';
 export * from './applicationResubmissionInput';
 export * from './automaticAddressVerificationInput';
 export * from './automaticAddressVerificationInputMethod';

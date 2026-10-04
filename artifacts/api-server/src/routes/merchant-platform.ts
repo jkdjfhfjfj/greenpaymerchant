@@ -8,7 +8,8 @@ import {
   CreateMerchantProfileBody, CreateMerchantProfileResponse, ResubmitMerchantApplicationBody,
   ResubmitMerchantApplicationResponse, CreateMerchantWebhookEndpointBody,
   CreateMerchantApplicationAttachmentUploadIntentBody, CreateMerchantApplicationAttachmentUploadIntentResponse,
-  ListMerchantApplicationAttachmentsResponse, DownloadMerchantApplicationAttachmentParams,
+  ListMerchantApplicationAttachmentsResponse, AddMerchantApplicationAttachmentsBody,
+  DownloadMerchantApplicationAttachmentParams,
   DeleteMerchantApplicationAttachmentUploadIntentParams,
   CreateMerchantWebhookEndpointResponse, CreateMerchantWebhookTestDeliveryResponse,
   ListMerchantWebhookDeliveriesResponse, ReplayMerchantWebhookDeliveryResponse,
@@ -530,6 +531,123 @@ router.get("/merchant/application/attachments", requireSignedIn, async (_req, re
   }));
 });
 
+router.post("/merchant/application/attachments", requireSignedIn, async (req, res): Promise<void> => {
+  const parsed = AddMerchantApplicationAttachmentsBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const merchant = await ownedMerchant(res);
+  if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
+  if (merchant.applicationStatus !== "awaiting_review" ||
+      merchant.addressVerificationStatus !== "manual_review") {
+    res.status(409).json({ error: "Supporting address documents can only be added while a manual address review is pending." });
+    return;
+  }
+  const tokens = parsed.data.uploadTokens;
+  if (tokens.length > MAX_APPLICATION_ATTACHMENTS_PER_SUBMISSION || new Set(tokens).size !== tokens.length) {
+    res.status(400).json({ error: "Attach no more than five unique application files at a time." });
+    return;
+  }
+  const intents = await db.select().from(merchantApplicationUploadIntentsTable).where(and(
+    eq(merchantApplicationUploadIntentsTable.merchantId, merchant.id),
+    inArray(merchantApplicationUploadIntentsTable.token, tokens),
+    isNull(merchantApplicationUploadIntentsTable.consumedAt),
+    gte(merchantApplicationUploadIntentsTable.expiresAt, new Date()),
+  ));
+  if (intents.length !== tokens.length) {
+    res.status(409).json({ error: "One or more upload links expired or were already used. Upload those files again." });
+    return;
+  }
+
+  const verifiedObjects = new Map<string, Awaited<ReturnType<typeof verifyPrivateCaseObject>>>();
+  try {
+    for (const intent of intents) {
+      const verified = await verifyPrivateCaseObject({
+        objectPath: intent.objectPath,
+        name: intent.name,
+        size: intent.size,
+        contentType: intent.contentType as CaseFileType,
+      });
+      verifiedObjects.set(intent.token, verified);
+    }
+  } catch (error) {
+    await Promise.all([
+      ...intents.map((intent) => deletePrivateCaseObject(intent.objectPath)),
+      ...[...verifiedObjects.values()].map((verified) => deletePrivateCaseObject(verified.objectPath)),
+    ]);
+    await db.delete(merchantApplicationUploadIntentsTable)
+      .where(inArray(merchantApplicationUploadIntentsTable.id, intents.map(({ id }) => id)));
+    res.status(400).json({ error: error instanceof Error ? error.message : "An uploaded application file did not pass validation." });
+    return;
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      const [lockedMerchant] = await tx.select().from(merchantsTable).where(and(
+        eq(merchantsTable.id, merchant.id),
+        eq(merchantsTable.ownerClerkId, res.locals.clerkUserId as string),
+      )).for("update").limit(1);
+      if (!lockedMerchant || lockedMerchant.applicationStatus !== "awaiting_review" ||
+          lockedMerchant.addressVerificationStatus !== "manual_review") {
+        throw new ApiError(409, "This application is no longer awaiting manual address review.");
+      }
+      const [currentCount] = await tx.select({ count: sql<number>`count(*)::int` })
+        .from(merchantApplicationAttachmentsTable)
+        .where(eq(merchantApplicationAttachmentsTable.merchantId, merchant.id));
+      if (Number(currentCount?.count ?? 0) + tokens.length > MAX_APPLICATION_ATTACHMENTS) {
+        throw new ApiError(409, "This application has reached the 25-file attachment limit.");
+      }
+      const lockedIntents = await tx.select().from(merchantApplicationUploadIntentsTable).where(and(
+        eq(merchantApplicationUploadIntentsTable.merchantId, merchant.id),
+        inArray(merchantApplicationUploadIntentsTable.token, tokens),
+        isNull(merchantApplicationUploadIntentsTable.consumedAt),
+        gte(merchantApplicationUploadIntentsTable.expiresAt, new Date()),
+      )).for("update");
+      if (lockedIntents.length !== tokens.length) {
+        throw new ApiError(409, "One or more upload links expired or were already used. Upload those files again.");
+      }
+      for (const intent of lockedIntents) {
+        const verified = verifiedObjects.get(intent.token);
+        if (!verified) throw new ApiError(409, "An uploaded application file could not be verified.");
+        await tx.insert(merchantApplicationAttachmentsTable).values({
+          merchantId: merchant.id,
+          requestId: null,
+          objectPath: verified.objectPath,
+          name: verified.name,
+          contentType: verified.contentType,
+          size: verified.size,
+          sha256: verified.sha256,
+        });
+        await tx.update(merchantApplicationUploadIntentsTable).set({ consumedAt: new Date() })
+          .where(eq(merchantApplicationUploadIntentsTable.id, intent.id));
+      }
+    });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      res.status(error.statusCode).json({ error: error.message });
+      return;
+    }
+    req.log.error({ err: error, merchantId: merchant.id }, "Could not attach private address proof documents");
+    res.status(503).json({ error: "Private application documents could not be attached. Retry the upload." });
+    return;
+  }
+
+  const rows = await db.select().from(merchantApplicationAttachmentsTable).where(
+    eq(merchantApplicationAttachmentsTable.merchantId, merchant.id),
+  ).orderBy(merchantApplicationAttachmentsTable.createdAt);
+  res.setHeader("Cache-Control", "private, no-store");
+  res.status(201).json(ListMerchantApplicationAttachmentsResponse.parse({
+    items: rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      size: row.size,
+      contentType: row.contentType,
+      createdAt: row.createdAt,
+      direction: row.requestId ? "requested" : "submitted",
+      requestId: row.requestId,
+      downloadPath: `/api/merchant/application/attachments/${row.id}/download`,
+    })),
+  }));
+});
+
 router.post("/merchant/application/attachments/upload-intent", requireSignedIn, async (req, res): Promise<void> => {
   const parsed = CreateMerchantApplicationAttachmentUploadIntentBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -542,8 +660,10 @@ router.post("/merchant/application/attachments/upload-intent", requireSignedIn, 
   catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Invalid filename." }); return; }
   const merchant = await ownedMerchant(res);
   if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
-  if (merchant.applicationStatus !== "more_info_required") {
-    res.status(409).json({ error: "This application is not awaiting additional information." });
+  const canAttachToPendingManualAddress = merchant.applicationStatus === "awaiting_review" &&
+    merchant.addressVerificationStatus === "manual_review";
+  if (merchant.applicationStatus !== "more_info_required" && !canAttachToPendingManualAddress) {
+    res.status(409).json({ error: "This application is not awaiting additional information or manual address review." });
     return;
   }
 

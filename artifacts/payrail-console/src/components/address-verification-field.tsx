@@ -148,7 +148,7 @@ export function AddressVerificationField({
             data-testid="input-address-manual-review-reason"
           />
         </Field>
-        <Note tone="warn">This address will be reviewed together with your application before it can be approved.</Note>
+        <Note tone="warn">This address stays pending until the application is reviewed. You can add a supporting document through the application documents upload; files are private to authorized reviewers.</Note>
       </>}
       {lookupError && <Note tone="warn">{lookupError}</Note>}
     </>}

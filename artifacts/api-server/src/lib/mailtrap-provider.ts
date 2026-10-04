@@ -62,13 +62,14 @@ export async function submitMailtrapEmail(
   options: {
     env?: NodeJS.ProcessEnv;
     fetchImpl?: typeof fetch;
+    apiToken?: string;
   } = {},
 ): Promise<MailtrapSubmission> {
   const env = options.env ?? process.env;
-  const token = mailtrapToken(env);
+  const token = options.apiToken?.trim() || mailtrapToken(env);
   if (!token) {
     throw new MailtrapConfigurationError(
-      "Mailtrap email delivery is not configured. Set MAILTRAP_API_TOKEN (or MAILTRAP_API_KEY) on the API server.",
+      "Mailtrap email delivery is not configured. Add a key in Email Delivery settings or set MAILTRAP_API_TOKEN (or MAILTRAP_API_KEY) on the API server.",
     );
   }
   if (!message.fromEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(message.fromEmail)) {

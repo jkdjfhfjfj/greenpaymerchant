@@ -41,6 +41,20 @@ test("Mailtrap POST includes documented endpoint, bearer auth and explicit accep
   assert.deepEqual(result, { kind: "accepted", messageId: "accepted-id" });
 });
 
+test("an explicitly supplied settings key takes precedence over environment fallback", async () => {
+  let requestInit: RequestInit | undefined;
+  const result = await submitMailtrapEmail(message, {
+    apiToken: "saved-settings-token",
+    env: { MAILTRAP_API_TOKEN: "environment-token" },
+    fetchImpl: async (_url, init) => {
+      requestInit = init;
+      return new Response(JSON.stringify({ success: true, message_ids: ["accepted-id"] }), { status: 200 });
+    },
+  });
+  assert.equal(new Headers(requestInit?.headers).get("authorization"), "Bearer saved-settings-token");
+  assert.deepEqual(result, { kind: "accepted", messageId: "accepted-id" });
+});
+
 test("missing server credentials fail explicitly without making an HTTP request", async () => {
   let called = false;
   await assert.rejects(

@@ -1,7 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
 import { getAuth } from "@clerk/express";
 import { Router, type IRouter } from "express";
-import { SendAdminEmailBroadcastBody, SendAdminEmailBroadcastResponse } from "@workspace/api-zod";
+import {
+  GetAdminEmailDeliverySettingsResponse,
+  SendAdminEmailBroadcastBody,
+  SendAdminEmailBroadcastResponse,
+  UpdateAdminEmailDeliverySettingsBody,
+  UpdateAdminEmailDeliverySettingsResponse,
+} from "@workspace/api-zod";
 import { db, adminAuditLogTable } from "@workspace/db";
 import {
   enqueueTransactionalEmailBatch,
@@ -15,6 +21,7 @@ import {
   sendExplicitAdminEmailTest,
 } from "../lib/mailtrap-delivery";
 import { MailtrapConfigurationError } from "../lib/mailtrap-provider";
+import { ApiError } from "../lib/api-error";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { transactionalEmailWorkerStatus } from "../lib/transactional-email-worker";
 import { ClerkApiError, fetchClerkUser, listActiveClerkUsers, verifiedPrimaryEmail } from "../lib/platform-admin";
@@ -43,6 +50,10 @@ function handleOperationError(res: Parameters<Parameters<IRouter["get"]>[1]>[1],
     res.status(503).json({ error: error.message });
     return;
   }
+  if (error instanceof ApiError) {
+    res.status(error.statusCode).json({ error: error.message });
+    return;
+  }
   res.status(400).json({ error: errorMessage(error) });
 }
 
@@ -51,27 +62,28 @@ router.get("/admin/email-delivery/settings", requireAdmin, async (_req, res): Pr
     getMailtrapDeliverySettings(),
     getEmailDeliveryCounts(),
   ]);
-  res.json({
+  res.json(GetAdminEmailDeliverySettingsResponse.parse({
     provider: "mailtrap",
     enabled: settings.enabled,
     ready: settings.ready,
     fromEmail: settings.fromEmail,
     senderVerified: settings.senderVerified,
     tokenConfigured: settings.tokenConfigured,
+    tokenManagedInSettings: settings.tokenManagedInSettings,
     worker: transactionalEmailWorkerStatus(),
     counts,
-  });
+  }));
 });
 
 router.patch("/admin/email-delivery/settings", requireAdmin, async (req, res): Promise<void> => {
-  const body = req.body && typeof req.body === "object" && !Array.isArray(req.body)
-    ? req.body as Record<string, unknown>
-    : null;
-  if (!body || !Object.keys(body).length ||
-    (body.enabled !== undefined && typeof body.enabled !== "boolean") ||
-    (body.fromEmail !== undefined && typeof body.fromEmail !== "string") ||
-    (body.senderVerified !== undefined && body.senderVerified !== true)) {
-    res.status(400).json({ error: "Provide enabled and/or a sender address, and explicitly confirm a sender configured as verified in Mailtrap." });
+  const parsed = UpdateAdminEmailDeliverySettingsBody.safeParse(req.body);
+  if (!parsed.success || !Object.keys(parsed.data ?? {}).length) {
+    res.status(400).json({ error: parsed.success ? "Provide at least one email delivery setting to update." : parsed.error.message });
+    return;
+  }
+  const body = parsed.data;
+  if (body.apiToken !== undefined && body.clearApiToken === true) {
+    res.status(400).json({ error: "Provide a new Mailtrap key or remove the saved key, not both." });
     return;
   }
   const actor = requestActor(req);
@@ -80,9 +92,16 @@ router.patch("/admin/email-delivery/settings", requireAdmin, async (req, res): P
       ...(body.enabled === undefined ? {} : { enabled: body.enabled }),
       ...(body.fromEmail === undefined ? {} : { fromEmail: body.fromEmail }),
       ...(body.senderVerified === undefined ? {} : { senderVerified: true }),
+      ...(body.apiToken === undefined ? {} : { apiToken: body.apiToken }),
+      ...(body.clearApiToken === undefined ? {} : { clearApiToken: body.clearApiToken }),
       actorId: actor,
     });
-    await audit(actor, "email_delivery.settings_updated", "mailtrap", "Updated Mailtrap enablement and/or sender settings; no API token was read or changed.");
+    const credentialAction = body.apiToken !== undefined
+      ? "set or replaced"
+      : body.clearApiToken === true
+        ? "removed"
+        : "not changed";
+    await audit(actor, "email_delivery.settings_updated", "mailtrap", `Updated Mailtrap settings; saved credentials were ${credentialAction}. Token values are never logged.`);
   } catch (error) {
     handleOperationError(res, error);
     return;
@@ -91,16 +110,17 @@ router.patch("/admin/email-delivery/settings", requireAdmin, async (req, res): P
     getMailtrapDeliverySettings(),
     getEmailDeliveryCounts(),
   ]);
-  res.json({
+  res.json(UpdateAdminEmailDeliverySettingsResponse.parse({
     provider: "mailtrap",
     enabled: settings.enabled,
     ready: settings.ready,
     fromEmail: settings.fromEmail,
     senderVerified: settings.senderVerified,
     tokenConfigured: settings.tokenConfigured,
+    tokenManagedInSettings: settings.tokenManagedInSettings,
     worker: transactionalEmailWorkerStatus(),
     counts,
-  });
+  }));
 });
 
 router.post("/admin/email-delivery/test", requireAdmin, async (req, res): Promise<void> => {

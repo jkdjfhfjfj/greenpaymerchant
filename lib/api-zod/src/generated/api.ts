@@ -6896,6 +6896,7 @@ export const GetAdminEmailDeliverySettingsResponse = zod.object({
   "fromEmail": zod.string().email().nullable(),
   "senderVerified": zod.boolean().describe('Administrator-confirmed verification status for the configured sender.'),
   "tokenConfigured": zod.boolean().describe('Boolean only; never the provider token.'),
+  "tokenManagedInSettings": zod.boolean().describe('Whether an encrypted Mailtrap token is saved in administrator settings; never the token value.'),
   "worker": zod.enum(['running', 'stopped', 'degraded']),
   "counts": zod.object({
   "queued": zod.number().int().min(getAdminEmailDeliverySettingsResponseCountsQueuedMin),
@@ -6909,14 +6910,20 @@ export const GetAdminEmailDeliverySettingsResponse = zod.object({
 
 
 /**
- * A new sender requires an explicit verification confirmation. Credentials remain in server-side secret configuration.
- * @summary Update verified email sender and delivery enablement
+ * A new sender requires explicit verification confirmation. A supplied API key is encrypted at rest and never returned by any endpoint. The environment variable remains a fallback when no key is saved here.
+ * @summary Update Mailtrap sender, delivery enablement, and API key
  */
+export const updateAdminEmailDeliverySettingsBodyApiTokenMax = 2048;
+
+
+
 export const UpdateAdminEmailDeliverySettingsBody = zod.object({
   "enabled": zod.boolean().optional(),
   "fromEmail": zod.string().email().optional(),
-  "senderVerified": zod.literal(true).optional()
-}).describe('senderVerified must be true when configuring a new sender address.')
+  "senderVerified": zod.literal(true).optional(),
+  "apiToken": zod.string().min(1).max(updateAdminEmailDeliverySettingsBodyApiTokenMax).optional(),
+  "clearApiToken": zod.boolean().optional()
+}).describe('senderVerified must be true when configuring a new sender address. apiToken is write-only; clearApiToken removes the saved key and falls back to server environment configuration.')
 
 export const updateAdminEmailDeliverySettingsResponseCountsQueuedMin = 0;
 
@@ -6939,6 +6946,7 @@ export const UpdateAdminEmailDeliverySettingsResponse = zod.object({
   "fromEmail": zod.string().email().nullable(),
   "senderVerified": zod.boolean().describe('Administrator-confirmed verification status for the configured sender.'),
   "tokenConfigured": zod.boolean().describe('Boolean only; never the provider token.'),
+  "tokenManagedInSettings": zod.boolean().describe('Whether an encrypted Mailtrap token is saved in administrator settings; never the token value.'),
   "worker": zod.enum(['running', 'stopped', 'degraded']),
   "counts": zod.object({
   "queued": zod.number().int().min(updateAdminEmailDeliverySettingsResponseCountsQueuedMin),

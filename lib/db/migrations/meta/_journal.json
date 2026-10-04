@@ -22,6 +22,13 @@
       "when": 1791092236028,
       "tag": "0002_private_application_attachments",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791093438872,
+      "tag": "0003_brainy_yellowjacket",
+      "breakpoints": true
     }
   ]
 }

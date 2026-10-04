@@ -14488,8 +14488,8 @@ export const getUpdateAdminEmailDeliverySettingsUrl = () => {
 }
 
 /**
- * A new sender requires an explicit verification confirmation. Credentials remain in server-side secret configuration.
- * @summary Update verified email sender and delivery enablement
+ * A new sender requires explicit verification confirmation. A supplied API key is encrypted at rest and never returned by any endpoint. The environment variable remains a fallback when no key is saved here.
+ * @summary Update Mailtrap sender, delivery enablement, and API key
  */
 export const updateAdminEmailDeliverySettings = async (adminEmailDeliverySettingsUpdate: AdminEmailDeliverySettingsUpdate, options?: Parameters<typeof customFetch>[1]): Promise<AdminEmailDeliverySettings> => {
 
@@ -14555,7 +14555,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateAdminEmailDeliverySettingsMutationVariables = {data: BodyType<AdminEmailDeliverySettingsUpdate>}
 
     /**
- * @summary Update verified email sender and delivery enablement
+ * @summary Update Mailtrap sender, delivery enablement, and API key
  */
 export const useUpdateAdminEmailDeliverySettings = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminEmailDeliverySettings>>, TError,UpdateAdminEmailDeliverySettingsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}

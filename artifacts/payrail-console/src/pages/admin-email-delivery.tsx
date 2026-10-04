@@ -17,6 +17,7 @@ type Settings = {
   fromEmail: string | null;
   senderVerified: boolean;
   tokenConfigured: boolean;
+  tokenManagedInSettings: boolean;
   worker: 'running' | 'stopped' | 'degraded';
   counts: {
     queued: number;
@@ -82,6 +83,7 @@ function ErrorNotice({ message }: { message: string }) {
 export function AdminEmailDeliveryPage() {
   const queryClient = useQueryClient();
   const [sender, setSender] = useState('');
+  const [apiToken, setApiToken] = useState('');
   const [senderVerified, setSenderVerified] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [settingsDirty, setSettingsDirty] = useState(false);
@@ -136,15 +138,20 @@ export function AdminEmailDeliveryPage() {
     ]);
   };
   const saveSettings = useMutation({
-    mutationFn: (body: { enabled?: boolean; fromEmail?: string; senderVerified?: true }) =>
+    mutationFn: (body: { enabled?: boolean; fromEmail?: string; senderVerified?: true; apiToken?: string; clearApiToken?: true }) =>
       request<Settings>('/api/admin/email-delivery/settings', { method: 'PATCH', body: JSON.stringify(body) }),
-    onSuccess: async (next) => {
+    onSuccess: async (next, submitted) => {
       setEnabled(next.enabled);
       setSender(next.fromEmail || '');
       setSenderVerified(next.senderVerified);
+      setApiToken('');
       setSettingsDirty(false);
       setPageError('');
-      setNotice('Mailtrap settings saved. The token remains server-side.');
+      setNotice(submitted.clearApiToken
+        ? 'The saved Mailtrap key was removed. A server environment key can still be used.'
+        : submitted.apiToken !== undefined
+          ? 'Mailtrap settings saved. The key is encrypted at rest and will not be shown again.'
+          : 'Mailtrap settings saved.');
       await refresh();
     },
     onError: (error) => setPageError(error.message),
@@ -203,6 +210,25 @@ export function AdminEmailDeliveryPage() {
     }
     saveSettings.mutate({
       enabled,
+      ...(changedSender ? { fromEmail: sender.trim(), senderVerified: true as const } : {}),
+      ...(apiToken.trim() ? { apiToken: apiToken.trim() } : {}),
+    });
+  }
+
+  function removeSavedToken() {
+    if (!window.confirm('Remove the saved Mailtrap key? A key configured in server environment variables can still be used.')) return;
+    setPageError('');
+    setNotice('');
+    const current = settingsQuery.data;
+    const changedSender = sender.trim().toLowerCase() !== (current?.fromEmail || '').toLowerCase() ||
+      (!current?.senderVerified && senderVerified);
+    if (changedSender && !senderVerified) {
+      setPageError('Confirm that the sender address is verified in Mailtrap before saving it.');
+      return;
+    }
+    saveSettings.mutate({
+      enabled,
+      clearApiToken: true,
       ...(changedSender ? { fromEmail: sender.trim(), senderVerified: true as const } : {}),
     });
   }
@@ -294,11 +320,39 @@ export function AdminEmailDeliveryPage() {
         </div>
         <div className="email-provider-facts">
           <div><span>Transport</span><strong>Mailtrap Email Sending API</strong></div>
-          <div><span>Server token</span><strong>{settings?.tokenConfigured ? 'Configured · hidden' : 'Missing server secret'}</strong></div>
+          <div><span>Mailtrap API key</span><strong>
+            {settings?.tokenManagedInSettings
+              ? 'Saved in settings · encrypted'
+              : settings?.tokenConfigured
+                ? 'Server environment · hidden'
+                : 'Not configured'}
+          </strong></div>
           <div><span>Worker</span><strong>{settings?.worker || (settingsQuery.isLoading ? 'Loading' : 'Unknown')}</strong></div>
         </div>
-        {!settings?.tokenConfigured && <div className="email-warning"><ShieldAlert size={16} /><span>Add <code>MAILTRAP_API_TOKEN</code> or <code>MAILTRAP_API_KEY</code> as an API server secret. Keys are never shown here.</span></div>}
+        {!settings?.tokenConfigured && <div className="email-warning"><ShieldAlert size={16} /><span>Add a Mailtrap API key below, or configure <code>MAILTRAP_API_TOKEN</code> or <code>MAILTRAP_API_KEY</code> as an API server secret.</span></div>}
         <form className="email-settings-form" onSubmit={submitSettings}>
+          <label className="email-field"><span>Mailtrap API key</span>
+            <input
+              type="password"
+              value={apiToken}
+              onChange={(event) => setApiToken(event.target.value)}
+              placeholder={settings?.tokenManagedInSettings ? 'Saved key is hidden; enter a new key to replace it' : 'Paste your Mailtrap API key'}
+              autoComplete="new-password"
+              maxLength={2048}
+              aria-label="Mailtrap API key"
+            />
+            <small className="email-key-help">Keys are encrypted at rest and never returned to this page.</small>
+          </label>
+          {settings?.tokenManagedInSettings && !apiToken.trim() && (
+            <button
+              className="email-button email-button-quiet"
+              type="button"
+              disabled={saveSettings.isPending}
+              onClick={removeSavedToken}
+            >
+              Remove saved key
+            </button>
+          )}
           <label className="email-field"><span>Verified sender email</span>
             <input type="email" value={sender} onChange={(event) => {
               setSender(event.target.value);

@@ -37,9 +37,12 @@ import { CUSTOMER_REIMBURSED_REFUND_STATUSES } from "./payment-safety";
 import { minorToDecimal } from "./wallet-math";
 import {
   hasMailtrapToken,
+  mailtrapToken,
   MailtrapConfigurationError,
   submitMailtrapEmail,
 } from "./mailtrap-provider";
+import { ApiError } from "./api-error";
+import { credentialVaultReady, decryptSecret, encryptSecret } from "./secret-crypto";
 import {
   renderTransactionalEmail,
   type TransactionalEmailPayload,
@@ -204,6 +207,7 @@ type DeliverySettings = {
   fromEmail: string | null;
   senderVerified: boolean;
   tokenConfigured: boolean;
+  tokenManagedInSettings: boolean;
   ready: boolean;
 };
 
@@ -212,15 +216,26 @@ export async function getMailtrapDeliverySettings(): Promise<DeliverySettings> {
     .where(eq(emailDeliverySettingsTable.id, 1)).limit(1);
   const fromEmail = stored?.fromEmail?.trim() || process.env.FROM_EMAIL?.trim() || null;
   const senderVerified = Boolean(stored?.senderVerifiedAt);
-  const tokenConfigured = hasMailtrapToken();
+  const tokenManagedInSettings = Boolean(stored?.encryptedMailtrapToken);
+  const tokenConfigured = tokenManagedInSettings ? credentialVaultReady() : hasMailtrapToken();
   const enabled = stored?.enabled ?? false;
   return {
     enabled,
     fromEmail,
     senderVerified,
     tokenConfigured,
+    tokenManagedInSettings,
     ready: enabled && senderVerified && Boolean(fromEmail && isEmail(fromEmail)) && tokenConfigured,
   };
+}
+
+async function configuredMailtrapToken(): Promise<string | null> {
+  const [stored] = await db.select({
+    encryptedMailtrapToken: emailDeliverySettingsTable.encryptedMailtrapToken,
+  }).from(emailDeliverySettingsTable)
+    .where(eq(emailDeliverySettingsTable.id, 1)).limit(1);
+  if (stored?.encryptedMailtrapToken) return decryptSecret(stored.encryptedMailtrapToken);
+  return mailtrapToken();
 }
 
 function configuredOfficialBaseUrl(): string | null {
@@ -633,10 +648,24 @@ export async function saveAdminEmailDeliverySettings(input: {
   enabled?: boolean;
   fromEmail?: string;
   senderVerified?: boolean;
+  apiToken?: string;
+  clearApiToken?: boolean;
   actorId: string;
 }): Promise<void> {
+  if (input.apiToken !== undefined && input.clearApiToken === true) {
+    throw new Error("Provide a new Mailtrap key or remove the saved key, not both.");
+  }
+  const apiToken = input.apiToken?.trim();
+  if (input.apiToken !== undefined && !apiToken) {
+    throw new Error("Enter a non-empty Mailtrap API key.");
+  }
   const [current] = await db.select().from(emailDeliverySettingsTable)
     .where(eq(emailDeliverySettingsTable.id, 1)).limit(1);
+  const encryptedMailtrapToken = input.clearApiToken === true
+    ? null
+    : apiToken
+      ? encryptSecret(apiToken)
+      : current?.encryptedMailtrapToken ?? null;
   const fromEmail = input.fromEmail === undefined ? current?.fromEmail ?? null : normalizedEmail(input.fromEmail);
   if (input.fromEmail !== undefined && !isEmail(fromEmail ?? "")) {
     throw new Error("Enter a valid sender email address.");
@@ -658,6 +687,7 @@ export async function saveAdminEmailDeliverySettings(input: {
     id: 1,
     enabled,
     fromEmail,
+    encryptedMailtrapToken,
     senderVerifiedAt,
     senderVerifiedBy,
     updatedBy: input.actorId,
@@ -667,6 +697,7 @@ export async function saveAdminEmailDeliverySettings(input: {
     set: {
       enabled,
       fromEmail,
+      encryptedMailtrapToken,
       senderVerifiedAt,
       senderVerifiedBy,
       updatedBy: input.actorId,
@@ -886,8 +917,28 @@ async function submitClaimed(row: TransactionalEmailOutbox, leaseOwner: string):
       deliveryState: "failed",
       retryable: false,
       lastError: !settings.tokenConfigured
-        ? "Mailtrap credentials are missing. Configure MAILTRAP_API_TOKEN (or MAILTRAP_API_KEY) on the server before retrying."
+        ? "Mailtrap credentials are missing. Add a key in Email Delivery settings or configure MAILTRAP_API_TOKEN (or MAILTRAP_API_KEY) on the server before retrying."
         : "A Mailtrap sender must be configured and explicitly confirmed before retrying.",
+    });
+    return "failed";
+  }
+  let apiToken: string | null;
+  try {
+    apiToken = await configuredMailtrapToken();
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+    await updateOwnedOutbox(row, leaseOwner, {
+      deliveryState: "failed",
+      retryable: false,
+      lastError: "The saved Mailtrap API key could not be decrypted. Replace or remove it in Email Delivery settings.",
+    });
+    return "failed";
+  }
+  if (!apiToken) {
+    await updateOwnedOutbox(row, leaseOwner, {
+      deliveryState: "failed",
+      retryable: false,
+      lastError: "Mailtrap credentials are missing. Add a key in Email Delivery settings or configure a server environment variable.",
     });
     return "failed";
   }
@@ -900,7 +951,7 @@ async function submitClaimed(row: TransactionalEmailOutbox, leaseOwner: string):
     text: content.text,
     html: content.html,
     category: row.purpose,
-  });
+  }, { apiToken });
   if (result.kind === "accepted") {
     await updateOwnedOutbox(row, leaseOwner, {
       deliveryState: "sent",
@@ -938,7 +989,7 @@ async function claimAndSubmit(options: ClaimOptions = {}): Promise<{
   if (!options.explicit && !settings.ready) return null;
   if (!settings.tokenConfigured) {
     throw new MailtrapConfigurationError(
-      "Mailtrap email delivery is not configured. Set MAILTRAP_API_TOKEN (or MAILTRAP_API_KEY) on the API server.",
+      "Mailtrap email delivery is not configured. Add a key in Email Delivery settings or set MAILTRAP_API_TOKEN (or MAILTRAP_API_KEY) on the API server.",
     );
   }
   if (!settings.fromEmail || !settings.senderVerified) {

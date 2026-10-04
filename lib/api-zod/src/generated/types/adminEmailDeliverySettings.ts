@@ -19,6 +19,8 @@ export interface AdminEmailDeliverySettings {
   senderVerified: boolean;
   /** Boolean only; never the provider token. */
   tokenConfigured: boolean;
+  /** Whether an encrypted Mailtrap token is saved in administrator settings; never the token value. */
+  tokenManagedInSettings: boolean;
   worker: AdminEmailDeliverySettingsWorker;
   counts: AdminEmailDeliverySettingsCounts;
 }

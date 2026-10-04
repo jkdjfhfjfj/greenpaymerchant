@@ -79,6 +79,7 @@ export const emailDeliverySettingsTable = pgTable("greenpay_email_delivery_setti
   id: integer("id").primaryKey().default(1),
   enabled: boolean("enabled").notNull().default(false),
   fromEmail: varchar("from_email", { length: 254 }),
+  encryptedMailtrapToken: text("encrypted_mailtrap_token"),
   senderVerifiedAt: timestamp("sender_verified_at", { withTimezone: true }),
   senderVerifiedBy: varchar("sender_verified_by", { length: 128 }),
   updatedBy: varchar("updated_by", { length: 128 }),

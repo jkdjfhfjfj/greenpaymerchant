@@ -7,10 +7,16 @@
  */
 
 /**
- * senderVerified must be true when configuring a new sender address.
+ * senderVerified must be true when configuring a new sender address. apiToken is write-only; clearApiToken removes the saved key and falls back to server environment configuration.
  */
 export interface AdminEmailDeliverySettingsUpdate {
   enabled?: boolean;
   fromEmail?: string;
   senderVerified?: true;
+  /**
+     * @minLength 1
+     * @maxLength 2048
+     */
+  apiToken?: string;
+  clearApiToken?: boolean;
 }

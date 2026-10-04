@@ -2899,8 +2899,8 @@ paths:
     patch:
       operationId: updateAdminEmailDeliverySettings
       tags: [admin]
-      summary: Update verified email sender and delivery enablement
-      description: A new sender requires an explicit verification confirmation. Credentials remain in server-side secret configuration.
+      summary: Update Mailtrap sender, delivery enablement, and API key
+      description: A new sender requires explicit verification confirmation. A supplied API key is encrypted at rest and never returned by any endpoint. The environment variable remains a fallback when no key is saved here.
       requestBody:
         required: true
         content:
@@ -2912,7 +2912,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AdminEmailDeliverySettings" }
-        "400": { description: Invalid or unverified sender address }
+        "400": { description: Invalid sender or credential update }
+        "503": { description: Credential encryption is unavailable }
         "403": { description: Email delivery administrator permission required }
   /admin/email-delivery/test:
     post:
@@ -3268,7 +3269,7 @@ components:
         unreadCount: { type: integer }
     AdminEmailDeliverySettings:
       type: object
-      required: [provider, enabled, ready, fromEmail, senderVerified, tokenConfigured, worker, counts]
+      required: [provider, enabled, ready, fromEmail, senderVerified, tokenConfigured, tokenManagedInSettings, worker, counts]
       properties:
         provider: { type: string, enum: [mailtrap] }
         enabled: { type: boolean }
@@ -3276,6 +3277,7 @@ components:
         fromEmail: { type: ["string", "null"], format: email }
         senderVerified: { type: boolean, description: Administrator-confirmed verification status for the configured sender. }
         tokenConfigured: { type: boolean, description: Boolean only; never the provider token. }
+        tokenManagedInSettings: { type: boolean, description: Whether an encrypted Mailtrap token is saved in administrator settings; never the token value. }
         worker: { type: string, enum: [running, stopped, degraded] }
         counts:
           type: object
@@ -3289,11 +3291,13 @@ components:
             heldForReview: { type: integer, minimum: 0 }
     AdminEmailDeliverySettingsUpdate:
       type: object
-      description: senderVerified must be true when configuring a new sender address.
+      description: senderVerified must be true when configuring a new sender address. apiToken is write-only; clearApiToken removes the saved key and falls back to server environment configuration.
       properties:
         enabled: { type: boolean }
         fromEmail: { type: string, format: email }
         senderVerified: { type: boolean, const: true }
+        apiToken: { type: string, minLength: 1, maxLength: 2048, writeOnly: true }
+        clearApiToken: { type: boolean }
       additionalProperties: false
     AdminEmailDeliveryTestInput:
       type: object

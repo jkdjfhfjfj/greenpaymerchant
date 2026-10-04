@@ -1,0 +1,1 @@
+ALTER TABLE "greenpay_email_delivery_settings" ADD COLUMN "encrypted_mailtrap_token" text;

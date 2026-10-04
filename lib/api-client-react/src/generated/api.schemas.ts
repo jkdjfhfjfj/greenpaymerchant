@@ -260,17 +260,25 @@ export interface AdminEmailDeliverySettings {
   senderVerified: boolean;
   /** Boolean only; never the provider token. */
   tokenConfigured: boolean;
+  /** Whether an encrypted Mailtrap token is saved in administrator settings; never the token value. */
+  tokenManagedInSettings: boolean;
   worker: AdminEmailDeliverySettingsWorker;
   counts: AdminEmailDeliverySettingsCounts;
 }
 
 /**
- * senderVerified must be true when configuring a new sender address.
+ * senderVerified must be true when configuring a new sender address. apiToken is write-only; clearApiToken removes the saved key and falls back to server environment configuration.
  */
 export interface AdminEmailDeliverySettingsUpdate {
   enabled?: boolean;
   fromEmail?: string;
   senderVerified?: true;
+  /**
+     * @minLength 1
+     * @maxLength 2048
+     */
+  apiToken?: string;
+  clearApiToken?: boolean;
 }
 
 export interface AdminEmailDeliveryTestInput {

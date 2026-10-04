@@ -917,16 +917,46 @@ router.post("/merchant/kyc", requireSignedIn, async (req, res): Promise<void> =>
       body: JSON.stringify({ workflow_id: workflowId, vendor_data: String(merchant.id), callback }),
       signal: AbortSignal.timeout(15_000),
     });
-  } catch {
+  } catch (error) {
+    req.log.warn({
+      kind,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    }, "Didit session creation request failed");
     res.status(502).json({ error: "Verification could not be started. Try again shortly." });
     return;
   }
   if (!response.ok) {
+    req.log.warn({ kind, status: response.status }, "Didit rejected the session creation request");
     res.status(502).json({ error: "Verification could not be started. Try again shortly." });
     return;
   }
-  const result = await response.json() as { session_id?: string; url?: string; session_token?: string };
-  if (!result.session_id || !result.url) { res.status(502).json({ error: "Verification could not be started. Try again shortly." }); return; }
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    req.log.warn({
+      kind,
+      status: response.status,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    }, "Didit returned an unreadable session creation response");
+    res.status(502).json({ error: "Verification could not be started. Try again shortly." });
+    return;
+  }
+  const result = payload !== null && typeof payload === "object" && !Array.isArray(payload)
+    ? payload as { session_id?: unknown; url?: unknown }
+    : {};
+  const sessionId = result.session_id;
+  const sessionUrl = result.url;
+  if (typeof sessionId !== "string" || !sessionId || typeof sessionUrl !== "string" || !sessionUrl) {
+    req.log.warn({
+      kind,
+      status: response.status,
+      hasSessionId: typeof sessionId === "string" && Boolean(sessionId),
+      hasSessionUrl: typeof sessionUrl === "string" && Boolean(sessionUrl),
+    }, "Didit returned a session response without the required fields");
+    res.status(502).json({ error: "Verification could not be started. Try again shortly." });
+    return;
+  }
   const updated = await db.transaction(async (tx) => {
     const [latest] = await tx.select().from(merchantsTable)
       .where(eq(merchantsTable.id, merchant!.id)).for("update").limit(1);
@@ -936,10 +966,10 @@ router.post("/merchant/kyc", requireSignedIn, async (req, res): Promise<void> =>
     if (latestSessionId !== currentSessionId || diditStatusNeedsRefresh(latestStatus, latestSessionId) || latestStatus === "approved") return undefined;
     const now = new Date();
     const fields = kind === "kyb" ? {
-      diditKybSessionId: result.session_id, diditKybSessionUrl: result.url,
+      diditKybSessionId: sessionId, diditKybSessionUrl: sessionUrl,
       diditKind: "kyb", kybStatus: "pending", kybVerificationUpdatedAt: now, updatedAt: now,
     } : {
-      diditSessionId: result.session_id, diditSessionUrl: result.url,
+      diditSessionId: sessionId, diditSessionUrl: sessionUrl,
       diditKind: "kyc", kycStatus: "pending", verificationUpdatedAt: now, updatedAt: now,
     };
     const [saved] = await tx.update(merchantsTable).set(fields)
@@ -950,7 +980,7 @@ router.post("/merchant/kyc", requireSignedIn, async (req, res): Promise<void> =>
     res.status(409).json({ error: `A ${kind.toUpperCase()} session changed while the new session was being created. Refresh and try again.` });
     return;
   }
-  res.status(201).json(CreateMerchantKycSessionResponse.parse({ sessionId: result.session_id, url: result.url, status: "pending" }));
+  res.status(201).json(CreateMerchantKycSessionResponse.parse({ sessionId, url: sessionUrl, status: "pending" }));
 });
 
 router.get("/merchant/transactions", requireSignedIn, async (req, res): Promise<void> => {

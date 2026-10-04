@@ -5,6 +5,7 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { AddressVerificationStatus } from './addressVerificationStatus';
 import type { AdminMerchantApplicationReviewResponseApplicationStatus } from './adminMerchantApplicationReviewResponseApplicationStatus';
 import type { AdminMerchantApplicationReviewResponseMerchantStatus } from './adminMerchantApplicationReviewResponseMerchantStatus';
 
@@ -16,4 +17,5 @@ export interface AdminMerchantApplicationReviewResponse {
   applicationRequestedInfo: string | null;
   /** @nullable */
   applicationReviewedAt: Date | null;
+  addressVerificationStatus: AddressVerificationStatus;
 }

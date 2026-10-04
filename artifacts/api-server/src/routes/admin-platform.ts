@@ -62,7 +62,7 @@ import {
 } from "../lib/platform-admin";
 
 const router: IRouter = Router();
-const providers = ["paystack", "payhero", "payzaapi", "didit", "cloudinary", "currencyapi"] as const;
+const providers = ["paystack", "payhero", "payzaapi", "didit", "cloudinary", "currencyapi", "geoapify"] as const;
 const CASE_FILE_CONTENT_TYPES = new Set(Object.keys(CASE_FILE_TYPES));
 const MAX_APPLICATION_REQUEST_ATTACHMENTS = 5;
 const APPLICATION_REQUEST_UPLOAD_TTL_MS = 10 * 60_000;
@@ -355,6 +355,9 @@ type AdminMerchantDtoRow = {
   applicationRequestId: string | null;
   applicationSubmittedAt: Date | null;
   applicationReviewedAt: Date | null;
+  addressVerificationStatus: string;
+  addressVerificationReason: string | null;
+  addressVerificationReviewedAt: Date | null;
   kycStatus: string;
   kycRequestedInfo: string | null;
   kybStatus: string;
@@ -398,6 +401,9 @@ function merchantDto(row: AdminMerchantDtoRow) {
     applicationRequestId: row.applicationRequestId,
     applicationSubmittedAt: row.applicationSubmittedAt,
     applicationReviewedAt: row.applicationReviewedAt,
+    addressVerificationStatus: row.addressVerificationStatus,
+    addressVerificationReason: row.addressVerificationReason,
+    addressVerificationReviewedAt: row.addressVerificationReviewedAt,
     kycRequestedInfo: row.kycRequestedInfo,
     kybRequestedInfo: row.kybRequestedInfo,
     ownerUserId: row.ownerClerkId, riskNote: row.riskNote, diditSessionId: row.diditSessionId,
@@ -426,6 +432,9 @@ function adminMerchantSelect() {
     applicationRequestId: sql<string | null>`to_jsonb(${merchantsTable})->>'application_request_id'`,
     applicationSubmittedAt: merchantsTable.applicationSubmittedAt,
     applicationReviewedAt: merchantsTable.applicationReviewedAt,
+    addressVerificationStatus: sql<string>`coalesce(to_jsonb(${merchantsTable})->>'address_verification_status', 'not_required')`,
+    addressVerificationReason: sql<string | null>`to_jsonb(${merchantsTable})->>'address_verification_reason'`,
+    addressVerificationReviewedAt: sql<Date | null>`nullif(to_jsonb(${merchantsTable})->>'address_verification_reviewed_at', '')::timestamptz`,
     kycStatus: merchantsTable.kycStatus,
     kycRequestedInfo: sql<string | null>`to_jsonb(${merchantsTable})->>'kyc_requested_info'`,
     // Keep compatibility with databases that have not yet added these columns.
@@ -528,6 +537,8 @@ async function credentialDto(provider: typeof providers[number]) {
           ? fields.some((field) => field.name === "CLOUDINARY_CLOUD_NAME" && field.present) &&
             fields.some((field) => field.name === "CLOUDINARY_API_KEY" && field.present) &&
             fields.some((field) => field.name === "CLOUDINARY_API_SECRET" && field.present)
+          : provider === "geoapify"
+            ? fields.some((field) => field.name === "GEOAPIFY_API_KEY" && field.present)
           : fields.some((field) => field.name === "PAYZAAPI_API_KEY" && field.present) ||
             (fields.some((field) => field.name === "PAYZA_PUBLIC_KEY" && field.present) &&
              fields.some((field) => field.name === "PAYZA_SECRET_KEY" && field.present));
@@ -1062,6 +1073,15 @@ router.post("/admin/merchants/:merchantId/application-review", async (req, res):
       applicationRequestId: approved ? current.applicationRequestId : requestedFilesId,
       applicationReviewedAt: reviewedAt,
       applicationReviewedBy: actor(req),
+      addressVerificationStatus: approved && current.addressVerificationStatus === "manual_review"
+        ? "admin_approved"
+        : current.addressVerificationStatus,
+      addressVerificationReviewedAt: approved && current.addressVerificationStatus === "manual_review"
+        ? reviewedAt
+        : current.addressVerificationReviewedAt,
+      addressVerificationReviewedBy: approved && current.addressVerificationStatus === "manual_review"
+        ? actor(req)
+        : current.addressVerificationReviewedBy,
       status: approved ? "active" : current.status,
       updatedAt: reviewedAt,
     }).where(eq(merchantsTable.id, merchantId)).returning();
@@ -1108,6 +1128,7 @@ router.post("/admin/merchants/:merchantId/application-review", async (req, res):
     merchantStatus: result.updated.status,
     applicationRequestedInfo: result.updated.applicationRequestedInfo,
     applicationReviewedAt: result.updated.applicationReviewedAt,
+    addressVerificationStatus: result.updated.addressVerificationStatus,
   }));
 });
 

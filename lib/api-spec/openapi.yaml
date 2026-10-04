@@ -1532,6 +1532,25 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/MerchantProfileResponse" }
         "409": { description: The application is not awaiting additional information }
+  /merchant/address-lookup:
+    post:
+      operationId: reverseGeocodeMerchantAddress
+      tags: [merchant]
+      summary: Reverse-geocode the signed-in user's device coordinates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AddressGeocodeInput" }
+      responses:
+        "200":
+          description: Address and short-lived verification proof
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AddressGeocodeResult" }
+        "400": { description: Coordinates are invalid }
+        "422": { description: No usable address was found for these coordinates }
+        "503": { description: Address lookup is temporarily unavailable }
   /merchant/application/attachments:
     get:
       operationId: listMerchantApplicationAttachments
@@ -2861,7 +2880,7 @@ paths:
         - name: provider
           in: path
           required: true
-          schema: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary, currencyapi] }
+          schema: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary, currencyapi, geoapify] }
       requestBody:
         required: true
         content:
@@ -2881,7 +2900,7 @@ paths:
         - name: provider
           in: path
           required: true
-          schema: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary, currencyapi] }
+          schema: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary, currencyapi, geoapify] }
       responses:
         "204": { description: Provider credentials deleted }
   /admin/platform-settings:
@@ -4614,11 +4633,46 @@ components:
         contentType: { type: string, enum: [application/pdf, image/png, image/jpeg] }
         requestId: { type: string, minLength: 1, maxLength: 64 }
       additionalProperties: false
+    AddressGeocodeInput:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+      additionalProperties: false
+    AddressGeocodeResult:
+      type: object
+      required: [address, verificationToken]
+      properties:
+        address: { type: string, minLength: 5, maxLength: 500 }
+        verificationToken: { type: string, minLength: 1, maxLength: 2048 }
+    AddressVerificationStatus:
+      type: string
+      enum: [not_required, auto_verified, manual_review, admin_approved]
+    AutomaticAddressVerificationInput:
+      type: object
+      required: [method, proofToken]
+      properties:
+        method: { type: string, enum: [automatic] }
+        proofToken: { type: string, minLength: 1, maxLength: 2048 }
+      additionalProperties: false
+    ManualAddressVerificationInput:
+      type: object
+      required: [method, reason]
+      properties:
+        method: { type: string, enum: [manual_review] }
+        reason: { type: string, minLength: 5, maxLength: 1000 }
+      additionalProperties: false
+    AddressVerificationSubmission:
+      oneOf:
+        - { $ref: "#/components/schemas/AutomaticAddressVerificationInput" }
+        - { $ref: "#/components/schemas/ManualAddressVerificationInput" }
     ApplicationResubmissionInput:
       type: object
       required: [application]
       properties:
         application: { $ref: "#/components/schemas/BusinessApplicationDetails" }
+        addressVerification: { $ref: "#/components/schemas/AddressVerificationSubmission" }
         attachmentUploadTokens:
           type: array
           maxItems: 5
@@ -4946,7 +5000,7 @@ components:
         role: { $ref: "#/components/schemas/MerchantTeamInvitationRole" }
     MerchantProfile:
       type: object
-      required: [id, businessName, shopName, shopLogoUrl, country, baseCurrency, status, applicationDetails, applicationStatus, applicationRequestedInfo, applicationRequestId, applicationSubmittedAt, applicationReviewedAt, kycStatus, kycRequestedInfo, kybStatus, kybRequestedInfo, createdAt]
+      required: [id, businessName, shopName, shopLogoUrl, country, baseCurrency, status, applicationDetails, applicationStatus, applicationRequestedInfo, applicationRequestId, applicationSubmittedAt, applicationReviewedAt, addressVerificationStatus, addressVerificationReason, addressVerificationReviewedAt, kycStatus, kycRequestedInfo, kybStatus, kybRequestedInfo, createdAt]
       properties:
         id: { type: integer }
         businessName: { type: string }
@@ -4962,6 +5016,9 @@ components:
         applicationRequestId: { type: ["string", "null"], maxLength: 64 }
         applicationSubmittedAt: { type: ["string", "null"], format: date-time }
         applicationReviewedAt: { type: ["string", "null"], format: date-time }
+        addressVerificationStatus: { $ref: "#/components/schemas/AddressVerificationStatus" }
+        addressVerificationReason: { type: ["string", "null"], maxLength: 1000 }
+        addressVerificationReviewedAt: { type: ["string", "null"], format: date-time }
         kycStatus: { type: string, enum: [not_started, pending, approved, declined, in_review, expired, reverification_required] }
         kycRequestedInfo: { type: ["string", "null"], maxLength: 2000 }
         kybStatus: { type: string, enum: [not_started, pending, approved, declined, in_review, expired, reverification_required] }
@@ -5112,6 +5169,7 @@ components:
         baseCurrency: { type: string, minLength: 3, maxLength: 3 }
         registrationNumber: { type: string, maxLength: 150 }
         application: { $ref: "#/components/schemas/BusinessApplicationDetails" }
+        addressVerification: { $ref: "#/components/schemas/AddressVerificationSubmission" }
     BusinessApplicationDetails:
       type: object
       required: [businessType, natureOfBusiness, registeredAddress, website, expectedMonthlyVolume, expectedMonthlyVolumeCurrency, expectedMonthlyTransactions, expectedAverageTransactionValue, expectedCustomerCountries, expectedCollectionCurrencies, sourceOfFunds]
@@ -5152,13 +5210,14 @@ components:
       additionalProperties: false
     AdminMerchantApplicationReviewResponse:
       type: object
-      required: [merchantId, applicationStatus, merchantStatus, applicationRequestedInfo, applicationReviewedAt]
+      required: [merchantId, applicationStatus, merchantStatus, applicationRequestedInfo, applicationReviewedAt, addressVerificationStatus]
       properties:
         merchantId: { type: integer }
         applicationStatus: { type: string, enum: [awaiting_review, more_info_required, approved, declined] }
         merchantStatus: { type: string, enum: [pending, active, suspended, closed] }
         applicationRequestedInfo: { type: ["string", "null"] }
         applicationReviewedAt: { type: ["string", "null"], format: date-time }
+        addressVerificationStatus: { $ref: "#/components/schemas/AddressVerificationStatus" }
     AdminMerchantVerificationRequestInput:
       type: object
       required: [kind, reason]
@@ -5588,7 +5647,7 @@ components:
       type: object
       required: [provider, configured, enabled, fields, updatedAt, storage]
       properties:
-        provider: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary, currencyapi] }
+        provider: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary, currencyapi, geoapify] }
         configured: { type: boolean }
         enabled: { type: boolean }
         fields:

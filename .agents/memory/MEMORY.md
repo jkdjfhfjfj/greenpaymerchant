@@ -10,6 +10,7 @@
 - [Wallet conversion markup allocation](wallet-conversion-margin-split.md) — allocate combined markup proportionally so quote breakdowns and minor-unit journals reconcile.
 - [Admin wallet corrections](admin-wallet-corrections.md) — corrections must use audited, idempotent journal entries and never rewrite settlement history or consume reserved funds.
 - [Legal policy content](legal-policy-content.md) — only administrators supply approved policy wording; never invent or publish legal copy.
+- [Merchant address-verification scope](merchant-address-verification-scope.md) — require it only on new or resubmitted unverified-tier applications; preserve existing merchant records.
 - [Verified Clerk account linking](verified-clerk-linking.md) — link legacy records only after one unique legacy account matches a verified email on the external account.
 - [External PostgreSQL cutover](external-postgres-cutover.md) — preserve `DATABASE_URL`, use a distinct external target, and do not push schema before the external database is confirmed.
 - [Invoice payment-link closure](invoice-payment-link-closure.md) — archive a fully paid invoice's checkout link at provider confirmation, not only when another retry or checkout is attempted.

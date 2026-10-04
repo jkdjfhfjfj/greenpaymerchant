@@ -36,6 +36,13 @@
       "when": 1791099097420,
       "tag": "0004_tearful_loners",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791100553324,
+      "tag": "0005_address_verification",
+      "breakpoints": true
     }
   ]
 }

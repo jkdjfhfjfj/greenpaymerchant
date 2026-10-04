@@ -19,6 +19,10 @@ import { Async, Btn, Card, COUNTRIES, CURRENCIES, Confirm, CopyBtn, Err, Field, 
 import { usePlatformBranding } from '@/components/platform-brand';
 import { CloudinaryImageUpload } from '@/components/cloudinary-image-upload';
 import { LinkCollectedTotals } from '@/components/link-collected-totals';
+import {
+  AddressVerificationField, addressVerificationSubmission,
+  type AddressVerificationDraft,
+} from '@/components/address-verification-field';
 
 export function MerchantDashboardPage() { return <Gate need="merchant"><MerchantDashboardInner /></Gate>; }
 
@@ -108,12 +112,13 @@ export function MerchantPage({ addBusiness = false }: { addBusiness?: boolean } 
   return <>
     <Heading eyebrow="MERCHANT" title={addBusiness ? 'Add another business' : m ? m.businessName : 'Business application'} subtitle="Your business profile, application status and the information needed to collect with Greenpay." action={m && canCreateBusiness && !addBusiness ? <Link href="/merchant/new" className="btn btn-primary"><Plus size={15} />Add a business</Link> : undefined} />
     <Async q={access}>
-      {!m ? <ApplicationWizard create={create} queryClient={queryClient} onCreated={addBusiness ? () => setLocation('/merchant/dashboard') : undefined} /> : addBusiness ? canCreateBusiness ? <ApplicationWizard create={create} queryClient={queryClient} addBusiness onCreated={() => setLocation('/merchant/dashboard')} /> : businessLimitNotice : <div className="split">
+      {!m ? <ApplicationWizard create={create} queryClient={queryClient} requireAddressVerification={capacity?.tier === 'unverified'} onCreated={addBusiness ? () => setLocation('/merchant/dashboard') : undefined} /> : addBusiness ? canCreateBusiness ? <ApplicationWizard create={create} queryClient={queryClient} addBusiness requireAddressVerification={capacity?.tier === 'unverified'} onCreated={() => setLocation('/merchant/dashboard')} /> : businessLimitNotice : <div className="split">
         <div>
           <Card title="Profile">
             <div className="kv">
               <div><span>Status</span><Pill value={m.status} /></div>
               <div><span>Business application</span><Pill value={m.applicationStatus} /></div>
+              <div><span>Address verification</span><Pill value={m.addressVerificationStatus} /></div>
               <div><span>Submitted</span><strong>{fmtDate(m.applicationSubmittedAt)}</strong></div>
               <div><span>Reviewed</span><strong>{fmtDate(m.applicationReviewedAt)}</strong></div>
               <div><span>Verification</span><Pill value={m.kycStatus} /></div>
@@ -124,6 +129,10 @@ export function MerchantPage({ addBusiness = false }: { addBusiness?: boolean } 
               <div><span>Created</span><strong>{fmtDate(m.createdAt)}</strong></div>
             </div>
           </Card>
+          {m.addressVerificationStatus === 'manual_review' && <Note tone="warn">
+            Your manually submitted registered address is awaiting review{m.addressVerificationReason ? `: ${m.addressVerificationReason}` : ''}.
+          </Note>}
+          {m.addressVerificationStatus === 'admin_approved' && <Note>Your manually submitted address was approved by Greenpay.</Note>}
           {m.applicationDetails && <Card title="Submitted business application" subtitle="These are the business and collection details attached to your current application.">
             <div className="application-review-grid">
               <div><span>Business type</span><strong>{nice(m.applicationDetails.businessType)}</strong></div>
@@ -138,7 +147,7 @@ export function MerchantPage({ addBusiness = false }: { addBusiness?: boolean } 
               <div><span>Source of funds</span><p>{m.applicationDetails.sourceOfFunds}</p></div>
             </div>
           </Card>}
-          {m.applicationStatus === 'more_info_required' && <ApplicationResubmission merchant={profileQuery.data?.merchant ?? m} mutation={resubmit} queryClient={queryClient} />}
+          {m.applicationStatus === 'more_info_required' && <ApplicationResubmission merchant={profileQuery.data?.merchant ?? m} mutation={resubmit} queryClient={queryClient} requireAddressVerification={capacity?.tier === 'unverified'} />}
           {m.applicationRequestedInfo && <Note tone="warn"><strong>Information requested:</strong> {m.applicationRequestedInfo}</Note>}
           {applicationAttachments.isError && <Note tone="warn">Application documents could not be loaded. <Btn variant="secondary" small onClick={() => { void applicationAttachments.refetch(); }}>Retry</Btn></Note>}
           {applicationAttachments.isLoading && <span className="sub">Loading application documents…</span>}
@@ -161,21 +170,32 @@ export function MerchantPage({ addBusiness = false }: { addBusiness?: boolean } 
   </>;
 }
 
-function ApplicationWizard({ create, queryClient, addBusiness = false, onCreated }: { create: ReturnType<typeof useCreateMerchantProfile>; queryClient: ReturnType<typeof useQueryClient>; addBusiness?: boolean; onCreated?: () => void }) {
+function ApplicationWizard({ create, queryClient, addBusiness = false, requireAddressVerification = false, onCreated }: { create: ReturnType<typeof useCreateMerchantProfile>; queryClient: ReturnType<typeof useQueryClient>; addBusiness?: boolean; requireAddressVerification?: boolean; onCreated?: () => void }) {
   const branding = usePlatformBranding();
   const [step, setStep] = useState(1);
   const [error, setError] = useState('');
   const [businessValues, setBusinessValues] = useState<Record<string, string>>({});
+  const [registeredAddress, setRegisteredAddress] = useState('');
+  const [addressDraft, setAddressDraft] = useState<AddressVerificationDraft>({
+    method: null,
+    proofToken: null,
+    manualReason: '',
+  });
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
     const form = new FormData(event.currentTarget);
     const value = (key: string) => businessValues[key] ?? String(form.get(key) || '');
     const parseList = (key: string) => String(form.get(key) || '').split(',').map((item) => item.trim().toUpperCase()).filter(Boolean);
+    const addressVerification = addressVerificationSubmission(addressDraft, registeredAddress);
+    if (requireAddressVerification && !addressVerification) {
+      setError('Use device location or complete the manual-review fields before submitting.');
+      return;
+    }
     const application: BusinessApplicationDetails = {
       businessType: value('businessType') as BusinessApplicationDetails['businessType'],
       natureOfBusiness: value('natureOfBusiness').trim(),
-      registeredAddress: value('registeredAddress').trim(),
+      registeredAddress: registeredAddress.trim(),
       website: value('website').trim() || null,
       expectedMonthlyVolume: Number(form.get('expectedMonthlyVolume')),
       expectedMonthlyVolumeCurrency: String(form.get('expectedMonthlyVolumeCurrency')).toUpperCase(),
@@ -195,6 +215,7 @@ function ApplicationWizard({ create, queryClient, addBusiness = false, onCreated
       baseCurrency: value('baseCurrency'),
       ...(value('registrationNumber').trim() ? { registrationNumber: value('registrationNumber').trim() } : {}),
       application,
+      ...(addressVerification ? { addressVerification } : {}),
     } }, { onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: getGetMerchantProfileQueryKey() }),
@@ -211,9 +232,21 @@ function ApplicationWizard({ create, queryClient, addBusiness = false, onCreated
         <div className="form-grid"><Field label="Country of registration"><select name="country" defaultValue="" required data-testid="select-country"><option value="" disabled>Select country</option>{COUNTRIES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select></Field><Field label="Base currency"><select name="baseCurrency" defaultValue="" required data-testid="select-base-currency"><option value="" disabled>Select currency</option>{[...new Set([branding.baseCurrency, ...CURRENCIES])].map((code) => <option key={code}>{code}</option>)}</select></Field></div>
         <Field label="Registration number" hint="Optional"><input name="registrationNumber" maxLength={150} data-testid="input-registration" /></Field>
         <Field label="Nature of business" hint="Describe the products or services offered"><textarea name="natureOfBusiness" required minLength={10} maxLength={2000} data-testid="input-nature-of-business" /></Field>
-        <Field label="Registered address"><textarea name="registeredAddress" required minLength={5} maxLength={500} data-testid="input-registered-address" /></Field>
+         <AddressVerificationField
+           address={registeredAddress}
+           onAddressChange={setRegisteredAddress}
+           draft={addressDraft}
+           onDraftChange={setAddressDraft}
+           required={requireAddressVerification}
+         />
         <Field label="Website" hint="Optional"><input name="website" type="url" maxLength={500} placeholder="https://" data-testid="input-business-website" /></Field>
+         <Err error={error} />
         <Btn testId="button-application-continue" onClick={() => {
+           setError('');
+           if (requireAddressVerification && !addressVerificationSubmission(addressDraft, registeredAddress)) {
+             setError('Use device location or choose manual review and provide the requested details to continue.');
+             return;
+           }
           const form = document.querySelector<HTMLFormElement>('.application-wizard');
           if (form?.reportValidity()) {
             const values = new FormData(form);
@@ -234,10 +267,11 @@ function ApplicationWizard({ create, queryClient, addBusiness = false, onCreated
   </Card>;
 }
 
-function ApplicationResubmission({ merchant, mutation, queryClient }: {
+function ApplicationResubmission({ merchant, mutation, queryClient, requireAddressVerification }: {
   merchant: NonNullable<ReturnType<typeof useAccess>['merchant']>;
   mutation: ReturnType<typeof useResubmitMerchantApplication>;
   queryClient: ReturnType<typeof useQueryClient>;
+  requireAddressVerification: boolean;
 }) {
   const prior = merchant.applicationDetails;
   const createUploadIntent = useCreateMerchantApplicationAttachmentUploadIntent();
@@ -246,16 +280,27 @@ function ApplicationResubmission({ merchant, mutation, queryClient }: {
   const [files, setFiles] = useState<File[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ key: string; token: string }>>([]);
   const [uploadError, setUploadError] = useState('');
+  const [registeredAddress, setRegisteredAddress] = useState(prior?.registeredAddress ?? '');
+  const [addressDraft, setAddressDraft] = useState<AddressVerificationDraft>({
+    method: null,
+    proofToken: null,
+    manualReason: '',
+  });
   const fileKey = (file: File) => `${file.name}:${file.size}:${file.lastModified}:${file.type}`;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setUploadError('');
     const form = new FormData(event.currentTarget);
+    const addressVerification = addressVerificationSubmission(addressDraft, registeredAddress);
+    if (requireAddressVerification && !addressVerification) {
+      setUploadError('Use device location or complete the manual-review fields before resubmitting.');
+      return;
+    }
     const details: BusinessApplicationDetails = {
       businessType: String(form.get('businessType')) as BusinessApplicationDetails['businessType'],
       natureOfBusiness: String(form.get('natureOfBusiness')).trim(),
-      registeredAddress: String(form.get('registeredAddress')).trim(),
+      registeredAddress: registeredAddress.trim(),
       website: String(form.get('website') || '').trim() || null,
       expectedMonthlyVolume: Number(form.get('expectedMonthlyVolume')),
       expectedMonthlyVolumeCurrency: String(form.get('expectedMonthlyVolumeCurrency')).toUpperCase(),
@@ -295,6 +340,7 @@ function ApplicationResubmission({ merchant, mutation, queryClient }: {
       }
       await mutation.mutateAsync({ data: {
         application: details,
+        ...(addressVerification ? { addressVerification } : {}),
         ...(tokens.length ? { attachmentUploadTokens: tokens } : {}),
       } });
       await Promise.all([queryClient.invalidateQueries({ queryKey: getGetMerchantProfileQueryKey() }), queryClient.invalidateQueries()]);
@@ -322,7 +368,13 @@ function ApplicationResubmission({ merchant, mutation, queryClient }: {
     {prior && <form className="form-stack application-wizard" onSubmit={submit}>
       <div className="form-grid"><Field label="Business type"><select name="businessType" defaultValue={prior.businessType}><option value="sole_proprietor">Sole proprietor</option><option value="limited_company">Limited company</option><option value="partnership">Partnership</option><option value="nonprofit">Nonprofit</option><option value="other">Other</option></select></Field><Field label="Website"><input name="website" type="url" defaultValue={prior.website ?? ''} /></Field></div>
       <Field label="Nature of business"><textarea name="natureOfBusiness" required minLength={10} defaultValue={prior.natureOfBusiness} /></Field>
-      <Field label="Registered address"><textarea name="registeredAddress" required minLength={5} defaultValue={prior.registeredAddress} /></Field>
+      <AddressVerificationField
+        address={registeredAddress}
+        onAddressChange={setRegisteredAddress}
+        draft={addressDraft}
+        onDraftChange={setAddressDraft}
+        required={requireAddressVerification}
+      />
       <div className="form-grid"><Field label="Expected monthly volume"><input name="expectedMonthlyVolume" type="number" min="0" step="any" required defaultValue={prior.expectedMonthlyVolume} /></Field><Field label="Volume currency"><input name="expectedMonthlyVolumeCurrency" required minLength={3} maxLength={3} defaultValue={prior.expectedMonthlyVolumeCurrency} /></Field></div>
       <div className="form-grid"><Field label="Expected monthly transactions"><input name="expectedMonthlyTransactions" type="number" min="0" step="1" required defaultValue={prior.expectedMonthlyTransactions} /></Field><Field label="Average transaction value"><input name="expectedAverageTransactionValue" type="number" min="0" step="any" required defaultValue={prior.expectedAverageTransactionValue} /></Field></div>
       <Field label="Customer countries" hint="Comma-separated country codes"><input name="expectedCustomerCountries" required defaultValue={prior.expectedCustomerCountries.join(', ')} /></Field>

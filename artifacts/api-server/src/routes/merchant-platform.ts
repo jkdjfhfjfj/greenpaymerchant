@@ -30,6 +30,8 @@ import {
   ListMerchantPayoutsResponse,
   UpdateAdminVerificationLimitsBody, UpdateAdminVerificationLimitsResponse,
   SelectMerchantWorkspaceBody,
+  ReverseGeocodeMerchantAddressBody, ReverseGeocodeMerchantAddressResponse,
+  type AddressVerificationSubmission,
 } from "@workspace/api-zod";
 import {
   adminAuditLogTable, db, developerIdempotencyTable, feeSchedulesTable, fxRatesTable, merchantApiKeysTable,
@@ -51,6 +53,9 @@ import {
   getMerchantActionControlState,
 } from "../lib/platform";
 import { apiKeyHash, decryptApiKeySecret, encryptSecret, validateWebhookUrl } from "../lib/secure-storage";
+import {
+  AddressVerificationError, reverseGeocodeMerchantAddress, verifyAddressVerificationToken,
+} from "../lib/merchant-address-verification";
 import {
   findTransaction, markTransactionStatus, merchantTransactionDto, paymentLinkDto, paymentLinkStats, payoutDto,
 } from "../lib/greenpay-ledger";
@@ -103,6 +108,9 @@ function profile(row: typeof merchantsTable.$inferSelect) {
     applicationRequestId: row.applicationRequestId,
     applicationSubmittedAt: row.applicationSubmittedAt,
     applicationReviewedAt: row.applicationReviewedAt,
+    addressVerificationStatus: row.addressVerificationStatus,
+    addressVerificationReason: row.addressVerificationReason,
+    addressVerificationReviewedAt: row.addressVerificationReviewedAt,
     kycStatus: row.kycStatus,
     kycRequestedInfo: row.kycRequestedInfo,
     kybStatus: row.kybStatus,
@@ -379,6 +387,65 @@ router.post("/merchant/shop-profile/upload-signature", requireSignedIn, async (_
   res.json(CreateMerchantCloudinaryUploadSignatureResponse.parse(signedUpload));
 });
 
+function addressVerificationDecision(
+  submission: AddressVerificationSubmission | undefined,
+  userId: string,
+  registeredAddress: string,
+  required: boolean,
+): { status: "not_required" | "auto_verified" | "manual_review"; reason: string | null } {
+  const address = registeredAddress.trim().replace(/\s+/g, " ");
+  if (address.length < 5) throw new ApiError(400, "Enter a complete registered address.");
+  if (!submission) {
+    if (required) throw new ApiError(400, "Verify the registered address or submit it for manual review.");
+    return { status: "not_required", reason: null };
+  }
+  if (submission.method === "automatic") {
+    if (!verifyAddressVerificationToken(submission.proofToken, userId, address)) {
+      throw new ApiError(400, "The location verification expired or does not match this address. Look up your location again.");
+    }
+    return { status: "auto_verified", reason: null };
+  }
+  const reason = submission.reason.trim();
+  if (reason.length < 5) throw new ApiError(400, "Explain why the registered address needs manual review.");
+  return { status: "manual_review", reason };
+}
+
+router.post("/merchant/address-lookup", requireSignedIn, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "private, no-store");
+  const parsed = ReverseGeocodeMerchantAddressBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const userId = res.locals.clerkUserId as string;
+  try {
+    const result = await reverseGeocodeMerchantAddress(
+      parsed.data.latitude,
+      parsed.data.longitude,
+      userId,
+    );
+    res.json(ReverseGeocodeMerchantAddressResponse.parse(result));
+  } catch (error) {
+    if (error instanceof AddressVerificationError) {
+      if (error.code === "address_not_found") {
+        res.status(422).json({ error: "No usable address was found at that location. Enter an address manually for review." });
+        return;
+      }
+      req.log.warn({ errorCode: error.code }, "Address reverse-geocoding is unavailable");
+      res.status(503).json({
+        error: error.code === "provider_unconfigured"
+          ? "Automatic address lookup is not configured. Enter the address manually for review."
+          : "Automatic address lookup is temporarily unavailable. Enter the address manually for review.",
+      });
+      return;
+    }
+    req.log.error({
+      errorKind: error instanceof Error ? error.name : "unknown",
+    }, "Address reverse-geocoding failed");
+    res.status(503).json({ error: "Automatic address lookup is temporarily unavailable. Enter the address manually for review." });
+  }
+});
+
 router.post("/merchant", requireSignedIn, async (req, res): Promise<void> => {
   const parsed = CreateMerchantProfileBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -396,17 +463,26 @@ router.post("/merchant", requireSignedIn, async (req, res): Promise<void> => {
         : "Business limit reached. Complete KYB verification to manage up to 10 businesses.";
       throw new ApiError(409, message);
     }
+    const addressVerification = addressVerificationDecision(
+      parsed.data.addressVerification,
+      userId,
+      parsed.data.application.registeredAddress,
+      capacity.tier === "unverified",
+    );
     return tx.insert(merchantsTable).values({
       ownerClerkId: userId, businessName: parsed.data.businessName.trim(),
       country: parsed.data.country.toUpperCase(), baseCurrency: parsed.data.baseCurrency.toUpperCase(),
       registrationNumber: parsed.data.registrationNumber?.trim() || null,
       applicationDetails: {
         ...parsed.data.application,
+        registeredAddress: parsed.data.application.registeredAddress.trim().replace(/\s+/g, " "),
         expectedMonthlyVolumeCurrency: parsed.data.application.expectedMonthlyVolumeCurrency.toUpperCase(),
         expectedCustomerCountries: parsed.data.application.expectedCustomerCountries.map((value) => value.toUpperCase()),
         expectedCollectionCurrencies: parsed.data.application.expectedCollectionCurrencies.map((value) => value.toUpperCase()),
       },
       applicationStatus: "awaiting_review",
+      addressVerificationStatus: addressVerification.status,
+      addressVerificationReason: addressVerification.reason,
       applicationSubmittedAt: new Date(),
     }).returning();
   });
@@ -585,6 +661,12 @@ router.patch("/merchant/application", requireSignedIn, async (req, res): Promise
     res.status(409).json({ error: "This application is not awaiting additional information." });
     return;
   }
+  const addressVerification = addressVerificationDecision(
+    parsed.data.addressVerification,
+    res.locals.clerkUserId as string,
+    parsed.data.application.registeredAddress,
+    verificationTierForMerchant(merchant) === "unverified",
+  );
   const tokens = parsed.data.attachmentUploadTokens ?? [];
   if (tokens.length > MAX_APPLICATION_ATTACHMENTS_PER_SUBMISSION || new Set(tokens).size !== tokens.length) {
     res.status(400).json({ error: "Attach no more than five unique, valid application files." });
@@ -668,10 +750,15 @@ router.patch("/merchant/application", requireSignedIn, async (req, res): Promise
       const [resubmitted] = await tx.update(merchantsTable).set({
         applicationDetails: {
           ...parsed.data.application,
+          registeredAddress: parsed.data.application.registeredAddress.trim().replace(/\s+/g, " "),
           expectedMonthlyVolumeCurrency: parsed.data.application.expectedMonthlyVolumeCurrency.toUpperCase(),
           expectedCustomerCountries: parsed.data.application.expectedCustomerCountries.map((value) => value.toUpperCase()),
           expectedCollectionCurrencies: parsed.data.application.expectedCollectionCurrencies.map((value) => value.toUpperCase()),
         },
+        addressVerificationStatus: addressVerification.status,
+        addressVerificationReason: addressVerification.reason,
+        addressVerificationReviewedAt: null,
+        addressVerificationReviewedBy: null,
         applicationStatus: "awaiting_review",
         applicationRequestedInfo: null,
         applicationSubmittedAt: new Date(),

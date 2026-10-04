@@ -21,6 +21,8 @@ import type {
 
 import type {
   AccessProfile,
+  AddressGeocodeInput,
+  AddressGeocodeResult,
   AdminApplicationRequestAttachmentUploadIntentInput,
   AdminAuditLog,
   AdminCaseRefundRecord,
@@ -7503,6 +7505,94 @@ export const useResubmitMerchantApplication = <TError = ErrorType<void>,
       return useMutation(getResubmitMerchantApplicationMutationOptions(options));
     }
 
+export const getReverseGeocodeMerchantAddressUrl = () => {
+
+
+
+
+  return `/api/merchant/address-lookup`
+}
+
+/**
+ * @summary Reverse-geocode the signed-in user's device coordinates
+ */
+export const reverseGeocodeMerchantAddress = async (addressGeocodeInput: AddressGeocodeInput, options?: Parameters<typeof customFetch>[1]): Promise<AddressGeocodeResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AddressGeocodeResult>(getReverseGeocodeMerchantAddressUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(addressGeocodeInput)
+  }
+);}
+
+
+
+
+
+export const getReverseGeocodeMerchantAddressMutationKey = () => ['reverseGeocodeMerchantAddress'] as const;
+
+export const getReverseGeocodeMerchantAddressMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reverseGeocodeMerchantAddress>>, TError,ReverseGeocodeMerchantAddressMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reverseGeocodeMerchantAddress>>, TError,ReverseGeocodeMerchantAddressMutationVariables, TContext> => {
+
+const mutationKey = getReverseGeocodeMerchantAddressMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reverseGeocodeMerchantAddress>>, ReverseGeocodeMerchantAddressMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  reverseGeocodeMerchantAddress(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReverseGeocodeMerchantAddressMutationResult = NonNullable<Awaited<ReturnType<typeof reverseGeocodeMerchantAddress>>>
+    export type ReverseGeocodeMerchantAddressMutationBody = BodyType<AddressGeocodeInput>
+    export type ReverseGeocodeMerchantAddressMutationError = ErrorType<void>
+    export type ReverseGeocodeMerchantAddressMutationVariables = {data: BodyType<AddressGeocodeInput>}
+
+    /**
+ * @summary Reverse-geocode the signed-in user's device coordinates
+ */
+export const useReverseGeocodeMerchantAddress = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reverseGeocodeMerchantAddress>>, TError,ReverseGeocodeMerchantAddressMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reverseGeocodeMerchantAddress>>,
+        TError,
+        ReverseGeocodeMerchantAddressMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReverseGeocodeMerchantAddressMutationOptions(options));
+    }
+
 export const getListMerchantApplicationAttachmentsUrl = () => {
 
 
@@ -14177,7 +14267,7 @@ export function useListAdminProviderCredentials<TData = Awaited<ReturnType<typeo
 
 
 
-export const getSaveAdminProviderCredentialsUrl = (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi',) => {
+export const getSaveAdminProviderCredentialsUrl = (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify',) => {
 
 
 
@@ -14188,7 +14278,7 @@ export const getSaveAdminProviderCredentialsUrl = (provider: 'paystack' | 'payhe
 /**
  * @summary Encrypt and save or replace a provider's credentials
  */
-export const saveAdminProviderCredentials = async (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi',
+export const saveAdminProviderCredentials = async (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify',
     saveProviderCredentialsInput: SaveProviderCredentialsInput, options?: Parameters<typeof customFetch>[1]): Promise<ProviderCredential> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
@@ -14250,7 +14340,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SaveAdminProviderCredentialsMutationResult = NonNullable<Awaited<ReturnType<typeof saveAdminProviderCredentials>>>
     export type SaveAdminProviderCredentialsMutationBody = BodyType<SaveProviderCredentialsInput>
     export type SaveAdminProviderCredentialsMutationError = ErrorType<unknown>
-    export type SaveAdminProviderCredentialsMutationVariables = {provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi';data: BodyType<SaveProviderCredentialsInput>}
+    export type SaveAdminProviderCredentialsMutationVariables = {provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify';data: BodyType<SaveProviderCredentialsInput>}
 
     /**
  * @summary Encrypt and save or replace a provider's credentials
@@ -14266,7 +14356,7 @@ export const useSaveAdminProviderCredentials = <TError = ErrorType<unknown>,
       return useMutation(getSaveAdminProviderCredentialsMutationOptions(options));
     }
 
-export const getDeleteAdminProviderCredentialsUrl = (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi',) => {
+export const getDeleteAdminProviderCredentialsUrl = (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify',) => {
 
 
 
@@ -14277,7 +14367,7 @@ export const getDeleteAdminProviderCredentialsUrl = (provider: 'paystack' | 'pay
 /**
  * @summary Delete stored credentials and disable the selected provider
  */
-export const deleteAdminProviderCredentials = async (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi', options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+export const deleteAdminProviderCredentials = async (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify', options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
   return customFetch<void>(getDeleteAdminProviderCredentialsUrl(provider),
   {
@@ -14324,7 +14414,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type DeleteAdminProviderCredentialsMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminProviderCredentials>>>
 
     export type DeleteAdminProviderCredentialsMutationError = ErrorType<unknown>
-    export type DeleteAdminProviderCredentialsMutationVariables = {provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi'}
+    export type DeleteAdminProviderCredentialsMutationVariables = {provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify'}
 
     /**
  * @summary Delete stored credentials and disable the selected provider

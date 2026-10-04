@@ -5,10 +5,12 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { AddressVerificationSubmission } from './addressVerificationSubmission';
 import type { BusinessApplicationDetails } from './businessApplicationDetails';
 
 export interface ApplicationResubmissionInput {
   application: BusinessApplicationDetails;
+  addressVerification?: AddressVerificationSubmission;
   /**
      * @maxItems 5
      * @items.pattern ^[a-f0-9]{32}$

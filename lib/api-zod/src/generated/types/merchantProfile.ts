@@ -5,6 +5,7 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { AddressVerificationStatus } from './addressVerificationStatus';
 import type { BusinessApplicationDetails } from './businessApplicationDetails';
 import type { MerchantProfileApplicationStatus } from './merchantProfileApplicationStatus';
 import type { MerchantProfileKybStatus } from './merchantProfileKybStatus';
@@ -46,6 +47,14 @@ export interface MerchantProfile {
   applicationSubmittedAt: Date | null;
   /** @nullable */
   applicationReviewedAt: Date | null;
+  addressVerificationStatus: AddressVerificationStatus;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  addressVerificationReason: string | null;
+  /** @nullable */
+  addressVerificationReviewedAt: Date | null;
   kycStatus: MerchantProfileKycStatus;
   /**
      * @maxLength 2000

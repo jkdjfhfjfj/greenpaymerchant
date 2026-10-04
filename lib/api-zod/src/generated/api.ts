@@ -3412,6 +3412,8 @@ export const getAccessProfileResponseMerchantOneApplicationRequestedInfoMax = 20
 
 export const getAccessProfileResponseMerchantOneApplicationRequestIdMax = 64;
 
+export const getAccessProfileResponseMerchantOneAddressVerificationReasonMax = 1000;
+
 export const getAccessProfileResponseMerchantOneKycRequestedInfoMax = 2000;
 
 export const getAccessProfileResponseMerchantOneKybRequestedInfoMax = 2000;
@@ -3451,6 +3453,9 @@ export const GetAccessProfileResponse = zod.object({
   "applicationRequestId": zod.string().max(getAccessProfileResponseMerchantOneApplicationRequestIdMax).nullable(),
   "applicationSubmittedAt": zod.coerce.date().nullable(),
   "applicationReviewedAt": zod.coerce.date().nullable(),
+  "addressVerificationStatus": zod.enum(['not_required', 'auto_verified', 'manual_review', 'admin_approved']),
+  "addressVerificationReason": zod.string().max(getAccessProfileResponseMerchantOneAddressVerificationReasonMax).nullable(),
+  "addressVerificationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
   "kycRequestedInfo": zod.string().max(getAccessProfileResponseMerchantOneKycRequestedInfoMax).nullable(),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
@@ -3533,6 +3538,8 @@ export const selectMerchantWorkspaceResponseMerchantOneApplicationRequestedInfoM
 
 export const selectMerchantWorkspaceResponseMerchantOneApplicationRequestIdMax = 64;
 
+export const selectMerchantWorkspaceResponseMerchantOneAddressVerificationReasonMax = 1000;
+
 export const selectMerchantWorkspaceResponseMerchantOneKycRequestedInfoMax = 2000;
 
 export const selectMerchantWorkspaceResponseMerchantOneKybRequestedInfoMax = 2000;
@@ -3572,6 +3579,9 @@ export const SelectMerchantWorkspaceResponse = zod.object({
   "applicationRequestId": zod.string().max(selectMerchantWorkspaceResponseMerchantOneApplicationRequestIdMax).nullable(),
   "applicationSubmittedAt": zod.coerce.date().nullable(),
   "applicationReviewedAt": zod.coerce.date().nullable(),
+  "addressVerificationStatus": zod.enum(['not_required', 'auto_verified', 'manual_review', 'admin_approved']),
+  "addressVerificationReason": zod.string().max(selectMerchantWorkspaceResponseMerchantOneAddressVerificationReasonMax).nullable(),
+  "addressVerificationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
   "kycRequestedInfo": zod.string().max(selectMerchantWorkspaceResponseMerchantOneKycRequestedInfoMax).nullable(),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
@@ -3647,6 +3657,8 @@ export const getMerchantProfileResponseMerchantApplicationRequestedInfoMax = 200
 
 export const getMerchantProfileResponseMerchantApplicationRequestIdMax = 64;
 
+export const getMerchantProfileResponseMerchantAddressVerificationReasonMax = 1000;
+
 export const getMerchantProfileResponseMerchantKycRequestedInfoMax = 2000;
 
 export const getMerchantProfileResponseMerchantKybRequestedInfoMax = 2000;
@@ -3681,6 +3693,9 @@ export const GetMerchantProfileResponse = zod.object({
   "applicationRequestId": zod.string().max(getMerchantProfileResponseMerchantApplicationRequestIdMax).nullable(),
   "applicationSubmittedAt": zod.coerce.date().nullable(),
   "applicationReviewedAt": zod.coerce.date().nullable(),
+  "addressVerificationStatus": zod.enum(['not_required', 'auto_verified', 'manual_review', 'admin_approved']),
+  "addressVerificationReason": zod.string().max(getMerchantProfileResponseMerchantAddressVerificationReasonMax).nullable(),
+  "addressVerificationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
   "kycRequestedInfo": zod.string().max(getMerchantProfileResponseMerchantKycRequestedInfoMax).nullable(),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
@@ -3747,6 +3762,11 @@ export const createMerchantProfileBodyApplicationExpectedCollectionCurrenciesMax
 export const createMerchantProfileBodyApplicationSourceOfFundsMin = 10;
 export const createMerchantProfileBodyApplicationSourceOfFundsMax = 1000;
 
+export const createMerchantProfileBodyAddressVerificationOneProofTokenMax = 2048;
+
+export const createMerchantProfileBodyAddressVerificationTwoReasonMin = 5;
+export const createMerchantProfileBodyAddressVerificationTwoReasonMax = 1000;
+
 
 
 export const CreateMerchantProfileBody = zod.object({
@@ -3766,7 +3786,14 @@ export const CreateMerchantProfileBody = zod.object({
   "expectedCustomerCountries": zod.array(zod.string().min(createMerchantProfileBodyApplicationExpectedCustomerCountriesItemMin).max(createMerchantProfileBodyApplicationExpectedCustomerCountriesItemMax).regex(createMerchantProfileBodyApplicationExpectedCustomerCountriesItemRegExp)).min(1).max(createMerchantProfileBodyApplicationExpectedCustomerCountriesMax),
   "expectedCollectionCurrencies": zod.array(zod.string().min(createMerchantProfileBodyApplicationExpectedCollectionCurrenciesItemMin).max(createMerchantProfileBodyApplicationExpectedCollectionCurrenciesItemMax).regex(createMerchantProfileBodyApplicationExpectedCollectionCurrenciesItemRegExp)).min(1).max(createMerchantProfileBodyApplicationExpectedCollectionCurrenciesMax),
   "sourceOfFunds": zod.string().min(createMerchantProfileBodyApplicationSourceOfFundsMin).max(createMerchantProfileBodyApplicationSourceOfFundsMax)
-})
+}),
+  "addressVerification": zod.union([zod.object({
+  "method": zod.enum(['automatic']),
+  "proofToken": zod.string().min(1).max(createMerchantProfileBodyAddressVerificationOneProofTokenMax)
+}),zod.object({
+  "method": zod.enum(['manual_review']),
+  "reason": zod.string().min(createMerchantProfileBodyAddressVerificationTwoReasonMin).max(createMerchantProfileBodyAddressVerificationTwoReasonMax)
+})]).optional()
 })
 
 export const createMerchantProfileResponseMerchantShopNameMax = 100;
@@ -3814,6 +3841,8 @@ export const createMerchantProfileResponseMerchantApplicationRequestedInfoMax = 
 
 export const createMerchantProfileResponseMerchantApplicationRequestIdMax = 64;
 
+export const createMerchantProfileResponseMerchantAddressVerificationReasonMax = 1000;
+
 export const createMerchantProfileResponseMerchantKycRequestedInfoMax = 2000;
 
 export const createMerchantProfileResponseMerchantKybRequestedInfoMax = 2000;
@@ -3848,6 +3877,9 @@ export const CreateMerchantProfileResponse = zod.object({
   "applicationRequestId": zod.string().max(createMerchantProfileResponseMerchantApplicationRequestIdMax).nullable(),
   "applicationSubmittedAt": zod.coerce.date().nullable(),
   "applicationReviewedAt": zod.coerce.date().nullable(),
+  "addressVerificationStatus": zod.enum(['not_required', 'auto_verified', 'manual_review', 'admin_approved']),
+  "addressVerificationReason": zod.string().max(createMerchantProfileResponseMerchantAddressVerificationReasonMax).nullable(),
+  "addressVerificationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
   "kycRequestedInfo": zod.string().max(createMerchantProfileResponseMerchantKycRequestedInfoMax).nullable(),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
@@ -3903,6 +3935,11 @@ export const resubmitMerchantApplicationBodyApplicationExpectedCollectionCurrenc
 export const resubmitMerchantApplicationBodyApplicationSourceOfFundsMin = 10;
 export const resubmitMerchantApplicationBodyApplicationSourceOfFundsMax = 1000;
 
+export const resubmitMerchantApplicationBodyAddressVerificationOneProofTokenMax = 2048;
+
+export const resubmitMerchantApplicationBodyAddressVerificationTwoReasonMin = 5;
+export const resubmitMerchantApplicationBodyAddressVerificationTwoReasonMax = 1000;
+
 export const resubmitMerchantApplicationBodyAttachmentUploadTokensItemRegExp = new RegExp('^[a-f0-9]{32}$');
 export const resubmitMerchantApplicationBodyAttachmentUploadTokensMax = 5;
 
@@ -3922,6 +3959,13 @@ export const ResubmitMerchantApplicationBody = zod.object({
   "expectedCollectionCurrencies": zod.array(zod.string().min(resubmitMerchantApplicationBodyApplicationExpectedCollectionCurrenciesItemMin).max(resubmitMerchantApplicationBodyApplicationExpectedCollectionCurrenciesItemMax).regex(resubmitMerchantApplicationBodyApplicationExpectedCollectionCurrenciesItemRegExp)).min(1).max(resubmitMerchantApplicationBodyApplicationExpectedCollectionCurrenciesMax),
   "sourceOfFunds": zod.string().min(resubmitMerchantApplicationBodyApplicationSourceOfFundsMin).max(resubmitMerchantApplicationBodyApplicationSourceOfFundsMax)
 }),
+  "addressVerification": zod.union([zod.object({
+  "method": zod.enum(['automatic']),
+  "proofToken": zod.string().min(1).max(resubmitMerchantApplicationBodyAddressVerificationOneProofTokenMax)
+}),zod.object({
+  "method": zod.enum(['manual_review']),
+  "reason": zod.string().min(resubmitMerchantApplicationBodyAddressVerificationTwoReasonMin).max(resubmitMerchantApplicationBodyAddressVerificationTwoReasonMax)
+})]).optional(),
   "attachmentUploadTokens": zod.array(zod.string().regex(resubmitMerchantApplicationBodyAttachmentUploadTokensItemRegExp)).max(resubmitMerchantApplicationBodyAttachmentUploadTokensMax).optional()
 })
 
@@ -3970,6 +4014,8 @@ export const resubmitMerchantApplicationResponseMerchantApplicationRequestedInfo
 
 export const resubmitMerchantApplicationResponseMerchantApplicationRequestIdMax = 64;
 
+export const resubmitMerchantApplicationResponseMerchantAddressVerificationReasonMax = 1000;
+
 export const resubmitMerchantApplicationResponseMerchantKycRequestedInfoMax = 2000;
 
 export const resubmitMerchantApplicationResponseMerchantKybRequestedInfoMax = 2000;
@@ -4004,6 +4050,9 @@ export const ResubmitMerchantApplicationResponse = zod.object({
   "applicationRequestId": zod.string().max(resubmitMerchantApplicationResponseMerchantApplicationRequestIdMax).nullable(),
   "applicationSubmittedAt": zod.coerce.date().nullable(),
   "applicationReviewedAt": zod.coerce.date().nullable(),
+  "addressVerificationStatus": zod.enum(['not_required', 'auto_verified', 'manual_review', 'admin_approved']),
+  "addressVerificationReason": zod.string().max(resubmitMerchantApplicationResponseMerchantAddressVerificationReasonMax).nullable(),
+  "addressVerificationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
   "kycRequestedInfo": zod.string().max(resubmitMerchantApplicationResponseMerchantKycRequestedInfoMax).nullable(),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
@@ -4014,6 +4063,35 @@ export const ResubmitMerchantApplicationResponse = zod.object({
   "apiAccessEnabled": zod.boolean().optional(),
   "createdAt": zod.coerce.date()
 })
+})
+
+
+/**
+ * @summary Reverse-geocode the signed-in user's device coordinates
+ */
+export const reverseGeocodeMerchantAddressBodyLatitudeMin = -90;
+export const reverseGeocodeMerchantAddressBodyLatitudeMax = 90;
+
+export const reverseGeocodeMerchantAddressBodyLongitudeMin = -180;
+export const reverseGeocodeMerchantAddressBodyLongitudeMax = 180;
+
+
+
+export const ReverseGeocodeMerchantAddressBody = zod.object({
+  "latitude": zod.number().min(reverseGeocodeMerchantAddressBodyLatitudeMin).max(reverseGeocodeMerchantAddressBodyLatitudeMax),
+  "longitude": zod.number().min(reverseGeocodeMerchantAddressBodyLongitudeMin).max(reverseGeocodeMerchantAddressBodyLongitudeMax)
+})
+
+export const reverseGeocodeMerchantAddressResponseAddressMin = 5;
+export const reverseGeocodeMerchantAddressResponseAddressMax = 500;
+
+export const reverseGeocodeMerchantAddressResponseVerificationTokenMax = 2048;
+
+
+
+export const ReverseGeocodeMerchantAddressResponse = zod.object({
+  "address": zod.string().min(reverseGeocodeMerchantAddressResponseAddressMin).max(reverseGeocodeMerchantAddressResponseAddressMax),
+  "verificationToken": zod.string().min(1).max(reverseGeocodeMerchantAddressResponseVerificationTokenMax)
 })
 
 
@@ -4292,6 +4370,8 @@ export const updateMerchantShopProfileResponseMerchantApplicationRequestedInfoMa
 
 export const updateMerchantShopProfileResponseMerchantApplicationRequestIdMax = 64;
 
+export const updateMerchantShopProfileResponseMerchantAddressVerificationReasonMax = 1000;
+
 export const updateMerchantShopProfileResponseMerchantKycRequestedInfoMax = 2000;
 
 export const updateMerchantShopProfileResponseMerchantKybRequestedInfoMax = 2000;
@@ -4326,6 +4406,9 @@ export const UpdateMerchantShopProfileResponse = zod.object({
   "applicationRequestId": zod.string().max(updateMerchantShopProfileResponseMerchantApplicationRequestIdMax).nullable(),
   "applicationSubmittedAt": zod.coerce.date().nullable(),
   "applicationReviewedAt": zod.coerce.date().nullable(),
+  "addressVerificationStatus": zod.enum(['not_required', 'auto_verified', 'manual_review', 'admin_approved']),
+  "addressVerificationReason": zod.string().max(updateMerchantShopProfileResponseMerchantAddressVerificationReasonMax).nullable(),
+  "addressVerificationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
   "kycRequestedInfo": zod.string().max(updateMerchantShopProfileResponseMerchantKycRequestedInfoMax).nullable(),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
@@ -5357,6 +5440,8 @@ export const getDeveloperMerchantResponseMerchantApplicationRequestedInfoMax = 2
 
 export const getDeveloperMerchantResponseMerchantApplicationRequestIdMax = 64;
 
+export const getDeveloperMerchantResponseMerchantAddressVerificationReasonMax = 1000;
+
 export const getDeveloperMerchantResponseMerchantKycRequestedInfoMax = 2000;
 
 export const getDeveloperMerchantResponseMerchantKybRequestedInfoMax = 2000;
@@ -5391,6 +5476,9 @@ export const GetDeveloperMerchantResponse = zod.object({
   "applicationRequestId": zod.string().max(getDeveloperMerchantResponseMerchantApplicationRequestIdMax).nullable(),
   "applicationSubmittedAt": zod.coerce.date().nullable(),
   "applicationReviewedAt": zod.coerce.date().nullable(),
+  "addressVerificationStatus": zod.enum(['not_required', 'auto_verified', 'manual_review', 'admin_approved']),
+  "addressVerificationReason": zod.string().max(getDeveloperMerchantResponseMerchantAddressVerificationReasonMax).nullable(),
+  "addressVerificationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
   "kycRequestedInfo": zod.string().max(getDeveloperMerchantResponseMerchantKycRequestedInfoMax).nullable(),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
@@ -6097,6 +6185,8 @@ export const listAdminMerchantsResponseItemsItemOneApplicationRequestedInfoMax =
 
 export const listAdminMerchantsResponseItemsItemOneApplicationRequestIdMax = 64;
 
+export const listAdminMerchantsResponseItemsItemOneAddressVerificationReasonMax = 1000;
+
 export const listAdminMerchantsResponseItemsItemOneKycRequestedInfoMax = 2000;
 
 export const listAdminMerchantsResponseItemsItemOneKybRequestedInfoMax = 2000;
@@ -6131,6 +6221,9 @@ export const ListAdminMerchantsResponse = zod.object({
   "applicationRequestId": zod.string().max(listAdminMerchantsResponseItemsItemOneApplicationRequestIdMax).nullable(),
   "applicationSubmittedAt": zod.coerce.date().nullable(),
   "applicationReviewedAt": zod.coerce.date().nullable(),
+  "addressVerificationStatus": zod.enum(['not_required', 'auto_verified', 'manual_review', 'admin_approved']),
+  "addressVerificationReason": zod.string().max(listAdminMerchantsResponseItemsItemOneAddressVerificationReasonMax).nullable(),
+  "addressVerificationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
   "kycRequestedInfo": zod.string().max(listAdminMerchantsResponseItemsItemOneKycRequestedInfoMax).nullable(),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
@@ -6204,6 +6297,8 @@ export const getAdminMerchantDetailsResponseMerchantOneApplicationRequestedInfoM
 
 export const getAdminMerchantDetailsResponseMerchantOneApplicationRequestIdMax = 64;
 
+export const getAdminMerchantDetailsResponseMerchantOneAddressVerificationReasonMax = 1000;
+
 export const getAdminMerchantDetailsResponseMerchantOneKycRequestedInfoMax = 2000;
 
 export const getAdminMerchantDetailsResponseMerchantOneKybRequestedInfoMax = 2000;
@@ -6238,6 +6333,9 @@ export const GetAdminMerchantDetailsResponse = zod.object({
   "applicationRequestId": zod.string().max(getAdminMerchantDetailsResponseMerchantOneApplicationRequestIdMax).nullable(),
   "applicationSubmittedAt": zod.coerce.date().nullable(),
   "applicationReviewedAt": zod.coerce.date().nullable(),
+  "addressVerificationStatus": zod.enum(['not_required', 'auto_verified', 'manual_review', 'admin_approved']),
+  "addressVerificationReason": zod.string().max(getAdminMerchantDetailsResponseMerchantOneAddressVerificationReasonMax).nullable(),
+  "addressVerificationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
   "kycRequestedInfo": zod.string().max(getAdminMerchantDetailsResponseMerchantOneKycRequestedInfoMax).nullable(),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
@@ -6344,6 +6442,8 @@ export const updateAdminMerchantResponseOneApplicationRequestedInfoMax = 2000;
 
 export const updateAdminMerchantResponseOneApplicationRequestIdMax = 64;
 
+export const updateAdminMerchantResponseOneAddressVerificationReasonMax = 1000;
+
 export const updateAdminMerchantResponseOneKycRequestedInfoMax = 2000;
 
 export const updateAdminMerchantResponseOneKybRequestedInfoMax = 2000;
@@ -6377,6 +6477,9 @@ export const UpdateAdminMerchantResponse = zod.object({
   "applicationRequestId": zod.string().max(updateAdminMerchantResponseOneApplicationRequestIdMax).nullable(),
   "applicationSubmittedAt": zod.coerce.date().nullable(),
   "applicationReviewedAt": zod.coerce.date().nullable(),
+  "addressVerificationStatus": zod.enum(['not_required', 'auto_verified', 'manual_review', 'admin_approved']),
+  "addressVerificationReason": zod.string().max(updateAdminMerchantResponseOneAddressVerificationReasonMax).nullable(),
+  "addressVerificationReviewedAt": zod.coerce.date().nullable(),
   "kycStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
   "kycRequestedInfo": zod.string().max(updateAdminMerchantResponseOneKycRequestedInfoMax).nullable(),
   "kybStatus": zod.enum(['not_started', 'pending', 'approved', 'declined', 'in_review', 'expired', 'reverification_required']),
@@ -6662,7 +6765,8 @@ export const ReviewAdminMerchantApplicationResponse = zod.object({
   "applicationStatus": zod.enum(['awaiting_review', 'more_info_required', 'approved', 'declined']),
   "merchantStatus": zod.enum(['pending', 'active', 'suspended', 'closed']),
   "applicationRequestedInfo": zod.string().nullable(),
-  "applicationReviewedAt": zod.coerce.date().nullable()
+  "applicationReviewedAt": zod.coerce.date().nullable(),
+  "addressVerificationStatus": zod.enum(['not_required', 'auto_verified', 'manual_review', 'admin_approved'])
 })
 
 
@@ -6870,7 +6974,7 @@ export const UpdateAdminFxRateResponse = zod.object({
  */
 export const ListAdminProviderCredentialsResponse = zod.object({
   "items": zod.array(zod.object({
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi', 'geoapify']),
   "configured": zod.boolean(),
   "enabled": zod.boolean(),
   "fields": zod.array(zod.object({
@@ -6889,7 +6993,7 @@ export const ListAdminProviderCredentialsResponse = zod.object({
  * @summary Encrypt and save or replace a provider's credentials
  */
 export const SaveAdminProviderCredentialsParams = zod.object({
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi'])
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi', 'geoapify'])
 })
 
 export const SaveAdminProviderCredentialsBody = zod.object({
@@ -6898,7 +7002,7 @@ export const SaveAdminProviderCredentialsBody = zod.object({
 })
 
 export const SaveAdminProviderCredentialsResponse = zod.object({
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi', 'geoapify']),
   "configured": zod.boolean(),
   "enabled": zod.boolean(),
   "fields": zod.array(zod.object({
@@ -6915,7 +7019,7 @@ export const SaveAdminProviderCredentialsResponse = zod.object({
  * @summary Delete stored credentials and disable the selected provider
  */
 export const DeleteAdminProviderCredentialsParams = zod.object({
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi'])
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi', 'geoapify'])
 })
 
 export const DeleteAdminProviderCredentialsResponse = zod.void()

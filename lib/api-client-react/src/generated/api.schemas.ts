@@ -2406,6 +2406,76 @@ export interface AdminApplicationRequestAttachmentUploadIntentInput {
   requestId: string;
 }
 
+export interface AddressGeocodeInput {
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  latitude: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  longitude: number;
+}
+
+export interface AddressGeocodeResult {
+  /**
+     * @minLength 5
+     * @maxLength 500
+     */
+  address: string;
+  /**
+     * @minLength 1
+     * @maxLength 2048
+     */
+  verificationToken: string;
+}
+
+export type AddressVerificationStatus = typeof AddressVerificationStatus[keyof typeof AddressVerificationStatus];
+
+
+export const AddressVerificationStatus = {
+  not_required: 'not_required',
+  auto_verified: 'auto_verified',
+  manual_review: 'manual_review',
+  admin_approved: 'admin_approved',
+} as const;
+
+export type AutomaticAddressVerificationInputMethod = typeof AutomaticAddressVerificationInputMethod[keyof typeof AutomaticAddressVerificationInputMethod];
+
+
+export const AutomaticAddressVerificationInputMethod = {
+  automatic: 'automatic',
+} as const;
+
+export interface AutomaticAddressVerificationInput {
+  method: AutomaticAddressVerificationInputMethod;
+  /**
+     * @minLength 1
+     * @maxLength 2048
+     */
+  proofToken: string;
+}
+
+export type ManualAddressVerificationInputMethod = typeof ManualAddressVerificationInputMethod[keyof typeof ManualAddressVerificationInputMethod];
+
+
+export const ManualAddressVerificationInputMethod = {
+  manual_review: 'manual_review',
+} as const;
+
+export interface ManualAddressVerificationInput {
+  method: ManualAddressVerificationInputMethod;
+  /**
+     * @minLength 5
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export type AddressVerificationSubmission = AutomaticAddressVerificationInput | ManualAddressVerificationInput;
+
 export type BusinessApplicationDetailsBusinessType = typeof BusinessApplicationDetailsBusinessType[keyof typeof BusinessApplicationDetailsBusinessType];
 
 
@@ -2480,6 +2550,7 @@ export interface BusinessApplicationDetails {
 
 export interface ApplicationResubmissionInput {
   application: BusinessApplicationDetails;
+  addressVerification?: AddressVerificationSubmission;
   /**
      * @maxItems 5
      * @items.pattern ^[a-f0-9]{32}$
@@ -2868,6 +2939,14 @@ export interface MerchantProfile {
   applicationSubmittedAt: string | null;
   /** @nullable */
   applicationReviewedAt: string | null;
+  addressVerificationStatus: AddressVerificationStatus;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  addressVerificationReason: string | null;
+  /** @nullable */
+  addressVerificationReviewedAt: string | null;
   kycStatus: MerchantProfileKycStatus;
   /**
      * @maxLength 2000
@@ -3341,6 +3420,7 @@ export interface CreateMerchantInput {
   /** @maxLength 150 */
   registrationNumber?: string;
   application: BusinessApplicationDetails;
+  addressVerification?: AddressVerificationSubmission;
 }
 
 export type ReviewMerchantApplicationRequestDecision = typeof ReviewMerchantApplicationRequestDecision[keyof typeof ReviewMerchantApplicationRequestDecision];
@@ -3398,6 +3478,7 @@ export interface AdminMerchantApplicationReviewResponse {
   applicationRequestedInfo: string | null;
   /** @nullable */
   applicationReviewedAt: string | null;
+  addressVerificationStatus: AddressVerificationStatus;
 }
 
 export type AdminMerchantVerificationRequestInputKind = typeof AdminMerchantVerificationRequestInputKind[keyof typeof AdminMerchantVerificationRequestInputKind];
@@ -4004,6 +4085,7 @@ export const ProviderCredentialProvider = {
   didit: 'didit',
   cloudinary: 'cloudinary',
   currencyapi: 'currencyapi',
+  geoapify: 'geoapify',
 } as const;
 
 export type ProviderCredentialFieldsItem = {

@@ -16,4 +16,5 @@ export const ProviderCredentialProvider = {
   didit: 'didit',
   cloudinary: 'cloudinary',
   currencyapi: 'currencyapi',
+  geoapify: 'geoapify',
 } as const;

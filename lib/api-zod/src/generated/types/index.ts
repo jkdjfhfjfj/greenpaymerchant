@@ -8,6 +8,10 @@
 
 export * from './accessProfile';
 export * from './accessProfileRole';
+export * from './addressGeocodeInput';
+export * from './addressGeocodeResult';
+export * from './addressVerificationStatus';
+export * from './addressVerificationSubmission';
 export * from './adminApplicationRequestAttachmentUploadIntentInput';
 export * from './adminApplicationRequestAttachmentUploadIntentInputContentType';
 export * from './adminAuditEntry';
@@ -72,6 +76,8 @@ export * from './apiKey';
 export * from './apiKeyList';
 export * from './apiKeyScopesItem';
 export * from './applicationResubmissionInput';
+export * from './automaticAddressVerificationInput';
+export * from './automaticAddressVerificationInputMethod';
 export * from './bank';
 export * from './bankList';
 export * from './businessApplicationDetails';
@@ -189,6 +195,8 @@ export * from './listTransactionsParams';
 export * from './listTransactionsStatus';
 export * from './listWebhookEventsParams';
 export * from './listWebhookEventsStatus';
+export * from './manualAddressVerificationInput';
+export * from './manualAddressVerificationInputMethod';
 export * from './merchantActionControls';
 export * from './merchantActionControlsResponse';
 export * from './merchantActionControlsResponseDisabledReasons';

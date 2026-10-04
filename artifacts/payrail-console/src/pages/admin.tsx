@@ -129,8 +129,8 @@ function MerchantsInner() {
     <div className="toolbar"><div className="search-box"><Search size={14} /><input placeholder="Search business name" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-merchant-search" /></div>
       <select value={status} onChange={(e) => setStatus(e.target.value)} data-testid="select-merchant-status"><option value="">Any status</option>{['pending', 'active', 'suspended', 'closed'].map((s) => <option key={s} value={s}>{nice(s)}</option>)}</select>
       <select value={kyc} onChange={(e) => setKyc(e.target.value)} data-testid="select-merchant-kyc"><option value="">Any verification</option>{['not_started', 'pending', 'in_review', 'approved', 'declined', 'expired', 'reverification_required'].map((s) => <option key={s} value={s}>{nice(s)}</option>)}</select></div>
-    <Async q={q} empty={!items.length} emptyTitle="No merchants match" emptyBody="Adjust the search or filters."><div className="table-wrap"><table className="dt"><thead><tr><th>Business</th><th>Country</th><th>Base</th><th>Account</th><th>Application</th><th>Verification</th><th>Created</th><th /></tr></thead><tbody>
-       {items.map((m) => <tr key={m.id} data-testid={`row-merchant-${m.id}`}><td><strong>{m.businessName}</strong><span className="sub">{m.riskNote || m.ownerUserId}</span></td><td>{m.country}</td><td>{m.baseCurrency}</td><td><Pill value={m.status} /></td><td><Pill value={m.applicationStatus} />{m.applicationSubmittedAt && <span className="sub">Submitted {fmtDate(m.applicationSubmittedAt)}</span>}</td><td><Pill value={m.kycStatus} /></td><td>{fmtDate(m.createdAt)}</td><td><div className="row-actions">{m.applicationStatus === 'awaiting_review' && m.applicationDetails && <Btn small onClick={() => setReview(m)}><ShieldCheck size={13} />Review</Btn>}<Btn variant="secondary" small onClick={() => setDetails(m)}><Eye size={13} />Details</Btn><a className="btn btn-secondary btn-sm" href={`/admin/merchants/${m.id}/controls`}>Manage status</a><Btn variant="secondary" small onClick={() => setEdit(m)}><Pencil size={13} />Edit</Btn></div></td></tr>)}
+     <Async q={q} empty={!items.length} emptyTitle="No merchants match" emptyBody="Adjust the search or filters."><div className="table-wrap"><table className="dt"><thead><tr><th>Business</th><th>Country</th><th>Base</th><th>Account</th><th>Application</th><th>Address</th><th>Verification</th><th>Created</th><th /></tr></thead><tbody>
+        {items.map((m) => <tr key={m.id} data-testid={`row-merchant-${m.id}`}><td><strong>{m.businessName}</strong><span className="sub">{m.riskNote || m.ownerUserId}</span></td><td>{m.country}</td><td>{m.baseCurrency}</td><td><Pill value={m.status} /></td><td><Pill value={m.applicationStatus} />{m.applicationSubmittedAt && <span className="sub">Submitted {fmtDate(m.applicationSubmittedAt)}</span>}</td><td><Pill value={m.addressVerificationStatus} /></td><td><Pill value={m.kycStatus} /></td><td>{fmtDate(m.createdAt)}</td><td><div className="row-actions">{m.applicationStatus === 'awaiting_review' && m.applicationDetails && <Btn small onClick={() => setReview(m)}><ShieldCheck size={13} />Review</Btn>}<Btn variant="secondary" small onClick={() => setDetails(m)}><Eye size={13} />Details</Btn><a className="btn btn-secondary btn-sm" href={`/admin/merchants/${m.id}/controls`}>Manage status</a><Btn variant="secondary" small onClick={() => setEdit(m)}><Pencil size={13} />Edit</Btn></div></td></tr>)}
     </tbody></table></div></Async>
     {edit && <MerchantEdit m={edit} onClose={() => setEdit(null)} />}
     {details && <MerchantDetails m={details} onClose={() => setDetails(null)} />}
@@ -246,9 +246,14 @@ function MerchantApplicationReview({ m, onClose }: { m: AdminMerchant; onClose: 
         <div><span>Last reviewed</span><strong>{fmtDate(m.applicationReviewedAt)}</strong></div>
       </div>
       <Card title="Business details">
+        {m.addressVerificationStatus === 'manual_review' && <Note tone="warn">
+          The address was submitted manually. Approving this application also records approval of the address.
+          {m.addressVerificationReason ? ` Applicant note: ${m.addressVerificationReason}` : ''}
+        </Note>}
         <div className="application-review-grid">
           <div><span>Business type</span><strong>{application.businessType.replaceAll('_', ' ')}</strong></div>
           <div><span>Country and base currency</span><strong>{m.country} · {m.baseCurrency}</strong></div>
+          <div><span>Address verification</span><Pill value={m.addressVerificationStatus} /></div>
           <div><span>Registration number</span><strong>{m.registrationNumber || '—'}</strong></div>
           <div><span>Nature of business</span><p>{application.natureOfBusiness}</p></div>
           <div><span>Registered address</span><p>{application.registeredAddress}</p></div>
@@ -352,11 +357,13 @@ function MerchantDetails({ m, onClose }: { m: AdminMerchant; onClose: () => void
           {merchant.applicationDetails ? <div className="form-stack">
             <div className="application-review-grid">
               <div><span>Application status</span><Pill value={merchant.applicationStatus} /></div>
+              <div><span>Address verification</span><Pill value={merchant.addressVerificationStatus} /></div>
               <div><span>Submitted</span><strong>{fmtDate(merchant.applicationSubmittedAt)}</strong></div>
               <div><span>Reviewed</span><strong>{fmtDate(merchant.applicationReviewedAt)}</strong></div>
               <div><span>Business type</span><strong>{merchant.applicationDetails.businessType.replaceAll('_', ' ')}</strong></div>
               <div><span>Nature of business</span><p>{merchant.applicationDetails.natureOfBusiness}</p></div>
               <div><span>Registered address</span><p>{merchant.applicationDetails.registeredAddress}</p></div>
+              {merchant.addressVerificationReason && <div><span>Address review note</span><p>{merchant.addressVerificationReason}</p></div>}
               <div><span>Website</span><strong>{merchant.applicationDetails.website || '—'}</strong></div>
               <div><span>Expected monthly volume</span><strong>{money(merchant.applicationDetails.expectedMonthlyVolume, merchant.applicationDetails.expectedMonthlyVolumeCurrency)} / month</strong></div>
               <div><span>Expected monthly transactions</span><strong>{merchant.applicationDetails.expectedMonthlyTransactions.toLocaleString()}</strong></div>
@@ -739,9 +746,14 @@ const CRED_FIELDS: Record<string, string[]> = {
   currencyapi: ['CURRENCYAPI_API_KEY'],
   didit: ['DIDIT_API_KEY', 'DIDIT_WORKFLOW_ID', 'DIDIT_KYB_WORKFLOW_ID'],
   cloudinary: ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'],
+  geoapify: ['GEOAPIFY_API_KEY'],
 };
 const OPTIONAL = new Set(['DIDIT_WORKFLOW_ID', 'DIDIT_KYB_WORKFLOW_ID']);
-const REQUIRED_HINT: Record<string, string> = { PAYZA_PUBLIC_KEY: 'Required for the existing Payza rail', PAYZA_SECRET_KEY: 'Required for the existing Payza rail' };
+const REQUIRED_HINT: Record<string, string> = {
+  PAYZA_PUBLIC_KEY: 'Required for the existing Payza rail',
+  PAYZA_SECRET_KEY: 'Required for the existing Payza rail',
+  GEOAPIFY_API_KEY: 'Used only by the server for reverse geocoding. Never sent to applicant browsers.',
+};
 const PLAIN = new Set(['PAYZA_PUBLIC_KEY', 'DIDIT_WORKFLOW_ID', 'DIDIT_KYB_WORKFLOW_ID', 'PAYHERO_CHANNEL_ID', 'CLOUDINARY_CLOUD_NAME']);
 
 export function AdminCredentialsPage() { return <G><CredInner /></G>; }
@@ -786,6 +798,8 @@ function CredEdit({ c, onClose }: { c: ProviderCredential; onClose: () => void }
     ? 'Enter the PayHero username and password. The channel ID is still required; leave it blank to keep the saved value.'
     : c.provider === 'didit'
       ? 'KYC sessions use the API key and workflow IDs. Webhook notifications are verified through Didit’s decision API, and the page also polls while open; no webhook secret is needed.'
+      : c.provider === 'geoapify'
+        ? 'Used server-side to look up addresses from device coordinates for unverified merchant applications. The browser never receives this key; address results include Geoapify attribution.'
     : 'Values replace what is stored; blank fields are cleared. Enter every value you want to retain. Existing secrets are never displayed.';
   return <Modal title={`${nice(c.provider)} credentials`} description={description} onClose={onClose}><form className="form-stack" onSubmit={submit} autoComplete="off">
     {names.map((n) => {
@@ -829,7 +843,9 @@ function SettingsInner() {
   const [off, setOff] = useState<string | null>(null);
   const [branding, setBranding] = useState<BrandingFormValues | null>(null);
   const [cloudinaryEdit, setCloudinaryEdit] = useState<ProviderCredential | null>(null);
+  const [geoapifyEdit, setGeoapifyEdit] = useState<ProviderCredential | null>(null);
   const cloudinaryCredential = providerCredentials.data?.items.find((item) => item.provider === 'cloudinary');
+  const geoapifyCredential = providerCredentials.data?.items.find((item) => item.provider === 'geoapify');
   useEffect(() => {
     if (!q.data) return;
     setBranding({
@@ -885,6 +901,26 @@ function SettingsInner() {
               {!cloudinaryCredential && providerCredentials.isError && <Err error={providerCredentials.error} />}
             </div>}
       </Card>
+      <Card title="Device address lookup" subtitle="Geoapify reverse geocoding is used by unverified merchant applications. Applicant pages show the required Geoapify attribution.">
+        {providerCredentials.isLoading ? <span className="sub">Checking address lookup configuration…</span>
+          : providerCredentials.isError ? <Err error={providerCredentials.error} />
+            : <div className="form-stack">
+              {geoapifyCredential?.configured
+                ? <Note>Automatic address lookup is enabled. Applicants can still choose manual review.</Note>
+                : <Note tone="warn">Automatic lookup is unavailable. Applicants can still submit a manual address for review.</Note>}
+              <div className="row-actions">
+                <Btn
+                  variant="secondary"
+                  disabled={!geoapifyCredential}
+                  onClick={() => geoapifyCredential && setGeoapifyEdit(geoapifyCredential)}
+                  testId="button-configure-geoapify"
+                >
+                  <Pencil size={13} />{geoapifyCredential?.configured ? 'Replace Geoapify API key' : 'Configure Geoapify API key'}
+                </Btn>
+                <a className="text-link" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/admin/credentials`}>All provider credentials</a>
+              </div>
+            </div>}
+      </Card>
       <Card title="Platform identity" subtitle="Public details shown across the platform and onboarding.">
         {branding && <form className="form-stack" onSubmit={submitBranding}>
           <Field label="Platform name"><input value={branding.platformName} onChange={(e) => updateBranding('platformName', e.target.value)} required minLength={1} maxLength={100} data-testid="input-platform-name" /></Field>
@@ -921,6 +957,7 @@ function SettingsInner() {
         </form>}
       </Card>
       {cloudinaryEdit && <CredEdit c={cloudinaryEdit} onClose={() => setCloudinaryEdit(null)} />}
+      {geoapifyEdit && <CredEdit c={geoapifyEdit} onClose={() => setGeoapifyEdit(null)} />}
       <Card title="Feature controls" subtitle="Platform-wide switches. Changes apply immediately and are audited.">
         {q.data && SETTINGS.map(([k, t, d]) => <div className="setting-row" key={k}><div><strong>{t}</strong><span>{d}</span></div><Switch on={q.data[k]} label={t} disabled={up.isPending} onChange={(v) => { if (v) up.mutate({ data: { [k]: v } }, { onSuccess: () => { void inv(); } }); else setOff(k); }} /></div>)}
       </Card>

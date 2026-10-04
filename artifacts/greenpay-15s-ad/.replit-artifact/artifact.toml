@@ -1,0 +1,29 @@
+kind = "video"
+videoAspectRatio = "9:16"
+previewPath = "/greenpay-15s-ad/"
+title = "Greenpay 15-second Ad"
+description = "A 15-second vertical TikTok advertisement for Greenpay payment links, merchant API, and confirmed payment records, with accurate market-availability wording."
+version = "1.0.0"
+id = "artifacts/greenpay-15s-ad"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/greenpay-15s-ad/" ]
+localPort = 22831
+
+[services.development]
+run = "pnpm --filter @workspace/greenpay-15s-ad run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/greenpay-15s-ad", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/greenpay-15s-ad/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22831"
+BASE_PATH = "/greenpay-15s-ad/"

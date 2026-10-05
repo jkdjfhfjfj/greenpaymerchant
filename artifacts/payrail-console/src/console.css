@@ -80,6 +80,7 @@ h1,h2,h3,p{margin:0}
 .page-heading{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:20px;flex-wrap:wrap}
 .page-heading h1{font-size:28px;letter-spacing:-.025em;font-weight:700;margin-top:4px}.page-heading p{color:var(--mute);font-size:14px;margin-top:4px;max-width:60ch}
 .panel{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+.airtime-wallet.panel{background:var(--forest);border-color:var(--forest);color:var(--paper)}
 .panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
 .panel-head h2{font-size:15px;font-weight:600}.panel-head p{font-size:12.5px;color:var(--mute);margin-top:2px}
 .panel-link{font-size:12.5px;color:var(--forest);font-weight:600;display:inline-flex;gap:4px;align-items:center}

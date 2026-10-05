@@ -206,7 +206,7 @@ async function payzaHeaders(): Promise<NonNullable<RequestInit["headers"]>> {
   throw new ApiError(503, "The selected payment option is temporarily unavailable.");
 }
 
-async function payheroHeaders(): Promise<NonNullable<RequestInit["headers"]>> {
+export async function payheroHeaders(): Promise<NonNullable<RequestInit["headers"]>> {
   const [username, password, legacyAuth, channel] = await Promise.all([
     providerCredential("payhero", "PAYHERO_USERNAME"),
     providerCredential("payhero", "PAYHERO_PASSWORD"),
@@ -242,7 +242,7 @@ export interface StartPaymentResult {
   paymentUrl: string | null;
 }
 
-function normalizeKenyanPhone(phone: string | null): string {
+export function normalizeKenyanPhone(phone: string | null): string {
   if (!phone) throw new ApiError(400, "A phone number is required for a KES M-Pesa prompt.");
   let digits = phone.replace(/[^\d]/g, "");
   if (digits.startsWith("0") && digits.length === 10) digits = `254${digits.slice(1)}`;

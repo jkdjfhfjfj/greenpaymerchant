@@ -249,6 +249,7 @@ function DeveloperDocsContent({ publicView = false }: { publicView?: boolean }) 
           <span>PLAYGROUND</span>
           <a href="#api-read-playground"><i>09</i>Read-only requests</a>
           <a href="#api-payment-playground"><i>10</i>Payment request</a>
+          <a href="#api-airtime-wallet"><i>11</i>Airtime wallet</a>
         </div>}
       </nav>
 
@@ -269,9 +270,10 @@ Environment: this Greenpay deployment; there is no separate Greenpay sandbox hos
       <section id="api-scopes" className="api-docs-section">
     <Card title="Scopes and available endpoints" subtitle="Keys have least-privilege scopes; all records are restricted to the key's merchant.">
       <div className="table-wrap"><table className="dt"><thead><tr><th>Scope</th><th>Allowed requests</th></tr></thead><tbody>
-        <tr><td><code>read</code></td><td><code>GET /v1/merchant</code>, <code>/v1/payment-links</code>, <code>/v1/transactions</code>, <code>/v1/transactions/:reference</code>, <code>/v1/fx-quote</code>, <code>/v1/fees</code></td></tr>
+        <tr><td><code>read</code></td><td><code>GET /v1/merchant</code>, <code>/v1/payment-links</code>, <code>/v1/transactions</code>, <code>/v1/transactions/:reference</code>, <code>/v1/airtime/wallet</code>, <code>/v1/airtime/purchases</code>, <code>/v1/airtime/purchases/:reference</code>, <code>/v1/fx-quote</code>, <code>/v1/fees</code></td></tr>
         <tr><td><code>payment_links:write</code></td><td><code>POST /v1/payment-links</code> — creates a merchant-owned payment link.</td></tr>
         <tr><td><code>payments:write</code></td><td><code>POST /v1/transactions</code> — starts a payment; requires an <code>Idempotency-Key</code>. <code>POST /v1/transactions/:reference/verify</code> refreshes provider status.</td></tr>
+        <tr><td><code>airtime:write</code></td><td><code>POST /v1/airtime/purchases</code> — buys KES airtime from the separate merchant airtime wallet; requires an <code>Idempotency-Key</code>.</td></tr>
         <tr><td><code>none</code></td><td><code>GET /public/transactions/:reference</code> for customer-safe payment status and <code>GET /public/fx-rates</code> for public USD reference rates; neither requires a bearer key.</td></tr>
       </tbody></table></div>
       <p>Keys are bound to one merchant. The API rejects requests when the key is missing, revoked, lacks the required scope, or the merchant/API feature is inactive. Verification checks do not declare a payment successful unless provider-confirmed reference, amount, and currency evidence matches. The public status endpoint returns only reference, status, amount, currency, timestamps, and the merchant's public shop identity; it does not expose customer contact or internal provider data.</p>
@@ -284,7 +286,8 @@ Environment: this Greenpay deployment; there is no separate Greenpay sandbox hos
         <li>Errors are JSON, generally <code>{'{ "error": "..." }'}</code>. <code>400</code> means invalid input; <code>401</code> missing/invalid key; <code>403</code> inactive access or missing scope; <code>404</code> merchant-owned record not found; <code>409</code> idempotency conflict/in-flight request; <code>429</code> request limit; <code>502</code> upstream confirmation/initiation problem; <code>503</code> disabled or unconfigured service.</li>
         <li>Developer-key requests are limited to 120 requests per key per minute; rate-limited responses include <code>Retry-After</code>. Respect the header and use webhooks instead of frequent polling.</li>
         <li><code>GET /v1/transactions</code> accepts <code>page</code> (default 1) and <code>perPage</code> (default 25, maximum 100); its response contains <code>items</code>, <code>total</code>, <code>page</code>, and <code>perPage</code>. Payment-link lists are returned as <code>items</code>.</li>
-        <li>Use an 8–128 character <code>Idempotency-Key</code> for every payment creation. Reuse it only for the same logical request: matching completed requests replay the saved result, changed payloads conflict, and uncertain requests must be reconciled before retrying with a new key.</li>
+        <li>Use an 8–128 character <code>Idempotency-Key</code> for every payment or airtime purchase. Reuse it only for the same logical request: matching requests replay the saved result, changed payloads conflict, and uncertain money-moving requests must be reconciled before retrying with a new key.</li>
+        <li>Airtime purchases with <code>pending</code> or <code>unknown</code> status keep the requested amount reserved. Read the purchase by its reference and do not submit it again until its result is confirmed.</li>
         <li><code>GET /public/transactions/:reference</code> does not require authentication and returns <code>pending</code>, <code>success</code>, <code>failed</code>, <code>cancelled</code>, or <code>refunded</code>. A pending lookup may ask the provider for an updated status, so use signed webhooks rather than rapid polling.</li>
         <li><code>POST /v1/payment-links</code> creates a shareable link but does not itself charge a customer. The response includes its shareable public <code>url</code>.</li>
       </ul>
@@ -319,6 +322,31 @@ curl "${docsOrigin}${API_ORIGIN}/v1/merchant" \\
 # Customer-safe status lookup; no API key required
 curl "${docsOrigin}${API_ORIGIN}/public/transactions/TRANSACTION_REFERENCE"`}</pre>
         <p>Use <code>GET /public/transactions/:reference</code> to display customer-safe status, or <code>GET /v1/transactions/:reference</code> with the <code>read</code> scope for merchant details. Greenpay has no separate public sandbox hostname: a payment-creation request can start a real collection. Use the read-only checks above for connectivity, and only run end-to-end payment tests after confirming the currency route is configured for test mode.</p>
+      </div>
+    </Card>
+      </section>
+
+      <section id="api-airtime-wallet" className="api-docs-section">
+    <Card title="Use the separate KES airtime wallet" subtitle="Airtime funds are separate from payment and settlement wallet balances.">
+      <div className="form-stack">
+        <p>Merchants fund the airtime wallet from the merchant console with a PayHero M-Pesa prompt. The wallet is credited only after PayHero confirms the reference, amount, and KES currency. API keys can read its balance and purchase airtime; they cannot initiate wallet top-ups.</p>
+        <p>Create an API key with <code>read</code> to inspect the wallet and purchase status. Add <code>airtime:write</code> only to keys that should spend the airtime balance. The request amount is a whole number of Kenyan shillings and the recipient must be a Kenyan mobile number.</p>
+        <pre className="code">{`# Read wallet balance (read scope)
+GET ${docsOrigin}${API_ORIGIN}/v1/airtime/wallet
+Authorization: Bearer $GREENPAY_API_KEY
+
+# Buy KES 100 airtime (airtime:write scope)
+POST ${docsOrigin}${API_ORIGIN}/v1/airtime/purchases
+Authorization: Bearer $GREENPAY_API_KEY
+Idempotency-Key: airtime-order-1042-attempt-1
+Content-Type: application/json
+
+{"phoneNumber":"254712345678","amount":100}
+
+# Reconcile the saved result (read scope)
+GET ${docsOrigin}${API_ORIGIN}/v1/airtime/purchases/AIRTIME_REFERENCE
+Authorization: Bearer $GREENPAY_API_KEY`}</pre>
+        <p>The purchase response includes its Greenpay reference, status, and final Statum charge when confirmed. If a request is <code>pending</code> or <code>unknown</code>, its funds remain reserved. Reuse the same idempotency key for a retry of that exact request; do not create a new key to repeat an uncertain purchase.</p>
       </div>
     </Card>
       </section>
@@ -449,6 +477,19 @@ curl "${docsOrigin}/api/v1/fx-quote?amount=100&from=USD&to=KES" \\
   -H "Content-Type: application/json" \\
   -d '{"name":"Invoice 1042","amountType":"fixed","amount":10,"currency":"USD","description":"Invoice 1042"}'`}</pre>
         <p>Use <code>amountType: "customer_choice"</code> when the customer chooses the amount; omit <code>amount</code> in that case. The response includes the shareable link URL.</p>
+        <h3>Read and purchase airtime</h3>
+        <pre className="code">{`curl "${docsOrigin}/api/v1/airtime/wallet" \\
+  -H "Authorization: Bearer $GREENPAY_API_KEY"
+
+curl -X POST "${docsOrigin}/api/v1/airtime/purchases" \\
+  -H "Authorization: Bearer $GREENPAY_API_KEY" \\
+  -H "Idempotency-Key: airtime-order-1042-attempt-1" \\
+  -H "Content-Type: application/json" \\
+  -d '{"phoneNumber":"254712345678","amount":100}'
+
+curl "${docsOrigin}/api/v1/airtime/purchases/AIRTIME_REFERENCE" \\
+  -H "Authorization: Bearer $GREENPAY_API_KEY"`}</pre>
+        <p>The key needs <code>read</code> for balance and status requests and <code>airtime:write</code> to purchase. Uncertain purchases remain reserved; check the saved reference rather than submitting them again with a new idempotency key.</p>
         <h3>Check payment status after checkout</h3>
         <pre className="code">{`curl "${docsOrigin}/api/public/transactions/TRANSACTION_REFERENCE"`}</pre>
         <p>This public endpoint needs no API key and returns a customer-safe status payload. It may refresh pending provider status; prefer the signed webhook flow above for ongoing updates.</p>

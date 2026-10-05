@@ -19,6 +19,9 @@ const ENV_ALIASES: Record<string, string[]> = {
   CLOUDINARY_CLOUD_NAME: ["CLOUDINARY_CLOUD_NAME"],
   CLOUDINARY_API_KEY: ["CLOUDINARY_API_KEY"],
   CLOUDINARY_API_SECRET: ["CLOUDINARY_API_SECRET"],
+  STATUM_CONSUMER_KEY: ["STATUM_CONSUMER_KEY"],
+  STATUM_CONSUMER_SECRET: ["STATUM_CONSUMER_SECRET"],
+  STATUM_CALLBACK_TOKEN: ["STATUM_CALLBACK_TOKEN"],
 };
 
 export async function providerCredential(provider: string, key: string): Promise<string | null> {
@@ -52,6 +55,7 @@ export function providerCredentialFields(provider: string): string[] {
     case "currencyapi": return ["CURRENCYAPI_API_KEY"];
     case "geoapify": return ["GEOAPIFY_API_KEY"];
     case "cloudinary": return ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"];
+    case "statum": return ["STATUM_CONSUMER_KEY", "STATUM_CONSUMER_SECRET", "STATUM_CALLBACK_TOKEN"];
     default: return [];
   }
 }

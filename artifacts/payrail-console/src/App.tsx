@@ -8,7 +8,7 @@ import {
   Bell, Check, CheckCircle2, ChevronDown, CircleAlert, CircleHelp, Clock3, Copy, CreditCard,
   ExternalLink, FileClock, Filter, Globe2, Headphones, KeyRound, LayoutDashboard, Link2,
   LoaderCircle, LockKeyhole, LogOut, Menu, MoreHorizontal, Plus, Radio, RefreshCw, Search,
-  Send, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, WalletCards, Webhook, X,
+  Phone, Send, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, WalletCards, Webhook, X,
 } from 'lucide-react';
 import {
   useGetDashboard, useListTransactions, useCreateTransaction, useGetTransaction,
@@ -44,6 +44,7 @@ import { InvoicePage, InvoiceDetailPage, StatementsPage, CasesPage, AdminCasesPa
 import { MerchantTeamPage, AcceptTeamInvitePage } from '@/pages/team';
 import { MerchantDashboardPage, MerchantPage, KycPage, MerchantLinksPage, MerchantTransactionsPage, MerchantPayoutsPage } from '@/pages/merchant';
 import { MerchantAnalyticsPage } from '@/pages/merchant-analytics';
+import { MerchantAirtimePage } from '@/pages/airtime';
 import { DevelopersPage, ExchangePage } from '@/pages/developers';
 import { StatusPage, AuthSetupScreen } from '@/pages/status';
 import { AdminSummaryPage, AdminMerchantsPage, AdminMerchantControlsPage, AdminFeesPage, AdminExchangePage, AdminCredentialsPage, AdminSettingsPage, AdminAuditPage, AdminPlatformAdminsPage } from '@/pages/admin';
@@ -141,6 +142,7 @@ const navSections: { title: string; items: NavItem[] }[] = [
     { label: 'My links', href: '/merchant/payment-links', icon: Link2 },
     { label: 'My transactions', href: '/merchant/transactions', icon: ArrowDownLeft },
     { label: 'My payouts', href: '/merchant/payouts', icon: Send },
+    { label: 'Airtime wallet', href: '/merchant/airtime', icon: Phone },
     { label: 'Wallets & conversion', href: '/wallets', icon: Banknote },
     { label: 'Payout requests', href: '/payout-requests', icon: Send },
     { label: 'Invoices', href: '/invoices', icon: FileClock },
@@ -198,6 +200,7 @@ const pageInfo: Record<string, { title: string; subtitle: string }> = {
   '/merchant': { title: 'Merchant profile', subtitle: '' }, '/merchant/kyc': { title: 'Verification', subtitle: '' },
   '/merchant/analytics': { title: 'Collection analytics', subtitle: '' },
   '/merchant/dashboard': { title: 'Overview', subtitle: 'A clear view of collections and links for your business.' },
+  '/merchant/airtime': { title: 'Airtime wallet', subtitle: '' },
   '/merchant/payment-links': { title: 'My payment links', subtitle: '' }, '/merchant/transactions': { title: 'My transactions', subtitle: '' }, '/merchant/payouts': { title: 'Payout activity', subtitle: '' },
   '/developers': { title: 'API access', subtitle: '' }, '/exchange': { title: 'Exchange quotes', subtitle: '' },
   '/admin': { title: 'Admin summary', subtitle: '' }, '/admin/merchants': { title: 'Merchants', subtitle: '' }, '/admin/fees': { title: 'Fees', subtitle: '' },
@@ -1047,7 +1050,7 @@ const wrap = (C: () => ReactNode, requireLegalAcceptance = true) => () => {
 const protectedRoutes: [string, () => ReactNode][] = [
   ['/admin/merchants/:merchantId/controls', AdminMerchantControlsPage],
   ['/admin/email-delivery', AdminEmailDeliveryPage], ['/admin/content', AdminContentPage], ['/admin/legal-policies', AdminLegalPoliciesPage],
-  ['/merchant/dashboard', MerchantDashboardPage], ['/merchant/new', () => <MerchantPage addBusiness />], ['/merchant', () => <MerchantPage />], ['/merchant/analytics', MerchantAnalyticsPage], ['/merchant/kyc', KycPage], ['/merchant/payment-links', MerchantLinksPage], ['/merchant/transactions', MerchantTransactionsPage], ['/merchant/payouts', MerchantPayoutsPage],
+  ['/merchant/dashboard', MerchantDashboardPage], ['/merchant/new', () => <MerchantPage addBusiness />], ['/merchant', () => <MerchantPage />], ['/merchant/analytics', MerchantAnalyticsPage], ['/merchant/kyc', KycPage], ['/merchant/payment-links', MerchantLinksPage], ['/merchant/transactions', MerchantTransactionsPage], ['/merchant/payouts', MerchantPayoutsPage], ['/merchant/airtime', MerchantAirtimePage],
   ['/developers', DevelopersPage], ['/exchange', ExchangePage], ['/admin', AdminSummaryPage], ['/admin/merchants', AdminMerchantsPage], ['/admin/fees', AdminFeesPage],
   ['/admin/exchange', AdminExchangePage], ['/admin/credentials', AdminCredentialsPage], ['/admin/settings', AdminSettingsPage], ['/admin/audit', AdminAuditPage],
   ['/admin/administrators', AdminPlatformAdminsPage],

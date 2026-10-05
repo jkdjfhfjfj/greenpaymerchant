@@ -58,6 +58,13 @@ import type {
   AdminWalletAdjustmentRequest,
   AdminWalletAdjustmentResponse,
   AdminWalletList,
+  AirtimePurchase,
+  AirtimePurchaseInput,
+  AirtimePurchaseList,
+  AirtimePurchaseResponse,
+  AirtimeTopupInput,
+  AirtimeTopupResponse,
+  AirtimeWallet,
   ApiKeyList,
   ApplicationAttachmentUploadCommitInput,
   ApplicationResubmissionInput,
@@ -134,6 +141,7 @@ import type {
   ListWebhookEventsParams,
   MerchantActionControlsResponse,
   MerchantAddressSuggestionsResponse,
+  MerchantAirtimeDashboard,
   MerchantApiKeySecret,
   MerchantApplicationAttachmentList,
   MerchantApplicationAttachmentUploadIntent,
@@ -195,6 +203,7 @@ import type {
   PublicPricingResponse,
   PublicReceipt,
   PublicTransactionStatus,
+  ReceiveStatumAirtimeCallbackParams,
   Refund,
   RefundInput,
   Reminder,
@@ -206,6 +215,8 @@ import type {
   SetAdminMerchantStatusRequest,
   SettlementList,
   Statement,
+  StatumAccount,
+  StatumAirtimeCallback,
   SupportCase,
   SupportMessage,
   SupportMessageInput,
@@ -11712,6 +11723,751 @@ export function useListPublicFxRates<TData = Awaited<ReturnType<typeof listPubli
 
 
 
+export const getGetMerchantAirtimeDashboardUrl = () => {
+
+
+
+
+  return `/api/merchant/airtime`
+}
+
+/**
+ * @summary Read the merchant's separate KES airtime wallet and recent activity
+ */
+export const getMerchantAirtimeDashboard = async ( options?: Parameters<typeof customFetch>[1]): Promise<MerchantAirtimeDashboard> => {
+
+  return customFetch<MerchantAirtimeDashboard>(getGetMerchantAirtimeDashboardUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMerchantAirtimeDashboardQueryKey = () => {
+    return [
+    `/api/merchant/airtime`
+    ] as const;
+    }
+
+
+export const getGetMerchantAirtimeDashboardQueryOptions = <TData = Awaited<ReturnType<typeof getMerchantAirtimeDashboard>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMerchantAirtimeDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMerchantAirtimeDashboardQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMerchantAirtimeDashboard>>> = ({ signal }) => getMerchantAirtimeDashboard({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMerchantAirtimeDashboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMerchantAirtimeDashboardQueryResult = NonNullable<Awaited<ReturnType<typeof getMerchantAirtimeDashboard>>>
+export type GetMerchantAirtimeDashboardQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Read the merchant's separate KES airtime wallet and recent activity
+ */
+
+export function useGetMerchantAirtimeDashboard<TData = Awaited<ReturnType<typeof getMerchantAirtimeDashboard>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMerchantAirtimeDashboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMerchantAirtimeDashboardQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateMerchantAirtimeTopupUrl = () => {
+
+
+
+
+  return `/api/merchant/airtime/topups`
+}
+
+/**
+ * @summary Start a PayHero mobile-money prompt to fund the airtime wallet
+ */
+export const createMerchantAirtimeTopup = async (airtimeTopupInput: AirtimeTopupInput, options?: Parameters<typeof customFetch>[1]): Promise<AirtimeTopupResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AirtimeTopupResponse>(getCreateMerchantAirtimeTopupUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(airtimeTopupInput)
+  }
+);}
+
+
+
+
+
+export const getCreateMerchantAirtimeTopupMutationKey = () => ['createMerchantAirtimeTopup'] as const;
+
+export const getCreateMerchantAirtimeTopupMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMerchantAirtimeTopup>>, TError,CreateMerchantAirtimeTopupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMerchantAirtimeTopup>>, TError,CreateMerchantAirtimeTopupMutationVariables, TContext> => {
+
+const mutationKey = getCreateMerchantAirtimeTopupMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMerchantAirtimeTopup>>, CreateMerchantAirtimeTopupMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createMerchantAirtimeTopup(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMerchantAirtimeTopupMutationResult = NonNullable<Awaited<ReturnType<typeof createMerchantAirtimeTopup>>>
+    export type CreateMerchantAirtimeTopupMutationBody = BodyType<AirtimeTopupInput>
+    export type CreateMerchantAirtimeTopupMutationError = ErrorType<void>
+    export type CreateMerchantAirtimeTopupMutationVariables = {data: BodyType<AirtimeTopupInput>}
+
+    /**
+ * @summary Start a PayHero mobile-money prompt to fund the airtime wallet
+ */
+export const useCreateMerchantAirtimeTopup = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMerchantAirtimeTopup>>, TError,CreateMerchantAirtimeTopupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMerchantAirtimeTopup>>,
+        TError,
+        CreateMerchantAirtimeTopupMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateMerchantAirtimeTopupMutationOptions(options));
+    }
+
+export const getCreateMerchantAirtimePurchaseUrl = () => {
+
+
+
+
+  return `/api/merchant/airtime/purchases`
+}
+
+/**
+ * @summary Buy airtime manually from the merchant console
+ */
+export const createMerchantAirtimePurchase = async (airtimePurchaseInput: AirtimePurchaseInput, options?: Parameters<typeof customFetch>[1]): Promise<AirtimePurchaseResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AirtimePurchaseResponse>(getCreateMerchantAirtimePurchaseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(airtimePurchaseInput)
+  }
+);}
+
+
+
+
+
+export const getCreateMerchantAirtimePurchaseMutationKey = () => ['createMerchantAirtimePurchase'] as const;
+
+export const getCreateMerchantAirtimePurchaseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMerchantAirtimePurchase>>, TError,CreateMerchantAirtimePurchaseMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMerchantAirtimePurchase>>, TError,CreateMerchantAirtimePurchaseMutationVariables, TContext> => {
+
+const mutationKey = getCreateMerchantAirtimePurchaseMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMerchantAirtimePurchase>>, CreateMerchantAirtimePurchaseMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createMerchantAirtimePurchase(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMerchantAirtimePurchaseMutationResult = NonNullable<Awaited<ReturnType<typeof createMerchantAirtimePurchase>>>
+    export type CreateMerchantAirtimePurchaseMutationBody = BodyType<AirtimePurchaseInput>
+    export type CreateMerchantAirtimePurchaseMutationError = ErrorType<void>
+    export type CreateMerchantAirtimePurchaseMutationVariables = {data: BodyType<AirtimePurchaseInput>}
+
+    /**
+ * @summary Buy airtime manually from the merchant console
+ */
+export const useCreateMerchantAirtimePurchase = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMerchantAirtimePurchase>>, TError,CreateMerchantAirtimePurchaseMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMerchantAirtimePurchase>>,
+        TError,
+        CreateMerchantAirtimePurchaseMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateMerchantAirtimePurchaseMutationOptions(options));
+    }
+
+export const getGetDeveloperAirtimeWalletUrl = () => {
+
+
+
+
+  return `/api/v1/airtime/wallet`
+}
+
+/**
+ * @summary Read the API key merchant's separate KES airtime wallet
+ */
+export const getDeveloperAirtimeWallet = async ( options?: Parameters<typeof customFetch>[1]): Promise<AirtimeWallet> => {
+
+  return customFetch<AirtimeWallet>(getGetDeveloperAirtimeWalletUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDeveloperAirtimeWalletQueryKey = () => {
+    return [
+    `/api/v1/airtime/wallet`
+    ] as const;
+    }
+
+
+export const getGetDeveloperAirtimeWalletQueryOptions = <TData = Awaited<ReturnType<typeof getDeveloperAirtimeWallet>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDeveloperAirtimeWallet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDeveloperAirtimeWalletQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDeveloperAirtimeWallet>>> = ({ signal }) => getDeveloperAirtimeWallet({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDeveloperAirtimeWallet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDeveloperAirtimeWalletQueryResult = NonNullable<Awaited<ReturnType<typeof getDeveloperAirtimeWallet>>>
+export type GetDeveloperAirtimeWalletQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Read the API key merchant's separate KES airtime wallet
+ */
+
+export function useGetDeveloperAirtimeWallet<TData = Awaited<ReturnType<typeof getDeveloperAirtimeWallet>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDeveloperAirtimeWallet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDeveloperAirtimeWalletQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListDeveloperAirtimePurchasesUrl = () => {
+
+
+
+
+  return `/api/v1/airtime/purchases`
+}
+
+/**
+ * @summary List recent airtime purchases for this merchant
+ */
+export const listDeveloperAirtimePurchases = async ( options?: Parameters<typeof customFetch>[1]): Promise<AirtimePurchaseList> => {
+
+  return customFetch<AirtimePurchaseList>(getListDeveloperAirtimePurchasesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDeveloperAirtimePurchasesQueryKey = () => {
+    return [
+    `/api/v1/airtime/purchases`
+    ] as const;
+    }
+
+
+export const getListDeveloperAirtimePurchasesQueryOptions = <TData = Awaited<ReturnType<typeof listDeveloperAirtimePurchases>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDeveloperAirtimePurchases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDeveloperAirtimePurchasesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDeveloperAirtimePurchases>>> = ({ signal }) => listDeveloperAirtimePurchases({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDeveloperAirtimePurchases>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDeveloperAirtimePurchasesQueryResult = NonNullable<Awaited<ReturnType<typeof listDeveloperAirtimePurchases>>>
+export type ListDeveloperAirtimePurchasesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List recent airtime purchases for this merchant
+ */
+
+export function useListDeveloperAirtimePurchases<TData = Awaited<ReturnType<typeof listDeveloperAirtimePurchases>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDeveloperAirtimePurchases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDeveloperAirtimePurchasesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateDeveloperAirtimePurchaseUrl = () => {
+
+
+
+
+  return `/api/v1/airtime/purchases`
+}
+
+/**
+ * @summary Purchase KES airtime using the merchant airtime wallet
+ */
+export const createDeveloperAirtimePurchase = async (airtimePurchaseInput: AirtimePurchaseInput, options?: Parameters<typeof customFetch>[1]): Promise<AirtimePurchaseResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AirtimePurchaseResponse>(getCreateDeveloperAirtimePurchaseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(airtimePurchaseInput)
+  }
+);}
+
+
+
+
+
+export const getCreateDeveloperAirtimePurchaseMutationKey = () => ['createDeveloperAirtimePurchase'] as const;
+
+export const getCreateDeveloperAirtimePurchaseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDeveloperAirtimePurchase>>, TError,CreateDeveloperAirtimePurchaseMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createDeveloperAirtimePurchase>>, TError,CreateDeveloperAirtimePurchaseMutationVariables, TContext> => {
+
+const mutationKey = getCreateDeveloperAirtimePurchaseMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createDeveloperAirtimePurchase>>, CreateDeveloperAirtimePurchaseMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createDeveloperAirtimePurchase(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateDeveloperAirtimePurchaseMutationResult = NonNullable<Awaited<ReturnType<typeof createDeveloperAirtimePurchase>>>
+    export type CreateDeveloperAirtimePurchaseMutationBody = BodyType<AirtimePurchaseInput>
+    export type CreateDeveloperAirtimePurchaseMutationError = ErrorType<void>
+    export type CreateDeveloperAirtimePurchaseMutationVariables = {data: BodyType<AirtimePurchaseInput>}
+
+    /**
+ * @summary Purchase KES airtime using the merchant airtime wallet
+ */
+export const useCreateDeveloperAirtimePurchase = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDeveloperAirtimePurchase>>, TError,CreateDeveloperAirtimePurchaseMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createDeveloperAirtimePurchase>>,
+        TError,
+        CreateDeveloperAirtimePurchaseMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateDeveloperAirtimePurchaseMutationOptions(options));
+    }
+
+export const getGetDeveloperAirtimePurchaseUrl = (reference: string,) => {
+
+
+
+
+  return `/api/v1/airtime/purchases/${reference}`
+}
+
+/**
+ * @summary Read an airtime purchase belonging to the API key's merchant
+ */
+export const getDeveloperAirtimePurchase = async (reference: string, options?: Parameters<typeof customFetch>[1]): Promise<AirtimePurchase> => {
+
+  return customFetch<AirtimePurchase>(getGetDeveloperAirtimePurchaseUrl(reference),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDeveloperAirtimePurchaseQueryKey = (reference: string,) => {
+    return [
+    `/api/v1/airtime/purchases/${reference}`
+    ] as const;
+    }
+
+
+export const getGetDeveloperAirtimePurchaseQueryOptions = <TData = Awaited<ReturnType<typeof getDeveloperAirtimePurchase>>, TError = ErrorType<void>>(reference: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDeveloperAirtimePurchase>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDeveloperAirtimePurchaseQueryKey(reference);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDeveloperAirtimePurchase>>> = ({ signal }) => getDeveloperAirtimePurchase(reference, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: reference !== null && reference !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDeveloperAirtimePurchase>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDeveloperAirtimePurchaseQueryResult = NonNullable<Awaited<ReturnType<typeof getDeveloperAirtimePurchase>>>
+export type GetDeveloperAirtimePurchaseQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read an airtime purchase belonging to the API key's merchant
+ */
+
+export function useGetDeveloperAirtimePurchase<TData = Awaited<ReturnType<typeof getDeveloperAirtimePurchase>>, TError = ErrorType<void>>(
+ reference: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDeveloperAirtimePurchase>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDeveloperAirtimePurchaseQueryOptions(reference,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminStatumAccountUrl = () => {
+
+
+
+
+  return `/api/admin/airtime/statum-account`
+}
+
+/**
+ * @summary Read the platform Statum airtime balance and funding details
+ */
+export const getAdminStatumAccount = async ( options?: Parameters<typeof customFetch>[1]): Promise<StatumAccount> => {
+
+  return customFetch<StatumAccount>(getGetAdminStatumAccountUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminStatumAccountQueryKey = () => {
+    return [
+    `/api/admin/airtime/statum-account`
+    ] as const;
+    }
+
+
+export const getGetAdminStatumAccountQueryOptions = <TData = Awaited<ReturnType<typeof getAdminStatumAccount>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminStatumAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminStatumAccountQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminStatumAccount>>> = ({ signal }) => getAdminStatumAccount({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminStatumAccount>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminStatumAccountQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminStatumAccount>>>
+export type GetAdminStatumAccountQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read the platform Statum airtime balance and funding details
+ */
+
+export function useGetAdminStatumAccount<TData = Awaited<ReturnType<typeof getAdminStatumAccount>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminStatumAccount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminStatumAccountQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReceiveStatumAirtimeCallbackUrl = (params: ReceiveStatumAirtimeCallbackParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/webhooks/statum?${stringifiedParams}` : `/api/webhooks/statum`
+}
+
+/**
+ * @summary Receive Statum's asynchronous airtime result
+ */
+export const receiveStatumAirtimeCallback = async (statumAirtimeCallback: StatumAirtimeCallback,
+    params: ReceiveStatumAirtimeCallbackParams, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<void>(getReceiveStatumAirtimeCallbackUrl(params),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(statumAirtimeCallback)
+  }
+);}
+
+
+
+
+
+export const getReceiveStatumAirtimeCallbackMutationKey = () => ['receiveStatumAirtimeCallback'] as const;
+
+export const getReceiveStatumAirtimeCallbackMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveStatumAirtimeCallback>>, TError,ReceiveStatumAirtimeCallbackMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof receiveStatumAirtimeCallback>>, TError,ReceiveStatumAirtimeCallbackMutationVariables, TContext> => {
+
+const mutationKey = getReceiveStatumAirtimeCallbackMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof receiveStatumAirtimeCallback>>, ReceiveStatumAirtimeCallbackMutationVariables> = (props) => {
+          const {data,params} = props ?? {};
+
+          return  receiveStatumAirtimeCallback(data,params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReceiveStatumAirtimeCallbackMutationResult = NonNullable<Awaited<ReturnType<typeof receiveStatumAirtimeCallback>>>
+    export type ReceiveStatumAirtimeCallbackMutationBody = BodyType<StatumAirtimeCallback>
+    export type ReceiveStatumAirtimeCallbackMutationError = ErrorType<void>
+    export type ReceiveStatumAirtimeCallbackMutationVariables = {data: BodyType<StatumAirtimeCallback>;params: ReceiveStatumAirtimeCallbackParams}
+
+    /**
+ * @summary Receive Statum's asynchronous airtime result
+ */
+export const useReceiveStatumAirtimeCallback = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveStatumAirtimeCallback>>, TError,ReceiveStatumAirtimeCallbackMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof receiveStatumAirtimeCallback>>,
+        TError,
+        ReceiveStatumAirtimeCallbackMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReceiveStatumAirtimeCallbackMutationOptions(options));
+    }
+
 export const getGetDeveloperMerchantUrl = () => {
 
 
@@ -14442,7 +15198,7 @@ export function useListAdminProviderCredentials<TData = Awaited<ReturnType<typeo
 
 
 
-export const getSaveAdminProviderCredentialsUrl = (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify',) => {
+export const getSaveAdminProviderCredentialsUrl = (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify' | 'statum',) => {
 
 
 
@@ -14453,7 +15209,7 @@ export const getSaveAdminProviderCredentialsUrl = (provider: 'paystack' | 'payhe
 /**
  * @summary Encrypt and save or replace a provider's credentials
  */
-export const saveAdminProviderCredentials = async (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify',
+export const saveAdminProviderCredentials = async (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify' | 'statum',
     saveProviderCredentialsInput: SaveProviderCredentialsInput, options?: Parameters<typeof customFetch>[1]): Promise<ProviderCredential> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
@@ -14515,7 +15271,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SaveAdminProviderCredentialsMutationResult = NonNullable<Awaited<ReturnType<typeof saveAdminProviderCredentials>>>
     export type SaveAdminProviderCredentialsMutationBody = BodyType<SaveProviderCredentialsInput>
     export type SaveAdminProviderCredentialsMutationError = ErrorType<unknown>
-    export type SaveAdminProviderCredentialsMutationVariables = {provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify';data: BodyType<SaveProviderCredentialsInput>}
+    export type SaveAdminProviderCredentialsMutationVariables = {provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify' | 'statum';data: BodyType<SaveProviderCredentialsInput>}
 
     /**
  * @summary Encrypt and save or replace a provider's credentials
@@ -14531,7 +15287,7 @@ export const useSaveAdminProviderCredentials = <TError = ErrorType<unknown>,
       return useMutation(getSaveAdminProviderCredentialsMutationOptions(options));
     }
 
-export const getDeleteAdminProviderCredentialsUrl = (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify',) => {
+export const getDeleteAdminProviderCredentialsUrl = (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify' | 'statum',) => {
 
 
 
@@ -14542,7 +15298,7 @@ export const getDeleteAdminProviderCredentialsUrl = (provider: 'paystack' | 'pay
 /**
  * @summary Delete stored credentials and disable the selected provider
  */
-export const deleteAdminProviderCredentials = async (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify', options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+export const deleteAdminProviderCredentials = async (provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify' | 'statum', options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
   return customFetch<void>(getDeleteAdminProviderCredentialsUrl(provider),
   {
@@ -14589,7 +15345,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type DeleteAdminProviderCredentialsMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminProviderCredentials>>>
 
     export type DeleteAdminProviderCredentialsMutationError = ErrorType<unknown>
-    export type DeleteAdminProviderCredentialsMutationVariables = {provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify'}
+    export type DeleteAdminProviderCredentialsMutationVariables = {provider: 'paystack' | 'payhero' | 'payzaapi' | 'didit' | 'cloudinary' | 'currencyapi' | 'geoapify' | 'statum'}
 
     /**
  * @summary Delete stored credentials and disable the selected provider

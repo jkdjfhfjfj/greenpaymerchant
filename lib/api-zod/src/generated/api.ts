@@ -5133,7 +5133,7 @@ export const ListMerchantApiKeysResponse = zod.object({
   "name": zod.string(),
   "prefix": zod.string(),
   "secretRecoverable": zod.boolean().describe('Whether an encrypted copy is available for explicit retrieval. The key secret itself is never included in list responses.'),
-  "scopes": zod.array(zod.enum(['read', 'payment_links:write', 'payments:write'])),
+  "scopes": zod.array(zod.enum(['read', 'payment_links:write', 'payments:write', 'airtime:write'])),
   "createdAt": zod.coerce.date(),
   "lastUsedAt": zod.coerce.date().nullish(),
   "revokedAt": zod.coerce.date().nullish()
@@ -5152,7 +5152,7 @@ export const createMerchantApiKeyBodyNameMax = 100;
 
 export const CreateMerchantApiKeyBody = zod.object({
   "name": zod.string().min(createMerchantApiKeyBodyNameMin).max(createMerchantApiKeyBodyNameMax),
-  "scopes": zod.array(zod.enum(['read', 'payment_links:write', 'payments:write'])).min(1)
+  "scopes": zod.array(zod.enum(['read', 'payment_links:write', 'payments:write', 'airtime:write'])).min(1)
 })
 
 export const CreateMerchantApiKeyResponse = zod.object({
@@ -5161,7 +5161,7 @@ export const CreateMerchantApiKeyResponse = zod.object({
   "name": zod.string(),
   "prefix": zod.string(),
   "secretRecoverable": zod.boolean().describe('Whether an encrypted copy is available for explicit retrieval. The key secret itself is never included in list responses.'),
-  "scopes": zod.array(zod.enum(['read', 'payment_links:write', 'payments:write'])),
+  "scopes": zod.array(zod.enum(['read', 'payment_links:write', 'payments:write', 'airtime:write'])),
   "createdAt": zod.coerce.date(),
   "lastUsedAt": zod.coerce.date().nullish(),
   "revokedAt": zod.coerce.date().nullish()
@@ -5455,6 +5455,294 @@ export const ListPublicFxRatesResponse = zod.object({
   "expiresAt": zod.coerce.date()
 }))
 })
+
+
+/**
+ * @summary Read the merchant's separate KES airtime wallet and recent activity
+ */
+export const getMerchantAirtimeDashboardResponseWalletAvailableBalanceMin = 0;
+
+export const getMerchantAirtimeDashboardResponseWalletReservedBalanceMin = 0;
+
+
+
+export const getMerchantAirtimeDashboardResponsePurchasesItemChargeMin = 0;
+
+
+
+export const GetMerchantAirtimeDashboardResponse = zod.object({
+  "wallet": zod.object({
+  "currency": zod.enum(['KES']),
+  "availableBalance": zod.number().min(getMerchantAirtimeDashboardResponseWalletAvailableBalanceMin),
+  "reservedBalance": zod.number().min(getMerchantAirtimeDashboardResponseWalletReservedBalanceMin),
+  "updatedAt": zod.coerce.date()
+}),
+  "topups": zod.array(zod.object({
+  "reference": zod.string(),
+  "phoneNumber": zod.string(),
+  "amount": zod.number().min(1),
+  "status": zod.enum(['initiating', 'pending', 'unknown', 'succeeded', 'failed']),
+  "providerReference": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})),
+  "purchases": zod.array(zod.object({
+  "reference": zod.string(),
+  "phoneNumber": zod.string(),
+  "amount": zod.number().min(1),
+  "charge": zod.number().min(getMerchantAirtimeDashboardResponsePurchasesItemChargeMin).nullable(),
+  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']),
+  "providerRequestId": zod.string().nullable(),
+  "resultDescription": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Start a PayHero mobile-money prompt to fund the airtime wallet
+ */
+export const createMerchantAirtimeTopupHeaderIdempotencyKeyMin = 8;
+export const createMerchantAirtimeTopupHeaderIdempotencyKeyMax = 128;
+
+
+
+export const CreateMerchantAirtimeTopupHeader = zod.object({
+  "Idempotency-Key": zod.string().min(createMerchantAirtimeTopupHeaderIdempotencyKeyMin).max(createMerchantAirtimeTopupHeaderIdempotencyKeyMax)
+})
+
+export const createMerchantAirtimeTopupBodyPhoneNumberMin = 9;
+export const createMerchantAirtimeTopupBodyPhoneNumberMax = 20;
+
+
+
+
+export const CreateMerchantAirtimeTopupBody = zod.object({
+  "phoneNumber": zod.string().min(createMerchantAirtimeTopupBodyPhoneNumberMin).max(createMerchantAirtimeTopupBodyPhoneNumberMax),
+  "amount": zod.number().int().min(1)
+})
+
+
+
+
+export const CreateMerchantAirtimeTopupResponse = zod.object({
+  "topup": zod.object({
+  "reference": zod.string(),
+  "phoneNumber": zod.string(),
+  "amount": zod.number().min(1),
+  "status": zod.enum(['initiating', 'pending', 'unknown', 'succeeded', 'failed']),
+  "providerReference": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+})
+
+
+/**
+ * @summary Buy airtime manually from the merchant console
+ */
+export const createMerchantAirtimePurchaseHeaderIdempotencyKeyMin = 8;
+export const createMerchantAirtimePurchaseHeaderIdempotencyKeyMax = 128;
+
+
+
+export const CreateMerchantAirtimePurchaseHeader = zod.object({
+  "Idempotency-Key": zod.string().min(createMerchantAirtimePurchaseHeaderIdempotencyKeyMin).max(createMerchantAirtimePurchaseHeaderIdempotencyKeyMax)
+})
+
+export const createMerchantAirtimePurchaseBodyPhoneNumberMin = 9;
+export const createMerchantAirtimePurchaseBodyPhoneNumberMax = 20;
+
+
+
+
+export const CreateMerchantAirtimePurchaseBody = zod.object({
+  "phoneNumber": zod.string().min(createMerchantAirtimePurchaseBodyPhoneNumberMin).max(createMerchantAirtimePurchaseBodyPhoneNumberMax),
+  "amount": zod.number().int().min(1)
+})
+
+
+export const createMerchantAirtimePurchaseResponsePurchaseChargeMin = 0;
+
+
+
+export const CreateMerchantAirtimePurchaseResponse = zod.object({
+  "purchase": zod.object({
+  "reference": zod.string(),
+  "phoneNumber": zod.string(),
+  "amount": zod.number().min(1),
+  "charge": zod.number().min(createMerchantAirtimePurchaseResponsePurchaseChargeMin).nullable(),
+  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']),
+  "providerRequestId": zod.string().nullable(),
+  "resultDescription": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+})
+
+
+/**
+ * @summary Read the API key merchant's separate KES airtime wallet
+ */
+export const getDeveloperAirtimeWalletResponseAvailableBalanceMin = 0;
+
+export const getDeveloperAirtimeWalletResponseReservedBalanceMin = 0;
+
+
+
+export const GetDeveloperAirtimeWalletResponse = zod.object({
+  "currency": zod.enum(['KES']),
+  "availableBalance": zod.number().min(getDeveloperAirtimeWalletResponseAvailableBalanceMin),
+  "reservedBalance": zod.number().min(getDeveloperAirtimeWalletResponseReservedBalanceMin),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List recent airtime purchases for this merchant
+ */
+
+export const listDeveloperAirtimePurchasesResponseItemsItemChargeMin = 0;
+
+
+
+export const ListDeveloperAirtimePurchasesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "reference": zod.string(),
+  "phoneNumber": zod.string(),
+  "amount": zod.number().min(1),
+  "charge": zod.number().min(listDeveloperAirtimePurchasesResponseItemsItemChargeMin).nullable(),
+  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']),
+  "providerRequestId": zod.string().nullable(),
+  "resultDescription": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Purchase KES airtime using the merchant airtime wallet
+ */
+export const createDeveloperAirtimePurchaseHeaderIdempotencyKeyMin = 8;
+export const createDeveloperAirtimePurchaseHeaderIdempotencyKeyMax = 128;
+
+
+
+export const CreateDeveloperAirtimePurchaseHeader = zod.object({
+  "Idempotency-Key": zod.string().min(createDeveloperAirtimePurchaseHeaderIdempotencyKeyMin).max(createDeveloperAirtimePurchaseHeaderIdempotencyKeyMax)
+})
+
+export const createDeveloperAirtimePurchaseBodyPhoneNumberMin = 9;
+export const createDeveloperAirtimePurchaseBodyPhoneNumberMax = 20;
+
+
+
+
+export const CreateDeveloperAirtimePurchaseBody = zod.object({
+  "phoneNumber": zod.string().min(createDeveloperAirtimePurchaseBodyPhoneNumberMin).max(createDeveloperAirtimePurchaseBodyPhoneNumberMax),
+  "amount": zod.number().int().min(1)
+})
+
+
+export const createDeveloperAirtimePurchaseResponsePurchaseChargeMin = 0;
+
+
+
+export const CreateDeveloperAirtimePurchaseResponse = zod.object({
+  "purchase": zod.object({
+  "reference": zod.string(),
+  "phoneNumber": zod.string(),
+  "amount": zod.number().min(1),
+  "charge": zod.number().min(createDeveloperAirtimePurchaseResponsePurchaseChargeMin).nullable(),
+  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']),
+  "providerRequestId": zod.string().nullable(),
+  "resultDescription": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+})
+
+
+/**
+ * @summary Read an airtime purchase belonging to the API key's merchant
+ */
+export const getDeveloperAirtimePurchasePathReferenceMax = 80;
+
+
+
+export const GetDeveloperAirtimePurchaseParams = zod.object({
+  "reference": zod.coerce.string().min(1).max(getDeveloperAirtimePurchasePathReferenceMax)
+})
+
+
+export const getDeveloperAirtimePurchaseResponseChargeMin = 0;
+
+
+
+export const GetDeveloperAirtimePurchaseResponse = zod.object({
+  "reference": zod.string(),
+  "phoneNumber": zod.string(),
+  "amount": zod.number().min(1),
+  "charge": zod.number().min(getDeveloperAirtimePurchaseResponseChargeMin).nullable(),
+  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']),
+  "providerRequestId": zod.string().nullable(),
+  "resultDescription": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Read the platform Statum airtime balance and funding details
+ */
+export const getAdminStatumAccountResponseBalanceMin = 0;
+
+
+
+export const GetAdminStatumAccountResponse = zod.object({
+  "balance": zod.number().min(getAdminStatumAccountResponseBalanceMin),
+  "topupCode": zod.string().nullable(),
+  "checkedAt": zod.coerce.date(),
+  "callbackUrl": zod.string().url()
+})
+
+
+/**
+ * @summary Receive Statum's asynchronous airtime result
+ */
+export const receiveStatumAirtimeCallbackQueryTokenMin = 16;
+export const receiveStatumAirtimeCallbackQueryTokenMax = 256;
+
+
+
+export const ReceiveStatumAirtimeCallbackQueryParams = zod.object({
+  "token": zod.coerce.string().min(receiveStatumAirtimeCallbackQueryTokenMin).max(receiveStatumAirtimeCallbackQueryTokenMax)
+})
+
+export const receiveStatumAirtimeCallbackBodyRequestIdMax = 128;
+
+export const receiveStatumAirtimeCallbackBodyChargeOneMin = 0;
+
+export const receiveStatumAirtimeCallbackBodyChargeTwoRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const receiveStatumAirtimeCallbackBodyAccountBalanceOneMin = 0;
+
+export const receiveStatumAirtimeCallbackBodyAccountBalanceTwoRegExp = new RegExp('^[0-9]+(\\.[0-9]{1,2})?$');
+export const receiveStatumAirtimeCallbackBodyResultCodeTwoRegExp = new RegExp('^-?[0-9]+$');
+export const receiveStatumAirtimeCallbackBodyResultDescMax = 500;
+
+
+
+export const ReceiveStatumAirtimeCallbackBody = zod.object({
+  "request_id": zod.string().min(1).max(receiveStatumAirtimeCallbackBodyRequestIdMax),
+  "charge": zod.union([zod.number().min(receiveStatumAirtimeCallbackBodyChargeOneMin),zod.string().regex(receiveStatumAirtimeCallbackBodyChargeTwoRegExp)]),
+  "account_balance": zod.union([zod.number().min(receiveStatumAirtimeCallbackBodyAccountBalanceOneMin),zod.string().regex(receiveStatumAirtimeCallbackBodyAccountBalanceTwoRegExp)]).optional(),
+  "result_code": zod.union([zod.number().int(),zod.string().regex(receiveStatumAirtimeCallbackBodyResultCodeTwoRegExp)]),
+  "result_desc": zod.string().max(receiveStatumAirtimeCallbackBodyResultDescMax)
+})
+
+export const ReceiveStatumAirtimeCallbackResponse = zod.unknown()
 
 
 /**
@@ -7039,7 +7327,7 @@ export const UpdateAdminFxRateResponse = zod.object({
  */
 export const ListAdminProviderCredentialsResponse = zod.object({
   "items": zod.array(zod.object({
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi', 'geoapify']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi', 'geoapify', 'statum']),
   "configured": zod.boolean(),
   "enabled": zod.boolean(),
   "fields": zod.array(zod.object({
@@ -7058,7 +7346,7 @@ export const ListAdminProviderCredentialsResponse = zod.object({
  * @summary Encrypt and save or replace a provider's credentials
  */
 export const SaveAdminProviderCredentialsParams = zod.object({
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi', 'geoapify'])
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi', 'geoapify', 'statum'])
 })
 
 export const SaveAdminProviderCredentialsBody = zod.object({
@@ -7067,7 +7355,7 @@ export const SaveAdminProviderCredentialsBody = zod.object({
 })
 
 export const SaveAdminProviderCredentialsResponse = zod.object({
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi', 'geoapify']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi', 'geoapify', 'statum']),
   "configured": zod.boolean(),
   "enabled": zod.boolean(),
   "fields": zod.array(zod.object({
@@ -7084,7 +7372,7 @@ export const SaveAdminProviderCredentialsResponse = zod.object({
  * @summary Delete stored credentials and disable the selected provider
  */
 export const DeleteAdminProviderCredentialsParams = zod.object({
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi', 'geoapify'])
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'didit', 'cloudinary', 'currencyapi', 'geoapify', 'statum'])
 })
 
 export const DeleteAdminProviderCredentialsResponse = zod.void()

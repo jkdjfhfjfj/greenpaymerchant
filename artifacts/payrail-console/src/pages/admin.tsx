@@ -7,6 +7,7 @@ import {
   useListAdminAuditLog, useListAdminFeeSchedules, useUpdateAdminFeeSchedule, useListAdminFxRates, useCreateAdminFxRate, useUpdateAdminFxRate,
   useListAdminProviderCredentials, useSaveAdminProviderCredentials, useDeleteAdminProviderCredentials,
   useGetAdminCloudinaryUploadStatus, useCreateAdminCloudinaryUploadSignature,
+  useGetAdminStatumAccount, getGetAdminStatumAccountQueryKey,
   useFindAdminPlatformUsers, useGrantPlatformAdmin, useRevokePlatformAdmin, getFindAdminPlatformUsersQueryKey, getGetAccessProfileQueryKey,
   useReviewAdminMerchantApplication, getListAdminMerchantsQueryKey,
   useListAdminMerchantApplicationAttachments,
@@ -17,7 +18,7 @@ import {
   getListAdminCollectionCurrencyAvailabilityQueryKey, useListSupportedCurrencies,
   type AdminMerchant, type AdminFxRate, type AdminFeeSchedule, type ProviderCredential, type ListAdminMerchantsParams, type PlatformSettings,
 } from '@workspace/api-client-react';
-import { Async, Btn, Card, CURRENCIES, Confirm, Err, Field, Gate, Heading, Modal, Note, Pager, Pill, Switch, fmtDate, money, nice, useInvalidateAll } from '@/components/kit';
+import { Async, Btn, Card, CopyBtn, CURRENCIES, Confirm, Err, Field, Gate, Heading, Modal, Note, Pager, Pill, Switch, fmtDate, money, nice, useInvalidateAll } from '@/components/kit';
 import { CloudinaryImageUpload } from '@/components/cloudinary-image-upload';
 
 const G = ({ children }: { children: React.ReactNode }) => <Gate need="admin">{children}</Gate>;
@@ -748,12 +749,14 @@ const CRED_FIELDS: Record<string, string[]> = {
   didit: ['DIDIT_API_KEY', 'DIDIT_WORKFLOW_ID', 'DIDIT_KYB_WORKFLOW_ID'],
   cloudinary: ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'],
   geoapify: ['GEOAPIFY_API_KEY'],
+  statum: ['STATUM_CONSUMER_KEY', 'STATUM_CONSUMER_SECRET', 'STATUM_CALLBACK_TOKEN'],
 };
 const OPTIONAL = new Set(['DIDIT_WORKFLOW_ID', 'DIDIT_KYB_WORKFLOW_ID']);
 const REQUIRED_HINT: Record<string, string> = {
   PAYZA_PUBLIC_KEY: 'Required for the existing Payza rail',
   PAYZA_SECRET_KEY: 'Required for the existing Payza rail',
   GEOAPIFY_API_KEY: 'Used only by the server for reverse geocoding. Never sent to applicant browsers.',
+  STATUM_CALLBACK_TOKEN: 'At least 32 characters. Use a unique random token; it authenticates Statum callback requests.',
 };
 const PLAIN = new Set(['PAYZA_PUBLIC_KEY', 'DIDIT_WORKFLOW_ID', 'DIDIT_KYB_WORKFLOW_ID', 'PAYHERO_CHANNEL_ID', 'CLOUDINARY_CLOUD_NAME']);
 
@@ -767,9 +770,24 @@ function CredInner() {
   const del = useDeleteAdminProviderCredentials();
   const [off, setOff] = useState<ProviderCredential | null>(null);
   const items = q.data?.items ?? [];
+  const statumCredential = items.find((item) => item.provider === 'statum');
+  const statumReady = Boolean(statumCredential?.configured && statumCredential.enabled);
+  const statumAccount = useGetAdminStatumAccount({ query: { queryKey: getGetAdminStatumAccountQueryKey(), enabled: statumReady, refetchInterval: 60_000 } });
   return <><Heading eyebrow="ADMIN" title="Provider credentials" subtitle="Secrets are encrypted at rest. Only masked values are ever shown." />
     {q.data && !q.data.vaultReady && <Note tone="warn">The encrypted vault is not ready on the server. Saving credentials will fail until vault encryption is configured.</Note>}
     <Err error={save.error} />
+    <Card title="Statum airtime account" subtitle="Platform-level Statum balance and funding details. This is separate from merchant airtime wallets.">
+      {statumReady
+        ? <Async q={statumAccount}>
+          {statumAccount.data && <div className="form-stack">
+            <div><span className="sub">Available Statum balance</span><div className="metric-value">{money(statumAccount.data.balance, 'KES')}</div></div>
+            <div><span className="sub">M-Pesa funding code</span><p>{statumAccount.data.topupCode ?? 'Not provided by Statum; use the funding instructions in the Statum portal.'}</p></div>
+            <div><span className="sub">Registered callback URL</span><code className="mono" style={{ display: 'block', overflowWrap: 'anywhere' }}>{statumAccount.data.callbackUrl}</code><CopyBtn text={statumAccount.data.callbackUrl} /></div>
+            <span className="sub">Balance checked {fmtDate(statumAccount.data.checkedAt)}. The callback URL includes the secret callback token; configure it only in Statum’s trusted callback settings.</span>
+          </div>}
+        </Async>
+        : <Note>Configure and enable Statum credentials below to load the platform account balance and funding details.</Note>}
+    </Card>
     <Async q={q} empty={!items.length} emptyTitle="No providers reported" emptyBody="The server returned no provider entries."><div className="cards" style={{ marginTop: 12 }}>
       {items.map((c) => <div className="card-lite" key={c.provider} data-testid={`card-provider-${c.provider}`}>
         <header><strong>{nice(c.provider)}</strong><Pill value={c.configured ? (c.enabled ? 'ready' : 'disabled') : 'not_started'} /></header>
@@ -801,6 +819,8 @@ function CredEdit({ c, onClose }: { c: ProviderCredential; onClose: () => void }
       ? 'KYC sessions use the API key and workflow IDs. Webhook notifications are verified through Didit’s decision API, and the page also polls while open; no webhook secret is needed.'
       : c.provider === 'geoapify'
         ? 'Open https://myprojects.geoapify.com/, sign in or create an account, select or create a project, and copy its API key. Paste it here. This key is used server-side; the browser never receives it.'
+      : c.provider === 'statum'
+        ? 'Enter the Statum consumer key, consumer secret, and a unique random callback token of at least 32 characters. The admin account view provides the exact callback URL to register with Statum.'
     : 'Values replace what is stored; blank fields are cleared. Enter every value you want to retain. Existing secrets are never displayed.';
   return <Modal title={`${nice(c.provider)} credentials`} description={description} onClose={onClose}><form className="form-stack" onSubmit={submit} autoComplete="off">
     {names.map((n) => {
@@ -810,7 +830,7 @@ function CredEdit({ c, onClose }: { c: ProviderCredential; onClose: () => void }
       const label = c.provider === 'payhero'
         ? ({ PAYHERO_USERNAME: 'Username', PAYHERO_PASSWORD: 'Password', PAYHERO_CHANNEL_ID: 'Channel ID' } as Record<string, string>)[n] ?? n
         : n;
-      return <Field key={n} label={label} hint={hint}><input name={n} type={PLAIN.has(n) ? 'text' : 'password'} autoComplete="off" spellCheck={false} placeholder={c.fields.find((f) => f.name === n)?.present ? c.fields.find((f) => f.name === n)?.masked : ''} data-testid={`input-${n}`} /></Field>;
+      return <Field key={n} label={label} hint={hint}><input name={n} type={PLAIN.has(n) ? 'text' : 'password'} required={c.provider === 'statum'} autoComplete="off" spellCheck={false} placeholder={c.fields.find((f) => f.name === n)?.present ? c.fields.find((f) => f.name === n)?.masked : ''} data-testid={`input-${n}`} /></Field>;
     })}
     <div className="setting-row"><span>Enable provider</span><Switch on={enabled} onChange={setEnabled} label="enable provider" /></div>
     <Err error={save.error} /><Btn type="submit" disabled={save.isPending} testId="button-save-credentials">{save.isPending && <LoaderCircle size={14} className="spin" />}Save to vault</Btn></form></Modal>;

@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startTransactionalEmailWorker, stopTransactionalEmailWorker } from "./lib/transactional-email-worker";
+import { startAirtimeReconciliationWorker, stopAirtimeReconciliationWorker } from "./lib/airtime-reconciliation-worker";
 import {
   startMerchantWebhookOutboxWorker,
   stopMerchantWebhookOutboxWorker,
@@ -31,10 +32,12 @@ const server = app.listen(port, "0.0.0.0", (err) => {
   logger.info({ port }, "Server listening");
   startMerchantWebhookOutboxWorker();
   startTransactionalEmailWorker();
+  startAirtimeReconciliationWorker();
 });
 
 server.once("close", stopMerchantWebhookOutboxWorker);
 server.once("close", stopTransactionalEmailWorker);
+server.once("close", stopAirtimeReconciliationWorker);
 
 let shuttingDown = false;
 const shutdown = () => {
@@ -42,6 +45,7 @@ const shutdown = () => {
   shuttingDown = true;
   stopMerchantWebhookOutboxWorker();
   stopTransactionalEmailWorker();
+  stopAirtimeReconciliationWorker();
   server.close((error) => {
     if (error) {
       logger.error({ errorKind: error.name }, "HTTP server failed during graceful shutdown");

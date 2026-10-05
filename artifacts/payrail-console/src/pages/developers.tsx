@@ -12,7 +12,7 @@ import {
 import { Async, Btn, Card, CopyBtn, CURRENCIES, Confirm, Err, Field, Gate, Heading, Modal, Note, Pill, fmtDate, money, useInvalidateAll } from '@/components/kit';
 import { useMerchantActionCapability } from '@/hooks/use-merchant-action-controls';
 
-const SCOPES = ['read', 'payment_links:write', 'payments:write'] as const;
+const SCOPES = ['read', 'payment_links:write', 'payments:write', 'airtime:write'] as const;
 const EVENTS = ['payment.success', 'payment.failed', 'payment.refunded'] as const;
 
 function Secret({ title, secret, hint, onClose }: { title: string; secret: string; hint: string; onClose: () => void }) {
@@ -132,7 +132,7 @@ function Inner() {
     </Card>
     <Card title="Quick reference" subtitle="Set greenpayupdate in your shell to your API key secret">
       <div className="form-stack">
-        <Note>Read scope: GET /api/v1/merchant, /api/v1/transactions, /api/v1/transactions/:reference, /api/v1/fx-quote, /api/v1/fees. payment_links:write: POST /api/v1/payment-links. payments:write: POST /api/v1/transactions (requires an Idempotency-Key header of 8 to 128 characters) and POST /api/v1/transactions/:reference/verify.</Note>
+        <Note>Read scope: GET /api/v1/merchant, /api/v1/transactions, /api/v1/transactions/:reference, /api/v1/airtime/wallet, /api/v1/airtime/purchases, /api/v1/airtime/purchases/:reference, /api/v1/fx-quote, /api/v1/fees. payment_links:write: POST /api/v1/payment-links. payments:write: POST /api/v1/transactions (requires an Idempotency-Key header of 8 to 128 characters) and POST /api/v1/transactions/:reference/verify. airtime:write: POST /api/v1/airtime/purchases (requires an Idempotency-Key header of 8 to 128 characters).</Note>
         <pre className="code">{`# Merchant profile
 curl ${origin}/api/v1/merchant \\
   -H "Authorization: Bearer $greenpayupdate"
@@ -159,6 +159,17 @@ curl ${origin}/api/v1/transactions/REFERENCE \\
   -H "Authorization: Bearer $greenpayupdate"
 curl -X POST ${origin}/api/v1/transactions/REFERENCE/verify \\
   -H "Authorization: Bearer $greenpayupdate"
+
+# Read the separate airtime wallet (read scope)
+curl ${origin}/api/v1/airtime/wallet \\
+  -H "Authorization: Bearer $greenpayupdate"
+
+# Buy airtime (needs airtime:write; re-use this key only for the same request)
+curl -X POST ${origin}/api/v1/airtime/purchases \\
+  -H "Authorization: Bearer $greenpayupdate" \\
+  -H "Idempotency-Key: airtime-order-1042-attempt-1" \\
+  -H "Content-Type: application/json" \\
+  -d '{"phoneNumber":"254712345678","amount":100}'
 
 # FX quote calculation and fee schedule
 curl "${origin}/api/v1/fx-quote?amount=100&from=USD&to=KES" \\

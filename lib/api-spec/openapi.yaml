@@ -2312,6 +2312,159 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/WalletFxRateList" }
         "503": { description: A complete current reference-rate table is unavailable }
+  /merchant/airtime:
+    get:
+      operationId: getMerchantAirtimeDashboard
+      tags: [merchant]
+      summary: Read the merchant's separate KES airtime wallet and recent activity
+      responses:
+        "200":
+          description: Airtime wallet dashboard
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MerchantAirtimeDashboard" }
+  /merchant/airtime/topups:
+    post:
+      operationId: createMerchantAirtimeTopup
+      tags: [merchant]
+      summary: Start a PayHero mobile-money prompt to fund the airtime wallet
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AirtimeTopupInput" }
+      responses:
+        "201":
+          description: Airtime wallet funding request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AirtimeTopupResponse" }
+        "409": { description: Idempotency key reused with different details }
+        "503": { description: PayHero request could not be confirmed; no balance was credited }
+  /merchant/airtime/purchases:
+    post:
+      operationId: createMerchantAirtimePurchase
+      tags: [merchant]
+      summary: Buy airtime manually from the merchant console
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AirtimePurchaseInput" }
+      responses:
+        "201":
+          description: Airtime purchase request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AirtimePurchaseResponse" }
+        "409": { description: Idempotency conflict or insufficient airtime funds }
+        "503": { description: Statum request could not be safely confirmed }
+  /v1/airtime/wallet:
+    get:
+      operationId: getDeveloperAirtimeWallet
+      tags: [developer-api]
+      summary: Read the API key merchant's separate KES airtime wallet
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Airtime wallet balance
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AirtimeWallet" }
+  /v1/airtime/purchases:
+    get:
+      operationId: listDeveloperAirtimePurchases
+      tags: [developer-api]
+      summary: List recent airtime purchases for this merchant
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Recent airtime purchases
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AirtimePurchaseList" }
+    post:
+      operationId: createDeveloperAirtimePurchase
+      tags: [developer-api]
+      summary: Purchase KES airtime using the merchant airtime wallet
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AirtimePurchaseInput" }
+      responses:
+        "201":
+          description: Airtime purchase request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AirtimePurchaseResponse" }
+        "409": { description: Idempotency conflict or insufficient airtime funds }
+        "503": { description: Statum request could not be safely confirmed }
+  /v1/airtime/purchases/{reference}:
+    get:
+      operationId: getDeveloperAirtimePurchase
+      tags: [developer-api]
+      summary: Read an airtime purchase belonging to the API key's merchant
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: reference
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 80 }
+      responses:
+        "200":
+          description: Airtime purchase status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AirtimePurchase" }
+        "404": { description: Purchase not found for this merchant }
+  /admin/airtime/statum-account:
+    get:
+      operationId: getAdminStatumAccount
+      tags: [admin]
+      summary: Read the platform Statum airtime balance and funding details
+      responses:
+        "200":
+          description: Statum account balance and M-Pesa funding code
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatumAccount" }
+        "503": { description: Statum credentials are not configured or the account could not be reached }
+  /webhooks/statum:
+    post:
+      operationId: receiveStatumAirtimeCallback
+      tags: [webhooks]
+      summary: Receive Statum's asynchronous airtime result
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema: { type: string, minLength: 16, maxLength: 256 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StatumAirtimeCallback" }
+      responses:
+        "200": { description: Callback recorded or processed }
+        "401": { description: Callback token is invalid }
+        "503": { description: Callback could not be safely processed; Statum should retry }
   /v1/merchant:
     get:
       operationId: getDeveloperMerchant
@@ -2916,7 +3069,7 @@ paths:
         - name: provider
           in: path
           required: true
-          schema: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary, currencyapi, geoapify] }
+          schema: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary, currencyapi, geoapify, statum] }
       requestBody:
         required: true
         content:
@@ -2936,7 +3089,7 @@ paths:
         - name: provider
           in: path
           required: true
-          schema: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary, currencyapi, geoapify] }
+          schema: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary, currencyapi, geoapify, statum] }
       responses:
         "204": { description: Provider credentials deleted }
   /admin/platform-settings:
@@ -3259,6 +3412,95 @@ components:
       scheme: bearer
       bearerFormat: merchant API key
   schemas:
+    AirtimeWallet:
+      type: object
+      required: [currency, availableBalance, reservedBalance, updatedAt]
+      properties:
+        currency: { type: string, enum: [KES] }
+        availableBalance: { type: number, minimum: 0 }
+        reservedBalance: { type: number, minimum: 0 }
+        updatedAt: { type: string, format: date-time }
+    AirtimeTopup:
+      type: object
+      required: [reference, phoneNumber, amount, status, providerReference, createdAt, updatedAt]
+      properties:
+        reference: { type: string }
+        phoneNumber: { type: string }
+        amount: { type: number, minimum: 1 }
+        status: { type: string, enum: [initiating, pending, unknown, succeeded, failed] }
+        providerReference: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AirtimePurchase:
+      type: object
+      required: [reference, phoneNumber, amount, charge, status, providerRequestId, resultDescription, createdAt, updatedAt]
+      properties:
+        reference: { type: string }
+        phoneNumber: { type: string }
+        amount: { type: number, minimum: 1 }
+        charge: { type: ["number", "null"], minimum: 0 }
+        status: { type: string, enum: [submitting, pending, unknown, succeeded, failed] }
+        providerRequestId: { type: ["string", "null"] }
+        resultDescription: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AirtimeTopupInput:
+      type: object
+      required: [phoneNumber, amount]
+      properties:
+        phoneNumber: { type: string, minLength: 9, maxLength: 20 }
+        amount: { type: integer, minimum: 1 }
+    AirtimePurchaseInput:
+      type: object
+      required: [phoneNumber, amount]
+      properties:
+        phoneNumber: { type: string, minLength: 9, maxLength: 20 }
+        amount: { type: integer, minimum: 1 }
+    AirtimeTopupResponse:
+      type: object
+      required: [topup]
+      properties:
+        topup: { $ref: "#/components/schemas/AirtimeTopup" }
+    AirtimePurchaseResponse:
+      type: object
+      required: [purchase]
+      properties:
+        purchase: { $ref: "#/components/schemas/AirtimePurchase" }
+    AirtimePurchaseList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AirtimePurchase" }
+    MerchantAirtimeDashboard:
+      type: object
+      required: [wallet, topups, purchases]
+      properties:
+        wallet: { $ref: "#/components/schemas/AirtimeWallet" }
+        topups:
+          type: array
+          items: { $ref: "#/components/schemas/AirtimeTopup" }
+        purchases:
+          type: array
+          items: { $ref: "#/components/schemas/AirtimePurchase" }
+    StatumAccount:
+      type: object
+      required: [balance, topupCode, checkedAt, callbackUrl]
+      properties:
+        balance: { type: number, minimum: 0 }
+        topupCode: { type: ["string", "null"] }
+        checkedAt: { type: string, format: date-time }
+        callbackUrl: { type: string, format: uri }
+    StatumAirtimeCallback:
+      type: object
+      required: [request_id, charge, result_code, result_desc]
+      properties:
+        request_id: { type: string, minLength: 1, maxLength: 128 }
+        charge: { oneOf: [{ type: number, minimum: 0 }, { type: string, pattern: "^[0-9]+(\\.[0-9]{1,2})?$" }] }
+        account_balance: { oneOf: [{ type: number, minimum: 0 }, { type: string, pattern: "^[0-9]+(\\.[0-9]{1,2})?$" }] }
+        result_code: { oneOf: [{ type: integer }, { type: string, pattern: "^-?[0-9]+$" }] }
+        result_desc: { type: string, maxLength: 500 }
     DiditWebhookNotification:
       type: object
       required: [session_id]
@@ -5405,7 +5647,7 @@ components:
         secretRecoverable: { type: boolean, description: Whether an encrypted copy is available for explicit retrieval. The key secret itself is never included in list responses. }
         scopes:
           type: array
-          items: { type: string, enum: [read, payment_links:write, payments:write] }
+          items: { type: string, enum: [read, payment_links:write, payments:write, airtime:write] }
         createdAt: { type: string, format: date-time }
         lastUsedAt: { type: ["string", "null"], format: date-time }
         revokedAt: { type: ["string", "null"], format: date-time }
@@ -5475,7 +5717,7 @@ components:
           type: array
           minItems: 1
           uniqueItems: true
-          items: { type: string, enum: [read, payment_links:write, payments:write] }
+          items: { type: string, enum: [read, payment_links:write, payments:write, airtime:write] }
     CreatedApiKey:
       type: object
       required: [key, secret]
@@ -5708,7 +5950,7 @@ components:
       type: object
       required: [provider, configured, enabled, fields, updatedAt, storage]
       properties:
-        provider: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary, currencyapi, geoapify] }
+        provider: { type: string, enum: [paystack, payhero, payzaapi, didit, cloudinary, currencyapi, geoapify, statum] }
         configured: { type: boolean }
         enabled: { type: boolean }
         fields:

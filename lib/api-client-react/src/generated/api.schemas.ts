@@ -5,6 +5,135 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+export type AirtimeWalletCurrency = typeof AirtimeWalletCurrency[keyof typeof AirtimeWalletCurrency];
+
+
+export const AirtimeWalletCurrency = {
+  KES: 'KES',
+} as const;
+
+export interface AirtimeWallet {
+  currency: AirtimeWalletCurrency;
+  /** @minimum 0 */
+  availableBalance: number;
+  /** @minimum 0 */
+  reservedBalance: number;
+  updatedAt: string;
+}
+
+export type AirtimeTopupStatus = typeof AirtimeTopupStatus[keyof typeof AirtimeTopupStatus];
+
+
+export const AirtimeTopupStatus = {
+  initiating: 'initiating',
+  pending: 'pending',
+  unknown: 'unknown',
+  succeeded: 'succeeded',
+  failed: 'failed',
+} as const;
+
+export interface AirtimeTopup {
+  reference: string;
+  phoneNumber: string;
+  /** @minimum 1 */
+  amount: number;
+  status: AirtimeTopupStatus;
+  /** @nullable */
+  providerReference: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AirtimePurchaseStatus = typeof AirtimePurchaseStatus[keyof typeof AirtimePurchaseStatus];
+
+
+export const AirtimePurchaseStatus = {
+  submitting: 'submitting',
+  pending: 'pending',
+  unknown: 'unknown',
+  succeeded: 'succeeded',
+  failed: 'failed',
+} as const;
+
+export interface AirtimePurchase {
+  reference: string;
+  phoneNumber: string;
+  /** @minimum 1 */
+  amount: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  charge: number | null;
+  status: AirtimePurchaseStatus;
+  /** @nullable */
+  providerRequestId: string | null;
+  /** @nullable */
+  resultDescription: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AirtimeTopupInput {
+  /**
+     * @minLength 9
+     * @maxLength 20
+     */
+  phoneNumber: string;
+  /** @minimum 1 */
+  amount: number;
+}
+
+export interface AirtimePurchaseInput {
+  /**
+     * @minLength 9
+     * @maxLength 20
+     */
+  phoneNumber: string;
+  /** @minimum 1 */
+  amount: number;
+}
+
+export interface AirtimeTopupResponse {
+  topup: AirtimeTopup;
+}
+
+export interface AirtimePurchaseResponse {
+  purchase: AirtimePurchase;
+}
+
+export interface AirtimePurchaseList {
+  items: AirtimePurchase[];
+}
+
+export interface MerchantAirtimeDashboard {
+  wallet: AirtimeWallet;
+  topups: AirtimeTopup[];
+  purchases: AirtimePurchase[];
+}
+
+export interface StatumAccount {
+  /** @minimum 0 */
+  balance: number;
+  /** @nullable */
+  topupCode: string | null;
+  checkedAt: string;
+  callbackUrl: string;
+}
+
+export interface StatumAirtimeCallback {
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  request_id: string;
+  charge: number | string;
+  account_balance?: number | string;
+  result_code: number | string;
+  /** @maxLength 500 */
+  result_desc: string;
+}
+
 export interface DiditWebhookNotification {
   /**
      * @minLength 1
@@ -3706,6 +3835,7 @@ export const ApiKeyScopesItem = {
   read: 'read',
   'payment_links:write': 'payment_links:write',
   'payments:write': 'payments:write',
+  'airtime:write': 'airtime:write',
 } as const;
 
 export interface ApiKey {
@@ -3793,6 +3923,7 @@ export const CreateApiKeyInputScopesItem = {
   read: 'read',
   'payment_links:write': 'payment_links:write',
   'payments:write': 'payments:write',
+  'airtime:write': 'airtime:write',
 } as const;
 
 export interface CreateApiKeyInput {
@@ -4118,6 +4249,7 @@ export const ProviderCredentialProvider = {
   cloudinary: 'cloudinary',
   currencyapi: 'currencyapi',
   geoapify: 'geoapify',
+  statum: 'statum',
 } as const;
 
 export type ProviderCredentialFieldsItem = {
@@ -4531,6 +4663,14 @@ from: string;
  * @maxLength 3
  */
 to: string;
+};
+
+export type ReceiveStatumAirtimeCallbackParams = {
+/**
+ * @minLength 16
+ * @maxLength 256
+ */
+token: string;
 };
 
 export type ListDeveloperTransactionsParams = {

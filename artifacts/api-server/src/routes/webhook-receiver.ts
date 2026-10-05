@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { and, eq, or } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import {
-  ReceiveDiditWebhookBody, ReceiveDiditWebhookResponse,
+  ReceiveDiditWebhookBody, ReceiveDiditWebhookResponse, ReceiveStatumAirtimeCallbackBody,
 } from "@workspace/api-zod";
 import { db, merchantsTable, payoutsTable, refundsTable, webhookEventsTable } from "@workspace/db";
 import {
@@ -20,11 +20,66 @@ import { providerCredential } from "../lib/credential-runtime";
 import { payoutConfirmationTimestamp } from "../lib/payment-safety";
 import { diditDecisionStatus, diditStatusNeedsRefresh } from "../lib/security-policy";
 import { setWalletPayoutStatusFromProvider } from "../lib/wallet-service";
+import { equalSignature } from "../lib/secure-storage";
+import { statumCallbackToken, statumCallbackTokenHash } from "../lib/statum-provider";
+import { recordStatumCallback, reconcileAirtimeTopup } from "../lib/airtime-service";
 
 const router: IRouter = Router();
 const DIDIT_DECISION_COOLDOWN_MS = 10_000;
 const recentDiditDecisionChecks = new Map<string, number>();
 const inFlightDiditDecisionChecks = new Set<string>();
+
+router.post("/statum", async (req, res): Promise<void> => {
+  const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+  if (!rawBody.length) {
+    res.status(400).json({ error: "Webhook body is required." });
+    return;
+  }
+  const queryToken = typeof req.query.token === "string" ? req.query.token : undefined;
+  const receivedToken = queryToken ?? req.get("x-statum-callback-token");
+  if (!receivedToken || receivedToken.length < 16 || receivedToken.length > 256) {
+    res.status(401).json({ error: "A valid Statum callback token is required." });
+    return;
+  }
+  let expectedToken: string;
+  try {
+    expectedToken = await statumCallbackToken();
+  } catch {
+    res.status(503).json({ error: "Statum callback verification is not configured." });
+    return;
+  }
+  if (!equalSignature(statumCallbackTokenHash(expectedToken), statumCallbackTokenHash(receivedToken))) {
+    res.status(401).json({ error: "Invalid Statum callback token." });
+    return;
+  }
+
+  let payload: Record<string, unknown>;
+  try {
+    const decoded: unknown = JSON.parse(rawBody.toString("utf8"));
+    payload = decoded && typeof decoded === "object" && !Array.isArray(decoded)
+      ? decoded as Record<string, unknown>
+      : {};
+  } catch {
+    res.status(400).json({ error: "Webhook body must be valid JSON." });
+    return;
+  }
+  const parsed = ReceiveStatumAirtimeCallbackBody.safeParse(payload);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  try {
+    const result = await recordStatumCallback({
+      deliveryHash: createHash("sha256").update(rawBody).digest("hex"),
+      callback: parsed.data,
+    });
+    res.json({ received: true, status: result });
+  } catch (error) {
+    req.log.error({ err: error, requestId: parsed.data.request_id }, "Statum airtime callback could not be reconciled");
+    res.status(503).json({ error: "Statum callback was not fully reconciled; retry the notification." });
+  }
+});
 
 function claimDiditDecisionCheck(sessionId: string): boolean {
   const now = Date.now();
@@ -363,13 +418,21 @@ router.post("/:provider", async (req, res): Promise<void> => {
       }
     } else if (!reference) {
       eventStatus = "ignored";
+    } else if (provider === "payhero") {
+      const airtimeTopupStatus = await reconcileAirtimeTopup(reference);
+      if (airtimeTopupStatus === "not_found") {
+        const transaction = await findTransaction(reference);
+        if (!transaction || transaction.provider !== provider) {
+          eventStatus = "ignored";
+        } else {
+          const verified = await verifyProviderPayment(transaction);
+          await markTransactionStatus(reference, verified);
+        }
+      }
     } else {
       const transaction = await findTransaction(reference);
       if (!transaction || transaction.provider !== provider) {
         eventStatus = "ignored";
-      } else if (provider === "payhero") {
-        const verified = await verifyProviderPayment(transaction);
-        await markTransactionStatus(reference, verified);
       } else {
         const data = provider === "paystack" ? paystackData : payload;
         const amountDivisor = provider === "paystack" ? 100 : 1;

@@ -17,4 +17,5 @@ export const ProviderCredentialProvider = {
   cloudinary: 'cloudinary',
   currencyapi: 'currencyapi',
   geoapify: 'geoapify',
+  statum: 'statum',
 } as const;

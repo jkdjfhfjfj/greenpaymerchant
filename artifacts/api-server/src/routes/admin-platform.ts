@@ -10,6 +10,7 @@ import {
   DeleteAdminProviderCredentialsResponse, GetAdminMerchantDetailsParams, GetAdminMerchantDetailsResponse,
   GetAdminPlatformSettingsResponse, GetAdminSummaryResponse,
   GetAdminCloudinaryUploadStatusResponse, CreateAdminCloudinaryUploadSignatureResponse,
+  GetAdminStatumAccountResponse,
   ListAdminAuditLogQueryParams, ListAdminAuditLogResponse, ListAdminFeeSchedulesResponse,
   ListAdminFxRatesResponse, ListAdminMerchantsQueryParams, ListAdminMerchantsResponse,
   ListAdminProviderCredentialsResponse, SaveAdminProviderCredentialsBody,
@@ -55,6 +56,7 @@ import {
   getPrivateCaseObject, verifyPrivateCaseObject, type CaseFileType,
 } from "../lib/cloudinary-case-storage";
 import { caseAttachmentName } from "../lib/merchant-business-tools";
+import { statumAccountDetails } from "../lib/statum-provider";
 import {
   allowlistedAdminEmails, ClerkApiError, emailIsBootstrapAdmin, existingClerkUserIds, fetchClerkUser, findVerifiedClerkUsersByEmail,
   platformAdminAuditDetails, remainingEffectiveAdminCount, verifiedEmailAddresses,
@@ -62,7 +64,7 @@ import {
 } from "../lib/platform-admin";
 
 const router: IRouter = Router();
-const providers = ["paystack", "payhero", "payzaapi", "didit", "cloudinary", "currencyapi", "geoapify"] as const;
+const providers = ["paystack", "payhero", "payzaapi", "didit", "cloudinary", "currencyapi", "geoapify", "statum"] as const;
 const CASE_FILE_CONTENT_TYPES = new Set(Object.keys(CASE_FILE_TYPES));
 const MAX_APPLICATION_REQUEST_ATTACHMENTS = 5;
 const APPLICATION_REQUEST_UPLOAD_TTL_MS = 10 * 60_000;
@@ -537,6 +539,10 @@ async function credentialDto(provider: typeof providers[number]) {
           ? fields.some((field) => field.name === "CLOUDINARY_CLOUD_NAME" && field.present) &&
             fields.some((field) => field.name === "CLOUDINARY_API_KEY" && field.present) &&
             fields.some((field) => field.name === "CLOUDINARY_API_SECRET" && field.present)
+      : provider === "statum"
+        ? fields.some((field) => field.name === "STATUM_CONSUMER_KEY" && field.present) &&
+          fields.some((field) => field.name === "STATUM_CONSUMER_SECRET" && field.present) &&
+          fields.some((field) => field.name === "STATUM_CALLBACK_TOKEN" && field.present)
           : provider === "geoapify"
             ? fields.some((field) => field.name === "GEOAPIFY_API_KEY" && field.present)
           : fields.some((field) => field.name === "PAYZAAPI_API_KEY" && field.present) ||
@@ -1294,6 +1300,11 @@ router.patch("/admin/fx-rates/:id", async (req, res): Promise<void> => {
   res.json(UpdateAdminFxRateResponse.parse(fxDto(row)));
 });
 
+router.get("/admin/airtime/statum-account", async (_req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json(GetAdminStatumAccountResponse.parse(await statumAccountDetails()));
+});
+
 router.get("/admin/provider-credentials", async (_req, res): Promise<void> => {
   res.setHeader("Cache-Control", "no-store");
   const items = await Promise.all(providers.map(credentialDto));
@@ -1310,7 +1321,17 @@ router.put("/admin/provider-credentials/:provider", async (req, res): Promise<vo
   const allowed = providerCredentialFields(params.data.provider);
   const invalid = Object.keys(parsed.data.credentials).filter((key) => !allowed.includes(key));
   if (invalid.length) { res.status(400).json({ error: `Unsupported credential field(s): ${invalid.join(", ")}.` }); return; }
-  const credentials = Object.fromEntries(Object.entries(parsed.data.credentials).map(([key, value]) => [key, value.trim()]).filter(([, value]) => value));
+  let credentials = Object.fromEntries(Object.entries(parsed.data.credentials).map(([key, value]) => [key, value.trim()]).filter(([, value]) => value));
+  if (params.data.provider === "statum" && Object.keys(credentials).length === 0) {
+    credentials = (await readProviderCredentials("statum"))?.credentials ?? {};
+  } else if (params.data.provider === "statum" &&
+      !["STATUM_CONSUMER_KEY", "STATUM_CONSUMER_SECRET", "STATUM_CALLBACK_TOKEN"].every((key) => Boolean(credentials[key]))) {
+    res.status(400).json({ error: "Statum requires the consumer key, consumer secret, and callback token. Provide all three when replacing credentials." });
+    return;
+  } else if (params.data.provider === "statum" && credentials.STATUM_CALLBACK_TOKEN.length < 32) {
+    res.status(400).json({ error: "The Statum callback token must be at least 32 characters." });
+    return;
+  }
   if (params.data.provider === "payhero" && !credentials.PAYHERO_CHANNEL_ID) {
     const stored = await readProviderCredentials("payhero");
     const savedChannelId = stored?.credentials.PAYHERO_CHANNEL_ID?.trim();

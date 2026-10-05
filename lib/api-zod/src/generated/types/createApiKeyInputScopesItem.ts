@@ -13,4 +13,5 @@ export const CreateApiKeyInputScopesItem = {
   read: 'read',
   'payment_links:write': 'payment_links:write',
   'payments:write': 'payments:write',
+  'airtime:write': 'airtime:write',
 } as const;

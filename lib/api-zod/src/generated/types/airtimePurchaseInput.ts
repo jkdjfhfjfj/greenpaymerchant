@@ -8,10 +8,14 @@
 
 export interface AirtimePurchaseInput {
   /**
+     * Kenya mobile number on Safaricom
      * @minLength 9
      * @maxLength 20
      */
   phoneNumber: string;
-  /** @minimum 1 */
+  /**
+     * Whole KES airtime purchase amount. Discounted provider charges are reflected in the final charge field.
+     * @minimum 1
+     */
   amount: number;
 }

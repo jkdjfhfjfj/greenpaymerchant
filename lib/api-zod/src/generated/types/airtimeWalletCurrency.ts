@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Airtime wallet currency; only KES is currently supported.
+ */
 export type AirtimeWalletCurrency = typeof AirtimeWalletCurrency[keyof typeof AirtimeWalletCurrency];
 
 

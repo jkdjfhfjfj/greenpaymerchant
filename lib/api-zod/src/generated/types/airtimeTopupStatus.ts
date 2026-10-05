@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Only succeeded means PayHero verified the payment and the wallet was credited. Failed means PayHero confirmed failure and no credit was made. Pending and unknown are not spendable credits.
+ */
 export type AirtimeTopupStatus = typeof AirtimeTopupStatus[keyof typeof AirtimeTopupStatus];
 
 

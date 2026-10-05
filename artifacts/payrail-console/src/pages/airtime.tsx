@@ -42,10 +42,18 @@ function displayDate(value?: string | null) {
 
 function AirtimeContent() {
   const queryClient = useQueryClient();
+  const [topupConfirmation, setTopupConfirmation] = useState<{
+    reference: string;
+    phoneNumber: string;
+    amount: number;
+    status: string;
+  } | null>(null);
   const dashboard = useGetMerchantAirtimeDashboard({
     query: {
       queryKey: getGetMerchantAirtimeDashboardQueryKey(),
-      refetchInterval: 15_000,
+      refetchInterval: (query) => query.state.data?.topups.some((item) =>
+        item.status === 'initiating' || item.status === 'pending',
+      ) ? 3_000 : 15_000,
     },
   });
   const [topupAttempt, setTopupAttempt] = useState<RequestAttempt<TopupData> | null>(null);
@@ -71,7 +79,13 @@ function AirtimeContent() {
       },
     },
     mutation: {
-      onSuccess: async () => {
+      onSuccess: async ({ topup }) => {
+        setTopupConfirmation({
+          reference: topup.reference,
+          phoneNumber: topup.phoneNumber,
+          amount: topup.amount,
+          status: topup.status,
+        });
         setTopupAttempt(null);
         topupKeyRef.current = makeRequestKey();
         topupForm.reset();
@@ -98,6 +112,10 @@ function AirtimeContent() {
   });
 
   const data = dashboard.data;
+  const confirmedTopup = topupConfirmation
+    ? data?.topups.find((item) => item.reference === topupConfirmation.reference)
+    : undefined;
+  const topupStatus = confirmedTopup?.status ?? topupConfirmation?.status;
   const processingPurchases = data?.purchases.filter((item) =>
     ['submitting', 'pending', 'unknown'].includes(item.status),
   ) ?? [];
@@ -149,6 +167,54 @@ function AirtimeContent() {
         title="Airtime wallet"
         subtitle="A dedicated KES balance for airtime—kept separate from your payment and settlement funds."
       />
+
+      <section
+        className="airtime-availability panel mb-4 flex flex-col gap-3 border border-[var(--line)] bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+        aria-label="Airtime availability"
+        data-testid="airtime-availability"
+      >
+        <div>
+          <strong className="block text-sm">Discounted airtime · Kenya (KES) only</strong>
+          <span className="sub">Other countries and currencies are coming soon. Statum confirms the final wallet charge for each purchase.</span>
+        </div>
+        <div className="flex flex-wrap gap-2" aria-label="Supported airtime networks">
+          {['Safaricom', 'Airtel', 'Telkom'].map((network) => (
+            <span
+              key={network}
+              className="rounded-full border border-[var(--line)] px-3 py-1 text-xs font-medium text-[var(--ink)]"
+            >
+              {network}
+            </span>
+          ))}
+        </div>
+      </section>
+
+      {topupConfirmation && topupStatus && (
+        <div className="mb-4" data-testid="airtime-topup-confirmation">
+          <Note
+            tone={topupStatus === 'succeeded' ? 'ok' : topupStatus === 'failed' ? 'danger' : 'warn'}
+          >
+            {topupStatus === 'succeeded' ? (
+              <span>
+                <strong>Payment confirmed.</strong> {money(topupConfirmation.amount, 'KES')} has been credited to your airtime wallet.
+              </span>
+            ) : topupStatus === 'failed' ? (
+              <span>
+                <strong>Funding failed.</strong> PayHero confirmed the payment did not complete, so no airtime balance was added.
+              </span>
+            ) : topupStatus === 'unknown' ? (
+              <span>
+                <strong>Payment status not confirmed yet.</strong> No balance has been credited. Greenpay is checking PayHero; do not start a duplicate request.
+              </span>
+            ) : (
+              <span>
+                <strong>M-Pesa prompt sent to {topupConfirmation.phoneNumber}.</strong> Waiting for PayHero confirmation. Your wallet will be credited automatically after payment is verified.
+              </span>
+            )}
+            <span className="block text-xs">Reference: {topupConfirmation.reference}</span>
+          </Note>
+        </div>
+      )}
 
       <Async q={dashboard}>
         {data && (
@@ -265,7 +331,7 @@ function AirtimeContent() {
 
               <Card
                 title="Buy airtime"
-                subtitle="Send KES airtime through Statum using the available balance in this wallet."
+                subtitle="Send discounted KES airtime to Safaricom, Airtel, or Telkom using this wallet."
                 className="airtime-action-card airtime-buy-card"
               >
                 <Form {...purchaseForm}>

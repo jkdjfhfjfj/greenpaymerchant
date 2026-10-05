@@ -477,6 +477,9 @@ curl "${docsOrigin}/api/v1/fx-quote?amount=100&from=USD&to=KES" \\
   -H "Content-Type: application/json" \\
   -d '{"name":"Invoice 1042","amountType":"fixed","amount":10,"currency":"USD","description":"Invoice 1042"}'`}</pre>
         <p>Use <code>amountType: "customer_choice"</code> when the customer chooses the amount; omit <code>amount</code> in that case. The response includes the shareable link URL.</p>
+        <h3>Fund the airtime wallet</h3>
+        <p>Airtime is currently available in Kenya in KES only, with discounted rates on Safaricom, Airtel, and Telkom. Other countries and currencies are coming soon. Start wallet funding from the merchant console with a PayHero M-Pesa prompt; API keys do not initiate wallet top-ups.</p>
+        <p>Starting a prompt does not credit the wallet. Greenpay checks PayHero's confirmed result automatically: a verified success credits the airtime wallet, a confirmed failure is shown as failed without a credit, and pending or unconfirmed results remain uncredited until verified. The console shows the latest funding status.</p>
         <h3>Read and purchase airtime</h3>
         <pre className="code">{`curl "${docsOrigin}/api/v1/airtime/wallet" \\
   -H "Authorization: Bearer $GREENPAY_API_KEY"
@@ -489,7 +492,8 @@ curl -X POST "${docsOrigin}/api/v1/airtime/purchases" \\
 
 curl "${docsOrigin}/api/v1/airtime/purchases/AIRTIME_REFERENCE" \\
   -H "Authorization: Bearer $GREENPAY_API_KEY"`}</pre>
-        <p>The key needs <code>read</code> for balance and status requests and <code>airtime:write</code> to purchase. Uncertain purchases remain reserved; check the saved reference rather than submitting them again with a new idempotency key.</p>
+        <p>The key needs <code>read</code> for balance and status requests and <code>airtime:write</code> to purchase. Airtime purchases are KES-only and use Safaricom, Airtel, or Telkom numbers. The requested <code>amount</code> is the airtime purchase amount; <code>charge</code> reports the confirmed wallet debit, with any discounted difference returned to the available balance after confirmation.</p>
+        <p>Purchase responses may be <code>pending</code> while Statum processes them. Poll the saved purchase reference for its final status. Confirmed failures release the reservation; <code>unknown</code> outcomes keep funds reserved. Never retry an uncertain purchase using a new idempotency key.</p>
         <h3>Check payment status after checkout</h3>
         <pre className="code">{`curl "${docsOrigin}/api/public/transactions/TRANSACTION_REFERENCE"`}</pre>
         <p>This public endpoint needs no API key and returns a customer-safe status payload. It may refresh pending provider status; prefer the signed webhook flow above for ongoing updates.</p>

@@ -5,6 +5,9 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+/**
+ * Airtime wallet currency; only KES is currently supported.
+ */
 export type AirtimeWalletCurrency = typeof AirtimeWalletCurrency[keyof typeof AirtimeWalletCurrency];
 
 
@@ -13,6 +16,7 @@ export const AirtimeWalletCurrency = {
 } as const;
 
 export interface AirtimeWallet {
+  /** Airtime wallet currency; only KES is currently supported. */
   currency: AirtimeWalletCurrency;
   /** @minimum 0 */
   availableBalance: number;
@@ -21,6 +25,9 @@ export interface AirtimeWallet {
   updatedAt: string;
 }
 
+/**
+ * Only succeeded means PayHero verified the payment and the wallet was credited. Failed means PayHero confirmed failure and no credit was made. Pending and unknown are not spendable credits.
+ */
 export type AirtimeTopupStatus = typeof AirtimeTopupStatus[keyof typeof AirtimeTopupStatus];
 
 
@@ -37,6 +44,7 @@ export interface AirtimeTopup {
   phoneNumber: string;
   /** @minimum 1 */
   amount: number;
+  /** Only succeeded means PayHero verified the payment and the wallet was credited. Failed means PayHero confirmed failure and no credit was made. Pending and unknown are not spendable credits. */
   status: AirtimeTopupStatus;
   /** @nullable */
   providerReference: string | null;
@@ -44,6 +52,9 @@ export interface AirtimeTopup {
   updatedAt: string;
 }
 
+/**
+ * Pending means Statum is processing the request. Succeeded and failed are final provider outcomes. Unknown remains reserved for review; do not create a second purchase.
+ */
 export type AirtimePurchaseStatus = typeof AirtimePurchaseStatus[keyof typeof AirtimePurchaseStatus];
 
 
@@ -58,13 +69,18 @@ export const AirtimePurchaseStatus = {
 export interface AirtimePurchase {
   reference: string;
   phoneNumber: string;
-  /** @minimum 1 */
+  /**
+     * Requested airtime amount in KES.
+     * @minimum 1
+     */
   amount: number;
   /**
+     * Final wallet debit reported after provider confirmation. Any difference from the requested amount is returned to the available balance.
      * @minimum 0
      * @nullable
      */
   charge: number | null;
+  /** Pending means Statum is processing the request. Succeeded and failed are final provider outcomes. Unknown remains reserved for review; do not create a second purchase. */
   status: AirtimePurchaseStatus;
   /** @nullable */
   providerRequestId: string | null;
@@ -80,17 +96,24 @@ export interface AirtimeTopupInput {
      * @maxLength 20
      */
   phoneNumber: string;
-  /** @minimum 1 */
+  /**
+     * Whole KES amount to request through the PayHero M-Pesa prompt.
+     * @minimum 1
+     */
   amount: number;
 }
 
 export interface AirtimePurchaseInput {
   /**
+     * Kenya mobile number on Safaricom
      * @minLength 9
      * @maxLength 20
      */
   phoneNumber: string;
-  /** @minimum 1 */
+  /**
+     * Whole KES airtime purchase amount. Discounted provider charges are reflected in the final charge field.
+     * @minimum 1
+     */
   amount: number;
 }
 

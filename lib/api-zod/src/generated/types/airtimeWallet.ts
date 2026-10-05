@@ -8,6 +8,7 @@
 import type { AirtimeWalletCurrency } from './airtimeWalletCurrency';
 
 export interface AirtimeWallet {
+  /** Airtime wallet currency; only KES is currently supported. */
   currency: AirtimeWalletCurrency;
   /** @minimum 0 */
   availableBalance: number;

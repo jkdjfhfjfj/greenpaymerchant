@@ -12,6 +12,7 @@ export interface AirtimeTopup {
   phoneNumber: string;
   /** @minimum 1 */
   amount: number;
+  /** Only succeeded means PayHero verified the payment and the wallet was credited. Failed means PayHero confirmed failure and no credit was made. Pending and unknown are not spendable credits. */
   status: AirtimeTopupStatus;
   /** @nullable */
   providerReference: string | null;

@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Pending means Statum is processing the request. Succeeded and failed are final provider outcomes. Unknown remains reserved for review; do not create a second purchase.
+ */
 export type AirtimePurchaseStatus = typeof AirtimePurchaseStatus[keyof typeof AirtimePurchaseStatus];
 
 

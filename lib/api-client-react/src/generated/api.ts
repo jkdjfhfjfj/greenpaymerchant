@@ -11732,6 +11732,7 @@ export const getGetMerchantAirtimeDashboardUrl = () => {
 }
 
 /**
+ * The wallet is KES-only. Verified PayHero top-ups are credited automatically; confirmed failed or unverified payments are not credited.
  * @summary Read the merchant's separate KES airtime wallet and recent activity
  */
 export const getMerchantAirtimeDashboard = async ( options?: Parameters<typeof customFetch>[1]): Promise<MerchantAirtimeDashboard> => {
@@ -11809,6 +11810,7 @@ export const getCreateMerchantAirtimeTopupUrl = () => {
 }
 
 /**
+ * Starting a prompt does not credit the wallet. Greenpay verifies the PayHero result and credits only a matching successful KES payment. Confirmed failures are marked failed without a credit; pending or unknown results remain uncredited until verified.
  * @summary Start a PayHero mobile-money prompt to fund the airtime wallet
  */
 export const createMerchantAirtimeTopup = async (airtimeTopupInput: AirtimeTopupInput, options?: Parameters<typeof customFetch>[1]): Promise<AirtimeTopupResponse> => {
@@ -11985,6 +11987,7 @@ export const getGetDeveloperAirtimeWalletUrl = () => {
 }
 
 /**
+ * Airtime wallets are currently KES-only. Fund the wallet from the merchant console through PayHero; developer API keys cannot start top-ups.
  * @summary Read the API key merchant's separate KES airtime wallet
  */
 export const getDeveloperAirtimeWallet = async ( options?: Parameters<typeof customFetch>[1]): Promise<AirtimeWallet> => {
@@ -12139,7 +12142,8 @@ export const getCreateDeveloperAirtimePurchaseUrl = () => {
 }
 
 /**
- * @summary Purchase KES airtime using the merchant airtime wallet
+ * Currently supports Safaricom, Airtel, and Telkom numbers in Kenya; other countries and currencies are coming soon. Check the returned purchase reference for its final status. Unknown results remain reserved and must not be retried with a new idempotency key.
+ * @summary Purchase discounted KES airtime using the merchant airtime wallet
  */
 export const createDeveloperAirtimePurchase = async (airtimePurchaseInput: AirtimePurchaseInput, options?: Parameters<typeof customFetch>[1]): Promise<AirtimePurchaseResponse> => {
 
@@ -12205,7 +12209,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateDeveloperAirtimePurchaseMutationVariables = {data: BodyType<AirtimePurchaseInput>}
 
     /**
- * @summary Purchase KES airtime using the merchant airtime wallet
+ * @summary Purchase discounted KES airtime using the merchant airtime wallet
  */
 export const useCreateDeveloperAirtimePurchase = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDeveloperAirtimePurchase>>, TError,CreateDeveloperAirtimePurchaseMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}

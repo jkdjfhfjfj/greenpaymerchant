@@ -10,13 +10,18 @@ import type { AirtimePurchaseStatus } from './airtimePurchaseStatus';
 export interface AirtimePurchase {
   reference: string;
   phoneNumber: string;
-  /** @minimum 1 */
+  /**
+     * Requested airtime amount in KES.
+     * @minimum 1
+     */
   amount: number;
   /**
+     * Final wallet debit reported after provider confirmation. Any difference from the requested amount is returned to the available balance.
      * @minimum 0
      * @nullable
      */
   charge: number | null;
+  /** Pending means Statum is processing the request. Succeeded and failed are final provider outcomes. Unknown remains reserved for review; do not create a second purchase. */
   status: AirtimePurchaseStatus;
   /** @nullable */
   providerRequestId: string | null;

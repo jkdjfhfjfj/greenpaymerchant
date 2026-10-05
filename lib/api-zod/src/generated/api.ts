@@ -5458,6 +5458,7 @@ export const ListPublicFxRatesResponse = zod.object({
 
 
 /**
+ * The wallet is KES-only. Verified PayHero top-ups are credited automatically; confirmed failed or unverified payments are not credited.
  * @summary Read the merchant's separate KES airtime wallet and recent activity
  */
 export const getMerchantAirtimeDashboardResponseWalletAvailableBalanceMin = 0;
@@ -5472,7 +5473,7 @@ export const getMerchantAirtimeDashboardResponsePurchasesItemChargeMin = 0;
 
 export const GetMerchantAirtimeDashboardResponse = zod.object({
   "wallet": zod.object({
-  "currency": zod.enum(['KES']),
+  "currency": zod.enum(['KES']).describe('Airtime wallet currency; only KES is currently supported.'),
   "availableBalance": zod.number().min(getMerchantAirtimeDashboardResponseWalletAvailableBalanceMin),
   "reservedBalance": zod.number().min(getMerchantAirtimeDashboardResponseWalletReservedBalanceMin),
   "updatedAt": zod.coerce.date()
@@ -5481,7 +5482,7 @@ export const GetMerchantAirtimeDashboardResponse = zod.object({
   "reference": zod.string(),
   "phoneNumber": zod.string(),
   "amount": zod.number().min(1),
-  "status": zod.enum(['initiating', 'pending', 'unknown', 'succeeded', 'failed']),
+  "status": zod.enum(['initiating', 'pending', 'unknown', 'succeeded', 'failed']).describe('Only succeeded means PayHero verified the payment and the wallet was credited. Failed means PayHero confirmed failure and no credit was made. Pending and unknown are not spendable credits.'),
   "providerReference": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -5489,9 +5490,9 @@ export const GetMerchantAirtimeDashboardResponse = zod.object({
   "purchases": zod.array(zod.object({
   "reference": zod.string(),
   "phoneNumber": zod.string(),
-  "amount": zod.number().min(1),
-  "charge": zod.number().min(getMerchantAirtimeDashboardResponsePurchasesItemChargeMin).nullable(),
-  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']),
+  "amount": zod.number().min(1).describe('Requested airtime amount in KES.'),
+  "charge": zod.number().min(getMerchantAirtimeDashboardResponsePurchasesItemChargeMin).nullable().describe('Final wallet debit reported after provider confirmation. Any difference from the requested amount is returned to the available balance.'),
+  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']).describe('Pending means Statum is processing the request. Succeeded and failed are final provider outcomes. Unknown remains reserved for review; do not create a second purchase.'),
   "providerRequestId": zod.string().nullable(),
   "resultDescription": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
@@ -5501,6 +5502,7 @@ export const GetMerchantAirtimeDashboardResponse = zod.object({
 
 
 /**
+ * Starting a prompt does not credit the wallet. Greenpay verifies the PayHero result and credits only a matching successful KES payment. Confirmed failures are marked failed without a credit; pending or unknown results remain uncredited until verified.
  * @summary Start a PayHero mobile-money prompt to fund the airtime wallet
  */
 export const createMerchantAirtimeTopupHeaderIdempotencyKeyMin = 8;
@@ -5520,7 +5522,7 @@ export const createMerchantAirtimeTopupBodyPhoneNumberMax = 20;
 
 export const CreateMerchantAirtimeTopupBody = zod.object({
   "phoneNumber": zod.string().min(createMerchantAirtimeTopupBodyPhoneNumberMin).max(createMerchantAirtimeTopupBodyPhoneNumberMax),
-  "amount": zod.number().int().min(1)
+  "amount": zod.number().int().min(1).describe('Whole KES amount to request through the PayHero M-Pesa prompt.')
 })
 
 
@@ -5531,7 +5533,7 @@ export const CreateMerchantAirtimeTopupResponse = zod.object({
   "reference": zod.string(),
   "phoneNumber": zod.string(),
   "amount": zod.number().min(1),
-  "status": zod.enum(['initiating', 'pending', 'unknown', 'succeeded', 'failed']),
+  "status": zod.enum(['initiating', 'pending', 'unknown', 'succeeded', 'failed']).describe('Only succeeded means PayHero verified the payment and the wallet was credited. Failed means PayHero confirmed failure and no credit was made. Pending and unknown are not spendable credits.'),
   "providerReference": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -5558,8 +5560,8 @@ export const createMerchantAirtimePurchaseBodyPhoneNumberMax = 20;
 
 
 export const CreateMerchantAirtimePurchaseBody = zod.object({
-  "phoneNumber": zod.string().min(createMerchantAirtimePurchaseBodyPhoneNumberMin).max(createMerchantAirtimePurchaseBodyPhoneNumberMax),
-  "amount": zod.number().int().min(1)
+  "phoneNumber": zod.string().min(createMerchantAirtimePurchaseBodyPhoneNumberMin).max(createMerchantAirtimePurchaseBodyPhoneNumberMax).describe('Kenya mobile number on Safaricom'),
+  "amount": zod.number().int().min(1).describe('Whole KES airtime purchase amount. Discounted provider charges are reflected in the final charge field.')
 })
 
 
@@ -5571,9 +5573,9 @@ export const CreateMerchantAirtimePurchaseResponse = zod.object({
   "purchase": zod.object({
   "reference": zod.string(),
   "phoneNumber": zod.string(),
-  "amount": zod.number().min(1),
-  "charge": zod.number().min(createMerchantAirtimePurchaseResponsePurchaseChargeMin).nullable(),
-  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']),
+  "amount": zod.number().min(1).describe('Requested airtime amount in KES.'),
+  "charge": zod.number().min(createMerchantAirtimePurchaseResponsePurchaseChargeMin).nullable().describe('Final wallet debit reported after provider confirmation. Any difference from the requested amount is returned to the available balance.'),
+  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']).describe('Pending means Statum is processing the request. Succeeded and failed are final provider outcomes. Unknown remains reserved for review; do not create a second purchase.'),
   "providerRequestId": zod.string().nullable(),
   "resultDescription": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
@@ -5583,6 +5585,7 @@ export const CreateMerchantAirtimePurchaseResponse = zod.object({
 
 
 /**
+ * Airtime wallets are currently KES-only. Fund the wallet from the merchant console through PayHero; developer API keys cannot start top-ups.
  * @summary Read the API key merchant's separate KES airtime wallet
  */
 export const getDeveloperAirtimeWalletResponseAvailableBalanceMin = 0;
@@ -5592,7 +5595,7 @@ export const getDeveloperAirtimeWalletResponseReservedBalanceMin = 0;
 
 
 export const GetDeveloperAirtimeWalletResponse = zod.object({
-  "currency": zod.enum(['KES']),
+  "currency": zod.enum(['KES']).describe('Airtime wallet currency; only KES is currently supported.'),
   "availableBalance": zod.number().min(getDeveloperAirtimeWalletResponseAvailableBalanceMin),
   "reservedBalance": zod.number().min(getDeveloperAirtimeWalletResponseReservedBalanceMin),
   "updatedAt": zod.coerce.date()
@@ -5611,9 +5614,9 @@ export const ListDeveloperAirtimePurchasesResponse = zod.object({
   "items": zod.array(zod.object({
   "reference": zod.string(),
   "phoneNumber": zod.string(),
-  "amount": zod.number().min(1),
-  "charge": zod.number().min(listDeveloperAirtimePurchasesResponseItemsItemChargeMin).nullable(),
-  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']),
+  "amount": zod.number().min(1).describe('Requested airtime amount in KES.'),
+  "charge": zod.number().min(listDeveloperAirtimePurchasesResponseItemsItemChargeMin).nullable().describe('Final wallet debit reported after provider confirmation. Any difference from the requested amount is returned to the available balance.'),
+  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']).describe('Pending means Statum is processing the request. Succeeded and failed are final provider outcomes. Unknown remains reserved for review; do not create a second purchase.'),
   "providerRequestId": zod.string().nullable(),
   "resultDescription": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
@@ -5623,7 +5626,8 @@ export const ListDeveloperAirtimePurchasesResponse = zod.object({
 
 
 /**
- * @summary Purchase KES airtime using the merchant airtime wallet
+ * Currently supports Safaricom, Airtel, and Telkom numbers in Kenya; other countries and currencies are coming soon. Check the returned purchase reference for its final status. Unknown results remain reserved and must not be retried with a new idempotency key.
+ * @summary Purchase discounted KES airtime using the merchant airtime wallet
  */
 export const createDeveloperAirtimePurchaseHeaderIdempotencyKeyMin = 8;
 export const createDeveloperAirtimePurchaseHeaderIdempotencyKeyMax = 128;
@@ -5641,8 +5645,8 @@ export const createDeveloperAirtimePurchaseBodyPhoneNumberMax = 20;
 
 
 export const CreateDeveloperAirtimePurchaseBody = zod.object({
-  "phoneNumber": zod.string().min(createDeveloperAirtimePurchaseBodyPhoneNumberMin).max(createDeveloperAirtimePurchaseBodyPhoneNumberMax),
-  "amount": zod.number().int().min(1)
+  "phoneNumber": zod.string().min(createDeveloperAirtimePurchaseBodyPhoneNumberMin).max(createDeveloperAirtimePurchaseBodyPhoneNumberMax).describe('Kenya mobile number on Safaricom'),
+  "amount": zod.number().int().min(1).describe('Whole KES airtime purchase amount. Discounted provider charges are reflected in the final charge field.')
 })
 
 
@@ -5654,9 +5658,9 @@ export const CreateDeveloperAirtimePurchaseResponse = zod.object({
   "purchase": zod.object({
   "reference": zod.string(),
   "phoneNumber": zod.string(),
-  "amount": zod.number().min(1),
-  "charge": zod.number().min(createDeveloperAirtimePurchaseResponsePurchaseChargeMin).nullable(),
-  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']),
+  "amount": zod.number().min(1).describe('Requested airtime amount in KES.'),
+  "charge": zod.number().min(createDeveloperAirtimePurchaseResponsePurchaseChargeMin).nullable().describe('Final wallet debit reported after provider confirmation. Any difference from the requested amount is returned to the available balance.'),
+  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']).describe('Pending means Statum is processing the request. Succeeded and failed are final provider outcomes. Unknown remains reserved for review; do not create a second purchase.'),
   "providerRequestId": zod.string().nullable(),
   "resultDescription": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
@@ -5684,9 +5688,9 @@ export const getDeveloperAirtimePurchaseResponseChargeMin = 0;
 export const GetDeveloperAirtimePurchaseResponse = zod.object({
   "reference": zod.string(),
   "phoneNumber": zod.string(),
-  "amount": zod.number().min(1),
-  "charge": zod.number().min(getDeveloperAirtimePurchaseResponseChargeMin).nullable(),
-  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']),
+  "amount": zod.number().min(1).describe('Requested airtime amount in KES.'),
+  "charge": zod.number().min(getDeveloperAirtimePurchaseResponseChargeMin).nullable().describe('Final wallet debit reported after provider confirmation. Any difference from the requested amount is returned to the available balance.'),
+  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']).describe('Pending means Statum is processing the request. Succeeded and failed are final provider outcomes. Unknown remains reserved for review; do not create a second purchase.'),
   "providerRequestId": zod.string().nullable(),
   "resultDescription": zod.string().nullable(),
   "createdAt": zod.coerce.date(),

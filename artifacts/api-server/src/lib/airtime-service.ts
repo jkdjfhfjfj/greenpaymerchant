@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import {
-  airtimePurchasesTable, airtimeStatumCallbacksTable, airtimeTopupsTable,
+  adminAuditLogTable, airtimePurchasesTable, airtimeStatumCallbacksTable, airtimeTopupsTable,
   airtimeWalletEntriesTable, airtimeWalletsTable, db, merchantsTable,
 } from "@workspace/db";
 import { ApiError } from "./api-error";
@@ -104,6 +104,32 @@ export async function getMerchantAirtimeDashboard(merchantId: number) {
     wallet: walletDto(wallet),
     topups: topups.map(airtimeTopupDto),
     purchases: purchases.map(airtimePurchaseDto),
+  };
+}
+
+export async function listAdminAirtimeTopupsForReview() {
+  const rows = await db.select({
+    reference: airtimeTopupsTable.reference,
+    merchantId: airtimeTopupsTable.merchantId,
+    businessName: merchantsTable.businessName,
+    phoneNumber: airtimeTopupsTable.phoneNumber,
+    amountMinor: airtimeTopupsTable.amountMinor,
+    status: airtimeTopupsTable.status,
+    providerReference: airtimeTopupsTable.providerReference,
+    createdAt: airtimeTopupsTable.createdAt,
+    updatedAt: airtimeTopupsTable.updatedAt,
+    lastCheckedAt: airtimeTopupsTable.lastCheckedAt,
+    lastError: airtimeTopupsTable.lastError,
+  }).from(airtimeTopupsTable)
+    .innerJoin(merchantsTable, eq(airtimeTopupsTable.merchantId, merchantsTable.id))
+    .where(inArray(airtimeTopupsTable.status, ["initiating", "pending", "unknown", "failed"]))
+    .orderBy(desc(airtimeTopupsTable.createdAt))
+    .limit(100);
+  return {
+    items: rows.map(({ amountMinor, ...row }) => ({
+      ...row,
+      amount: Number(amountMinor) / 100,
+    })),
   };
 }
 
@@ -286,11 +312,18 @@ function validatePayheroEvidence(row: TopupRow, payload: Record<string, unknown>
 
 async function settleTopup(reference: string, result: "succeeded" | "failed", reason?: string) {
   return db.transaction(async (tx) => {
+    const [candidate] = await tx.select().from(airtimeTopupsTable)
+      .where(eq(airtimeTopupsTable.reference, reference)).limit(1);
+    if (!candidate) return undefined;
+    const wallet = await lockWallet(tx, candidate.merchantId);
     const [topup] = await tx.select().from(airtimeTopupsTable)
       .where(eq(airtimeTopupsTable.reference, reference)).for("update").limit(1);
     if (!topup || TERMINAL_STATUSES.has(topup.status)) return topup;
     if (result === "succeeded") {
-      const wallet = await lockWallet(tx, topup.merchantId);
+      const maxMinor = (1n << 63n) - 1n;
+      if (topup.amountMinor <= 0n || wallet.availableMinor > maxMinor - topup.amountMinor) {
+        throw new ApiError(409, "The airtime wallet balance would exceed the supported range.");
+      }
       const key = `topup:credit:${topup.reference}`;
       const [entry] = await tx.insert(airtimeWalletEntriesTable).values({
         merchantId: topup.merchantId,
@@ -351,7 +384,7 @@ export async function reconcileAirtimeTopup(reference: string): Promise<"not_fou
   }
   const status = normalizeProviderStatus(payload.status);
   if (status === "pending") {
-    await updateTopup(row.reference, { lastCheckedAt: new Date() });
+    await updateTopup(row.reference, { lastCheckedAt: new Date(), lastError: null });
     return "pending";
   }
   const providerReference = validatePayheroEvidence(row, payload);
@@ -363,6 +396,182 @@ export async function reconcileAirtimeTopup(reference: string): Promise<"not_fou
     ? firstText(payload.status_message, payload.message, payload.reason) ?? "PayHero confirmed the funding request failed."
     : undefined);
   return result;
+}
+
+function normalizeMpesareceipt(value: string): string {
+  const reference = value.trim().replace(/\s+/g, "").toUpperCase();
+  if (!/^[A-Z0-9-]{4,100}$/.test(reference)) {
+    throw new ApiError(400, "Enter a valid M-Pesa receipt reference using letters, numbers, or hyphens.");
+  }
+  return reference;
+}
+
+export async function confirmAdminAirtimeTopupCredit(input: {
+  reference: string;
+  evidenceReference: string;
+  reason: string;
+  idempotencyKey: string;
+  actor: string;
+}) {
+  const evidenceReference = normalizeMpesareceipt(input.evidenceReference);
+  const reason = input.reason.trim();
+  if (reason.length < 3 || reason.length > 1000) {
+    throw new ApiError(400, "Enter an audit reason between 3 and 1000 characters.");
+  }
+  if (input.idempotencyKey.length < 8 || input.idempotencyKey.length > 128) {
+    throw new ApiError(400, "A valid Idempotency-Key header is required.");
+  }
+
+  const manualRequestHash = fingerprint({
+    reference: input.reference,
+    evidenceReference,
+    reason,
+  });
+  return db.transaction(async (tx) => {
+    const [candidate] = await tx.select().from(airtimeTopupsTable)
+      .where(eq(airtimeTopupsTable.reference, input.reference)).limit(1);
+    if (!candidate) throw new ApiError(404, "Airtime top-up not found.");
+
+    // Keep the wallet lock ahead of the top-up lock, matching top-up creation and
+    // avoiding a wallet/top-up lock-order inversion during concurrent requests.
+    const wallet = await lockWallet(tx, candidate.merchantId);
+    const [topup] = await tx.select().from(airtimeTopupsTable)
+      .where(eq(airtimeTopupsTable.reference, input.reference)).for("update").limit(1);
+    if (!topup) throw new ApiError(404, "Airtime top-up not found.");
+    const [merchant] = await tx.select({ businessName: merchantsTable.businessName })
+      .from(merchantsTable).where(eq(merchantsTable.id, topup.merchantId)).limit(1);
+    if (!merchant) throw new ApiError(404, "Merchant account not found.");
+
+    // Serialize use of a receipt across merchants as well as across retries.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${evidenceReference}, 0))`);
+    const [evidenceEntry] = await tx.select().from(airtimeWalletEntriesTable).where(
+      sql`${airtimeWalletEntriesTable.metadata} ->> 'evidenceReference' = ${evidenceReference}`,
+    ).limit(1);
+    if (evidenceEntry) {
+      const sameManualConfirmation =
+        evidenceEntry.merchantId === topup.merchantId &&
+        evidenceEntry.reference === topup.reference &&
+        evidenceEntry.kind === "payhero_topup_credit" &&
+        evidenceEntry.metadata.manualRequestHash === manualRequestHash &&
+        topup.status === "succeeded";
+      if (!sameManualConfirmation) {
+        throw new ApiError(409, "This M-Pesa receipt has already been used for an airtime credit.");
+      }
+      return {
+        topupReference: topup.reference,
+        merchantId: topup.merchantId,
+        businessName: merchant.businessName,
+        amount: Number(topup.amountMinor) / 100,
+        currency: "KES" as const,
+        status: "succeeded" as const,
+        evidenceReference,
+        availableBalance: Number(wallet.availableMinor) / 100,
+        reservedBalance: Number(wallet.reservedMinor) / 100,
+        updatedAt: topup.updatedAt,
+      };
+    }
+
+    if (topup.status === "succeeded") {
+      throw new ApiError(409, "This airtime top-up has already been credited automatically.");
+    }
+    if (!["initiating", "pending", "unknown", "failed"].includes(topup.status)) {
+      throw new ApiError(409, "This airtime top-up is not eligible for manual payment confirmation.");
+    }
+
+    const maxMinor = (1n << 63n) - 1n;
+    if (topup.amountMinor <= 0n || wallet.availableMinor > maxMinor - topup.amountMinor) {
+      throw new ApiError(409, "The airtime wallet balance would exceed the supported range.");
+    }
+    const key = `topup:credit:${topup.reference}`;
+    const creditRequestHash = fingerprint({
+      kind: "payhero_topup_credit",
+      reference: topup.reference,
+      amount: topup.amountMinor.toString(),
+    });
+    const [existingCredit] = await tx.select().from(airtimeWalletEntriesTable).where(and(
+      eq(airtimeWalletEntriesTable.merchantId, topup.merchantId),
+      eq(airtimeWalletEntriesTable.idempotencyKey, key),
+    )).limit(1);
+    if (existingCredit) {
+      throw new ApiError(409, "A credit entry already exists for this top-up; review its ledger before retrying.");
+    }
+
+    const now = new Date();
+    const [entry] = await tx.insert(airtimeWalletEntriesTable).values({
+      merchantId: topup.merchantId,
+      reference: topup.reference,
+      kind: "payhero_topup_credit",
+      idempotencyKey: key,
+      requestHash: creditRequestHash,
+      availableDeltaMinor: topup.amountMinor,
+      reservedDeltaMinor: 0n,
+      metadata: {
+        provider: "payhero",
+        providerReference: topup.providerReference,
+        source: "admin_manual_confirmation",
+        evidenceReference,
+        reason,
+        actorUserId: input.actor,
+        previousStatus: topup.status,
+        manualRequestHash,
+      },
+    }).onConflictDoNothing().returning();
+    if (!entry) throw new ApiError(409, "This airtime top-up already has a credit ledger entry.");
+
+    const nextAvailable = wallet.availableMinor + topup.amountMinor;
+    await tx.update(airtimeWalletsTable).set({
+      availableMinor: nextAvailable,
+      updatedAt: now,
+    }).where(eq(airtimeWalletsTable.id, wallet.id));
+    const [updatedTopup] = await tx.update(airtimeTopupsTable).set({
+      status: "succeeded",
+      lastError: null,
+      lastCheckedAt: now,
+      updatedAt: now,
+    }).where(eq(airtimeTopupsTable.id, topup.id)).returning();
+    if (!updatedTopup) throw new ApiError(500, "The airtime top-up could not be updated.");
+
+    await tx.insert(adminAuditLogTable).values({
+      actor: input.actor,
+      action: "airtime.admin_topup_confirmed",
+      target: `merchant:${topup.merchantId}/airtime-wallet`,
+      details: JSON.stringify({
+        topupReference: topup.reference,
+        evidenceReference,
+        previousStatus: topup.status,
+        amount: Number(topup.amountMinor) / 100,
+        reason,
+      }),
+    });
+
+    return {
+      topupReference: topup.reference,
+      merchantId: topup.merchantId,
+      businessName: merchant.businessName,
+      amount: Number(topup.amountMinor) / 100,
+      currency: "KES" as const,
+      status: "succeeded" as const,
+      evidenceReference,
+      availableBalance: Number(nextAvailable) / 100,
+      reservedBalance: Number(wallet.reservedMinor) / 100,
+      updatedAt: updatedTopup.updatedAt,
+    };
+  });
+}
+
+export async function recordAirtimeTopupReconciliationFailure(reference: string, error: unknown): Promise<void> {
+  const message = error instanceof ApiError
+    ? error.message.slice(0, 500)
+    : "Payment status could not be confirmed. Greenpay will check again.";
+  const now = new Date();
+  await db.update(airtimeTopupsTable).set({
+    lastCheckedAt: now,
+    lastError: message,
+    updatedAt: now,
+  }).where(and(
+    eq(airtimeTopupsTable.reference, reference),
+    inArray(airtimeTopupsTable.status, ["initiating", "pending", "unknown"]),
+  ));
 }
 
 export async function createAirtimePurchase(input: {
@@ -661,8 +870,8 @@ export async function reconcilePendingAirtimeTopups(limit = 30): Promise<void> {
     if (!claimed) continue;
     try {
       await reconcileAirtimeTopup(candidate.reference);
-    } catch {
-      // Leave the deposit uncredited; later passes verify it again through PayHero.
+    } catch (error) {
+      await recordAirtimeTopupReconciliationFailure(candidate.reference, error);
     }
   }
   const staleCutoff = new Date(Date.now() - 2 * 60_000);

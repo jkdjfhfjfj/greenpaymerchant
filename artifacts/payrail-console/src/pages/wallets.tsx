@@ -7,6 +7,7 @@ import {
   useGetMerchantWalletFxQuote, useListAdminPayoutRequests, useListAdminWallets, useListAdminMerchants,
   useListMerchantPayoutRequests, useListMerchantWalletLedger,
   useListMerchantWalletPayoutMethods, useListMerchantWallets, useListSettlements,
+  type AdminAirtimeTopupCreditResponse, type AdminAirtimeTopupReviewList,
   type AdminWalletAdjustmentResponse,
 } from '@workspace/api-client-react';
 import { Async, Btn, Card, CURRENCIES, Err, Field, Gate, Heading, Modal, Note, Pill, currencyAmountStep, fmtDate, money, nice, useInvalidateAll } from '@/components/kit';
@@ -457,6 +458,11 @@ function AdminWalletsInner() {
   const wallets = useListAdminWallets({ query: { queryKey: ['admin-wallets'], refetchOnMount: 'always', refetchInterval: 30_000 } });
   const settlements = useListSettlements(undefined, { query: { queryKey: ['admin-settlements'], refetchOnMount: 'always', refetchInterval: 30_000 } });
   const merchants = useListAdminMerchants(undefined, { query: { queryKey: ['admin-wallet-adjustment-merchants'], staleTime: 30_000 } });
+  const airtimeTopups = useQuery<AdminAirtimeTopupReviewList>({
+    queryKey: ['admin-airtime-topups-review'],
+    queryFn: () => walletApi('/admin/airtime/topups/pending'),
+    refetchInterval: 30_000,
+  });
   const invalidate = useInvalidateAll();
   const [error, setError] = useState<unknown>(null);
   const [message, setMessage] = useState('');
@@ -465,8 +471,14 @@ function AdminWalletsInner() {
   const [adjustmentPending, setAdjustmentPending] = useState(false);
   const [adjustmentCurrency, setAdjustmentCurrency] = useState(CURRENCIES[0] ?? 'USD');
   const adjustmentKey = useRef<{ signature: string; key: string } | null>(null);
+  const [airtimeCreditTopup, setAirtimeCreditTopup] = useState<AdminAirtimeTopupReviewList['items'][number] | null>(null);
+  const [airtimeCreditError, setAirtimeCreditError] = useState<unknown>(null);
+  const [airtimeCreditPending, setAirtimeCreditPending] = useState(false);
+  const [airtimeCreditMessage, setAirtimeCreditMessage] = useState('');
+  const airtimeCreditKey = useRef<{ signature: string; key: string } | null>(null);
   const items = wallets.data?.items ?? [];
   const merchantItems = merchants.data?.items ?? [];
+  const airtimeItems = airtimeTopups.data?.items ?? [];
   const candidates = (settlements.data?.items ?? []).filter((item) => ['pending', 'due'].includes(item.status));
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -523,6 +535,46 @@ function AdminWalletsInner() {
       setAdjustmentPending(false);
     }
   }
+  async function submitAirtimeCredit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!airtimeCreditTopup) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const payload = {
+      evidenceReference: String(form.get('evidenceReference') || '').trim().replace(/\s+/g, '').toUpperCase(),
+      reason: String(form.get('reason') || '').trim(),
+    };
+    setAirtimeCreditError(null);
+    setAirtimeCreditMessage('');
+    const signature = JSON.stringify({ reference: airtimeCreditTopup.reference, ...payload });
+    if (!airtimeCreditKey.current || airtimeCreditKey.current.signature !== signature) {
+      airtimeCreditKey.current = { signature, key: requestKey() };
+    }
+    setAirtimeCreditPending(true);
+    try {
+      const result = await walletApi<AdminAirtimeTopupCreditResponse>(
+        `/admin/airtime/topups/${encodeURIComponent(airtimeCreditTopup.reference)}/confirm-credit`,
+        { method: 'POST', body: payload, idempotencyKey: airtimeCreditKey.current.key },
+      );
+      setAirtimeCreditMessage(
+        `Confirmed ${money(result.amount, 'KES')} for ${result.businessName}. ` +
+        `Available airtime balance: ${money(result.availableBalance, 'KES')}.`,
+      );
+      airtimeCreditKey.current = null;
+      setAirtimeCreditTopup(null);
+      formElement.reset();
+      await invalidate();
+    } catch (failure) {
+      setAirtimeCreditError(failure);
+    } finally {
+      setAirtimeCreditPending(false);
+    }
+  }
+  function openAirtimeCredit(topup: AdminAirtimeTopupReviewList['items'][number]) {
+    setAirtimeCreditError(null);
+    airtimeCreditKey.current = null;
+    setAirtimeCreditTopup(topup);
+  }
   return <>
     <Heading eyebrow="PLATFORM ADMIN / FINANCE" title="Merchant wallets" subtitle="Fund only after independently confirmed settlements. These balances are not forecasts or payment-success totals." />
     <div className="split">
@@ -573,6 +625,21 @@ function AdminWalletsInner() {
         </form>
       </Async>
     </Card>
+    <Card title="Airtime top-ups needing review" subtitle="Unconfirmed funding stays out of the merchant's available balance until verified.">
+      {airtimeCreditMessage && <Note>{airtimeCreditMessage}</Note>}
+      <Async q={airtimeTopups} empty={!airtimeItems.length} emptyTitle="No top-ups need review" emptyBody="Pending, unknown, and failed M-Pesa top-ups will appear here.">
+        <div className="table-wrap"><table className="dt"><thead><tr><th>Merchant / request</th><th>Phone</th><th className="num">Amount</th><th>Status / last check</th><th>Action</th></tr></thead><tbody>
+          {airtimeItems.map((item) => <tr key={item.reference}>
+            <td><strong>{item.businessName}</strong><span className="sub">Merchant #{item.merchantId} · {item.reference}</span></td>
+            <td>{item.phoneNumber}</td>
+            <td className="num">{money(item.amount, 'KES')}</td>
+            <td><Pill value={item.status} /><span className="sub">{item.lastError ?? (item.lastCheckedAt ? `Last checked ${fmtDate(item.lastCheckedAt)}` : 'Not checked yet')}</span></td>
+            <td><Btn variant="secondary" small onClick={() => openAirtimeCredit(item)} testId="button-review-airtime-topup">Review receipt</Btn></td>
+          </tr>)}
+        </tbody></table></div>
+        <div className="sub" style={{ marginTop: 10 }}>Showing the most recent 100 top-ups that are not yet credited.</div>
+      </Async>
+    </Card>
     <Card title="Per-currency balances" subtitle="Available balances exclude payout and refund reservations.">
       <Async q={wallets} empty={!items.length} emptyTitle="No funded merchant wallets" emptyBody="Wallets appear here only after their first confirmed settlement.">
         <div className="table-wrap"><table className="dt"><thead><tr><th>Merchant</th><th>Currency</th><th className="num">Available</th><th className="num">Reserved</th><th>Updated</th></tr></thead><tbody>
@@ -581,6 +648,37 @@ function AdminWalletsInner() {
       </Async>
       <div className="sub" style={{ marginTop: 12 }}>T+3 settlement status is not a funded balance. Each amount above comes from balanced append-only wallet journal entries.</div>
     </Card>
+    {airtimeCreditTopup && <Modal
+      title="Confirm M-Pesa top-up"
+      description={`${airtimeCreditTopup.businessName} · ${airtimeCreditTopup.reference} · ${money(airtimeCreditTopup.amount, 'KES')}`}
+      onClose={() => {
+        if (airtimeCreditPending) return;
+        setAirtimeCreditTopup(null);
+        setAirtimeCreditError(null);
+        airtimeCreditKey.current = null;
+      }}
+    >
+      <form className="form-stack" onSubmit={submitAirtimeCredit}>
+        <Note tone="warn">Confirm only after checking the successful M-Pesa receipt. This credits the full original top-up amount, changes its status to succeeded, and records your identity and reason. A receipt can be used only once.</Note>
+        <Field label="M-Pesa receipt reference">
+          <input name="evidenceReference" minLength={4} maxLength={100} autoCapitalize="characters" autoComplete="off" required data-testid="input-airtime-credit-evidence" />
+        </Field>
+        <Field label="Required audit reason">
+          <textarea name="reason" minLength={3} maxLength={1000} required placeholder="Explain why the M-Pesa payment was verified manually" data-testid="input-airtime-credit-reason" />
+        </Field>
+        <Err error={airtimeCreditError} />
+        <div className="row-actions">
+          <Btn type="button" variant="secondary" disabled={airtimeCreditPending} onClick={() => {
+            setAirtimeCreditTopup(null);
+            setAirtimeCreditError(null);
+            airtimeCreditKey.current = null;
+          }}>Cancel</Btn>
+          <Btn type="submit" disabled={airtimeCreditPending} testId="button-confirm-airtime-credit">
+            {airtimeCreditPending && <LoaderCircle size={14} className="spin" />}Confirm and credit
+          </Btn>
+        </div>
+      </form>
+    </Modal>}
   </>;
 }
 

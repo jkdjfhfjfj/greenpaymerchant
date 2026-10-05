@@ -21,3 +21,4 @@
 - [Merchant signup notifications](merchant-signup-notifications.md) — send new merchant account notices to both platform admins and the account owner.
 - [Didit KYC polling](didit-kyc-polling.md) — treat secretless webhook notices only as triggers for authenticated API checks; retain polling as a fallback.
 - [Airtime provider boundaries](statum-airtime-evidence.md) — hold uncertain outcomes; use M-Pesa for funding and Greenpay for purchase statuses in user-facing copy.
+- [Airtime funding recovery](airtime-funding-recovery.md) — keep PayHero matching strict; manual credits require one verified M-Pesa receipt and an audited original-amount ledger entry.

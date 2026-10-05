@@ -2450,6 +2450,44 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/StatumAccount" }
         "503": { description: Greenpay airtime account is not configured or could not be reached }
+  /admin/airtime/topups/pending:
+    get:
+      operationId: listAdminAirtimeTopupsForReview
+      tags: [admin, airtime]
+      summary: List airtime top-ups that still need payment review
+      responses:
+        "200":
+          description: Pending, unknown, or failed merchant airtime top-ups
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminAirtimeTopupReviewList" }
+  /admin/airtime/topups/{reference}/confirm-credit:
+    post:
+      operationId: confirmAdminAirtimeTopupCredit
+      tags: [admin, airtime]
+      summary: Confirm M-Pesa receipt evidence and credit the original airtime top-up amount
+      parameters:
+        - name: reference
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminAirtimeTopupCreditRequest" }
+      responses:
+        "201":
+          description: Existing top-up marked successful and credited once
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminAirtimeTopupCreditResponse" }
+        "404": { description: Airtime top-up not found }
+        "409": { description: Top-up already credited or evidence reference already used }
   /webhooks/statum:
     post:
       operationId: receiveStatumAirtimeCallback
@@ -3502,6 +3540,49 @@ components:
         topupCode: { type: ["string", "null"] }
         checkedAt: { type: string, format: date-time }
         callbackUrl: { type: string, format: uri }
+    AdminAirtimeTopupReview:
+      type: object
+      required: [reference, merchantId, businessName, phoneNumber, amount, status, providerReference, createdAt, updatedAt, lastCheckedAt, lastError]
+      properties:
+        reference: { type: string }
+        merchantId: { type: integer }
+        businessName: { type: string }
+        phoneNumber: { type: string }
+        amount: { type: number, minimum: 1 }
+        status: { type: string, enum: [initiating, pending, unknown, failed] }
+        providerReference: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        lastCheckedAt: { type: ["string", "null"], format: date-time }
+        lastError: { type: ["string", "null"] }
+    AdminAirtimeTopupReviewList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AdminAirtimeTopupReview" }
+    AdminAirtimeTopupCreditRequest:
+      type: object
+      required: [evidenceReference, reason]
+      properties:
+        evidenceReference: { type: string, minLength: 4, maxLength: 100, description: M-Pesa receipt or transaction reference already verified by the administrator. }
+        reason: { type: string, minLength: 3, maxLength: 1000 }
+      additionalProperties: false
+    AdminAirtimeTopupCreditResponse:
+      type: object
+      required: [topupReference, merchantId, businessName, amount, currency, status, evidenceReference, availableBalance, reservedBalance, updatedAt]
+      properties:
+        topupReference: { type: string }
+        merchantId: { type: integer }
+        businessName: { type: string }
+        amount: { type: number }
+        currency: { type: string, enum: [KES] }
+        status: { type: string, enum: [succeeded] }
+        evidenceReference: { type: string }
+        availableBalance: { type: number, minimum: 0 }
+        reservedBalance: { type: number, minimum: 0 }
+        updatedAt: { type: string, format: date-time }
     StatumAirtimeCallback:
       type: object
       required: [request_id, charge, result_code, result_desc]

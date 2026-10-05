@@ -22,7 +22,11 @@ import { diditDecisionStatus, diditStatusNeedsRefresh } from "../lib/security-po
 import { setWalletPayoutStatusFromProvider } from "../lib/wallet-service";
 import { equalSignature } from "../lib/secure-storage";
 import { statumCallbackToken, statumCallbackTokenHash } from "../lib/statum-provider";
-import { recordStatumCallback, reconcileAirtimeTopup } from "../lib/airtime-service";
+import {
+  recordAirtimeTopupReconciliationFailure,
+  recordStatumCallback,
+  reconcileAirtimeTopup,
+} from "../lib/airtime-service";
 
 const router: IRouter = Router();
 const DIDIT_DECISION_COOLDOWN_MS = 10_000;
@@ -458,6 +462,13 @@ router.post("/:provider", async (req, res): Promise<void> => {
     eventStatus = "failed";
     httpStatus = 500;
     lastError = error instanceof Error ? error.message.slice(0, 500) : "Webhook processing failed.";
+    if (provider === "payhero" && reference) {
+      try {
+        await recordAirtimeTopupReconciliationFailure(reference, error);
+      } catch {
+        // Preserve webhook event recording even if top-up diagnostics cannot be saved.
+      }
+    }
     req.log.error({ provider, event, reference, err: error }, "Provider webhook processing failed");
   }
 

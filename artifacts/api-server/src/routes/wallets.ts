@@ -3,12 +3,14 @@ import { Router, type IRouter } from "express";
 import {
   AdjustAdminWalletBalanceBody, AdjustAdminWalletBalanceHeader, AdjustAdminWalletBalanceResponse,
   ApprovePayoutRequestParams,
+  ConfirmAdminAirtimeTopupCreditBody, ConfirmAdminAirtimeTopupCreditHeader,
+  ConfirmAdminAirtimeTopupCreditParams, ConfirmAdminAirtimeTopupCreditResponse,
   ConfirmWalletSettlementBody, ConfirmWalletSettlementResponse,
   ConvertMerchantWalletFundsBody, ConvertMerchantWalletFundsHeader, ConvertMerchantWalletFundsResponse,
   CreateMerchantPayoutRequestHeader,
   GetMerchantWalletFxQuoteQueryParams, GetMerchantWalletFxQuoteResponse,
   ListMerchantWalletFxRatesQueryParams, ListMerchantWalletFxRatesResponse,
-  ListAdminPayoutRequestsQueryParams, ListAdminWalletsResponse,
+  ListAdminAirtimeTopupsForReviewResponse, ListAdminPayoutRequestsQueryParams, ListAdminWalletsResponse,
   ListMerchantWalletLedgerQueryParams, ListMerchantWalletLedgerResponse,
   ListMerchantWalletPayoutMethodsQueryParams, ListMerchantWalletPayoutMethodsResponse,
   ListMerchantWalletsResponse, ReconcilePayoutRequestParams, ReconcilePayoutRequestResponse,
@@ -26,6 +28,7 @@ import {
   walletPayoutMethods,
 } from "../lib/wallet-service";
 import { resolveMerchantAccess } from "../lib/merchant-access";
+import { confirmAdminAirtimeTopupCredit, listAdminAirtimeTopupsForReview } from "../lib/airtime-service";
 import { requireSignedIn } from "../middlewares/requireAdmin";
 
 export const merchantWalletRouter: IRouter = Router();
@@ -315,6 +318,36 @@ adminWalletRouter.post("/admin/wallets/adjustments", async (req, res): Promise<v
     actor: getAuth(req).userId ?? "unknown-admin",
   });
   res.status(201).json(AdjustAdminWalletBalanceResponse.parse(result));
+});
+
+adminWalletRouter.get("/admin/airtime/topups/pending", async (_req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json(ListAdminAirtimeTopupsForReviewResponse.parse(await listAdminAirtimeTopupsForReview()));
+});
+
+adminWalletRouter.post("/admin/airtime/topups/:reference/confirm-credit", async (req, res): Promise<void> => {
+  const params = ConfirmAdminAirtimeTopupCreditParams.safeParse(req.params);
+  const header = ConfirmAdminAirtimeTopupCreditHeader.safeParse({
+    "Idempotency-Key": req.get("Idempotency-Key"),
+  });
+  const body = ConfirmAdminAirtimeTopupCreditBody.safeParse(req.body);
+  if (!params.success || !header.success || !body.success) {
+    res.status(400).json({
+      error: !params.success
+        ? params.error.message
+        : !header.success
+          ? header.error.message
+          : body.error?.message ?? "Invalid airtime top-up confirmation.",
+    });
+    return;
+  }
+  const result = await confirmAdminAirtimeTopupCredit({
+    reference: params.data.reference,
+    ...body.data,
+    idempotencyKey: header.data["Idempotency-Key"],
+    actor: getAuth(req).userId ?? "unknown-admin",
+  });
+  res.status(201).json(ConfirmAdminAirtimeTopupCreditResponse.parse(result));
 });
 
 adminWalletRouter.post("/admin/wallets/settlements/confirm", async (req, res): Promise<void> => {

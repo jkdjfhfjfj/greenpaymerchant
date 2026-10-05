@@ -144,6 +144,81 @@ export interface StatumAccount {
   callbackUrl: string;
 }
 
+export type AdminAirtimeTopupReviewStatus = typeof AdminAirtimeTopupReviewStatus[keyof typeof AdminAirtimeTopupReviewStatus];
+
+
+export const AdminAirtimeTopupReviewStatus = {
+  initiating: 'initiating',
+  pending: 'pending',
+  unknown: 'unknown',
+  failed: 'failed',
+} as const;
+
+export interface AdminAirtimeTopupReview {
+  reference: string;
+  merchantId: number;
+  businessName: string;
+  phoneNumber: string;
+  /** @minimum 1 */
+  amount: number;
+  status: AdminAirtimeTopupReviewStatus;
+  /** @nullable */
+  providerReference: string | null;
+  createdAt: string;
+  updatedAt: string;
+  /** @nullable */
+  lastCheckedAt: string | null;
+  /** @nullable */
+  lastError: string | null;
+}
+
+export interface AdminAirtimeTopupReviewList {
+  items: AdminAirtimeTopupReview[];
+}
+
+export interface AdminAirtimeTopupCreditRequest {
+  /**
+     * M-Pesa receipt or transaction reference already verified by the administrator.
+     * @minLength 4
+     * @maxLength 100
+     */
+  evidenceReference: string;
+  /**
+     * @minLength 3
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export type AdminAirtimeTopupCreditResponseCurrency = typeof AdminAirtimeTopupCreditResponseCurrency[keyof typeof AdminAirtimeTopupCreditResponseCurrency];
+
+
+export const AdminAirtimeTopupCreditResponseCurrency = {
+  KES: 'KES',
+} as const;
+
+export type AdminAirtimeTopupCreditResponseStatus = typeof AdminAirtimeTopupCreditResponseStatus[keyof typeof AdminAirtimeTopupCreditResponseStatus];
+
+
+export const AdminAirtimeTopupCreditResponseStatus = {
+  succeeded: 'succeeded',
+} as const;
+
+export interface AdminAirtimeTopupCreditResponse {
+  topupReference: string;
+  merchantId: number;
+  businessName: string;
+  amount: number;
+  currency: AdminAirtimeTopupCreditResponseCurrency;
+  status: AdminAirtimeTopupCreditResponseStatus;
+  evidenceReference: string;
+  /** @minimum 0 */
+  availableBalance: number;
+  /** @minimum 0 */
+  reservedBalance: number;
+  updatedAt: string;
+}
+
 export interface StatumAirtimeCallback {
   /**
      * @minLength 1

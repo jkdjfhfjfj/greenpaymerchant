@@ -5714,6 +5714,82 @@ export const GetAdminStatumAccountResponse = zod.object({
 
 
 /**
+ * @summary List airtime top-ups that still need payment review
+ */
+
+
+
+export const ListAdminAirtimeTopupsForReviewResponse = zod.object({
+  "items": zod.array(zod.object({
+  "reference": zod.string(),
+  "merchantId": zod.number().int(),
+  "businessName": zod.string(),
+  "phoneNumber": zod.string(),
+  "amount": zod.number().min(1),
+  "status": zod.enum(['initiating', 'pending', 'unknown', 'failed']),
+  "providerReference": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "lastCheckedAt": zod.coerce.date().nullable(),
+  "lastError": zod.string().nullable()
+}))
+})
+
+
+/**
+ * @summary Confirm M-Pesa receipt evidence and credit the original airtime top-up amount
+ */
+export const confirmAdminAirtimeTopupCreditPathReferenceMax = 100;
+
+
+
+export const ConfirmAdminAirtimeTopupCreditParams = zod.object({
+  "reference": zod.coerce.string().min(1).max(confirmAdminAirtimeTopupCreditPathReferenceMax)
+})
+
+export const confirmAdminAirtimeTopupCreditHeaderIdempotencyKeyMin = 8;
+export const confirmAdminAirtimeTopupCreditHeaderIdempotencyKeyMax = 128;
+
+
+
+export const ConfirmAdminAirtimeTopupCreditHeader = zod.object({
+  "Idempotency-Key": zod.string().min(confirmAdminAirtimeTopupCreditHeaderIdempotencyKeyMin).max(confirmAdminAirtimeTopupCreditHeaderIdempotencyKeyMax)
+})
+
+export const confirmAdminAirtimeTopupCreditBodyEvidenceReferenceMin = 4;
+export const confirmAdminAirtimeTopupCreditBodyEvidenceReferenceMax = 100;
+
+export const confirmAdminAirtimeTopupCreditBodyReasonMin = 3;
+export const confirmAdminAirtimeTopupCreditBodyReasonMax = 1000;
+
+
+
+export const ConfirmAdminAirtimeTopupCreditBody = zod.object({
+  "evidenceReference": zod.string().min(confirmAdminAirtimeTopupCreditBodyEvidenceReferenceMin).max(confirmAdminAirtimeTopupCreditBodyEvidenceReferenceMax).describe('M-Pesa receipt or transaction reference already verified by the administrator.'),
+  "reason": zod.string().min(confirmAdminAirtimeTopupCreditBodyReasonMin).max(confirmAdminAirtimeTopupCreditBodyReasonMax)
+})
+
+export const confirmAdminAirtimeTopupCreditResponseAvailableBalanceMin = 0;
+
+export const confirmAdminAirtimeTopupCreditResponseReservedBalanceMin = 0;
+
+
+
+export const ConfirmAdminAirtimeTopupCreditResponse = zod.object({
+  "topupReference": zod.string(),
+  "merchantId": zod.number().int(),
+  "businessName": zod.string(),
+  "amount": zod.number(),
+  "currency": zod.enum(['KES']),
+  "status": zod.enum(['succeeded']),
+  "evidenceReference": zod.string(),
+  "availableBalance": zod.number().min(confirmAdminAirtimeTopupCreditResponseAvailableBalanceMin),
+  "reservedBalance": zod.number().min(confirmAdminAirtimeTopupCreditResponseReservedBalanceMin),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Receive an asynchronous airtime result for Greenpay
  */
 export const receiveStatumAirtimeCallbackQueryTokenMin = 16;

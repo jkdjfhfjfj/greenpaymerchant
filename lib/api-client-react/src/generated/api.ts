@@ -23,6 +23,9 @@ import type {
   AccessProfile,
   AddressGeocodeInput,
   AddressGeocodeResult,
+  AdminAirtimeTopupCreditRequest,
+  AdminAirtimeTopupCreditResponse,
+  AdminAirtimeTopupReviewList,
   AdminApplicationRequestAttachmentUploadIntentInput,
   AdminAuditLog,
   AdminCaseRefundRecord,
@@ -12375,6 +12378,172 @@ export function useGetAdminStatumAccount<TData = Awaited<ReturnType<typeof getAd
 
 
 
+
+export const getListAdminAirtimeTopupsForReviewUrl = () => {
+
+
+
+
+  return `/api/admin/airtime/topups/pending`
+}
+
+/**
+ * @summary List airtime top-ups that still need payment review
+ */
+export const listAdminAirtimeTopupsForReview = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminAirtimeTopupReviewList> => {
+
+  return customFetch<AdminAirtimeTopupReviewList>(getListAdminAirtimeTopupsForReviewUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminAirtimeTopupsForReviewQueryKey = () => {
+    return [
+    `/api/admin/airtime/topups/pending`
+    ] as const;
+    }
+
+
+export const getListAdminAirtimeTopupsForReviewQueryOptions = <TData = Awaited<ReturnType<typeof listAdminAirtimeTopupsForReview>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminAirtimeTopupsForReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminAirtimeTopupsForReviewQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminAirtimeTopupsForReview>>> = ({ signal }) => listAdminAirtimeTopupsForReview({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminAirtimeTopupsForReview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminAirtimeTopupsForReviewQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminAirtimeTopupsForReview>>>
+export type ListAdminAirtimeTopupsForReviewQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List airtime top-ups that still need payment review
+ */
+
+export function useListAdminAirtimeTopupsForReview<TData = Awaited<ReturnType<typeof listAdminAirtimeTopupsForReview>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminAirtimeTopupsForReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminAirtimeTopupsForReviewQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getConfirmAdminAirtimeTopupCreditUrl = (reference: string,) => {
+
+
+
+
+  return `/api/admin/airtime/topups/${reference}/confirm-credit`
+}
+
+/**
+ * @summary Confirm M-Pesa receipt evidence and credit the original airtime top-up amount
+ */
+export const confirmAdminAirtimeTopupCredit = async (reference: string,
+    adminAirtimeTopupCreditRequest: AdminAirtimeTopupCreditRequest, options?: Parameters<typeof customFetch>[1]): Promise<AdminAirtimeTopupCreditResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AdminAirtimeTopupCreditResponse>(getConfirmAdminAirtimeTopupCreditUrl(reference),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(adminAirtimeTopupCreditRequest)
+  }
+);}
+
+
+
+
+
+export const getConfirmAdminAirtimeTopupCreditMutationKey = () => ['confirmAdminAirtimeTopupCredit'] as const;
+
+export const getConfirmAdminAirtimeTopupCreditMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmAdminAirtimeTopupCredit>>, TError,ConfirmAdminAirtimeTopupCreditMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmAdminAirtimeTopupCredit>>, TError,ConfirmAdminAirtimeTopupCreditMutationVariables, TContext> => {
+
+const mutationKey = getConfirmAdminAirtimeTopupCreditMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmAdminAirtimeTopupCredit>>, ConfirmAdminAirtimeTopupCreditMutationVariables> = (props) => {
+          const {reference,data} = props ?? {};
+
+          return  confirmAdminAirtimeTopupCredit(reference,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmAdminAirtimeTopupCreditMutationResult = NonNullable<Awaited<ReturnType<typeof confirmAdminAirtimeTopupCredit>>>
+    export type ConfirmAdminAirtimeTopupCreditMutationBody = BodyType<AdminAirtimeTopupCreditRequest>
+    export type ConfirmAdminAirtimeTopupCreditMutationError = ErrorType<void>
+    export type ConfirmAdminAirtimeTopupCreditMutationVariables = {reference: string;data: BodyType<AdminAirtimeTopupCreditRequest>}
+
+    /**
+ * @summary Confirm M-Pesa receipt evidence and credit the original airtime top-up amount
+ */
+export const useConfirmAdminAirtimeTopupCredit = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmAdminAirtimeTopupCredit>>, TError,ConfirmAdminAirtimeTopupCreditMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof confirmAdminAirtimeTopupCredit>>,
+        TError,
+        ConfirmAdminAirtimeTopupCreditMutationVariables,
+        TContext
+      > => {
+      return useMutation(getConfirmAdminAirtimeTopupCreditMutationOptions(options));
+    }
 
 export const getReceiveStatumAirtimeCallbackUrl = (params: ReceiveStatumAirtimeCallbackParams,) => {
   const normalizedParams = new URLSearchParams();

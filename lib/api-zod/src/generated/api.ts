@@ -5492,7 +5492,7 @@ export const GetMerchantAirtimeDashboardResponse = zod.object({
   "phoneNumber": zod.string(),
   "amount": zod.number().min(1).describe('Requested airtime amount in KES.'),
   "charge": zod.number().min(getMerchantAirtimeDashboardResponsePurchasesItemChargeMin).nullable().describe('Final wallet debit reported after provider confirmation. Any difference from the requested amount is returned to the available balance.'),
-  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']).describe('Pending means Statum is processing the request. Succeeded and failed are final provider outcomes. Unknown remains reserved for review; do not create a second purchase.'),
+  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']).describe('Pending means Greenpay is processing the request. Succeeded and failed are final verified outcomes. Unknown remains reserved for review; do not create a second purchase.'),
   "providerRequestId": zod.string().nullable(),
   "resultDescription": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
@@ -5575,7 +5575,7 @@ export const CreateMerchantAirtimePurchaseResponse = zod.object({
   "phoneNumber": zod.string(),
   "amount": zod.number().min(1).describe('Requested airtime amount in KES.'),
   "charge": zod.number().min(createMerchantAirtimePurchaseResponsePurchaseChargeMin).nullable().describe('Final wallet debit reported after provider confirmation. Any difference from the requested amount is returned to the available balance.'),
-  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']).describe('Pending means Statum is processing the request. Succeeded and failed are final provider outcomes. Unknown remains reserved for review; do not create a second purchase.'),
+  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']).describe('Pending means Greenpay is processing the request. Succeeded and failed are final verified outcomes. Unknown remains reserved for review; do not create a second purchase.'),
   "providerRequestId": zod.string().nullable(),
   "resultDescription": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
@@ -5616,7 +5616,7 @@ export const ListDeveloperAirtimePurchasesResponse = zod.object({
   "phoneNumber": zod.string(),
   "amount": zod.number().min(1).describe('Requested airtime amount in KES.'),
   "charge": zod.number().min(listDeveloperAirtimePurchasesResponseItemsItemChargeMin).nullable().describe('Final wallet debit reported after provider confirmation. Any difference from the requested amount is returned to the available balance.'),
-  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']).describe('Pending means Statum is processing the request. Succeeded and failed are final provider outcomes. Unknown remains reserved for review; do not create a second purchase.'),
+  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']).describe('Pending means Greenpay is processing the request. Succeeded and failed are final verified outcomes. Unknown remains reserved for review; do not create a second purchase.'),
   "providerRequestId": zod.string().nullable(),
   "resultDescription": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
@@ -5660,7 +5660,7 @@ export const CreateDeveloperAirtimePurchaseResponse = zod.object({
   "phoneNumber": zod.string(),
   "amount": zod.number().min(1).describe('Requested airtime amount in KES.'),
   "charge": zod.number().min(createDeveloperAirtimePurchaseResponsePurchaseChargeMin).nullable().describe('Final wallet debit reported after provider confirmation. Any difference from the requested amount is returned to the available balance.'),
-  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']).describe('Pending means Statum is processing the request. Succeeded and failed are final provider outcomes. Unknown remains reserved for review; do not create a second purchase.'),
+  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']).describe('Pending means Greenpay is processing the request. Succeeded and failed are final verified outcomes. Unknown remains reserved for review; do not create a second purchase.'),
   "providerRequestId": zod.string().nullable(),
   "resultDescription": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
@@ -5690,7 +5690,7 @@ export const GetDeveloperAirtimePurchaseResponse = zod.object({
   "phoneNumber": zod.string(),
   "amount": zod.number().min(1).describe('Requested airtime amount in KES.'),
   "charge": zod.number().min(getDeveloperAirtimePurchaseResponseChargeMin).nullable().describe('Final wallet debit reported after provider confirmation. Any difference from the requested amount is returned to the available balance.'),
-  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']).describe('Pending means Statum is processing the request. Succeeded and failed are final provider outcomes. Unknown remains reserved for review; do not create a second purchase.'),
+  "status": zod.enum(['submitting', 'pending', 'unknown', 'succeeded', 'failed']).describe('Pending means Greenpay is processing the request. Succeeded and failed are final verified outcomes. Unknown remains reserved for review; do not create a second purchase.'),
   "providerRequestId": zod.string().nullable(),
   "resultDescription": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
@@ -5699,7 +5699,7 @@ export const GetDeveloperAirtimePurchaseResponse = zod.object({
 
 
 /**
- * @summary Read the platform Statum airtime balance and funding details
+ * @summary Read the Greenpay airtime balance and M-Pesa funding details
  */
 export const getAdminStatumAccountResponseBalanceMin = 0;
 
@@ -5714,7 +5714,7 @@ export const GetAdminStatumAccountResponse = zod.object({
 
 
 /**
- * @summary Receive Statum's asynchronous airtime result
+ * @summary Receive an asynchronous airtime result for Greenpay
  */
 export const receiveStatumAirtimeCallbackQueryTokenMin = 16;
 export const receiveStatumAirtimeCallbackQueryTokenMax = 256;

@@ -20,4 +20,4 @@
 - [Render Blueprint environment sync](render-blueprint-env-sync.md) — existing Blueprints ignore `sync: false` variables during updates; non-secret config needs a literal value and a sync/deploy.
 - [Merchant signup notifications](merchant-signup-notifications.md) — send new merchant account notices to both platform admins and the account owner.
 - [Didit KYC polling](didit-kyc-polling.md) — treat secretless webhook notices only as triggers for authenticated API checks; retain polling as a fallback.
-- [Airtime provider boundaries](statum-airtime-evidence.md) — hold uncertain Statum outcomes; customer- and developer-facing funding copy calls the payment method M-Pesa.
+- [Airtime provider boundaries](statum-airtime-evidence.md) — hold uncertain outcomes; use M-Pesa for funding and Greenpay for purchase statuses in user-facing copy.

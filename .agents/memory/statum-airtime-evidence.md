@@ -16,3 +16,9 @@ Customer- and developer-facing airtime funding copy refers to the payment method
 **Why:** The user asked for M-Pesa wording in Greenpay's airtime experience.
 
 **How to apply:** Use M-Pesa in merchant-facing airtime UI and developer documentation. Preserve the actual provider name in internal code, API enums, and operator-only configuration where it is operationally necessary.
+
+Customer- and developer-facing airtime purchase processing, status, and charge copy uses Greenpay naming. Preserve exact internal provider routes, enum values, and schema identifiers.
+
+**Why:** The user asked for Greenpay wording in airtime purchase messages and documentation.
+
+**How to apply:** Refer to Greenpay in merchant-facing purchase status, charge, and processing copy. Keep internal provider identifiers unchanged.

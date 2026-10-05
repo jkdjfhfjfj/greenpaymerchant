@@ -175,7 +175,7 @@ function AirtimeContent() {
       >
         <div>
           <strong className="block text-sm">Discounted airtime · Kenya (KES) only</strong>
-          <span className="sub">Other countries and currencies are coming soon. Statum confirms the final wallet charge for each purchase.</span>
+          <span className="sub">Other countries and currencies are coming soon. Greenpay confirms the final wallet charge for each purchase.</span>
         </div>
         <div className="flex flex-wrap gap-2" aria-label="Supported airtime networks">
           {['Safaricom', 'Airtel', 'Telkom'].map((network) => (
@@ -239,7 +239,7 @@ function AirtimeContent() {
                 <div className="airtime-reserved rounded-xl border border-white/15 bg-black/10 p-4" data-testid="metric-airtime-reserved-balance">
                   <span className="block text-xs font-medium text-white/75">Reserved</span>
                   <strong className="mt-1 block text-3xl font-semibold tracking-tight">{money(data.wallet.reservedBalance, data.wallet.currency)}</strong>
-                  <small className="mt-1 block text-xs text-white/65">Held while Statum confirms a result</small>
+                  <small className="mt-1 block text-xs text-white/65">Held while Greenpay confirms a result</small>
                 </div>
               </div>
               <div className="airtime-wallet-foot mt-4 flex items-start gap-2 border-t border-white/15 pt-3 text-xs leading-5 text-white/75">
@@ -447,7 +447,7 @@ function AirtimeContent() {
 
             <Card
               title="Recent airtime purchases"
-              subtitle="The full request amount remains reserved until Statum reports a final result."
+              subtitle="The full request amount remains reserved until Greenpay reports a final result."
               className="airtime-history-card"
             >
               {data.purchases.length === 0 ? (
@@ -460,7 +460,7 @@ function AirtimeContent() {
                 <div className="table-wrap">
                   <table className="dt">
                     <thead>
-                      <tr><th>Recipient</th><th>Requested</th><th>Charged</th><th>Status</th><th>Reference</th><th>Statum request</th><th>Created</th><th>Updated</th></tr>
+                      <tr><th>Recipient</th><th>Requested</th><th>Charged</th><th>Status</th><th>Reference</th><th>Greenpay request</th><th>Created</th><th>Updated</th></tr>
                     </thead>
                     <tbody>
                       {data.purchases.map((item) => (
@@ -490,7 +490,7 @@ function AirtimeContent() {
       {purchaseAttempt && (
         <Modal
           title="Confirm airtime purchase"
-          description={`Send ${money(purchaseAttempt.data.amount, 'KES')} airtime to ${purchaseAttempt.data.phoneNumber}? This uses your separate airtime wallet. If Statum is still processing or its response is uncertain, do not submit the purchase again.`}
+          description={`Send ${money(purchaseAttempt.data.amount, 'KES')} airtime to ${purchaseAttempt.data.phoneNumber}? This uses your separate airtime wallet. If Greenpay is still processing or its response is uncertain, do not submit the purchase again.`}
           onClose={closePurchaseConfirmation}
         >
           {purchase.error && <Err error={purchase.error} />}
@@ -514,7 +514,7 @@ function AirtimeContent() {
               onClick={confirmPurchase}
               testId="button-confirm-airtime-purchase"
             >
-              {purchase.isPending ? 'Sending to Statum…' : purchase.isError ? 'Retry same request' : 'Confirm and buy'}
+              {purchase.isPending ? 'Sending to Greenpay…' : purchase.isError ? 'Retry same request' : 'Confirm and buy'}
             </Btn>
           </div>
         </Modal>

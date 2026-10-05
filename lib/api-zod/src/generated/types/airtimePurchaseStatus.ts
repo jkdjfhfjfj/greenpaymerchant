@@ -7,7 +7,7 @@
  */
 
 /**
- * Pending means Statum is processing the request. Succeeded and failed are final provider outcomes. Unknown remains reserved for review; do not create a second purchase.
+ * Pending means Greenpay is processing the request. Succeeded and failed are final verified outcomes. Unknown remains reserved for review; do not create a second purchase.
  */
 export type AirtimePurchaseStatus = typeof AirtimePurchaseStatus[keyof typeof AirtimePurchaseStatus];
 

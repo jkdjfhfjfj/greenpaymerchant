@@ -12308,7 +12308,7 @@ export const getGetAdminStatumAccountUrl = () => {
 }
 
 /**
- * @summary Read the platform Statum airtime balance and funding details
+ * @summary Read the Greenpay airtime balance and M-Pesa funding details
  */
 export const getAdminStatumAccount = async ( options?: Parameters<typeof customFetch>[1]): Promise<StatumAccount> => {
 
@@ -12355,7 +12355,7 @@ export type GetAdminStatumAccountQueryError = ErrorType<void>
 
 
 /**
- * @summary Read the platform Statum airtime balance and funding details
+ * @summary Read the Greenpay airtime balance and M-Pesa funding details
  */
 
 export function useGetAdminStatumAccount<TData = Awaited<ReturnType<typeof getAdminStatumAccount>>, TError = ErrorType<void>>(
@@ -12392,7 +12392,7 @@ export const getReceiveStatumAirtimeCallbackUrl = (params: ReceiveStatumAirtimeC
 }
 
 /**
- * @summary Receive Statum's asynchronous airtime result
+ * @summary Receive an asynchronous airtime result for Greenpay
  */
 export const receiveStatumAirtimeCallback = async (statumAirtimeCallback: StatumAirtimeCallback,
     params: ReceiveStatumAirtimeCallbackParams, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
@@ -12459,7 +12459,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type ReceiveStatumAirtimeCallbackMutationVariables = {data: BodyType<StatumAirtimeCallback>;params: ReceiveStatumAirtimeCallbackParams}
 
     /**
- * @summary Receive Statum's asynchronous airtime result
+ * @summary Receive an asynchronous airtime result for Greenpay
  */
 export const useReceiveStatumAirtimeCallback = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveStatumAirtimeCallback>>, TError,ReceiveStatumAirtimeCallbackMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}

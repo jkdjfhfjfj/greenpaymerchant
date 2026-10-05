@@ -2370,7 +2370,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AirtimePurchaseResponse" }
         "409": { description: Idempotency conflict or insufficient airtime funds }
-        "503": { description: Statum request could not be safely confirmed }
+        "503": { description: Greenpay could not safely confirm the airtime request }
   /v1/airtime/wallet:
     get:
       operationId: getDeveloperAirtimeWallet
@@ -2419,7 +2419,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AirtimePurchaseResponse" }
         "409": { description: Idempotency conflict or insufficient airtime funds }
-        "503": { description: Statum request could not be safely confirmed }
+        "503": { description: Greenpay could not safely confirm the airtime request }
   /v1/airtime/purchases/{reference}:
     get:
       operationId: getDeveloperAirtimePurchase
@@ -2442,19 +2442,19 @@ paths:
     get:
       operationId: getAdminStatumAccount
       tags: [admin]
-      summary: Read the platform Statum airtime balance and funding details
+      summary: Read the Greenpay airtime balance and M-Pesa funding details
       responses:
         "200":
-          description: Statum account balance and M-Pesa funding code
+          description: Greenpay airtime account balance and M-Pesa funding code
           content:
             application/json:
               schema: { $ref: "#/components/schemas/StatumAccount" }
-        "503": { description: Statum credentials are not configured or the account could not be reached }
+        "503": { description: Greenpay airtime account is not configured or could not be reached }
   /webhooks/statum:
     post:
       operationId: receiveStatumAirtimeCallback
       tags: [webhooks]
-      summary: Receive Statum's asynchronous airtime result
+      summary: Receive an asynchronous airtime result for Greenpay
       parameters:
         - name: token
           in: query
@@ -2468,7 +2468,7 @@ paths:
       responses:
         "200": { description: Callback recorded or processed }
         "401": { description: Callback token is invalid }
-        "503": { description: Callback could not be safely processed; Statum should retry }
+        "503": { description: Callback could not be safely processed; the sender should retry }
   /v1/merchant:
     get:
       operationId: getDeveloperMerchant
@@ -3449,7 +3449,7 @@ components:
         status:
           type: string
           enum: [submitting, pending, unknown, succeeded, failed]
-          description: Pending means Statum is processing the request. Succeeded and failed are final provider outcomes. Unknown remains reserved for review; do not create a second purchase.
+          description: Pending means Greenpay is processing the request. Succeeded and failed are final verified outcomes. Unknown remains reserved for review; do not create a second purchase.
         providerRequestId: { type: ["string", "null"] }
         resultDescription: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }

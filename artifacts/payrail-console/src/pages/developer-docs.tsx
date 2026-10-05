@@ -346,7 +346,7 @@ Content-Type: application/json
 # Reconcile the saved result (read scope)
 GET ${docsOrigin}${API_ORIGIN}/v1/airtime/purchases/AIRTIME_REFERENCE
 Authorization: Bearer $GREENPAY_API_KEY`}</pre>
-        <p>The purchase response includes its Greenpay reference, status, and final Statum charge when confirmed. If a request is <code>pending</code> or <code>unknown</code>, its funds remain reserved. Reuse the same idempotency key for a retry of that exact request; do not create a new key to repeat an uncertain purchase.</p>
+        <p>The purchase response includes its Greenpay reference, status, and final Greenpay charge when confirmed. If a request is <code>pending</code> or <code>unknown</code>, its funds remain reserved. Reuse the same idempotency key for a retry of that exact request; do not create a new key to repeat an uncertain purchase.</p>
       </div>
     </Card>
       </section>
@@ -493,7 +493,7 @@ curl -X POST "${docsOrigin}/api/v1/airtime/purchases" \\
 curl "${docsOrigin}/api/v1/airtime/purchases/AIRTIME_REFERENCE" \\
   -H "Authorization: Bearer $GREENPAY_API_KEY"`}</pre>
         <p>The key needs <code>read</code> for balance and status requests and <code>airtime:write</code> to purchase. Airtime purchases are KES-only and use Safaricom, Airtel, or Telkom numbers. The requested <code>amount</code> is the airtime purchase amount; <code>charge</code> reports the confirmed wallet debit, with any discounted difference returned to the available balance after confirmation.</p>
-        <p>Purchase responses may be <code>pending</code> while Statum processes them. Poll the saved purchase reference for its final status. Confirmed failures release the reservation; <code>unknown</code> outcomes keep funds reserved. Never retry an uncertain purchase using a new idempotency key.</p>
+        <p>Purchase responses may be <code>pending</code> while Greenpay processes them. Poll the saved purchase reference for its final status. Confirmed failures release the reservation; <code>unknown</code> outcomes keep funds reserved. Never retry an uncertain purchase using a new idempotency key.</p>
         <h3>Check payment status after checkout</h3>
         <pre className="code">{`curl "${docsOrigin}/api/public/transactions/TRANSACTION_REFERENCE"`}</pre>
         <p>This public endpoint needs no API key and returns a customer-safe status payload. It may refresh pending provider status; prefer the signed webhook flow above for ongoing updates.</p>

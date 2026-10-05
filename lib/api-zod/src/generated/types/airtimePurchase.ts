@@ -21,7 +21,7 @@ export interface AirtimePurchase {
      * @nullable
      */
   charge: number | null;
-  /** Pending means Statum is processing the request. Succeeded and failed are final provider outcomes. Unknown remains reserved for review; do not create a second purchase. */
+  /** Pending means Greenpay is processing the request. Succeeded and failed are final verified outcomes. Unknown remains reserved for review; do not create a second purchase. */
   status: AirtimePurchaseStatus;
   /** @nullable */
   providerRequestId: string | null;

@@ -200,15 +200,15 @@ function AirtimeContent() {
               </span>
             ) : topupStatus === 'failed' ? (
               <span>
-                <strong>Funding failed.</strong> PayHero confirmed the payment did not complete, so no airtime balance was added.
+                <strong>Funding failed.</strong> The M-Pesa payment did not complete, so no airtime balance was added.
               </span>
             ) : topupStatus === 'unknown' ? (
               <span>
-                <strong>Payment status not confirmed yet.</strong> No balance has been credited. Greenpay is checking PayHero; do not start a duplicate request.
+                <strong>Payment status not confirmed yet.</strong> No balance has been credited. Greenpay is checking the M-Pesa payment; do not start a duplicate request.
               </span>
             ) : (
               <span>
-                <strong>M-Pesa prompt sent to {topupConfirmation.phoneNumber}.</strong> Waiting for PayHero confirmation. Your wallet will be credited automatically after payment is verified.
+                <strong>M-Pesa prompt sent to {topupConfirmation.phoneNumber}.</strong> Waiting for payment confirmation. Your wallet will be credited automatically after the payment is verified.
               </span>
             )}
             <span className="block text-xs">Reference: {topupConfirmation.reference}</span>
@@ -262,7 +262,7 @@ function AirtimeContent() {
             <div className="airtime-action-grid grid grid-cols-1 gap-1 xl:grid-cols-2 xl:gap-4">
               <Card
                 title="Fund airtime wallet"
-                subtitle="PayHero will request an M-Pesa payment from the number you enter. The balance updates after payment is confirmed."
+                subtitle="An M-Pesa payment prompt will be sent to the number you enter. The balance updates after payment is confirmed."
                 className="airtime-action-card airtime-fund-card"
               >
                 <Form {...topupForm}>
@@ -412,20 +412,20 @@ function AirtimeContent() {
 
             <Card
               title="Recent wallet funding"
-              subtitle="A top-up is available to spend only after PayHero confirms the payment."
+              subtitle="A top-up is available to spend only after the M-Pesa payment is confirmed."
               className="airtime-history-card"
             >
               {data.topups.length === 0 ? (
                 <div className="empty-state" data-testid="empty-airtime-topups">
                   <div className="empty-symbol"><ArrowDownToLine size={18} /></div>
                   <strong>No airtime funding yet</strong>
-                  <span>PayHero-confirmed wallet top-ups will appear here.</span>
+                  <span>Confirmed M-Pesa wallet top-ups will appear here.</span>
                 </div>
               ) : (
                 <div className="table-wrap">
                   <table className="dt">
                     <thead>
-                      <tr><th>Phone</th><th>Amount</th><th>Status</th><th>Reference</th><th>PayHero reference</th><th>Created</th><th>Updated</th></tr>
+                      <tr><th>Phone</th><th>Amount</th><th>Status</th><th>Reference</th><th>External payment reference</th><th>Created</th><th>Updated</th></tr>
                     </thead>
                     <tbody>
                       {data.topups.map((item) => (

@@ -13,7 +13,7 @@ export interface AirtimeTopupInput {
      */
   phoneNumber: string;
   /**
-     * Whole KES amount to request through the PayHero M-Pesa prompt.
+     * Whole KES amount to request through the M-Pesa prompt.
      * @minimum 1
      */
   amount: number;

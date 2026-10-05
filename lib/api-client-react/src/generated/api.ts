@@ -11732,7 +11732,7 @@ export const getGetMerchantAirtimeDashboardUrl = () => {
 }
 
 /**
- * The wallet is KES-only. Verified PayHero top-ups are credited automatically; confirmed failed or unverified payments are not credited.
+ * The wallet is KES-only. Verified M-Pesa top-ups are credited automatically; confirmed failed or unverified payments are not credited.
  * @summary Read the merchant's separate KES airtime wallet and recent activity
  */
 export const getMerchantAirtimeDashboard = async ( options?: Parameters<typeof customFetch>[1]): Promise<MerchantAirtimeDashboard> => {
@@ -11810,8 +11810,8 @@ export const getCreateMerchantAirtimeTopupUrl = () => {
 }
 
 /**
- * Starting a prompt does not credit the wallet. Greenpay verifies the PayHero result and credits only a matching successful KES payment. Confirmed failures are marked failed without a credit; pending or unknown results remain uncredited until verified.
- * @summary Start a PayHero mobile-money prompt to fund the airtime wallet
+ * Starting a prompt does not credit the wallet. Greenpay verifies the M-Pesa payment and credits only a matching successful KES payment. Confirmed failures are marked failed without a credit; pending or unknown results remain uncredited until verified.
+ * @summary Start an M-Pesa prompt to fund the airtime wallet
  */
 export const createMerchantAirtimeTopup = async (airtimeTopupInput: AirtimeTopupInput, options?: Parameters<typeof customFetch>[1]): Promise<AirtimeTopupResponse> => {
 
@@ -11877,7 +11877,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateMerchantAirtimeTopupMutationVariables = {data: BodyType<AirtimeTopupInput>}
 
     /**
- * @summary Start a PayHero mobile-money prompt to fund the airtime wallet
+ * @summary Start an M-Pesa prompt to fund the airtime wallet
  */
 export const useCreateMerchantAirtimeTopup = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMerchantAirtimeTopup>>, TError,CreateMerchantAirtimeTopupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -11987,7 +11987,7 @@ export const getGetDeveloperAirtimeWalletUrl = () => {
 }
 
 /**
- * Airtime wallets are currently KES-only. Fund the wallet from the merchant console through PayHero; developer API keys cannot start top-ups.
+ * Airtime wallets are currently KES-only. Fund the wallet from the merchant console with an M-Pesa prompt; developer API keys cannot start top-ups.
  * @summary Read the API key merchant's separate KES airtime wallet
  */
 export const getDeveloperAirtimeWallet = async ( options?: Parameters<typeof customFetch>[1]): Promise<AirtimeWallet> => {

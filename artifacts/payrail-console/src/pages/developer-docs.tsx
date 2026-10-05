@@ -329,7 +329,7 @@ curl "${docsOrigin}${API_ORIGIN}/public/transactions/TRANSACTION_REFERENCE"`}</p
       <section id="api-airtime-wallet" className="api-docs-section">
     <Card title="Use the separate KES airtime wallet" subtitle="Airtime funds are separate from payment and settlement wallet balances.">
       <div className="form-stack">
-        <p>Merchants fund the airtime wallet from the merchant console with a PayHero M-Pesa prompt. The wallet is credited only after PayHero confirms the reference, amount, and KES currency. API keys can read its balance and purchase airtime; they cannot initiate wallet top-ups.</p>
+        <p>Merchants fund the airtime wallet from the merchant console with an M-Pesa prompt. The wallet is credited only after the payment reference, amount, and KES currency are confirmed. API keys can read its balance and purchase airtime; they cannot initiate wallet top-ups.</p>
         <p>Create an API key with <code>read</code> to inspect the wallet and purchase status. Add <code>airtime:write</code> only to keys that should spend the airtime balance. The request amount is a whole number of Kenyan shillings and the recipient must be a Kenyan mobile number.</p>
         <pre className="code">{`# Read wallet balance (read scope)
 GET ${docsOrigin}${API_ORIGIN}/v1/airtime/wallet
@@ -478,8 +478,8 @@ curl "${docsOrigin}/api/v1/fx-quote?amount=100&from=USD&to=KES" \\
   -d '{"name":"Invoice 1042","amountType":"fixed","amount":10,"currency":"USD","description":"Invoice 1042"}'`}</pre>
         <p>Use <code>amountType: "customer_choice"</code> when the customer chooses the amount; omit <code>amount</code> in that case. The response includes the shareable link URL.</p>
         <h3>Fund the airtime wallet</h3>
-        <p>Airtime is currently available in Kenya in KES only, with discounted rates on Safaricom, Airtel, and Telkom. Other countries and currencies are coming soon. Start wallet funding from the merchant console with a PayHero M-Pesa prompt; API keys do not initiate wallet top-ups.</p>
-        <p>Starting a prompt does not credit the wallet. Greenpay checks PayHero's confirmed result automatically: a verified success credits the airtime wallet, a confirmed failure is shown as failed without a credit, and pending or unconfirmed results remain uncredited until verified. The console shows the latest funding status.</p>
+        <p>Airtime is currently available in Kenya in KES only, with discounted rates on Safaricom, Airtel, and Telkom. Other countries and currencies are coming soon. Start wallet funding from the merchant console with an M-Pesa prompt; API keys do not initiate wallet top-ups.</p>
+        <p>Starting a prompt does not credit the wallet. Greenpay checks the confirmed M-Pesa payment result automatically: a verified success credits the airtime wallet, a confirmed failure is shown as failed without a credit, and pending or unconfirmed results remain uncredited until verified. The console shows the latest funding status.</p>
         <h3>Read and purchase airtime</h3>
         <pre className="code">{`curl "${docsOrigin}/api/v1/airtime/wallet" \\
   -H "Authorization: Bearer $GREENPAY_API_KEY"

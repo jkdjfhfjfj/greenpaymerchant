@@ -5458,7 +5458,7 @@ export const ListPublicFxRatesResponse = zod.object({
 
 
 /**
- * The wallet is KES-only. Verified PayHero top-ups are credited automatically; confirmed failed or unverified payments are not credited.
+ * The wallet is KES-only. Verified M-Pesa top-ups are credited automatically; confirmed failed or unverified payments are not credited.
  * @summary Read the merchant's separate KES airtime wallet and recent activity
  */
 export const getMerchantAirtimeDashboardResponseWalletAvailableBalanceMin = 0;
@@ -5482,7 +5482,7 @@ export const GetMerchantAirtimeDashboardResponse = zod.object({
   "reference": zod.string(),
   "phoneNumber": zod.string(),
   "amount": zod.number().min(1),
-  "status": zod.enum(['initiating', 'pending', 'unknown', 'succeeded', 'failed']).describe('Only succeeded means PayHero verified the payment and the wallet was credited. Failed means PayHero confirmed failure and no credit was made. Pending and unknown are not spendable credits.'),
+  "status": zod.enum(['initiating', 'pending', 'unknown', 'succeeded', 'failed']).describe('Only succeeded means the M-Pesa payment was verified and the wallet was credited. Failed means payment failure was confirmed and no credit was made. Pending and unknown are not spendable credits.'),
   "providerReference": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -5502,8 +5502,8 @@ export const GetMerchantAirtimeDashboardResponse = zod.object({
 
 
 /**
- * Starting a prompt does not credit the wallet. Greenpay verifies the PayHero result and credits only a matching successful KES payment. Confirmed failures are marked failed without a credit; pending or unknown results remain uncredited until verified.
- * @summary Start a PayHero mobile-money prompt to fund the airtime wallet
+ * Starting a prompt does not credit the wallet. Greenpay verifies the M-Pesa payment and credits only a matching successful KES payment. Confirmed failures are marked failed without a credit; pending or unknown results remain uncredited until verified.
+ * @summary Start an M-Pesa prompt to fund the airtime wallet
  */
 export const createMerchantAirtimeTopupHeaderIdempotencyKeyMin = 8;
 export const createMerchantAirtimeTopupHeaderIdempotencyKeyMax = 128;
@@ -5522,7 +5522,7 @@ export const createMerchantAirtimeTopupBodyPhoneNumberMax = 20;
 
 export const CreateMerchantAirtimeTopupBody = zod.object({
   "phoneNumber": zod.string().min(createMerchantAirtimeTopupBodyPhoneNumberMin).max(createMerchantAirtimeTopupBodyPhoneNumberMax),
-  "amount": zod.number().int().min(1).describe('Whole KES amount to request through the PayHero M-Pesa prompt.')
+  "amount": zod.number().int().min(1).describe('Whole KES amount to request through the M-Pesa prompt.')
 })
 
 
@@ -5533,7 +5533,7 @@ export const CreateMerchantAirtimeTopupResponse = zod.object({
   "reference": zod.string(),
   "phoneNumber": zod.string(),
   "amount": zod.number().min(1),
-  "status": zod.enum(['initiating', 'pending', 'unknown', 'succeeded', 'failed']).describe('Only succeeded means PayHero verified the payment and the wallet was credited. Failed means PayHero confirmed failure and no credit was made. Pending and unknown are not spendable credits.'),
+  "status": zod.enum(['initiating', 'pending', 'unknown', 'succeeded', 'failed']).describe('Only succeeded means the M-Pesa payment was verified and the wallet was credited. Failed means payment failure was confirmed and no credit was made. Pending and unknown are not spendable credits.'),
   "providerReference": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -5585,7 +5585,7 @@ export const CreateMerchantAirtimePurchaseResponse = zod.object({
 
 
 /**
- * Airtime wallets are currently KES-only. Fund the wallet from the merchant console through PayHero; developer API keys cannot start top-ups.
+ * Airtime wallets are currently KES-only. Fund the wallet from the merchant console with an M-Pesa prompt; developer API keys cannot start top-ups.
  * @summary Read the API key merchant's separate KES airtime wallet
  */
 export const getDeveloperAirtimeWalletResponseAvailableBalanceMin = 0;

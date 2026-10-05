@@ -7,7 +7,7 @@
  */
 
 /**
- * Only succeeded means PayHero verified the payment and the wallet was credited. Failed means PayHero confirmed failure and no credit was made. Pending and unknown are not spendable credits.
+ * Only succeeded means the M-Pesa payment was verified and the wallet was credited. Failed means payment failure was confirmed and no credit was made. Pending and unknown are not spendable credits.
  */
 export type AirtimeTopupStatus = typeof AirtimeTopupStatus[keyof typeof AirtimeTopupStatus];
 

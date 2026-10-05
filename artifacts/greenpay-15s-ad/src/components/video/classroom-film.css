@@ -133,10 +133,10 @@
 .classroom-loop-ring {
   position: absolute;
   z-index: 3;
-  top: calc(49% - 4vmin);
-  left: calc(50% - 4vmin);
-  width: 8vmin;
-  height: 8vmin;
+  top: calc(49% - 2vmin);
+  left: calc(50% - 2vmin);
+  width: 4vmin;
+  height: 4vmin;
   border: 0.35vmin solid #e5b865;
   border-radius: 50%;
   box-shadow: 0 0 0 1.5vmin rgba(229, 184, 101, 0.13);
@@ -435,10 +435,10 @@
 .markets-grid li {
   display: flex;
   align-items: center;
-  gap: 1.6vmin;
-  min-height: 3.35vmin;
+  gap: 1.25vmin;
+  min-height: 3.6vmin;
   color: rgba(255, 253, 248, 0.94);
-  font: 500 2.8vmin/1.06 var(--font-body);
+  font: 500 2.15vmin/1.06 var(--font-body);
   white-space: nowrap;
 }
 
@@ -449,6 +449,17 @@
   border-radius: 50%;
   background: #61c99b;
   box-shadow: 0 0 0 0.7vmin rgba(97, 201, 155, 0.11);
+}
+
+.markets-grid li strong {
+  flex: 0 0 7.8vmin;
+  color: #e5b865;
+  font: 600 2.05vmin/1 var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
+.markets-grid li span {
+  font: 500 2.15vmin/1.06 var(--font-body);
 }
 
 .markets-wood-rail {
@@ -527,14 +538,14 @@
 
 .markets-loop-ring {
   position: absolute;
-  z-index: 5;
-  top: calc(49% - 4vmin);
-  left: calc(50% - 4vmin);
-  width: 8vmin;
-  height: 8vmin;
+  z-index: 1;
+  top: calc(49% - 2vmin);
+  left: calc(50% - 2vmin);
+  width: 4vmin;
+  height: 4vmin;
   border: 0.38vmin solid #e5b865;
   border-radius: 50%;
-  box-shadow: 0 0 0 1.2vmin rgba(229, 184, 101, 0.13);
+  box-shadow: 0 0 0 0.12vmin rgba(229, 184, 101, 0.12);
   pointer-events: none;
 }
 

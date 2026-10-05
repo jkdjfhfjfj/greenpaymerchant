@@ -94,7 +94,7 @@ export default function VideoTemplate({
         </AnimatePresence>
         <audio
           ref={audioRef}
-          src={`${import.meta.env.BASE_URL}audio/greenpay-voice-mix.wav`}
+          src={`${import.meta.env.BASE_URL}audio/bg_music.wav`}
           preload="auto"
           autoPlay
           muted={muted}

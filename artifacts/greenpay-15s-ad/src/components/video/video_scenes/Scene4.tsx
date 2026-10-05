@@ -65,9 +65,8 @@ export function Scene4() {
           animate={{ opacity: copyReady ? 1 : 0, y: copyReady ? 0 : 16 }}
           transition={{ duration: 0.34, delay: 0.2, ease: EASE }}
         >
-          <strong>20 African collection markets + global USD</strong>
-          <span>M-Pesa in Kenya · Cards where available</span>
-          <small>Card and collection options vary by currency and merchant verification.</small>
+          <strong>14 supported currencies</strong>
+          <span>Card payments worldwide · M-Pesa prompt in Kenya</span>
         </motion.div>
       </div>
 

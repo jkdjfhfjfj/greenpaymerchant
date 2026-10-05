@@ -92,7 +92,7 @@ export function Scene2() {
           animate={{ opacity: beat >= 3 ? 1 : 0, y: beat >= 3 ? 0 : 18 }}
           transition={{ duration: 0.32, ease: EASE }}
         >
-          CARDS · WHERE AVAILABLE
+          CARD PAYMENTS · WORLDWIDE
         </motion.span>
         <motion.span
           initial={{ opacity: 0, y: 18 }}

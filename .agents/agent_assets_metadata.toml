@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "AnddrfR1bMowosxoAvQ9i"
+uri = "file://artifacts/greenpay-15s-ad/exports/greenpay-15s-ad.mp4"
+type = "video"
+title = "Greenpay payment methods ad — MP4"
+description = "15-second vertical ad, 1080×1920, H.264 video with AAC soundtrack. Cards, M-Pesa, MoMo, MTN, and OPay appear in the opening frame."
+logical_id = "8a384c96-2a15-4989-be00-4f523aa2acf4"
+content_hash = "sha256:ff790255e0d69bbb95406d258db89e81246c50aa944be52c3752e2d15836c984"
+size = 2516253
+mtime_ms = 1791279842282
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:50a269c0-7cee-449a-b4c2-f85918ade8bc/8a384c96-2a15-4989-be00-4f523aa2acf4/9a617ffb-bdb8-4f75-b9e3-ab498e44b61e"
+storage_version_token = "1791279936134731"
+content_type = "video/mp4"

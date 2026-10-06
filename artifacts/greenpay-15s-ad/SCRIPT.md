@@ -10,7 +10,7 @@
 - **Motion:** Chalk-traced type, a document-to-link transformation, and a staggered reveal of 14 currency codes and names.
 - **Arc/payoff:** The teacher opens with the payment methods—cards, M-Pesa, MoMo, MTN, and OPay—then the middle explains invoices, payment links, and currency support; the end returns to Greenpay's official mark, URL, and method list.
 - **Currency wording:** Show all 14 entries in the product currency catalog, as requested. The development availability endpoint currently marks four ready; the ad does not claim every route is enabled for every merchant or environment.
-- **Payment-method wording:** Use “Card payments worldwide” per the product owner's clarification. Name the Kenya route as an M-Pesa prompt; never show an internal routing ID.
+- **Payment-method wording:** List cards, M-Pesa, MoMo, MTN, and OPay as requested. Name only payment methods and do not show internal routing IDs.
 - **Voice:** English teacher narration is scripted below. Paid AI voice generation is on hold; the preview uses the existing instrumental track until the user supplies a recording.
 
 ## Timeline
@@ -30,8 +30,8 @@
 - **Exact content:**
   - 0.00s: `GREENPAY · BUSINESS PAYMENTS`, `INVOICE`, `PAYMENT METHODS`, and the visible list `CARDS · M-PESA · MOMO · MTN · OPay`
   - 0.75–1.35s: `PAYMENT LINK`
-  - 1.35–1.90s: `GET PAID`; the small flow line `INVOICE · PAYMENT LINK · PAID` resolves below
-  - 1.90–3.15s: `A SIMPLER WAY / TO COLLECT` over the same flow line
+  - 1.35–1.90s: `GET PAID`
+  - 1.90–3.15s: `A SIMPLER WAY / TO COLLECT`; the five-method band remains visible
 - **Composition:** Full-bleed classroom portrait. The educator and wooden pointer hold the left half; the chalkboard remains clear on the right for large white and gold copy. A dark lower band contains five evenly spaced method labels. A soft forest overlay preserves contrast without obscuring the face or pointer.
 - **Artistic idea:** The method list is present on frame one while the chalk headline changes beside the pointer; a gold underline and centered mint/gold circle connect the lesson to the document reveal.
 - **Timed choreography:** The teacher, first headline, and all five method names are visible on frame one. The band holds unchanged and readable throughout the shot. At 0.75s the board copy changes to “PAYMENT LINK”; at 1.35s it changes to “GET PAID.” At 1.90s the copy changes to “A SIMPLER WAY / TO COLLECT.” The camera drifts toward the board while the centered chalk circle grows into Shot 02.
@@ -92,7 +92,7 @@
 
 ## Pre-code review
 
-- The film now leads with invoices and payment links for non-developers and keeps the developer API as a secondary route.
+- The film now opens with the five requested payment methods, then introduces invoices and payment links while keeping the developer API as a secondary route.
 - The currency catalog contains all 14 displayed codes. The development availability endpoint currently marks USD, NGN, UGX, and MWK ready; production and merchant-tier readiness must be checked separately before claiming every route is enabled for every account.
 - The opening and end card list only the requested payment methods: cards, M-Pesa, MoMo, MTN, and OPay.
 - No internal method IDs, processors, customer data, or example invoice values appear on screen.

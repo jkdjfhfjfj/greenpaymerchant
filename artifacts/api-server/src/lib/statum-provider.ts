@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { ApiError } from "./api-error";
 import { providerCredential, providerEnabled } from "./credential-runtime";
-import { getPublicAppUrl, normalizeKenyanPhone } from "./greenpay-provider";
+import { getProviderWebhookUrl, normalizeKenyanPhone } from "./greenpay-provider";
 
 type JsonObject = Record<string, unknown>;
 
@@ -113,7 +113,7 @@ export async function statumAccountDetails() {
     balance: Number(balance) / 100,
     topupCode,
     checkedAt: new Date(),
-    callbackUrl: `${getPublicAppUrl()}/api/webhooks/statum?token=${encodeURIComponent(callbackToken)}`,
+    callbackUrl: `${getProviderWebhookUrl("statum")}?token=${encodeURIComponent(callbackToken)}`,
   };
 }
 

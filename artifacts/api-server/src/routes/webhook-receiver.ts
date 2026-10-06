@@ -9,8 +9,8 @@ import {
   asObject,
   numberValue,
   stringValue,
+  validateWebhookSignature,
   verifyProviderPayment,
-  verifyWebhookSignature,
   type PaymentStatus,
 } from "../lib/greenpay-provider";
 import {
@@ -304,13 +304,41 @@ router.post("/:provider", async (req, res): Promise<void> => {
     return;
   }
 
-  if (provider === "paystack" && !await verifyWebhookSignature("paystack", rawBody, req.get("x-paystack-signature"))) {
-    res.status(401).json({ error: "Invalid Paystack signature." });
-    return;
-  }
-  if (provider === "payzaapi" && !await verifyWebhookSignature("payzaapi", rawBody, req.get("x-payza-signature"))) {
-    res.status(401).json({ error: "Invalid Payzaapi signature." });
-    return;
+  if (provider === "paystack" || provider === "payzaapi") {
+    const signatureProvider = provider;
+    const validation = await validateWebhookSignature(
+      signatureProvider,
+      rawBody,
+      req.get(signatureProvider === "paystack" ? "x-paystack-signature" : "x-payza-signature"),
+    );
+    if (validation !== "valid") {
+      const isUnconfigured = validation === "missing_secret";
+      const httpStatus = isUnconfigured ? 503 : 401;
+      const secretName = signatureProvider === "payzaapi" ? "PAYZA_WEBHOOK_SECRET" : "PAYSTACK_SECRET_KEY";
+      const providerLabel = signatureProvider === "payzaapi" ? "PayzaAPI" : "Paystack";
+      const errorMessage = isUnconfigured
+        ? `${providerLabel} webhook verification is not configured (${secretName}).`
+        : `${providerLabel} webhook signature is ${validation === "missing_signature" ? "missing" : "invalid"}.`;
+      const deliveryKey = createHash("sha256")
+        .update(`${signatureProvider}\0signature:${validation}\0`)
+        .update(rawBody)
+        .digest("hex");
+      try {
+        await recordWebhookEvent({
+          deliveryKey,
+          provider: signatureProvider,
+          event: isUnconfigured ? "signature.unconfigured" : "signature.rejected",
+          status: "failed",
+          httpStatus,
+          lastError: errorMessage,
+        });
+      } catch (error) {
+        req.log.error({ provider: signatureProvider, err: error }, "Rejected webhook callback could not be recorded");
+      }
+      req.log.warn({ provider: signatureProvider, validation, httpStatus }, "Provider webhook rejected during signature validation");
+      res.status(httpStatus).json({ error: errorMessage });
+      return;
+    }
   }
 
   let payload: Record<string, unknown>;

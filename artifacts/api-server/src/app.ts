@@ -125,7 +125,10 @@ app.use((error: unknown, req: express.Request, res: express.Response, _next: exp
     return;
   }
   req.log.error({ err: error }, "Unhandled Greenpay API error");
-  res.status(500).json({ error: "An unexpected server error occurred." });
+  res.status(500).json({
+    error: "An unexpected server error occurred.",
+    requestId: String(req.id),
+  });
 });
 
 export default app;

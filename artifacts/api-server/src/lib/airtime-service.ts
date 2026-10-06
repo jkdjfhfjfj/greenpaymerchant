@@ -7,7 +7,7 @@ import {
 import { ApiError } from "./api-error";
 import { providerCredential } from "./credential-runtime";
 import {
-  getPublicAppUrl, normalizeKenyanPhone, payheroHeaders, providerIsConfigured,
+  getProviderWebhookUrl, normalizeKenyanPhone, payheroHeaders, providerIsConfigured,
 } from "./greenpay-provider";
 import { isStatumConfigured, parseKesMinor, submitStatumAirtime } from "./statum-provider";
 
@@ -226,7 +226,7 @@ async function beginPayheroTopup(row: TopupRow): Promise<TopupRow> {
         provider: "m-pesa",
         external_reference: row.reference,
         customer_name: "Greenpay airtime wallet",
-        callback_url: `${getPublicAppUrl()}/api/webhooks/payhero`,
+        callback_url: getProviderWebhookUrl("payhero"),
       }),
       signal: AbortSignal.timeout(20_000),
     });

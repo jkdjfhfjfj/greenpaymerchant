@@ -15,7 +15,7 @@ import {
   useCreateMerchantTransactionRecoveryLink,
   type BusinessApplicationDetails,
 } from '@workspace/api-client-react';
-import { Async, Btn, Card, COUNTRIES, CURRENCIES, Confirm, CopyBtn, Err, Field, Gate, Heading, Modal, Note, Pager, Pill, currencyAmountStep, currencyMinorUnits, fmtDate, money, nice, useAccess, useInvalidateAll } from '@/components/kit';
+import { Async, Btn, Card, COUNTRIES, CURRENCIES, Confirm, CopyBtn, Err, Field, Gate, Heading, Modal, Note, Pager, Pill, currencyAmountStep, currencyMinorUnits, errMsg, fmtDate, money, nice, useAccess, useInvalidateAll } from '@/components/kit';
 import { usePlatformBranding } from '@/components/platform-brand';
 import { CloudinaryImageUpload } from '@/components/cloudinary-image-upload';
 import { LinkCollectedTotals } from '@/components/link-collected-totals';
@@ -224,7 +224,7 @@ function ApplicationWizard({ create, queryClient, addBusiness = false, requireAd
         queryClient.invalidateQueries(),
       ]);
       onCreated?.();
-    }, onError: (failure) => setError(String((failure as Error).message || 'The application could not be submitted.')) });
+    }, onError: (failure) => setError(errMsg(failure)) });
   }
   return <Card title={addBusiness ? 'Register another business' : 'Start your business application'} subtitle="Two short steps. Greenpay will review the details before collection access is enabled.">
     <form className="form-stack application-wizard" onSubmit={submit}>

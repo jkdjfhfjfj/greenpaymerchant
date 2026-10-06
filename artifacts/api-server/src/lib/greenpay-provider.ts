@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { PROVIDER_WEBHOOK_PATHS, type ProviderWebhookProvider } from "@workspace/api-zod";
 import type { TransactionRecord } from "@workspace/db";
 import {
   COLLECTION_CURRENCIES,
@@ -113,6 +114,10 @@ export function getPublicAppUrl(): string {
   }
 }
 
+export function getProviderWebhookUrl(provider: ProviderWebhookProvider): string {
+  return new URL(PROVIDER_WEBHOOK_PATHS[provider], getPublicAppUrl()).toString();
+}
+
 export async function providerIsConfigured(provider: ProviderName): Promise<boolean> {
   if (!await providerEnabled(provider)) return false;
   if (provider === "paystack") return Boolean(await providerCredential(provider, "PAYSTACK_SECRET_KEY"));
@@ -146,7 +151,7 @@ export async function getProviderStatuses() {
       currencies: ["USD"],
       collectionsEnabled: paystackReady,
       payoutsEnabled: false,
-      note: paystackReady ? "USD collections are routed here. Configure the provider webhook to call /api/webhooks/paystack." : "Add PAYSTACK_SECRET_KEY to enable USD collections.",
+      note: paystackReady ? `USD collections are routed here. Configure the provider event webhook to call ${getProviderWebhookUrl("paystack")}.` : "Add PAYSTACK_SECRET_KEY to enable USD collections.",
     },
     {
       provider: "payhero" as const,
@@ -155,7 +160,7 @@ export async function getProviderStatuses() {
       currencies: ["KES"],
       collectionsEnabled: payheroReady,
       payoutsEnabled: false,
-      note: payheroReady ? "KES uses an M-Pesa prompt. Callbacks are verified through PayHero before updating payment status." : "Add PAYHERO_AUTH_TOKEN and PAYHERO_CHANNEL_ID to enable KES collections.",
+      note: payheroReady ? `KES uses an M-Pesa prompt. Callback destination: ${getProviderWebhookUrl("payhero")}.` : "Add PAYHERO_AUTH_TOKEN and PAYHERO_CHANNEL_ID to enable KES collections.",
     },
     {
       provider: "payzaapi" as const,
@@ -166,8 +171,8 @@ export async function getProviderStatuses() {
       payoutsEnabled: payzaReady,
       note: payzaReady
         ? payzaWebhookReady
-          ? "Other supported currencies and payouts use Payzaapi. Refunds adjust the Payza wallet; they do not return money to the customer."
-          : "Add PAYZA_WEBHOOK_SECRET to verify callbacks. Other currencies and payouts use Payzaapi."
+          ? `Callback destination: ${getProviderWebhookUrl("payzaapi")}. Other supported currencies and payouts use PayzaAPI. Refunds adjust the Payza wallet; they do not return money to the customer.`
+          : `Add PAYZA_WEBHOOK_SECRET to the production environment to verify callbacks to ${getProviderWebhookUrl("payzaapi")}. Other currencies and payouts use PayzaAPI.`
         : "Add Payzaapi API credentials to enable other currencies and payouts.",
     },
   ];
@@ -298,7 +303,7 @@ export async function startProviderPayment(input: StartPaymentInput): Promise<St
         provider: "m-pesa",
         external_reference: input.reference,
         customer_name: input.customerName ?? undefined,
-        callback_url: `${appUrl}/api/webhooks/payhero`,
+        callback_url: getProviderWebhookUrl("payhero"),
       }),
     });
     if (response.success !== true) {
@@ -320,7 +325,7 @@ export async function startProviderPayment(input: StartPaymentInput): Promise<St
         phone: input.customerPhone ?? undefined,
       },
       description: input.description ?? undefined,
-      callback_url: `${appUrl}/api/webhooks/payzaapi`,
+      callback_url: getProviderWebhookUrl("payzaapi"),
       redirect_url: `${statusUrl}?reference=${encodeURIComponent(input.reference)}`,
     }),
   });
@@ -445,16 +450,32 @@ export async function verifyWebhookSignature(
   rawBody: Buffer,
   received: string | undefined,
 ): Promise<boolean> {
-  if (!received) return false;
+  return await validateWebhookSignature(provider, rawBody, received) === "valid";
+}
+
+export type WebhookSignatureValidation =
+  | "valid"
+  | "missing_secret"
+  | "missing_signature"
+  | "invalid_signature";
+
+export async function validateWebhookSignature(
+  provider: "paystack" | "payzaapi",
+  rawBody: Buffer,
+  received: string | undefined,
+): Promise<WebhookSignatureValidation> {
   const secret = provider === "paystack"
     ? await providerCredential("paystack", "PAYSTACK_SECRET_KEY")
     : await providerCredential("payzaapi", "PAYZA_WEBHOOK_SECRET");
-  if (!secret) return false;
+  if (!secret) return "missing_secret";
+  if (!received) return "missing_signature";
   const expected = createHmac("sha" + (provider === "paystack" ? "512" : "256"), secret)
     .update(rawBody)
     .digest("hex");
-  if (!/^[\da-f]+$/i.test(received) || received.length !== expected.length) return false;
-  return timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(received, "hex"));
+  if (!/^[\da-f]+$/i.test(received) || received.length !== expected.length) return "invalid_signature";
+  return timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(received, "hex"))
+    ? "valid"
+    : "invalid_signature";
 }
 
 export async function payzaApiRequest(path: string, init: RequestInit = {}): Promise<JsonObject> {

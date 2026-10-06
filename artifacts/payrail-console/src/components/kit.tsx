@@ -21,8 +21,51 @@ export function fmtDate(value?: string | null) {
 }
 export function nice(value?: string | null) { return (value || 'unknown').replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase()); }
 export function errMsg(err: unknown): string {
-  if (err instanceof Error && err.message) return err.message;
-  return 'The request failed. Try again.';
+  if (err instanceof Error && err.message.trim()) return err.message.trim();
+  if (typeof err === 'string' && err.trim()) return err.trim();
+  if (err && typeof err === 'object') {
+    const value = err as Record<string, unknown>;
+    for (const key of ['detail', 'message', 'error_description', 'error']) {
+      const candidate = value[key];
+      if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    }
+    const response = value.response;
+    if (response && typeof response === 'object') {
+      const data = (response as Record<string, unknown>).data;
+      if (data && typeof data === 'object') {
+        for (const key of ['detail', 'message', 'error_description', 'error']) {
+          const candidate = (data as Record<string, unknown>)[key];
+          if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+        }
+      }
+    }
+    if (typeof value.status === 'number') {
+      return `The request returned HTTP ${value.status}, but no error message was provided.`;
+    }
+  }
+  return 'No error details were returned. Try again, or share the request details with support.';
+}
+
+function errorDiagnostics(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null;
+  const value = error as Record<string, unknown>;
+  const details: Record<string, unknown> = {};
+  if (typeof value.status === 'number') details.httpStatus = value.status;
+  if (typeof value.statusText === 'string' && value.statusText) details.statusText = value.statusText;
+  if (typeof value.method === 'string' && value.method) details.method = value.method;
+  if (typeof value.url === 'string' && value.url) {
+    details.path = value.url.replace(/^https?:\/\/[^/]+/i, '').split(/[?#]/, 1)[0];
+  }
+  const data = value.data;
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const safeResponse: Record<string, string> = {};
+    for (const key of ['title', 'detail', 'message', 'error_description', 'error', 'requestId']) {
+      const candidate = (data as Record<string, unknown>)[key];
+      if (typeof candidate === 'string' && candidate.trim()) safeResponse[key] = candidate.trim();
+    }
+    if (Object.keys(safeResponse).length) details.response = safeResponse;
+  }
+  return Object.keys(details).length ? JSON.stringify(details, null, 2) : null;
 }
 
 export function useAccess() {
@@ -52,7 +95,18 @@ export function Note({ children, tone = 'ok' }: { children: ReactNode; tone?: 'o
   return <div className={`notice ${tone === 'danger' ? 'notice-danger' : tone === 'warn' ? 'warn' : ''}`} role={tone === 'danger' ? 'alert' : 'status'}>{tone === 'ok' ? <CheckCircle2 size={16} /> : <CircleAlert size={16} />}<div>{children}</div></div>;
 }
 export function Err({ error }: { error: unknown }) {
-  return error ? <div className="form-error" role="alert" data-testid="text-error"><CircleAlert size={15} />{errMsg(error)}</div> : null;
+  if (!error) return null;
+  const diagnostics = errorDiagnostics(error);
+  return <div className="form-error" role="alert" data-testid="text-error">
+    <CircleAlert size={15} />
+    <div style={{ minWidth: 0 }}>
+      <div>{errMsg(error)}</div>
+      {diagnostics && <details style={{ marginTop: 5 }}>
+        <summary>Error details</summary>
+        <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: '5px 0 0' }}>{diagnostics}</pre>
+      </details>}
+    </div>
+  </div>;
 }
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return <label className="field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;

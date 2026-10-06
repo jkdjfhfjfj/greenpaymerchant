@@ -66,7 +66,7 @@ export function Scene4() {
           transition={{ duration: 0.34, delay: 0.2, ease: EASE }}
         >
           <strong>14 supported currencies</strong>
-          <span>Card payments worldwide · M-Pesa prompt in Kenya</span>
+          <span>Cards · M-Pesa · MoMo · MTN · OPay</span>
         </motion.div>
       </div>
 

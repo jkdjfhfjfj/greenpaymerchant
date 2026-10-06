@@ -102,32 +102,49 @@
   box-shadow: 0 0 2vmin rgba(229, 184, 101, 0.2);
 }
 
-.classroom-subline {
+.classroom-network-band {
   position: absolute;
   z-index: 5;
   left: 7%;
   right: 7%;
-  bottom: 12.5%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2.2vmin;
-  padding: 3vmin 2vmin;
-  border-top: 1px solid rgba(255, 253, 248, 0.42);
-  border-bottom: 1px solid rgba(255, 253, 248, 0.42);
+  bottom: 8.5%;
+  display: grid;
+  gap: 1.35vmin;
+  padding: 2.2vmin 2vmin 2.4vmin;
+  border: 1px solid rgba(255, 253, 248, 0.38);
+  border-radius: 1.8vmin;
   color: #fffdf8;
-  background: rgba(16, 38, 31, 0.22);
-  font: 600 2.8vmin/1 var(--font-mono);
-  letter-spacing: 0.06em;
+  background: rgba(16, 38, 31, 0.78);
+  box-shadow: 0 1.2vmin 3vmin rgba(0, 0, 0, 0.22);
   text-shadow: 0 1vmin 2.5vmin rgba(0, 0, 0, 0.35);
 }
 
-.classroom-subline i {
-  width: 0.85vmin;
-  height: 0.85vmin;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: #61c99b;
+.classroom-network-label {
+  color: #e5b865;
+  font: 600 2vmin/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-align: center;
+}
+
+.classroom-network-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.9vmin;
+}
+
+.classroom-network-list span {
+  display: grid;
+  min-width: 0;
+  min-height: 6.2vmin;
+  place-items: center;
+  padding: 1vmin 0.55vmin;
+  border: 1px solid rgba(255, 253, 248, 0.34);
+  border-radius: 999px;
+  color: #fffdf8;
+  background: rgba(255, 253, 248, 0.08);
+  font: 700 2.75vmin/1 var(--font-mono);
+  letter-spacing: -0.045em;
+  white-space: nowrap;
 }
 
 .classroom-loop-ring {

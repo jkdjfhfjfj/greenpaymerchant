@@ -2,13 +2,13 @@
 
 ## Director's treatment
 
-- **Promise:** Create invoices and payment links, accept cards worldwide, and collect in 14 supported currencies; retain the developer API as an additional path.
+- **Promise:** Create invoices and payment links, accept cards, M-Pesa, MoMo, MTN, and OPay, and collect in 14 supported currencies; retain the developer API as an additional path.
 - **Audience:** Small businesses serving customers locally and internationally.
 - **Format/runtime:** 9:16 vertical, exactly 15 seconds.
 - **Identity:** Greenpay forest `#294c43`, paper `#fffdf8`, mint `#61c99b`, and gold `#e5b865`; DM Sans with IBM Plex Mono for interface labels.
 - **Hero:** An adult African educator explains Greenpay's services with a wooden pointer and chalkboard; invoice and payment-link graphics lead into the full currency list.
 - **Motion:** Chalk-traced type, a document-to-link transformation, and a staggered reveal of 14 currency codes and names.
-- **Arc/payoff:** The teacher introduces the business tools; the middle explains invoices, payment links, worldwide card payments, M-Pesa in Kenya, and currency support; the end returns to Greenpay's official mark and URL.
+- **Arc/payoff:** The teacher opens with the payment methods—cards, M-Pesa, MoMo, MTN, and OPay—then the middle explains invoices, payment links, and currency support; the end returns to Greenpay's official mark, URL, and method list.
 - **Currency wording:** Show all 14 entries in the product currency catalog, as requested. The development availability endpoint currently marks four ready; the ad does not claim every route is enabled for every merchant or environment.
 - **Payment-method wording:** Use “Card payments worldwide” per the product owner's clarification. Name the Kenya route as an M-Pesa prompt; never show an internal routing ID.
 - **Voice:** English teacher narration is scripted below. Paid AI voice generation is on hold; the preview uses the existing instrumental track until the user supplies a recording.
@@ -17,7 +17,7 @@
 
 | Time | Focus | Main action | Composition | Handoff |
 | --- | --- | --- | --- | --- |
-| 0.00–3.15 | Human hook | A teacher presents the invoice-to-payment flow on a classroom board | Full-bleed classroom portrait, copy on the clear board area | A centered chalk circle carries into the invoice card |
+| 0.00–3.15 | Human hook and payment methods | A teacher introduces Greenpay; all five payment methods are readable from frame one | Full-bleed classroom portrait, headline on the board, method band across the lower frame | A centered chalk circle carries into the invoice card |
 | 3.15–6.70 | Merchant tools | A paper invoice turns into a shareable payment link; method labels and the API arrive in order | Close classroom-board crop, large invoice and URL card | A gold rule carries the link's underline motif into the market board |
 | 6.70–11.45 | Supported currencies and methods | All 14 currency codes and names appear in two columns; worldwide cards and Kenya M-Pesa are called out beneath | Forest-green chalkboard, cream type, gold method accents | A centered chalk circle opens into the Greenpay close |
 | 11.45–15.00 | Brand close | Official mark, product summary, 14-currency claim, worldwide card wording, and URL settle | Warm paper field; centered lockup with clear negative space | Gold ring expands from the same centered opening point |
@@ -28,13 +28,13 @@
 
 - **Purpose:** Introduce Greenpay through a person explaining it, not a developer-only interface.
 - **Exact content:**
-  - 0.00s: `GREENPAY · BUSINESS PAYMENTS` and `INVOICE`
+  - 0.00s: `GREENPAY · BUSINESS PAYMENTS`, `INVOICE`, `PAYMENT METHODS`, and the visible list `CARDS · M-PESA · MOMO · MTN · OPay`
   - 0.75–1.35s: `PAYMENT LINK`
   - 1.35–1.90s: `GET PAID`; the small flow line `INVOICE · PAYMENT LINK · PAID` resolves below
   - 1.90–3.15s: `A SIMPLER WAY / TO COLLECT` over the same flow line
-- **Composition:** Full-bleed classroom portrait. The educator and wooden pointer hold the left half; the chalkboard remains clear on the right for large white and gold copy. A soft forest overlay preserves contrast without obscuring the face or pointer.
-- **Artistic idea:** Chalk copy changes in the board space beside the pointer, with a gold underline and centered mint/gold circle connecting the lesson to the document reveal.
-- **Timed choreography:** The teacher and first word are visible on frame one. At 0.75s the board copy changes to “PAYMENT LINK”; at 1.35s it changes to “GET PAID” as the short flow line resolves. At 1.90s the copy changes to “A SIMPLER WAY / TO COLLECT.” The camera drifts toward the board while the centered chalk circle grows into Shot 02.
+- **Composition:** Full-bleed classroom portrait. The educator and wooden pointer hold the left half; the chalkboard remains clear on the right for large white and gold copy. A dark lower band contains five evenly spaced method labels. A soft forest overlay preserves contrast without obscuring the face or pointer.
+- **Artistic idea:** The method list is present on frame one while the chalk headline changes beside the pointer; a gold underline and centered mint/gold circle connect the lesson to the document reveal.
+- **Timed choreography:** The teacher, first headline, and all five method names are visible on frame one. The band holds unchanged and readable throughout the shot. At 0.75s the board copy changes to “PAYMENT LINK”; at 1.35s it changes to “GET PAID.” At 1.90s the copy changes to “A SIMPLER WAY / TO COLLECT.” The camera drifts toward the board while the centered chalk circle grows into Shot 02.
 - **Transition contract:** Shot 01 and Shot 02 share the same circle center, color, and scale direction; the invoice card resolves inside that opening.
 - **Assets/technique:** Generated portrait of an adult African educator with a wooden pointer; original Greenpay palette; DM Sans/IBM Plex Mono; overlaid vector chalk marks only.
 - **Voice:** Begins at 0.08s: “Greenpay helps your business get paid.”
@@ -81,7 +81,7 @@
   - 11.45–15.00s: `Greenpay`
   - 12.60–15.00s: `greenpay.co.ke`
 -  - 12.80–15.00s: `14 supported currencies`
-  - 12.80–15.00s: `Card payments worldwide · M-Pesa prompt in Kenya`
+  - 12.80–15.00s: `Cards · M-Pesa · MoMo · MTN · OPay`
 - **Composition:** Warm paper background. The authentic mark sits above the wordmark; the URL and product summary use the lower center with clear spacing.
 - **Artistic idea:** Chalkboard color gives way to a warm paper field; the official Greenpay mark resolves above the wordmark. The end card is brighter and more centered than the classroom opener.
 - **Timed choreography:** The circle reveals the logo at 11.45s. The product summary arrives at 12.00s; the URL appears at 12.60s; currency and payment coverage appear at 12.80s and stay readable through the end. From 14.30s, the thin gold ring expands around the centered lockup for the loop.
@@ -94,7 +94,7 @@
 
 - The film now leads with invoices and payment links for non-developers and keeps the developer API as a secondary route.
 - The currency catalog contains all 14 displayed codes. The development availability endpoint currently marks USD, NGN, UGX, and MWK ready; production and merchant-tier readiness must be checked separately before claiming every route is enabled for every account.
-- The product owner confirmed that Greenpay accepts card payments worldwide; creative uses that wording. M-Pesa is identified as a Kenya prompt.
+- The opening and end card list only the requested payment methods: cards, M-Pesa, MoMo, MTN, and OPay.
 - No internal method IDs, processors, customer data, or example invoice values appear on screen.
 - The final coverage note remains on screen for more than two seconds, and the loop retains a visible ring handoff.
 - Paid AI voice generation was not authorized. The current preview uses the existing 15-second instrumental; the timed English narration script above awaits a user-provided recording.

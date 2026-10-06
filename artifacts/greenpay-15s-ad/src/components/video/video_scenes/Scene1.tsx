@@ -60,14 +60,16 @@ export function Scene1() {
         />
       </div>
 
-      <motion.div
-        className="classroom-subline"
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: step >= 2 ? 1 : 0, y: step >= 2 ? 0 : 18 }}
-        transition={{ duration: 0.34, ease: EASE }}
-      >
-        INVOICE <i /> PAYMENT LINK <i /> PAID
-      </motion.div>
+      <div className="classroom-network-band" aria-label="Payment methods: cards, M-Pesa, MoMo, MTN, and OPay">
+        <span className="classroom-network-label">PAYMENT METHODS</span>
+        <div className="classroom-network-list">
+          <span>CARDS</span>
+          <span>M-PESA</span>
+          <span>MOMO</span>
+          <span>MTN</span>
+          <span>OPay</span>
+        </div>
+      </div>
 
       <motion.div
         className="classroom-loop-ring"

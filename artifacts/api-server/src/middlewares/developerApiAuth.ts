@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import type { RequestHandler } from "express";
 import { db, merchantApiKeysTable, merchantsTable } from "@workspace/db";
 import { assertMerchantActionEnabled, assertMerchantCapability, assertPlatformEnabled } from "../lib/platform";
-import { hasRequiredScope } from "../lib/security-policy";
+import { apiKeyEnvironmentAllowed, hasRequiredScope } from "../lib/security-policy";
 import { developerApiStatusAllowed } from "../lib/security-policy";
 
 const requestBuckets = new Map<number, { start: number; count: number }>();
@@ -65,6 +65,26 @@ export function requireApiScope(scope: string): RequestHandler {
     if (!key || !hasRequiredScope(key.scopes, scope)) {
       res.status(403).json({ error: `The API key requires the ${scope} scope.` });
       return;
+    }
+    next();
+  };
+}
+
+export function requireApiKeyEnvironment(environment: "live" | "sandbox"): RequestHandler {
+  return async (_req, res, next) => {
+    const key = res.locals.apiKey as typeof merchantApiKeysTable.$inferSelect | undefined;
+    if (!key || !apiKeyEnvironmentAllowed(key.environment, environment)) {
+      res.status(403).json({ error: `This API key is not valid for the ${environment} API environment.` });
+      return;
+    }
+    if (environment === "sandbox") {
+      try {
+        await assertPlatformEnabled("sandboxApiEnabled");
+      } catch (error) {
+        const status = typeof error === "object" && error && "statusCode" in error ? Number(error.statusCode) : 403;
+        res.status(status).json({ error: error instanceof Error ? error.message : "The sandbox API is disabled." });
+        return;
+      }
     }
     next();
   };

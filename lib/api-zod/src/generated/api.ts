@@ -404,7 +404,7 @@ export const GetDashboardResponse = zod.object({
   "netAmount": zod.number().nullish(),
   "currency": zod.string(),
   "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'sandbox']),
   "paymentMethod": zod.string().nullish(),
   "customerEmail": zod.string(),
   "customerName": zod.string().nullish(),
@@ -458,7 +458,7 @@ export const ListTransactionsResponse = zod.object({
   "netAmount": zod.number().nullish(),
   "currency": zod.string(),
   "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'sandbox']),
   "paymentMethod": zod.string().nullish(),
   "customerEmail": zod.string(),
   "customerName": zod.string().nullish(),
@@ -509,7 +509,7 @@ export const CreateTransactionResponse = zod.object({
   "netAmount": zod.number().nullish(),
   "currency": zod.string(),
   "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'sandbox']),
   "paymentMethod": zod.string().nullish(),
   "customerEmail": zod.string(),
   "customerName": zod.string().nullish(),
@@ -543,7 +543,7 @@ export const GetTransactionResponse = zod.object({
   "netAmount": zod.number().nullish(),
   "currency": zod.string(),
   "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'sandbox']),
   "paymentMethod": zod.string().nullish(),
   "customerEmail": zod.string(),
   "customerName": zod.string().nullish(),
@@ -575,7 +575,7 @@ export const VerifyTransactionResponse = zod.object({
   "netAmount": zod.number().nullish(),
   "currency": zod.string(),
   "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'sandbox']),
   "paymentMethod": zod.string().nullish(),
   "customerEmail": zod.string(),
   "customerName": zod.string().nullish(),
@@ -4756,7 +4756,7 @@ export const ListMerchantTransactionsResponse = zod.object({
   "netAmount": zod.number().nullish(),
   "currency": zod.string(),
   "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'sandbox']),
   "paymentMethod": zod.string().nullish(),
   "customerEmail": zod.string(),
   "customerName": zod.string().nullish(),
@@ -5131,6 +5131,7 @@ export const ListMerchantApiKeysResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
+  "environment": zod.enum(['live', 'sandbox']),
   "prefix": zod.string(),
   "secretRecoverable": zod.boolean().describe('Whether an encrypted copy is available for explicit retrieval. The key secret itself is never included in list responses.'),
   "scopes": zod.array(zod.enum(['read', 'payment_links:write', 'payments:write', 'airtime:write'])),
@@ -5147,11 +5148,12 @@ export const ListMerchantApiKeysResponse = zod.object({
 export const createMerchantApiKeyBodyNameMin = 2;
 export const createMerchantApiKeyBodyNameMax = 100;
 
-
+export const createMerchantApiKeyBodyEnvironmentDefault = `live`;
 
 
 export const CreateMerchantApiKeyBody = zod.object({
   "name": zod.string().min(createMerchantApiKeyBodyNameMin).max(createMerchantApiKeyBodyNameMax),
+  "environment": zod.enum(['live', 'sandbox']).default(createMerchantApiKeyBodyEnvironmentDefault),
   "scopes": zod.array(zod.enum(['read', 'payment_links:write', 'payments:write', 'airtime:write'])).min(1)
 })
 
@@ -5159,6 +5161,7 @@ export const CreateMerchantApiKeyResponse = zod.object({
   "key": zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
+  "environment": zod.enum(['live', 'sandbox']),
   "prefix": zod.string(),
   "secretRecoverable": zod.boolean().describe('Whether an encrypted copy is available for explicit retrieval. The key secret itself is never included in list responses.'),
   "scopes": zod.array(zod.enum(['read', 'payment_links:write', 'payments:write', 'airtime:write'])),
@@ -6003,6 +6006,174 @@ export const CreateDeveloperPaymentLinkResponse = zod.object({
 
 
 /**
+ * @summary List the API key merchant's isolated sandbox transactions
+ */
+export const listSandboxTransactionsQueryPageDefault = 1;
+
+export const listSandboxTransactionsQueryPerPageDefault = 25;
+export const listSandboxTransactionsQueryPerPageMax = 100;
+
+
+
+export const ListSandboxTransactionsQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).default(listSandboxTransactionsQueryPageDefault),
+  "perPage": zod.coerce.number().int().min(1).max(listSandboxTransactionsQueryPerPageMax).default(listSandboxTransactionsQueryPerPageDefault)
+})
+
+export const ListSandboxTransactionsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "reference": zod.string(),
+  "amount": zod.number(),
+  "fee": zod.number().nullish(),
+  "netAmount": zod.number().nullish(),
+  "currency": zod.string(),
+  "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'sandbox']),
+  "paymentMethod": zod.string().nullish(),
+  "customerEmail": zod.string(),
+  "customerName": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "failureReason": zod.string().nullable(),
+  "providerReference": zod.string().nullish(),
+  "paymentUrl": zod.string().nullish(),
+  "paymentLinkId": zod.number().int().nullish(),
+  "createdAt": zod.coerce.date(),
+  "paidAt": zod.coerce.date().nullish(),
+  "settlementAt": zod.coerce.date().nullish(),
+  "settlementStatus": zod.enum(['pending', 'due', 'settled', 'held', 'not_applicable'])
+})),
+  "total": zod.number().int(),
+  "page": zod.number().int(),
+  "perPage": zod.number().int()
+})
+
+
+/**
+ * @summary Create a simulated transaction without contacting a payment provider or live records
+ */
+export const createSandboxTransactionHeaderIdempotencyKeyMin = 8;
+export const createSandboxTransactionHeaderIdempotencyKeyMax = 128;
+
+
+
+export const CreateSandboxTransactionHeader = zod.object({
+  "Idempotency-Key": zod.string().min(createSandboxTransactionHeaderIdempotencyKeyMin).max(createSandboxTransactionHeaderIdempotencyKeyMax)
+})
+
+export const createSandboxTransactionBodyAmountExclusiveMin = 0;
+
+export const createSandboxTransactionBodyCurrencyMin = 3;
+export const createSandboxTransactionBodyCurrencyMax = 3;
+
+
+
+export const CreateSandboxTransactionBody = zod.object({
+  "amount": zod.number().gt(createSandboxTransactionBodyAmountExclusiveMin),
+  "currency": zod.string().min(createSandboxTransactionBodyCurrencyMin).max(createSandboxTransactionBodyCurrencyMax),
+  "paymentMethod": zod.enum(['hosted_checkout', 'mobile_prompt']).optional(),
+  "customerEmail": zod.string().email(),
+  "customerName": zod.string().optional(),
+  "customerPhone": zod.string().optional(),
+  "description": zod.string().optional(),
+  "testOutcome": zod.enum(['pending', 'success', 'failed']).optional().describe('Optional simulated outcome; defaults to the administrator-configured sandbox outcome.')
+})
+
+export const CreateSandboxTransactionResponse = zod.object({
+  "transaction": zod.object({
+  "id": zod.number().int(),
+  "reference": zod.string(),
+  "amount": zod.number(),
+  "fee": zod.number().nullish(),
+  "netAmount": zod.number().nullish(),
+  "currency": zod.string(),
+  "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'sandbox']),
+  "paymentMethod": zod.string().nullish(),
+  "customerEmail": zod.string(),
+  "customerName": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "failureReason": zod.string().nullable(),
+  "providerReference": zod.string().nullish(),
+  "paymentUrl": zod.string().nullish(),
+  "paymentLinkId": zod.number().int().nullish(),
+  "createdAt": zod.coerce.date(),
+  "paidAt": zod.coerce.date().nullish(),
+  "settlementAt": zod.coerce.date().nullish(),
+  "settlementStatus": zod.enum(['pending', 'due', 'settled', 'held', 'not_applicable'])
+}),
+  "checkoutUrl": zod.string().url().nullable().describe('Always null; sandbox transactions do not initiate checkout.'),
+  "simulated": zod.literal(true)
+})
+
+
+/**
+ * @summary Read a sandbox transaction owned by the API key's merchant
+ */
+export const GetSandboxTransactionParams = zod.object({
+  "reference": zod.coerce.string()
+})
+
+export const GetSandboxTransactionResponse = zod.object({
+  "id": zod.number().int(),
+  "reference": zod.string(),
+  "amount": zod.number(),
+  "fee": zod.number().nullish(),
+  "netAmount": zod.number().nullish(),
+  "currency": zod.string(),
+  "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'sandbox']),
+  "paymentMethod": zod.string().nullish(),
+  "customerEmail": zod.string(),
+  "customerName": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "failureReason": zod.string().nullable(),
+  "providerReference": zod.string().nullish(),
+  "paymentUrl": zod.string().nullish(),
+  "paymentLinkId": zod.number().int().nullish(),
+  "createdAt": zod.coerce.date(),
+  "paidAt": zod.coerce.date().nullish(),
+  "settlementAt": zod.coerce.date().nullish(),
+  "settlementStatus": zod.enum(['pending', 'due', 'settled', 'held', 'not_applicable'])
+})
+
+
+/**
+ * @summary Read the simulated sandbox status without contacting a provider
+ */
+export const VerifySandboxTransactionParams = zod.object({
+  "reference": zod.coerce.string()
+})
+
+export const VerifySandboxTransactionResponse = zod.object({
+  "id": zod.number().int(),
+  "reference": zod.string(),
+  "amount": zod.number(),
+  "fee": zod.number().nullish(),
+  "netAmount": zod.number().nullish(),
+  "currency": zod.string(),
+  "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'sandbox']),
+  "paymentMethod": zod.string().nullish(),
+  "customerEmail": zod.string(),
+  "customerName": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "failureReason": zod.string().nullable(),
+  "providerReference": zod.string().nullish(),
+  "paymentUrl": zod.string().nullish(),
+  "paymentLinkId": zod.number().int().nullish(),
+  "createdAt": zod.coerce.date(),
+  "paidAt": zod.coerce.date().nullish(),
+  "settlementAt": zod.coerce.date().nullish(),
+  "settlementStatus": zod.enum(['pending', 'due', 'settled', 'held', 'not_applicable'])
+})
+
+
+/**
  * @summary List transactions belonging to the API key's merchant
  */
 export const listDeveloperTransactionsQueryPageDefault = 1;
@@ -6026,7 +6197,7 @@ export const ListDeveloperTransactionsResponse = zod.object({
   "netAmount": zod.number().nullish(),
   "currency": zod.string(),
   "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'sandbox']),
   "paymentMethod": zod.string().nullish(),
   "customerEmail": zod.string(),
   "customerName": zod.string().nullish(),
@@ -6086,7 +6257,7 @@ export const CreateDeveloperTransactionResponse = zod.object({
   "netAmount": zod.number().nullish(),
   "currency": zod.string(),
   "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'sandbox']),
   "paymentMethod": zod.string().nullish(),
   "customerEmail": zod.string(),
   "customerName": zod.string().nullish(),
@@ -6120,7 +6291,7 @@ export const GetDeveloperTransactionResponse = zod.object({
   "netAmount": zod.number().nullish(),
   "currency": zod.string(),
   "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'sandbox']),
   "paymentMethod": zod.string().nullish(),
   "customerEmail": zod.string(),
   "customerName": zod.string().nullish(),
@@ -6152,7 +6323,7 @@ export const VerifyDeveloperTransactionResponse = zod.object({
   "netAmount": zod.number().nullish(),
   "currency": zod.string(),
   "status": zod.enum(['pending', 'success', 'failed', 'cancelled', 'refunded']),
-  "provider": zod.enum(['paystack', 'payhero', 'payzaapi']),
+  "provider": zod.enum(['paystack', 'payhero', 'payzaapi', 'sandbox']),
   "paymentMethod": zod.string().nullish(),
   "customerEmail": zod.string(),
   "customerName": zod.string().nullish(),
@@ -7485,6 +7656,8 @@ export const GetAdminPlatformSettingsResponse = zod.object({
   "payoutsEnabled": zod.boolean(),
   "refundsEnabled": zod.boolean(),
   "apiAccessEnabled": zod.boolean(),
+  "sandboxApiEnabled": zod.boolean(),
+  "sandboxDefaultOutcome": zod.enum(['pending', 'success', 'failed']),
   "kycRequired": zod.boolean(),
   "platformName": zod.string().min(1).max(getAdminPlatformSettingsResponsePlatformNameMax),
   "baseCurrency": zod.string().min(getAdminPlatformSettingsResponseBaseCurrencyMin).max(getAdminPlatformSettingsResponseBaseCurrencyMax),
@@ -7525,6 +7698,8 @@ export const UpdateAdminPlatformSettingsBody = zod.object({
   "payoutsEnabled": zod.boolean().optional(),
   "refundsEnabled": zod.boolean().optional(),
   "apiAccessEnabled": zod.boolean().optional(),
+  "sandboxApiEnabled": zod.boolean().optional(),
+  "sandboxDefaultOutcome": zod.enum(['pending', 'success', 'failed']).optional(),
   "kycRequired": zod.boolean().optional(),
   "platformName": zod.string().min(1).max(updateAdminPlatformSettingsBodyPlatformNameMax).optional(),
   "baseCurrency": zod.string().min(updateAdminPlatformSettingsBodyBaseCurrencyMin).max(updateAdminPlatformSettingsBodyBaseCurrencyMax).optional(),
@@ -7561,6 +7736,8 @@ export const UpdateAdminPlatformSettingsResponse = zod.object({
   "payoutsEnabled": zod.boolean(),
   "refundsEnabled": zod.boolean(),
   "apiAccessEnabled": zod.boolean(),
+  "sandboxApiEnabled": zod.boolean(),
+  "sandboxDefaultOutcome": zod.enum(['pending', 'success', 'failed']),
   "kycRequired": zod.boolean(),
   "platformName": zod.string().min(1).max(updateAdminPlatformSettingsResponsePlatformNameMax),
   "baseCurrency": zod.string().min(updateAdminPlatformSettingsResponseBaseCurrencyMin).max(updateAdminPlatformSettingsResponseBaseCurrencyMax),

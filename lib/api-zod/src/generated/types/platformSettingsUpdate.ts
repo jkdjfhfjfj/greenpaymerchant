@@ -5,6 +5,7 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { PlatformSettingsUpdateSandboxDefaultOutcome } from './platformSettingsUpdateSandboxDefaultOutcome';
 import type { PlatformSettingsUpdateWalletFxCurrencySpreads } from './platformSettingsUpdateWalletFxCurrencySpreads';
 
 export interface PlatformSettingsUpdate {
@@ -13,6 +14,8 @@ export interface PlatformSettingsUpdate {
   payoutsEnabled?: boolean;
   refundsEnabled?: boolean;
   apiAccessEnabled?: boolean;
+  sandboxApiEnabled?: boolean;
+  sandboxDefaultOutcome?: PlatformSettingsUpdateSandboxDefaultOutcome;
   kycRequired?: boolean;
   /**
      * @minLength 1

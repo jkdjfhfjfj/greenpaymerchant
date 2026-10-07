@@ -139,6 +139,7 @@ import type {
   ListPayoutMethodsParams,
   ListPayoutsParams,
   ListPublicContentParams,
+  ListSandboxTransactionsParams,
   ListSettlementsParams,
   ListTransactionsParams,
   ListWebhookEventsParams,
@@ -213,6 +214,8 @@ import type {
   ReminderInput,
   ReminderList,
   ReviewMerchantApplicationRequest,
+  SandboxTransactionCreated,
+  SandboxTransactionInput,
   SaveProviderCredentialsInput,
   SecondApprovalInput,
   SetAdminMerchantStatusRequest,
@@ -12881,6 +12884,329 @@ export const useCreateDeveloperPaymentLink = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateDeveloperPaymentLinkMutationOptions(options));
+    }
+
+export const getListSandboxTransactionsUrl = (params?: ListSandboxTransactionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/sandbox/v1/transactions?${stringifiedParams}` : `/api/sandbox/v1/transactions`
+}
+
+/**
+ * @summary List the API key merchant's isolated sandbox transactions
+ */
+export const listSandboxTransactions = async (params?: ListSandboxTransactionsParams, options?: Parameters<typeof customFetch>[1]): Promise<TransactionList> => {
+
+  return customFetch<TransactionList>(getListSandboxTransactionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSandboxTransactionsQueryKey = (params?: ListSandboxTransactionsParams,) => {
+    return [
+    `/api/sandbox/v1/transactions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListSandboxTransactionsQueryOptions = <TData = Awaited<ReturnType<typeof listSandboxTransactions>>, TError = ErrorType<unknown>>(params?: ListSandboxTransactionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSandboxTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSandboxTransactionsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSandboxTransactions>>> = ({ signal }) => listSandboxTransactions(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSandboxTransactions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSandboxTransactionsQueryResult = NonNullable<Awaited<ReturnType<typeof listSandboxTransactions>>>
+export type ListSandboxTransactionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the API key merchant's isolated sandbox transactions
+ */
+
+export function useListSandboxTransactions<TData = Awaited<ReturnType<typeof listSandboxTransactions>>, TError = ErrorType<unknown>>(
+ params?: ListSandboxTransactionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSandboxTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSandboxTransactionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateSandboxTransactionUrl = () => {
+
+
+
+
+  return `/api/sandbox/v1/transactions`
+}
+
+/**
+ * @summary Create a simulated transaction without contacting a payment provider or live records
+ */
+export const createSandboxTransaction = async (sandboxTransactionInput: SandboxTransactionInput, options?: Parameters<typeof customFetch>[1]): Promise<SandboxTransactionCreated> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SandboxTransactionCreated>(getCreateSandboxTransactionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(sandboxTransactionInput)
+  }
+);}
+
+
+
+
+
+export const getCreateSandboxTransactionMutationKey = () => ['createSandboxTransaction'] as const;
+
+export const getCreateSandboxTransactionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSandboxTransaction>>, TError,CreateSandboxTransactionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSandboxTransaction>>, TError,CreateSandboxTransactionMutationVariables, TContext> => {
+
+const mutationKey = getCreateSandboxTransactionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSandboxTransaction>>, CreateSandboxTransactionMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSandboxTransaction(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSandboxTransactionMutationResult = NonNullable<Awaited<ReturnType<typeof createSandboxTransaction>>>
+    export type CreateSandboxTransactionMutationBody = BodyType<SandboxTransactionInput>
+    export type CreateSandboxTransactionMutationError = ErrorType<void>
+    export type CreateSandboxTransactionMutationVariables = {data: BodyType<SandboxTransactionInput>}
+
+    /**
+ * @summary Create a simulated transaction without contacting a payment provider or live records
+ */
+export const useCreateSandboxTransaction = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSandboxTransaction>>, TError,CreateSandboxTransactionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSandboxTransaction>>,
+        TError,
+        CreateSandboxTransactionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateSandboxTransactionMutationOptions(options));
+    }
+
+export const getGetSandboxTransactionUrl = (reference: string,) => {
+
+
+
+
+  return `/api/sandbox/v1/transactions/${reference}`
+}
+
+/**
+ * @summary Read a sandbox transaction owned by the API key's merchant
+ */
+export const getSandboxTransaction = async (reference: string, options?: Parameters<typeof customFetch>[1]): Promise<Transaction> => {
+
+  return customFetch<Transaction>(getGetSandboxTransactionUrl(reference),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSandboxTransactionQueryKey = (reference: string,) => {
+    return [
+    `/api/sandbox/v1/transactions/${reference}`
+    ] as const;
+    }
+
+
+export const getGetSandboxTransactionQueryOptions = <TData = Awaited<ReturnType<typeof getSandboxTransaction>>, TError = ErrorType<void>>(reference: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSandboxTransaction>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSandboxTransactionQueryKey(reference);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSandboxTransaction>>> = ({ signal }) => getSandboxTransaction(reference, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: reference !== null && reference !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSandboxTransaction>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSandboxTransactionQueryResult = NonNullable<Awaited<ReturnType<typeof getSandboxTransaction>>>
+export type GetSandboxTransactionQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read a sandbox transaction owned by the API key's merchant
+ */
+
+export function useGetSandboxTransaction<TData = Awaited<ReturnType<typeof getSandboxTransaction>>, TError = ErrorType<void>>(
+ reference: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSandboxTransaction>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSandboxTransactionQueryOptions(reference,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getVerifySandboxTransactionUrl = (reference: string,) => {
+
+
+
+
+  return `/api/sandbox/v1/transactions/${reference}/verify`
+}
+
+/**
+ * @summary Read the simulated sandbox status without contacting a provider
+ */
+export const verifySandboxTransaction = async (reference: string, options?: Parameters<typeof customFetch>[1]): Promise<Transaction> => {
+
+  return customFetch<Transaction>(getVerifySandboxTransactionUrl(reference),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getVerifySandboxTransactionMutationKey = () => ['verifySandboxTransaction'] as const;
+
+export const getVerifySandboxTransactionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifySandboxTransaction>>, TError,VerifySandboxTransactionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifySandboxTransaction>>, TError,VerifySandboxTransactionMutationVariables, TContext> => {
+
+const mutationKey = getVerifySandboxTransactionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifySandboxTransaction>>, VerifySandboxTransactionMutationVariables> = (props) => {
+          const {reference} = props ?? {};
+
+          return  verifySandboxTransaction(reference,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifySandboxTransactionMutationResult = NonNullable<Awaited<ReturnType<typeof verifySandboxTransaction>>>
+
+    export type VerifySandboxTransactionMutationError = ErrorType<void>
+    export type VerifySandboxTransactionMutationVariables = {reference: string}
+
+    /**
+ * @summary Read the simulated sandbox status without contacting a provider
+ */
+export const useVerifySandboxTransaction = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifySandboxTransaction>>, TError,VerifySandboxTransactionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof verifySandboxTransaction>>,
+        TError,
+        VerifySandboxTransactionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getVerifySandboxTransactionMutationOptions(options));
     }
 
 export const getListDeveloperTransactionsUrl = (params?: ListDeveloperTransactionsParams,) => {

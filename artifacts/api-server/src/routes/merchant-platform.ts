@@ -47,7 +47,7 @@ import {
 } from "../lib/greenpay-provider";
 import { requireAdmin, requireSignedIn } from "../middlewares/requireAdmin";
 import { resolvePlatformAdmin } from "../lib/platform-admin";
-import { developerApiAuth, requireApiScope } from "../middlewares/developerApiAuth";
+import { developerApiAuth, requireApiKeyEnvironment, requireApiScope } from "../middlewares/developerApiAuth";
 import {
   assertMerchantActionEnabled,
   assertMerchantMayTransact,
@@ -223,7 +223,7 @@ async function createOwnedLink(merchant: typeof merchantsTable.$inferSelect, inp
 
 function apiKeyDto(row: typeof merchantApiKeysTable.$inferSelect) {
   return {
-    id: row.id, name: row.name, prefix: row.prefix, scopes: row.scopes,
+    id: row.id, name: row.name, environment: row.environment, prefix: row.prefix, scopes: row.scopes,
     secretRecoverable: row.encryptedSecret !== null,
     createdAt: row.createdAt, lastUsedAt: row.lastUsedAt, revokedAt: row.revokedAt,
   };
@@ -1327,13 +1327,22 @@ router.post("/merchant/api-keys", requireSignedIn, async (req, res): Promise<voi
   const merchant = await ownedMerchant(res);
   if (!merchant) { res.status(404).json({ error: "Merchant onboarding is not complete." }); return; }
   await assertMerchantActionEnabled(merchant.id, "apiAccess");
-  await assertMerchantMayTransact(merchant);
   await assertPlatformEnabled("apiAccessEnabled");
   if (!merchant.apiAccessEnabled) { res.status(403).json({ error: "Developer API access is disabled for this merchant." }); return; }
-  const secret = `gp_live_${randomBytes(32).toString("base64url")}`;
+  const environment = parsed.data.environment ?? "live";
+  if (environment === "sandbox") {
+    await assertPlatformEnabled("sandboxApiEnabled");
+    if (parsed.data.scopes.some((scope) => scope !== "read" && scope !== "payments:write")) {
+      res.status(400).json({ error: "Sandbox API keys support only the read and payments:write scopes." });
+      return;
+    }
+  } else {
+    await assertMerchantMayTransact(merchant);
+  }
+  const secret = `${environment === "sandbox" ? "gp_test_" : "gp_live_"}${randomBytes(32).toString("base64url")}`;
   const prefix = secret.slice(0, 15);
   const [key] = await db.insert(merchantApiKeysTable).values({
-    merchantId: merchant.id, name: parsed.data.name.trim(), prefix,
+    merchantId: merchant.id, name: parsed.data.name.trim(), environment, prefix,
     secretHash: apiKeyHash(secret), encryptedSecret: encryptSecret(secret), scopes: parsed.data.scopes,
   }).returning();
   res.status(201).json(CreateMerchantApiKeyResponse.parse({ key: apiKeyDto(key), secret }));
@@ -1563,7 +1572,7 @@ router.get("/merchant/fx-quote", requireSignedIn, async (req, res): Promise<void
   }));
 });
 
-apiRouter.use(developerApiAuth, (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
+apiRouter.use(developerApiAuth, requireApiKeyEnvironment("live"), (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
 apiRouter.get("/merchant", requireApiScope("read"), async (_req, res): Promise<void> => {
   const merchant = res.locals.merchant as typeof merchantsTable.$inferSelect;
   res.json(GetMerchantProfileResponse.parse({ merchant: profile(merchant) }));

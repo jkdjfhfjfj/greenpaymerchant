@@ -72,6 +72,7 @@ export const merchantApiKeysTable = pgTable("greenpay_merchant_api_keys", {
   id: serial("id").primaryKey(),
   merchantId: integer("merchant_id").notNull(),
   name: varchar("name", { length: 100 }).notNull(),
+  environment: varchar("environment", { length: 12 }).$type<"live" | "sandbox">().notNull().default("live"),
   prefix: varchar("prefix", { length: 20 }).notNull(),
   secretHash: varchar("secret_hash", { length: 64 }).notNull().unique(),
   encryptedSecret: text("encrypted_secret"),
@@ -130,6 +131,9 @@ export const platformSettingsTable = pgTable("greenpay_platform_settings", {
   payoutsEnabled: boolean("payouts_enabled").notNull().default(true),
   refundsEnabled: boolean("refunds_enabled").notNull().default(true),
   apiAccessEnabled: boolean("api_access_enabled").notNull().default(true),
+  sandboxApiEnabled: boolean("sandbox_api_enabled").notNull().default(false),
+  sandboxDefaultOutcome: varchar("sandbox_default_outcome", { length: 16 })
+    .$type<"pending" | "success" | "failed">().notNull().default("pending"),
   kycRequired: boolean("kyc_required").notNull().default(true),
   platformName: varchar("platform_name", { length: 100 }).notNull().default("Greenpay"),
   baseCurrency: varchar("base_currency", { length: 3 }).notNull().default("USD"),

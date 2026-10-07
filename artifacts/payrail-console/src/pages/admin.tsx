@@ -836,13 +836,14 @@ function CredEdit({ c, onClose }: { c: ProviderCredential; onClose: () => void }
     <Err error={save.error} /><Btn type="submit" disabled={save.isPending} testId="button-save-credentials">{save.isPending && <LoaderCircle size={14} className="spin" />}Save to vault</Btn></form></Modal>;
 }
 
-type PlatformFlagSetting = Pick<PlatformSettings, 'newMerchantSignups' | 'paymentsEnabled' | 'payoutsEnabled' | 'refundsEnabled' | 'apiAccessEnabled' | 'kycRequired'>;
+type PlatformFlagSetting = Pick<PlatformSettings, 'newMerchantSignups' | 'paymentsEnabled' | 'payoutsEnabled' | 'refundsEnabled' | 'apiAccessEnabled' | 'sandboxApiEnabled' | 'kycRequired'>;
 const SETTINGS: [keyof PlatformFlagSetting, string, string][] = [
   ['newMerchantSignups', 'New merchant sign-ups', 'Allow new businesses to register.'],
   ['paymentsEnabled', 'Payments', 'Allow new collections to start.'],
   ['payoutsEnabled', 'Payouts', 'Allow payouts to be requested.'],
   ['refundsEnabled', 'Refunds', 'Allow refunds to be recorded.'],
   ['apiAccessEnabled', 'API access', 'Allow API key authenticated requests.'],
+  ['sandboxApiEnabled', 'Sandbox API', 'Allow gp_test_ keys to use isolated simulated transactions.'],
   ['kycRequired', 'Verification required', 'Require approved KYC before activity.'],
 ];
 export function AdminSettingsPage() { return <G><SettingsInner /></G>; }
@@ -982,6 +983,23 @@ function SettingsInner() {
       {geoapifyEdit && <CredEdit c={geoapifyEdit} onClose={() => setGeoapifyEdit(null)} />}
       <Card title="Feature controls" subtitle="Platform-wide switches. Changes apply immediately and are audited.">
         {q.data && SETTINGS.map(([k, t, d]) => <div className="setting-row" key={k}><div><strong>{t}</strong><span>{d}</span></div><Switch on={q.data[k]} label={t} disabled={up.isPending} onChange={(v) => { if (v) up.mutate({ data: { [k]: v } }, { onSuccess: () => { void inv(); } }); else setOff(k); }} /></div>)}
+      </Card>
+      <Card title="Sandbox transaction defaults" subtitle="Configure the outcome used by sandbox requests that do not specify a testOutcome.">
+        <Note>Sandbox keys use /api/sandbox/v1 and write only to sandbox transaction records. They never contact a payment provider or affect live transactions. Disabling the Sandbox API blocks requests but retains existing test records.</Note>
+        {q.data && <Field label="Default simulated outcome">
+          <select
+            value={q.data.sandboxDefaultOutcome}
+            disabled={up.isPending}
+            onChange={(event) => up.mutate({
+              data: { sandboxDefaultOutcome: event.target.value as PlatformSettings['sandboxDefaultOutcome'] },
+            }, { onSuccess: () => { void inv(); } })}
+            data-testid="select-sandbox-default-outcome"
+          >
+            <option value="pending">Pending</option>
+            <option value="success">Success</option>
+            <option value="failed">Failed</option>
+          </select>
+        </Field>}
       </Card>
       <Card title="Collection currency launch" subtitle="Control whether new collections may start in each supported currency.">
         <Note tone="warn">Turning a currency off prevents new collections and displays “Coming soon” at checkout. Existing payment links remain visible and editable, but customers cannot collect in that currency until it is enabled again.</Note>

@@ -6,12 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type TransactionProvider = typeof TransactionProvider[keyof typeof TransactionProvider];
+export type ApiKeyEnvironment = typeof ApiKeyEnvironment[keyof typeof ApiKeyEnvironment];
 
 
-export const TransactionProvider = {
-  paystack: 'paystack',
-  payhero: 'payhero',
-  payzaapi: 'payzaapi',
+export const ApiKeyEnvironment = {
+  live: 'live',
   sandbox: 'sandbox',
 } as const;

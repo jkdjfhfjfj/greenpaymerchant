@@ -486,6 +486,8 @@ function settingsDto(row: typeof platformSettingsTable.$inferSelect) {
     payoutsEnabled: row.payoutsEnabled,
     refundsEnabled: row.refundsEnabled,
     apiAccessEnabled: row.apiAccessEnabled,
+    sandboxApiEnabled: row.sandboxApiEnabled,
+    sandboxDefaultOutcome: row.sandboxDefaultOutcome,
     kycRequired: row.kycRequired,
     platformName: row.platformName,
     baseCurrency: row.baseCurrency,
@@ -501,7 +503,8 @@ function settingsDto(row: typeof platformSettingsTable.$inferSelect) {
 
 const defaultSettings = {
   newMerchantSignups: true, paymentsEnabled: true, payoutsEnabled: true,
-  refundsEnabled: true, apiAccessEnabled: true, kycRequired: true,
+  refundsEnabled: true, apiAccessEnabled: true, sandboxApiEnabled: false,
+  sandboxDefaultOutcome: "pending" as const, kycRequired: true,
   platformName: "Greenpay", baseCurrency: "USD",
   contactEmail: "support@greenpay.africa", contactPhone: "",
   contactAddress: "", contactWhatsapp: "", logoUrl: null, faviconUrl: null,

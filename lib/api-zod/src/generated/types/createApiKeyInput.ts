@@ -5,6 +5,7 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateApiKeyInputEnvironment } from './createApiKeyInputEnvironment';
 import type { CreateApiKeyInputScopesItem } from './createApiKeyInputScopesItem';
 
 export interface CreateApiKeyInput {
@@ -13,6 +14,7 @@ export interface CreateApiKeyInput {
      * @maxLength 100
      */
   name: string;
+  environment?: CreateApiKeyInputEnvironment;
   /** @minItems 1 */
   scopes: CreateApiKeyInputScopesItem[];
 }

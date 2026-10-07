@@ -113,12 +113,22 @@ function DeveloperDocsContent({ publicView = false }: { publicView?: boolean }) 
   const [result, setResult] = useState<CallResult>(null);
   const [busy, setBusy] = useState(false);
   const [requestError, setRequestError] = useState('');
+  const [sandboxKey, setSandboxKey] = useState('');
+  const [sandboxAmount, setSandboxAmount] = useState('10');
+  const [sandboxCurrency, setSandboxCurrency] = useState('KES');
+  const [sandboxEmail, setSandboxEmail] = useState('');
+  const [sandboxOutcome, setSandboxOutcome] = useState('');
+  const [sandboxIdempotencyKey, setSandboxIdempotencyKey] = useState('');
+  const [sandboxBusy, setSandboxBusy] = useState(false);
+  const [sandboxResult, setSandboxResult] = useState<{ status: number; body: string } | null>(null);
+  const [sandboxError, setSandboxError] = useState('');
   const paymentCurrencyOption = currencies.data?.items.find((item) => item.code === paymentCurrency);
   const paymentMethods = paymentCurrencyOption?.paymentMethods ?? [];
   const selectedPaymentMethod = paymentMethods.find((method) => method.id === paymentMethodId && method.ready)
     ?? paymentMethods.find((method) => method.ready);
   useEffect(() => {
     setIdempotencyKey(crypto.randomUUID());
+    setSandboxIdempotencyKey(crypto.randomUUID());
   }, []);
 
   async function send(path: string, method: 'GET' | 'POST', kind: 'read' | 'payment', body?: Record<string, unknown>, idempotency?: string) {
@@ -199,6 +209,49 @@ function DeveloperDocsContent({ publicView = false }: { publicView?: boolean }) 
     }
   }
 
+  async function runSandboxTransaction(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSandboxError('');
+    setSandboxResult(null);
+    const amount = Number(sandboxAmount);
+    if (!sandboxKey.trim()) { setSandboxError('Enter a gp_test_ sandbox API key. It stays in this page memory only.'); return; }
+    if (!(amount > 0)) { setSandboxError('Enter an amount greater than zero.'); return; }
+    if (!sandboxEmail.trim()) { setSandboxError('Enter the customer email required by the sandbox request.'); return; }
+    if (sandboxIdempotencyKey.trim().length < 8 || sandboxIdempotencyKey.trim().length > 128) {
+      setSandboxError('Idempotency-Key must be 8 to 128 characters.');
+      return;
+    }
+    setSandboxBusy(true);
+    try {
+      const headers: Record<string, string> = {
+        Accept: 'application/json',
+        Authorization: `Bearer ${sandboxKey.trim()}`,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': sandboxIdempotencyKey.trim(),
+      };
+      const response = await fetch(new URL(`${API_ORIGIN}/sandbox/v1/transactions`, docsOrigin), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          amount,
+          currency: sandboxCurrency,
+          customerEmail: sandboxEmail.trim(),
+          ...(sandboxOutcome ? { testOutcome: sandboxOutcome } : {}),
+        }),
+        credentials: 'same-origin',
+        redirect: 'error',
+      });
+      const raw = (await response.text()).slice(0, 30_000);
+      let formatted = raw;
+      try { formatted = JSON.stringify(JSON.parse(raw), null, 2); } catch { /* Keep a bounded plain-text error body. */ }
+      setSandboxResult({ status: response.status, body: redactKey(formatted, sandboxKey.trim()) });
+    } catch {
+      setSandboxError('The sandbox request did not complete. Check the key, sandbox availability, and connection; the key was not logged or saved.');
+    } finally {
+      setSandboxBusy(false);
+    }
+  }
+
   return <div className={`api-docs-page ${publicView ? 'is-public public-api-docs-content' : 'is-private'}`}>
     <a className="api-docs-skip-link" href="#api-docs-content">Skip to API reference</a>
     <div className="api-docs-page-heading">
@@ -238,18 +291,20 @@ function DeveloperDocsContent({ publicView = false }: { publicView?: boolean }) 
           <span>PAYMENTS</span>
           <a href="#api-payment-flow"><i>04</i>Collection flow</a>
           <a href="#supported-collection-currencies"><i>05</i>Currency readiness</a>
+          <a href="#api-sandbox-reference"><i>06</i>Sandbox API</a>
         </div>
         <div className="api-docs-toc-group">
           <span>OPERATIONS &amp; EVENTS</span>
-          <a href="#api-payouts"><i>06</i>Payouts</a>
-          <a href="#api-webhooks"><i>07</i>Signed webhooks</a>
-          <a href="#api-examples"><i>08</i>Code examples</a>
+          <a href="#api-payouts"><i>07</i>Payouts</a>
+          <a href="#api-webhooks"><i>08</i>Signed webhooks</a>
+          <a href="#api-examples"><i>09</i>Code examples</a>
         </div>
         {!publicView && <div className="api-docs-toc-group">
           <span>PLAYGROUND</span>
-          <a href="#api-read-playground"><i>09</i>Read-only requests</a>
-          <a href="#api-payment-playground"><i>10</i>Payment request</a>
-          <a href="#api-airtime-wallet"><i>11</i>Airtime wallet</a>
+          <a href="#api-read-playground"><i>10</i>Read-only requests</a>
+          <a href="#api-sandbox-playground"><i>11</i>Sandbox testing</a>
+          <a href="#api-payment-playground"><i>12</i>Live payment request</a>
+          <a href="#api-airtime-wallet"><i>13</i>Airtime wallet</a>
         </div>}
       </nav>
 
@@ -257,11 +312,12 @@ function DeveloperDocsContent({ publicView = false }: { publicView?: boolean }) 
       <section id="api-authentication" className="api-docs-section">
     <Card title="Base URL and authentication" subtitle="All merchant API requests use this deployment's API host.">
       <div className="form-stack">
-        <pre className="code">{`Base URL: ${docsOrigin}${API_ORIGIN}
+        <pre className="code">{`Live API: ${docsOrigin}${API_ORIGIN}/v1
+Sandbox API: ${docsOrigin}${API_ORIGIN}/sandbox/v1
 Authentication: Authorization: Bearer <merchant API key>
 Content type: application/json
-Environment: this Greenpay deployment; there is no separate Greenpay sandbox hostname.`}</pre>
-        <p>Use an API key created in <a href={publicView ? '/sign-in' : '/developers'}>API access</a>. Greenpay currently issues a <code>gp_live_</code>-prefixed key; do not interpret that prefix as proof of a test or live payment environment. Payment requests use the credentials configured for the selected currency route. Until an operator configures test-mode credentials, treat a confirmed payment request as potentially real.</p>
+Environment: separate live and sandbox API paths on this deployment.`}</pre>
+        <p>Use an API key created in <a href={publicView ? '/sign-in' : '/developers'}>API access</a>. Live keys use the <code>gp_live_</code> prefix and only work on live routes. Sandbox keys use <code>gp_test_</code> and only work on <code>/sandbox/v1</code>. Sandbox requests create isolated simulated records; they never call payment providers, create checkout sessions, or affect live transactions. An administrator must enable the sandbox before test keys or requests can be used.</p>
         <p>Active API keys can be copied again from API access after an explicit request. Keys created before encrypted key storage cannot be recovered; create and verify a replacement before revoking an older key. Store keys in a trusted server-side secret manager and never ship a secret key in browser or mobile application code.{!publicView && ' The playground key input is temporary and exists to make direct merchant-scoped read requests possible.'}</p>
       </div>
     </Card>
@@ -321,7 +377,20 @@ curl "${docsOrigin}${API_ORIGIN}/v1/merchant" \\
 
 # Customer-safe status lookup; no API key required
 curl "${docsOrigin}${API_ORIGIN}/public/transactions/TRANSACTION_REFERENCE"`}</pre>
-        <p>Use <code>GET /public/transactions/:reference</code> to display customer-safe status, or <code>GET /v1/transactions/:reference</code> with the <code>read</code> scope for merchant details. Greenpay has no separate public sandbox hostname: a payment-creation request can start a real collection. Use the read-only checks above for connectivity, and only run end-to-end payment tests after confirming the currency route is configured for test mode.</p>
+        <p>Use <code>GET /public/transactions/:reference</code> to display customer-safe status, or <code>GET /v1/transactions/:reference</code> with the <code>read</code> scope for merchant details. Live payment requests can start real collections.</p>
+        <h3 id="api-sandbox-reference">Test safely with the isolated Sandbox API</h3>
+        <p>Use the sandbox path and a <code>gp_test_</code> key for provider-free transaction tests:</p>
+        <pre className="code">{`# Create a simulated sandbox transaction (no provider call, no real funds)
+curl -X POST "${docsOrigin}${API_ORIGIN}/sandbox/v1/transactions" \\
+  -H "Authorization: Bearer $GREENPAY_TEST_API_KEY" \\
+  -H "Idempotency-Key: order-1042-test-1" \\
+  -H "Content-Type: application/json" \\
+  -d '{"amount":100,"currency":"KES","customerEmail":"sandbox@example.com","testOutcome":"success"}'
+
+# Read a sandbox transaction
+curl "${docsOrigin}${API_ORIGIN}/sandbox/v1/transactions/SANDBOX_REFERENCE" \\
+  -H "Authorization: Bearer $GREENPAY_TEST_API_KEY"`}</pre>
+        <p>The optional <code>testOutcome</code> may be <code>pending</code>, <code>success</code>, or <code>failed</code>. If omitted, Greenpay uses the administrator-configured default. The <code>checkoutUrl</code> is always null: the sandbox tests authenticated API requests and transaction responses, not a live checkout page.</p>
       </div>
     </Card>
       </section>
@@ -527,11 +596,41 @@ curl "${docsOrigin}/api/v1/airtime/purchases/AIRTIME_REFERENCE" \\
     </Card>
       </section>
 
+      <section id="api-sandbox-playground" className="api-docs-section">
+    <Card title="Sandbox API playground — simulated only" subtitle="Creates an isolated test transaction using a gp_test_ key. This fixed same-origin request never contacts a payment provider.">
+      <Note tone="warn"><ShieldCheck size={15} /> An administrator must enable the sandbox first. Only sandbox keys work here; requests use /api/sandbox/v1 and cannot reach live transaction records.</Note>
+      <form className="form-stack" onSubmit={runSandboxTransaction}>
+        <Field label="Sandbox API key" hint="Held in page memory only. It is not stored in local storage, URLs, or query caches.">
+          <input type="password" autoComplete="off" spellCheck={false} value={sandboxKey} onChange={(event) => setSandboxKey(event.target.value)} placeholder="gp_test_…" data-testid="input-sandbox-playground-api-key" />
+        </Field>
+        <div className="form-grid">
+          <Field label="Amount"><input type="number" min="0.01" step="0.01" value={sandboxAmount} onChange={(event) => setSandboxAmount(event.target.value)} required /></Field>
+          <Field label="Currency"><select value={sandboxCurrency} onChange={(event) => setSandboxCurrency(event.target.value)}>{(currencies.data?.items ?? []).map((item) => <option key={item.code} value={item.code}>{item.code} · {item.name}</option>)}</select></Field>
+        </div>
+        <Field label="Customer email"><input type="email" value={sandboxEmail} onChange={(event) => setSandboxEmail(event.target.value)} required /></Field>
+        <Field label="Test outcome" hint="Use the administrator-configured default, or explicitly test a response state.">
+          <select value={sandboxOutcome} onChange={(event) => setSandboxOutcome(event.target.value)}>
+            <option value="">Administrator default</option>
+            <option value="pending">Pending</option>
+            <option value="success">Success</option>
+            <option value="failed">Failed</option>
+          </select>
+        </Field>
+        <Field label="Idempotency-Key" hint="Reuse this only for the same sandbox request.">
+          <input minLength={8} maxLength={128} value={sandboxIdempotencyKey} onChange={(event) => setSandboxIdempotencyKey(event.target.value)} required />
+        </Field>
+        {sandboxError && <Err error={sandboxError} />}
+        <Btn type="submit" disabled={sandboxBusy} testId="button-playground-sandbox">{sandboxBusy ? <LoaderCircle size={14} className="spin" /> : <Play size={14} />}Create sandbox transaction</Btn>
+      </form>
+      {sandboxResult && <div className="form-stack"><h3>HTTP {sandboxResult.status}</h3><pre className="code" aria-live="polite">{sandboxResult.body}</pre></div>}
+    </Card>
+      </section>
+
       <section id="api-payment-playground" className="api-docs-section">
     <Card title="Payment request playground — disabled by default" subtitle="Only POST /v1/transactions is offered. Sending it can start a collection; there is no automatic retry.">
       <form className="form-stack" onSubmit={runPayment}>
         <label className="chip"><input type="checkbox" checked={mutationEnabled} onChange={(event) => { setMutationEnabled(event.target.checked); setConfirmPhrase(''); }} />I understand this can initiate a real payment</label>
-        <Note tone="danger"><ShieldCheck size={15} /> Before enabling: the API key must have <code>payments:write</code>; currency routes may be connected to live payment credentials. This is not a sandbox/test-payment guarantee.</Note>
+        <Note tone="danger"><ShieldCheck size={15} /> This live payment request can use real payment credentials and move real funds. For provider-free test records, use the isolated Sandbox API playground above with a <code>gp_test_</code> key.</Note>
           <div className="form-grid"><Field label="Amount"><input type="number" min={paymentCurrency === 'KES' || COLLECTION_CURRENCIES.find(({ code }) => code === paymentCurrency)?.minorUnits === 0 ? '1' : '0.01'} step={COLLECTION_CURRENCIES.find(({ code }) => code === paymentCurrency)?.minorUnits === 0 ? '1' : '0.01'} value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} disabled={!mutationEnabled} required /></Field><Field label="Currency"><select value={paymentCurrency} onChange={(event) => { setPaymentCurrency(event.target.value); setPaymentMethodId(''); }}>{(currencies.data?.items ?? []).map((item) => <option key={item.code} value={item.code}>{item.code} · {item.name}{item.comingSoon ? ' · Coming soon' : item.collectionReady ? '' : ' · unavailable'}</option>)}</select></Field></div>
           {paymentCurrencyOption?.comingSoon && <Note tone="warn">Coming soon: collections in {paymentCurrency} are disabled by an administrator.</Note>}
           <Field label="Payment method ID" hint="Use the designated ID returned in paymentMethods[].id for this currency."><select value={selectedPaymentMethod?.id ?? ''} onChange={(event) => setPaymentMethodId(event.target.value)} disabled={!paymentMethods.some((method) => method.ready)}>{!selectedPaymentMethod && <option value="">{paymentCurrencyOption?.comingSoon ? 'Coming soon' : paymentCurrencyOption?.collectionReady ? 'No payment method available' : 'No payment method available right now'}</option>}{paymentMethods.map((method) => <option key={method.id} value={method.id} disabled={!method.ready}>{method.id}{method.requiresPhone ? ' · phone required' : ''}{method.ready ? '' : paymentCurrencyOption?.comingSoon ? ' · Coming soon' : ' · unavailable'}</option>)}</select></Field>

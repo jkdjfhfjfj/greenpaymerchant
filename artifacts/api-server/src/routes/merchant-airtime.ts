@@ -16,7 +16,7 @@ import {
   getAirtimePurchase, getAirtimeWallet, getMerchantAirtimeDashboard, listAirtimePurchases,
 } from "../lib/airtime-service";
 import { resolveMerchantAccess } from "../lib/merchant-access";
-import { developerApiAuth, requireApiScope } from "../middlewares/developerApiAuth";
+import { developerApiAuth, requireApiKeyEnvironment, requireApiScope } from "../middlewares/developerApiAuth";
 
 const router: IRouter = Router();
 const apiRouter: IRouter = Router();
@@ -92,7 +92,7 @@ router.post("/merchant/airtime/purchases", async (req, res): Promise<void> => {
   res.status(201).json(CreateMerchantAirtimePurchaseResponse.parse({ purchase: airtimePurchaseDto(purchase) }));
 });
 
-apiRouter.use(developerApiAuth, (_req, res, next) => {
+apiRouter.use(developerApiAuth, requireApiKeyEnvironment("live"), (_req, res, next) => {
   res.setHeader("Cache-Control", "no-store");
   next();
 });

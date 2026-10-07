@@ -18,7 +18,7 @@ import {
   type PayoutSafetySettings,
 } from "./merchant-access-policy";
 
-export type PlatformFlag = "paymentsEnabled" | "payoutsEnabled" | "refundsEnabled" | "apiAccessEnabled" | "newMerchantSignups" | "kycRequired";
+export type PlatformFlag = "paymentsEnabled" | "payoutsEnabled" | "refundsEnabled" | "apiAccessEnabled" | "sandboxApiEnabled" | "newMerchantSignups" | "kycRequired";
 export type MerchantFlag = "paymentsEnabled" | "payoutsEnabled" | "refundsEnabled" | "apiAccessEnabled";
 export type { VerificationAction, VerificationTier } from "./security-policy";
 export type { MerchantActionKey, MerchantActionControls, PayoutSafetySettings } from "./merchant-access-policy";
@@ -30,6 +30,7 @@ const DEFAULT_SETTINGS = {
   payoutsEnabled: true,
   refundsEnabled: true,
   apiAccessEnabled: true,
+  sandboxApiEnabled: false,
   kycRequired: true,
 };
 
@@ -42,6 +43,7 @@ export async function getPlatformSettings() {
     payoutsEnabled: row.payoutsEnabled,
     refundsEnabled: row.refundsEnabled,
     apiAccessEnabled: row.apiAccessEnabled,
+    sandboxApiEnabled: row.sandboxApiEnabled,
     kycRequired: row.kycRequired,
   };
 }
@@ -55,6 +57,7 @@ export async function assertPlatformEnabled(flag: PlatformFlag): Promise<void> {
       payoutsEnabled: "Payouts are currently disabled.",
       refundsEnabled: "Refunds are currently disabled.",
       apiAccessEnabled: "Developer API access is currently disabled.",
+      sandboxApiEnabled: "The sandbox API is currently disabled by an administrator.",
       kycRequired: "KYC policy is currently enabled.",
     };
     throw new ApiError(403, labels[flag]);

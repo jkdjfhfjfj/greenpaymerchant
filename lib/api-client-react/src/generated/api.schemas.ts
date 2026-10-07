@@ -709,6 +709,7 @@ export const TransactionProvider = {
   paystack: 'paystack',
   payhero: 'payhero',
   payzaapi: 'payzaapi',
+  sandbox: 'sandbox',
 } as const;
 
 export type TransactionSettlementStatus = typeof TransactionSettlementStatus[keyof typeof TransactionSettlementStatus];
@@ -835,6 +836,53 @@ export interface TransactionCreated {
   transaction: Transaction;
   /** @nullable */
   checkoutUrl: string | null;
+}
+
+export type SandboxTransactionInputPaymentMethod = typeof SandboxTransactionInputPaymentMethod[keyof typeof SandboxTransactionInputPaymentMethod];
+
+
+export const SandboxTransactionInputPaymentMethod = {
+  hosted_checkout: 'hosted_checkout',
+  mobile_prompt: 'mobile_prompt',
+} as const;
+
+/**
+ * Optional simulated outcome; defaults to the administrator-configured sandbox outcome.
+ */
+export type SandboxTransactionInputTestOutcome = typeof SandboxTransactionInputTestOutcome[keyof typeof SandboxTransactionInputTestOutcome];
+
+
+export const SandboxTransactionInputTestOutcome = {
+  pending: 'pending',
+  success: 'success',
+  failed: 'failed',
+} as const;
+
+export interface SandboxTransactionInput {
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /**
+     * @minLength 3
+     * @maxLength 3
+     */
+  currency: string;
+  paymentMethod?: SandboxTransactionInputPaymentMethod;
+  customerEmail: string;
+  customerName?: string;
+  customerPhone?: string;
+  description?: string;
+  /** Optional simulated outcome; defaults to the administrator-configured sandbox outcome. */
+  testOutcome?: SandboxTransactionInputTestOutcome;
+}
+
+export interface SandboxTransactionCreated {
+  transaction: Transaction;
+  /**
+     * Always null; sandbox transactions do not initiate checkout.
+     * @nullable
+     */
+  checkoutUrl: string | null;
+  simulated: true;
 }
 
 export type PaymentRecoveryResultDeliveryStatus = typeof PaymentRecoveryResultDeliveryStatus[keyof typeof PaymentRecoveryResultDeliveryStatus];
@@ -3926,6 +3974,14 @@ export interface KycSessionResponse {
   status: string;
 }
 
+export type ApiKeyEnvironment = typeof ApiKeyEnvironment[keyof typeof ApiKeyEnvironment];
+
+
+export const ApiKeyEnvironment = {
+  live: 'live',
+  sandbox: 'sandbox',
+} as const;
+
 export type ApiKeyScopesItem = typeof ApiKeyScopesItem[keyof typeof ApiKeyScopesItem];
 
 
@@ -3939,6 +3995,7 @@ export const ApiKeyScopesItem = {
 export interface ApiKey {
   id: number;
   name: string;
+  environment: ApiKeyEnvironment;
   prefix: string;
   /** Whether an encrypted copy is available for explicit retrieval. The key secret itself is never included in list responses. */
   secretRecoverable: boolean;
@@ -4014,6 +4071,14 @@ export interface ApiKeyList {
   items: ApiKey[];
 }
 
+export type CreateApiKeyInputEnvironment = typeof CreateApiKeyInputEnvironment[keyof typeof CreateApiKeyInputEnvironment];
+
+
+export const CreateApiKeyInputEnvironment = {
+  live: 'live',
+  sandbox: 'sandbox',
+} as const;
+
 export type CreateApiKeyInputScopesItem = typeof CreateApiKeyInputScopesItem[keyof typeof CreateApiKeyInputScopesItem];
 
 
@@ -4030,6 +4095,7 @@ export interface CreateApiKeyInput {
      * @maxLength 100
      */
   name: string;
+  environment?: CreateApiKeyInputEnvironment;
   /** @minItems 1 */
   scopes: CreateApiKeyInputScopesItem[];
 }
@@ -4387,6 +4453,15 @@ export interface SaveProviderCredentialsInput {
   credentials: SaveProviderCredentialsInputCredentials;
 }
 
+export type PlatformSettingsSandboxDefaultOutcome = typeof PlatformSettingsSandboxDefaultOutcome[keyof typeof PlatformSettingsSandboxDefaultOutcome];
+
+
+export const PlatformSettingsSandboxDefaultOutcome = {
+  pending: 'pending',
+  success: 'success',
+  failed: 'failed',
+} as const;
+
 export type PlatformSettingsWalletFxCurrencySpreads = {[key: string]: number};
 
 export interface PlatformSettings {
@@ -4395,6 +4470,8 @@ export interface PlatformSettings {
   payoutsEnabled: boolean;
   refundsEnabled: boolean;
   apiAccessEnabled: boolean;
+  sandboxApiEnabled: boolean;
+  sandboxDefaultOutcome: PlatformSettingsSandboxDefaultOutcome;
   kycRequired: boolean;
   /**
      * @minLength 1
@@ -4421,6 +4498,15 @@ export interface PlatformSettings {
   walletFxCurrencySpreads: PlatformSettingsWalletFxCurrencySpreads;
 }
 
+export type PlatformSettingsUpdateSandboxDefaultOutcome = typeof PlatformSettingsUpdateSandboxDefaultOutcome[keyof typeof PlatformSettingsUpdateSandboxDefaultOutcome];
+
+
+export const PlatformSettingsUpdateSandboxDefaultOutcome = {
+  pending: 'pending',
+  success: 'success',
+  failed: 'failed',
+} as const;
+
 export type PlatformSettingsUpdateWalletFxCurrencySpreads = {[key: string]: number};
 
 export interface PlatformSettingsUpdate {
@@ -4429,6 +4515,8 @@ export interface PlatformSettingsUpdate {
   payoutsEnabled?: boolean;
   refundsEnabled?: boolean;
   apiAccessEnabled?: boolean;
+  sandboxApiEnabled?: boolean;
+  sandboxDefaultOutcome?: PlatformSettingsUpdateSandboxDefaultOutcome;
   kycRequired?: boolean;
   /**
      * @minLength 1
@@ -4769,6 +4857,18 @@ export type ReceiveStatumAirtimeCallbackParams = {
  * @maxLength 256
  */
 token: string;
+};
+
+export type ListSandboxTransactionsParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+perPage?: number;
 };
 
 export type ListDeveloperTransactionsParams = {

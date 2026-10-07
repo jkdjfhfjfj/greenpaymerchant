@@ -5,11 +5,13 @@
  * International payments collection, link, payout, settlement and operations API
  * OpenAPI spec version: 0.1.0
  */
+import type { ApiKeyEnvironment } from './apiKeyEnvironment';
 import type { ApiKeyScopesItem } from './apiKeyScopesItem';
 
 export interface ApiKey {
   id: number;
   name: string;
+  environment: ApiKeyEnvironment;
   prefix: string;
   /** Whether an encrypted copy is available for explicit retrieval. The key secret itself is never included in list responses. */
   secretRecoverable: boolean;

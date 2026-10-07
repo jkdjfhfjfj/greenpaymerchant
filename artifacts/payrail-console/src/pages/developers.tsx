@@ -63,7 +63,9 @@ function Inner() {
   const [revoke, setRevoke] = useState<number | null>(null);
   const [rmHook, setRmHook] = useState<number | null>(null);
   const [scopes, setScopes] = useState<string[]>(['read']);
+  const [environment, setEnvironment] = useState<'live' | 'sandbox'>('live');
   const [events, setEvents] = useState<string[]>(['payment.success']);
+  const availableScopes = environment === 'sandbox' ? SCOPES.filter((scope) => scope === 'read' || scope === 'payments:write') : SCOPES;
   const toggle = (arr: string[], v: string, set: (a: string[]) => void) => set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
   const origin = window.location.origin;
 
@@ -71,7 +73,7 @@ function Inner() {
     e.preventDefault();
     const name = String(new FormData(e.currentTarget).get('name')).trim();
     try {
-      const r = await mk.mutateAsync({ data: { name, scopes: scopes as never } });
+      const r = await mk.mutateAsync({ data: { name, environment, scopes: scopes as never } });
       void inv();
       setKeyOpen(false);
       setSecret({ title: 'API key created', value: r.secret, hint: 'Copy it now or use Copy key in the key list later while this key remains active.' });
@@ -106,9 +108,9 @@ function Inner() {
     {capabilities.isLoading && <Note>Loading current API-access permissions…</Note>}
     {capabilities.isError && <Note tone="danger">API-access permissions could not be verified. Retry before creating keys or webhooks.</Note>}
     {!capabilities.isLoading && !capabilities.isError && !mayManageApi && <Note tone="warn">{capabilities.disabledReason('apiAccess')}</Note>}
-    <Card title="API keys" subtitle="Keys authenticate with Bearer tokens" action={<Btn small disabled={!mayManageApi} onClick={() => { setScopes(['read']); mk.reset(); setKeyOpen(true); }} testId="button-new-key"><Plus size={14} />New key</Btn>}>
-      <Async q={keys} empty={!kItems.length} emptyTitle="No API keys" emptyBody="Create a key to call the merchant API."><div className="table-wrap"><table className="dt"><thead><tr><th>Name</th><th>Prefix</th><th>Scopes</th><th>Last used</th><th>State</th><th /></tr></thead><tbody>
-        {kItems.map((k) => <tr key={k.id} data-testid={`row-key-${k.id}`}><td><strong>{k.name}</strong><span className="sub">Created {fmtDate(k.createdAt)}</span></td><td className="mono">{k.prefix}...</td><td>{k.scopes.join(', ')}</td><td>{fmtDate(k.lastUsedAt)}</td><td><Pill value={k.revokedAt ? 'revoked' : 'active'} /></td><td><div className="row-actions">{!k.revokedAt && (k.secretRecoverable ? <ApiKeyCopyAction id={k.id} disabled={!mayManageApi} onSecret={(value) => setSecret({ title: `Copy ${k.name} API key`, value, hint: 'This active key is shown only after you request it. Copy it and store it securely.' })} /> : <span className="sub">Create a replacement to enable copying</span>)}{!k.revokedAt && <Btn variant="danger" small disabled={!mayManageApi} onClick={() => setRevoke(k.id)}><Trash2 size={13} />Revoke</Btn>}</div></td></tr>)}
+    <Card title="API keys" subtitle="Live and sandbox keys are isolated by environment" action={<Btn small disabled={!mayManageApi} onClick={() => { setScopes(['read']); setEnvironment('live'); mk.reset(); setKeyOpen(true); }} testId="button-new-key"><Plus size={14} />New key</Btn>}>
+      <Async q={keys} empty={!kItems.length} emptyTitle="No API keys" emptyBody="Create a key to call the merchant API."><div className="table-wrap"><table className="dt"><thead><tr><th>Name</th><th>Environment</th><th>Prefix</th><th>Scopes</th><th>Last used</th><th>State</th><th /></tr></thead><tbody>
+        {kItems.map((k) => <tr key={k.id} data-testid={`row-key-${k.id}`}><td><strong>{k.name}</strong><span className="sub">Created {fmtDate(k.createdAt)}</span></td><td><Pill value={k.environment} /></td><td className="mono">{k.prefix}...</td><td>{k.scopes.join(', ')}</td><td>{fmtDate(k.lastUsedAt)}</td><td><Pill value={k.revokedAt ? 'revoked' : 'active'} /></td><td><div className="row-actions">{!k.revokedAt && (k.secretRecoverable ? <ApiKeyCopyAction id={k.id} disabled={!mayManageApi} onSecret={(value) => setSecret({ title: `Copy ${k.name} API key`, value, hint: 'This active key is shown only after you request it. Copy it and store it securely.' })} /> : <span className="sub">Create a replacement to enable copying</span>)}{!k.revokedAt && <Btn variant="danger" small disabled={!mayManageApi} onClick={() => setRevoke(k.id)}><Trash2 size={13} />Revoke</Btn>}</div></td></tr>)}
       </tbody></table></div></Async>
     </Card>
     <Card title="Webhook destinations" subtitle="Receive signed payment events" action={<Btn small disabled={!mayManageApi} onClick={() => { setEvents(['payment.success']); mh.reset(); setHookOpen(true); }} testId="button-new-webhook"><Webhook size={14} />Add endpoint</Btn>}>
@@ -183,7 +185,13 @@ curl "${origin}/api/v1/transactions?page=1&perPage=20" \\
     </Card>
     {keyOpen && <Modal title="New API key" onClose={() => setKeyOpen(false)}><form className="form-stack" onSubmit={createKey}>
       <Field label="Name"><input name="name" required minLength={2} maxLength={100} data-testid="input-key-name" /></Field>
-      <Field label="Scopes"><div className="chips">{SCOPES.map((s) => <label key={s} className={`chip ${scopes.includes(s) ? 'on' : ''}`}><input type="checkbox" checked={scopes.includes(s)} onChange={() => toggle(scopes, s, setScopes)} />{s}</label>)}</div></Field>
+      <Field label="Environment" hint={environment === 'sandbox' ? 'Sandbox keys only access simulated sandbox transactions; they cannot call live API routes.' : 'Live keys can initiate real payment requests.'}>
+        <select value={environment} onChange={(event) => { const next = event.target.value as 'live' | 'sandbox'; setEnvironment(next); setScopes(['read']); }} data-testid="select-key-environment">
+          <option value="live">Live</option>
+          <option value="sandbox">Sandbox</option>
+        </select>
+      </Field>
+      <Field label="Scopes"><div className="chips">{availableScopes.map((s) => <label key={s} className={`chip ${scopes.includes(s) ? 'on' : ''}`}><input type="checkbox" checked={scopes.includes(s)} onChange={() => toggle(scopes, s, setScopes)} />{s}</label>)}</div></Field>
       <Err error={mk.error} />
       <Btn type="submit" disabled={!mayManageApi || mk.isPending || !scopes.length} testId="button-create-key">{mk.isPending ? <LoaderCircle size={14} className="spin" /> : <KeyRound size={14} />}Create key</Btn>
     </form></Modal>}

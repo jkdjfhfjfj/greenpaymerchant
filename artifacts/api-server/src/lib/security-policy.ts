@@ -2,6 +2,10 @@ export function hasRequiredScope(scopes: readonly string[], required: string): b
   return scopes.includes(required);
 }
 
+export function apiKeyEnvironmentAllowed(actual: string | undefined, expected: "live" | "sandbox"): boolean {
+  return actual === expected;
+}
+
 export function ownsMerchantRecord(recordMerchantId: number | null | undefined, authenticatedMerchantId: number): boolean {
   return recordMerchantId !== null && recordMerchantId !== undefined &&
     Number.isInteger(authenticatedMerchantId) && authenticatedMerchantId > 0 &&

@@ -38,6 +38,15 @@
 .hp-feature>div{height:100%;background:var(--paper);border:1px solid #e4e1d7;border-radius:20px;padding:28px;transition:transform .25s,border-color .25s}.hp-feature>div:hover{transform:translateY(-4px);border-color:var(--gold)}
 .hp-ico{width:42px;height:42px;border-radius:12px;background:#eaf2ec;color:var(--g2);display:grid;place-items:center;margin-bottom:18px}
 .hp-feature h3{font-size:19px;letter-spacing:-.02em;margin-bottom:8px}.hp-feature p{color:var(--mute);line-height:1.6;font-size:14.5px}
+.hp-remittance-card{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:22px;margin-top:22px;padding:24px 28px;border:1px solid #d8e2d9;border-radius:20px;background:#eaf2ec}
+.hp-remittance-card .hp-ico{margin:0}
+.hp-remittance-copy{display:grid;gap:7px;min-width:0}
+.hp-remittance-copy .hp-eyebrow{margin:0}
+.hp-remittance-copy h3{font-size:21px;letter-spacing:-.025em}
+.hp-remittance-copy p{max-width:72ch;color:var(--mute);font-size:14.5px;line-height:1.6}
+.hp-remittance-link{justify-self:end}
+.hp-currency-index{max-width:82ch;margin:12px 0 0;color:var(--mute);font-size:13px;line-height:1.6}
+.hp-currency-index strong{color:var(--ink)}
 .hp-dark{background:var(--g);color:#f3ead2;padding:96px 48px}.hp-dark>*{max-width:1184px;margin-inline:auto}
 .hp-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:56px!important;border-top:1px solid #ffffff2a}
 .hp-steps li{padding:28px 24px 0 0;position:relative}.hp-steps li::before{content:'';position:absolute;top:-4px;left:0;width:7px;height:7px;border-radius:9px;background:var(--gold)}
@@ -86,6 +95,8 @@
 .hp-records{grid-template-columns:1fr;gap:32px}.hp-cta{margin:0 12px 48px;padding:56px 18px}.hp-footer{padding:20px 18px 32px}
 .hp-coverage-layout{grid-template-columns:1fr}
 .hp-signin{display:none}
+.hp-remittance-card{grid-template-columns:auto minmax(0,1fr);align-items:start}
+.hp-remittance-link{grid-column:2;justify-self:start}
 }
 @media(max-width:560px){
   .hp-coverage-card{padding:18px}
@@ -97,6 +108,8 @@
   .hp-rate-row{grid-template-columns:66px minmax(95px,1fr) 70px;gap:10px;font-size:11px}
   .hp-rate-header{font-size:9px;letter-spacing:.04em}
   .hp-rate-updated{font-size:10px}
+  .hp-remittance-card{grid-template-columns:1fr;padding:20px}
+  .hp-remittance-link{grid-column:auto}
 }
 @media(prefers-reduced-motion:reduce){.hp *,.hp *::before{animation:none!important;transition:none!important}.hp-reveal{opacity:1;transform:none}}
 .hp a.hp-btn-gold{color:var(--paper)}

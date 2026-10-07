@@ -62,6 +62,7 @@ test("drafts and private references are absent from help, sitemap and llms outpu
   assert.match(help, /published-payment-faq/);
   assert.doesNotMatch(help, /Private draft|customer@example\.test|GP-PRIVATE-12345/);
   assert.match(sitemap, /https:\/\/greenpay\.co\.ke\/about/);
+  assert.match(sitemap, /<loc>https:\/\/greenpay\.co\.ke\/<\/loc>/);
   assert.match(sitemap, /https:\/\/greenpay\.co\.ke\/api-docs/);
   assert.match(sitemap, /https:\/\/greenpay\.co\.ke\/contact/);
   assert.match(sitemap, /https:\/\/greenpay\.co\.ke\/learn\/published-payment-faq/);
@@ -71,6 +72,9 @@ test("drafts and private references are absent from help, sitemap and llms outpu
   assert.match(llms, /published-payment-faq/);
   assert.match(llms, /About Greenpay/);
   assert.match(llms, /API documentation/);
+  assert.match(llms, /Geepay remittance/);
+  assert.match(llms, /USD, KES, NGN, GHS/);
+  assert.doesNotMatch(sitemap, /geepay\.us/);
   assert.doesNotMatch(llms, /private-draft|GP-PRIVATE|customer@example/);
 });
 

@@ -16,7 +16,7 @@
 - [Invoice payment-link closure](invoice-payment-link-closure.md) — archive a fully paid invoice's checkout link at provider confirmation, not only when another retry or checkout is attempted.
 - [Private case-evidence storage](cloudinary-case-evidence.md) — keep evidence in authenticated Cloudinary raw assets and proxy verified bytes through authorized API routes.
 - [Drizzle migration output paths](drizzle-migration-output-paths.md) — compute output paths relative to the current working directory; absolute paths were misjoined by Drizzle Kit.
-- [Greenpay production hostname](greenpay-production-hostname.md) — use `greenpay.co.ke` as the canonical production hostname unless the user changes it.
+- [Greenpay and Geepay domains](greenpay-production-hostname.md) — keep Greenpay canonical at `greenpay.co.ke`; link Geepay at `geepay.us` without mixing sitemap hosts.
 - [Render Blueprint environment sync](render-blueprint-env-sync.md) — existing Blueprints ignore `sync: false` variables during updates; non-secret config needs a literal value and a sync/deploy.
 - [Merchant signup notifications](merchant-signup-notifications.md) — send new merchant account notices to both platform admins and the account owner.
 - [Didit KYC polling](didit-kyc-polling.md) — treat secretless webhook notices only as triggers for authenticated API checks; retain polling as a fallback.

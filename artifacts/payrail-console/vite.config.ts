@@ -187,8 +187,8 @@ function prerenderPublicPages(siteUrl: string): Plugin {
         const indexPath = path.join(outDir, 'index.html');
         const indexTemplate = await readFile(indexPath, 'utf8');
         const homeHead = prerenderHead(indexTemplate, {
-          title: 'Greenpay | Payment collection and business finance records',
-          description: 'Greenpay helps businesses collect payments with links and review confirmed transactions, settlement evidence, invoices, refunds and payout records.',
+          title: 'Greenpay Remittance, USD/KES, Virtual Cards & Airtime',
+          description: 'Send remittances with Geepay on the Greenpay platform. Explore USD, KES and supported currencies, virtual cards, airtime and business payments across Africa.',
           path: '/',
           siteUrl,
         });

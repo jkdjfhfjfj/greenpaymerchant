@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { ArrowRight, ArrowUpRight, BadgeCheck, Banknote, CalendarClock, FileClock, KeyRound, Link2, Percent, Send } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, BadgeCheck, Banknote, CalendarClock, CreditCard, FileClock, KeyRound, Link2, Percent, Send, Smartphone } from 'lucide-react';
 import { useGetPublicPricing, useListPublicFxRates, useListSupportedCurrencies } from '@workspace/api-client-react';
 import '@/home.css';
 import { money } from '@/components/kit';
@@ -30,7 +30,12 @@ const features = [
   { icon: Percent, title: 'Fees you can read', text: 'Fees are shown against each transaction so finance can reconcile what was charged and why.', id: 'fees' },
   { icon: Send, title: 'Payout requests', text: 'Request payouts in provider-supported currencies and methods. Availability, minimums, and fees vary; requests go through review.', id: 'payouts' },
   { icon: Banknote, title: 'Wallet conversion', text: 'Review the live reference rate, system margin and fee before moving funded balances between supported wallets.', id: 'wallet-conversion' },
+  { icon: CreditCard, title: 'Virtual cards', text: 'Access virtual card services alongside Greenpay payment collection and finance tools.', id: 'virtual-cards' },
+  { icon: Smartphone, title: 'Airtime', text: 'Top up airtime through the merchant airtime wallet for supported operators and markets.', id: 'airtime' },
 ];
+
+const HOME_TITLE = 'Greenpay Remittance, USD/KES, Virtual Cards & Airtime';
+const HOME_DESCRIPTION = 'Send remittances with Geepay on the Greenpay platform. Explore USD, KES and supported currencies, virtual cards, airtime and business payments across Africa.';
 
 const MARKET_COUNTRIES: Record<string, string[]> = {
   KES: ['Kenya'],
@@ -93,8 +98,12 @@ export default function HomePage() {
     sourceDate: fxRatesByCurrency.get(currency.code)?.sourceDate,
   }));
   useEffect(() => {
-    const title = `${branding.platformName} | Payment collection and business finance records`;
-    const description = `${branding.platformName} helps businesses collect payments across African markets with payment links and a developer API, then review confirmed transactions, fees and payout records.`;
+    const title = branding.platformName === 'Greenpay'
+      ? HOME_TITLE
+      : `${branding.platformName} Remittance, USD/KES, Virtual Cards & Airtime`;
+    const description = branding.platformName === 'Greenpay'
+      ? HOME_DESCRIPTION
+      : `Send remittances with Geepay on the ${branding.platformName} platform. Explore USD, KES and supported currencies, virtual cards, airtime and business payments across Africa.`;
     const publicBase = import.meta.env.VITE_PUBLIC_SITE_URL?.trim() || 'https://greenpay.co.ke';
     const canonicalUrl = new URL('/', `${publicBase.replace(/\/$/, '')}/`).toString();
     document.title = title;
@@ -148,9 +157,9 @@ export default function HomePage() {
     <main>
       <section className="hp-hero">
         <div className="hp-hero-copy">
-          <span className="hp-eyebrow"><i />African markets. Global USD. Developer API.</span>
-          <h1>Collect across Africa.<br /><em>Build for global business.</em></h1>
-          <p>{branding.platformName}'s currency catalog spans 25 African country markets plus global USD payments. Create payment links or integrate through our API; live collection availability varies by currency and merchant verification.</p>
+          <span className="hp-eyebrow"><i />Remittance · USD &amp; KES · Virtual cards · Airtime</span>
+          <h1>Remittance and payments.<br /><em>Across Africa and beyond.</em></h1>
+          <p>{branding.platformName} brings business payment collection, virtual cards and airtime together. Geepay provides remittance services on the same platform. Explore USD, KES and a 14-currency catalog spanning 25 African country markets; availability varies by service and route.</p>
           <div className="hp-actions">
             <a href="/sign-up" className="hp-btn hp-btn-gold hp-btn-lg" data-testid="link-sign-up-hero">Create your account <ArrowRight size={17} /></a>
             <a href="/api-docs" className="hp-btn hp-btn-ghost hp-btn-lg" data-testid="link-api-docs-hero">Explore API docs <ArrowUpRight size={17} /></a>
@@ -182,6 +191,17 @@ export default function HomePage() {
         <div className="hp-grid">
           {features.map((f, i) => { const Icon = f.icon; return <Reveal key={f.id} delay={i * 60} className={`hp-feature ${i === 0 ? 'hp-feature-big' : ''}`}><div data-testid={`card-feature-${f.id}`}><span className="hp-ico"><Icon size={20} /></span><h3>{f.title}</h3><p>{f.text}</p></div></Reveal>; })}
         </div>
+        <article className="hp-remittance-card" id="remittance" aria-labelledby="hp-remittance-title" data-testid="card-geepay-remittance">
+          <span className="hp-ico"><Send size={20} /></span>
+          <div className="hp-remittance-copy">
+            <span className="hp-eyebrow dark"><i />International remittance</span>
+            <h3 id="hp-remittance-title">Send money with Geepay</h3>
+            <p>Geepay is the remittance service operating on the same platform as {branding.platformName}. Explore transfers across supported routes in USD, KES and other supported currencies.</p>
+          </div>
+          <a className="hp-btn hp-btn-gold hp-remittance-link" href="https://geepay.us/" target="_blank" rel="noopener noreferrer">
+            Visit Geepay.us <ArrowUpRight size={16} />
+          </a>
+        </article>
       </section>
 
       <section className="hp-section hp-api-section" id="api">
@@ -218,6 +238,7 @@ Content-Type: application/json
           <span className="hp-eyebrow dark"><i />Coverage and pricing</span>
           <h2>Supported currencies, current exchange rates and default fees.</h2>
           <p className="hp-section-intro">Every supported currency is listed below, including currencies that are not currently enabled for collections. Availability depends on provider configuration and merchant verification.</p>
+          <p className="hp-currency-index"><strong>Currency catalog:</strong> USD, KES, NGN, GHS, TZS, XOF, RWF, UGX, ZMW, MWK, SLL, CDF, MZN and XAF. Route availability varies; catalog support does not mean every collection or remittance route is active.</p>
         </Reveal>
         <div className="hp-coverage-layout">
           <div className="hp-coverage-card">

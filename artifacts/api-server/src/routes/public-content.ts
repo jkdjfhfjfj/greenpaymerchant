@@ -474,7 +474,8 @@ publicSeoRouter.get("/sitemap.xml", async (_req, res): Promise<void> => {
     updatedAt: publicContentTable.updatedAt,
     publishedAt: publicContentTable.publishedAt,
   }).from(publicContentTable).where(eq(publicContentTable.status, "published"));
-  setPublicResponseHeaders(res);
+  res.setHeader("Cache-Control", "public, max-age=0, s-maxage=60, stale-while-revalidate=30");
+  res.removeHeader("X-Robots-Tag");
   res.type("application/xml; charset=utf-8").send(renderSitemapXml(rows.map(publicDocument)));
 });
 

@@ -1124,9 +1124,9 @@ function PageMetadata() {
       : location.startsWith('/pay/') ? 'Secure checkout' : location.startsWith('/status/') ? 'Payment status'
       : location.startsWith('/sign-in') ? 'Sign in' : location.startsWith('/sign-up') ? 'Create your account'
       : location === '/team/accept' ? 'Accept team invitation' : 'Workspace');
-    document.title = location === '/' ? `${platformName} | Payments for African businesses` : `${title} · ${platformName}`;
+    document.title = location === '/' ? `${platformName} Remittance, USD/KES, Virtual Cards & Airtime` : `${title} · ${platformName}`;
     const descriptions: Record<string, string> = {
-      '/': `${platformName} helps businesses collect payments, create payment links, and track transaction and settlement status.`,
+      '/': `Send remittances with Geepay on the ${platformName} platform. Explore USD, KES and supported currencies, virtual cards, airtime and business payments across Africa.`,
       '/contact': `Contact ${platformName} for help with payment collection, merchant onboarding, and platform support.`,
       '/about': `Learn about ${platformName} payment collection for African businesses, including payment links, a developer API, and clear transaction and settlement records.`,
       '/api-docs': `Read the ${platformName} API reference for merchant authentication, payment links, collections, supported currencies, payouts, and signed webhooks.`,

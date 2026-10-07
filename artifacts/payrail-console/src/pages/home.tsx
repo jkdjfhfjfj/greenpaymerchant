@@ -162,6 +162,7 @@ export default function HomePage() {
           <p>{branding.platformName} brings business payment collection, virtual cards and airtime together. Geepay provides remittance services on the same platform. Explore USD, KES and a 14-currency catalog spanning 25 African country markets; availability varies by service and route.</p>
           <div className="hp-actions">
             <a href="/sign-up" className="hp-btn hp-btn-gold hp-btn-lg" data-testid="link-sign-up-hero">Create your account <ArrowRight size={17} /></a>
+            <a href="https://geepay.us/" target="_blank" rel="noopener noreferrer" className="hp-btn hp-btn-ghost hp-btn-lg" data-testid="link-geepay-remittance-hero">Remittance <ArrowUpRight size={17} /></a>
             <a href="/api-docs" className="hp-btn hp-btn-ghost hp-btn-lg" data-testid="link-api-docs-hero">Explore API docs <ArrowUpRight size={17} /></a>
           </div>
         </div>
@@ -198,9 +199,6 @@ export default function HomePage() {
             <h3 id="hp-remittance-title">Send money with Geepay</h3>
             <p>Geepay is the remittance service operating on the same platform as {branding.platformName}. Explore transfers across supported routes in USD, KES and other supported currencies.</p>
           </div>
-          <a className="hp-btn hp-btn-gold hp-remittance-link" href="https://geepay.us/" target="_blank" rel="noopener noreferrer">
-            Visit Geepay.us <ArrowUpRight size={16} />
-          </a>
         </article>
       </section>
 

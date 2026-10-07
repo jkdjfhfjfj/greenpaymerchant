@@ -842,6 +842,8 @@ export const getPublicTransactionStatusResponseShopNameMax = 100;
 
 export const getPublicTransactionStatusResponseFailureReasonMax = 200;
 
+export const getPublicTransactionStatusResponseReturnUrlMax = 2048;
+
 
 
 export const GetPublicTransactionStatusResponse = zod.object({
@@ -853,7 +855,8 @@ export const GetPublicTransactionStatusResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "shopName": zod.string().max(getPublicTransactionStatusResponseShopNameMax).nullable().describe('Public merchant display name; never the verified legal name unless the merchant chose it.'),
   "shopLogoUrl": zod.string().url().nullable().describe('Public merchant shop image URL.'),
-  "failureReason": zod.string().max(getPublicTransactionStatusResponseFailureReasonMax).nullable().describe('Safe customer-facing explanation for a failed or cancelled payment; provider internals are not exposed.')
+  "failureReason": zod.string().max(getPublicTransactionStatusResponseFailureReasonMax).nullable().describe('Safe customer-facing explanation for a failed or cancelled payment; provider internals are not exposed.'),
+  "returnUrl": zod.string().url().max(getPublicTransactionStatusResponseReturnUrlMax).nullable().describe('Administrator-configured merchant return URL')
 })
 
 
@@ -6798,6 +6801,8 @@ export const listAdminMerchantsResponseItemsItemOneKycRequestedInfoMax = 2000;
 
 export const listAdminMerchantsResponseItemsItemOneKybRequestedInfoMax = 2000;
 
+export const listAdminMerchantsResponseItemsItemTwoPaymentReturnUrlMax = 2048;
+
 
 
 export const ListAdminMerchantsResponse = zod.object({
@@ -6843,6 +6848,7 @@ export const ListAdminMerchantsResponse = zod.object({
 }).and(zod.object({
   "ownerUserId": zod.string(),
   "riskNote": zod.string().nullish(),
+  "paymentReturnUrl": zod.string().url().max(listAdminMerchantsResponseItemsItemTwoPaymentReturnUrlMax).nullable().describe('Administrator-managed URL for returning customers after a confirmed payment result.'),
   "diditSessionId": zod.string().nullish(),
   "diditKybSessionId": zod.string().nullish(),
   "verificationUpdatedAt": zod.coerce.date().nullish(),
@@ -6910,6 +6916,8 @@ export const getAdminMerchantDetailsResponseMerchantOneKycRequestedInfoMax = 200
 
 export const getAdminMerchantDetailsResponseMerchantOneKybRequestedInfoMax = 2000;
 
+export const getAdminMerchantDetailsResponseMerchantTwoPaymentReturnUrlMax = 2048;
+
 
 
 export const GetAdminMerchantDetailsResponse = zod.object({
@@ -6955,6 +6963,7 @@ export const GetAdminMerchantDetailsResponse = zod.object({
 }).and(zod.object({
   "ownerUserId": zod.string(),
   "riskNote": zod.string().nullish(),
+  "paymentReturnUrl": zod.string().url().max(getAdminMerchantDetailsResponseMerchantTwoPaymentReturnUrlMax).nullable().describe('Administrator-managed URL for returning customers after a confirmed payment result.'),
   "diditSessionId": zod.string().nullish(),
   "diditKybSessionId": zod.string().nullish(),
   "verificationUpdatedAt": zod.coerce.date().nullish(),
@@ -6991,6 +7000,8 @@ export const updateAdminMerchantBodyRiskNoteMax = 1000;
 export const updateAdminMerchantBodyBaseCurrencyMin = 3;
 export const updateAdminMerchantBodyBaseCurrencyMax = 3;
 
+export const updateAdminMerchantBodyPaymentReturnUrlMax = 2048;
+
 
 
 export const UpdateAdminMerchantBody = zod.object({
@@ -7001,7 +7012,8 @@ export const UpdateAdminMerchantBody = zod.object({
   "paymentsEnabled": zod.boolean().optional(),
   "payoutsEnabled": zod.boolean().optional(),
   "refundsEnabled": zod.boolean().optional(),
-  "apiAccessEnabled": zod.boolean().optional()
+  "apiAccessEnabled": zod.boolean().optional(),
+  "paymentReturnUrl": zod.string().url().max(updateAdminMerchantBodyPaymentReturnUrlMax).nullish().describe('Optional HTTPS URL used after a confirmed success')
 })
 
 export const updateAdminMerchantResponseOneShopNameMax = 100;
@@ -7055,6 +7067,8 @@ export const updateAdminMerchantResponseOneKycRequestedInfoMax = 2000;
 
 export const updateAdminMerchantResponseOneKybRequestedInfoMax = 2000;
 
+export const updateAdminMerchantResponseTwoPaymentReturnUrlMax = 2048;
+
 
 
 export const UpdateAdminMerchantResponse = zod.object({
@@ -7099,6 +7113,7 @@ export const UpdateAdminMerchantResponse = zod.object({
 }).and(zod.object({
   "ownerUserId": zod.string(),
   "riskNote": zod.string().nullish(),
+  "paymentReturnUrl": zod.string().url().max(updateAdminMerchantResponseTwoPaymentReturnUrlMax).nullable().describe('Administrator-managed URL for returning customers after a confirmed payment result.'),
   "diditSessionId": zod.string().nullish(),
   "diditKybSessionId": zod.string().nullish(),
   "verificationUpdatedAt": zod.coerce.date().nullish(),

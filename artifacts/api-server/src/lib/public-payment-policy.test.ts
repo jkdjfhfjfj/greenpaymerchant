@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   knownCustomerPaymentFailureReason,
+  normalizeMerchantPaymentReturnUrl,
   publicCheckoutFailure,
   publicPaymentFailureReason,
+  publicMerchantReturnUrl,
   resolvePublicCheckoutAmount,
   resolvePublicCheckoutCurrency,
 } from "./public-payment-policy";
@@ -138,4 +140,23 @@ test("customer payment failures explain insufficient funds and cancelled STK pro
     "The payment could not be completed. Please try another payment method or contact the merchant.",
   );
   assert.equal(publicPaymentFailureReason("success", null), null);
+});
+
+test("merchant return URLs are HTTPS-only and can be cleared", () => {
+  assert.deepEqual(normalizeMerchantPaymentReturnUrl("https://merchant.example/complete?from=greenpay"), {
+    url: "https://merchant.example/complete?from=greenpay",
+  });
+  assert.deepEqual(normalizeMerchantPaymentReturnUrl(null), { url: null });
+  assert.deepEqual(normalizeMerchantPaymentReturnUrl("http://merchant.example/complete"), {
+    error: "invalid_return_url",
+  });
+  assert.deepEqual(normalizeMerchantPaymentReturnUrl("https://user:pass@merchant.example/complete"), {
+    error: "invalid_return_url",
+  });
+  assert.deepEqual(normalizeMerchantPaymentReturnUrl("https://merchant.example/" + "a".repeat(2048)), {
+    error: "invalid_return_url",
+  });
+  assert.equal(publicMerchantReturnUrl("pending", "https://merchant.example/complete"), null);
+  assert.equal(publicMerchantReturnUrl("success", "https://merchant.example/complete"), "https://merchant.example/complete");
+  assert.equal(publicMerchantReturnUrl("failed", "http://merchant.example/complete"), null);
 });

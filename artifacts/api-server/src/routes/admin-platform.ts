@@ -41,6 +41,7 @@ import { credentialVaultReady } from "../lib/secret-crypto";
 import { collectionCurrencyAvailabilityAudit, supportedCollectionCurrencyCode } from "../lib/collection-currency-availability";
 import { providerCredential, providerCredentialFields } from "../lib/credential-runtime";
 import { cleanPublicUrl, normalizeWhatsAppContact } from "../lib/platform-branding";
+import { normalizeMerchantPaymentReturnUrl } from "../lib/public-payment-policy";
 import { cloudinaryUploadStatus, createCloudinaryUploadSignature } from "../lib/cloudinary-upload";
 import { resolveCloudinaryEnvironment } from "../lib/cloudinary-credentials";
 import {
@@ -347,6 +348,7 @@ type AdminMerchantDtoRow = {
   businessName: string;
   shopName: string | null;
   shopLogoUrl: string | null;
+  paymentReturnUrl: string | null;
   country: string;
   baseCurrency: string;
   registrationNumber: string | null;
@@ -395,6 +397,7 @@ function merchantDto(row: AdminMerchantDtoRow) {
   return {
     id: row.id, businessName: row.businessName, shopName: row.shopName,
     shopLogoUrl: safeShopLogoUrl(row.shopLogoUrl), country: row.country,
+    paymentReturnUrl: row.paymentReturnUrl,
     baseCurrency: row.baseCurrency, registrationNumber: row.registrationNumber,
     status: row.status, kycStatus: row.kycStatus, kybStatus: row.kybStatus, createdAt: row.createdAt,
     applicationDetails: row.applicationDetails,
@@ -424,6 +427,7 @@ function adminMerchantSelect() {
     businessName: merchantsTable.businessName,
     shopName: merchantsTable.shopName,
     shopLogoUrl: merchantsTable.shopLogoUrl,
+    paymentReturnUrl: merchantsTable.paymentReturnUrl,
     country: merchantsTable.country,
     baseCurrency: merchantsTable.baseCurrency,
     registrationNumber: merchantsTable.registrationNumber,
@@ -1223,6 +1227,14 @@ router.patch("/admin/merchants/:id", async (req, res): Promise<void> => {
   }
   const patch = parsed.data as typeof parsed.data & Record<string, unknown>;
   const updates: Partial<typeof merchantsTable.$inferInsert> = { updatedAt: new Date() };
+  if (patch.paymentReturnUrl !== undefined) {
+    const normalized = normalizeMerchantPaymentReturnUrl(patch.paymentReturnUrl as string | null);
+    if ("error" in normalized) {
+      res.status(400).json({ error: "Payment return URL must be a valid HTTPS URL without embedded credentials." });
+      return;
+    }
+    updates.paymentReturnUrl = normalized.url;
+  }
   for (const key of ["businessName", "riskNote", "baseCurrency", "paymentsEnabled", "apiAccessEnabled", "payoutsEnabled", "refundsEnabled"] as const) {
     const value = patch[key];
     if (value !== undefined) (updates as Record<string, unknown>)[key] = typeof value === "string" && key === "baseCurrency" ? value.toUpperCase() : value;

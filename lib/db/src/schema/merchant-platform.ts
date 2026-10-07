@@ -21,6 +21,7 @@ export const merchantsTable = pgTable("greenpay_merchants", {
   businessName: varchar("business_name", { length: 150 }).notNull(),
   shopName: varchar("shop_name", { length: 100 }),
   shopLogoUrl: text("shop_logo_url"),
+  paymentReturnUrl: text("payment_return_url"),
   country: varchar("country", { length: 2 }).notNull(),
   baseCurrency: varchar("base_currency", { length: 3 }).notNull(),
   registrationNumber: varchar("registration_number", { length: 150 }),

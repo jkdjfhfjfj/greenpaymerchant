@@ -308,11 +308,13 @@ function MerchantEdit({ m, onClose }: { m: AdminMerchant; onClose: () => void })
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const risk = String(f.get('risk') || '').trim();
-    up.mutate({ id: m.id, data: { businessName: String(f.get('name')).trim(), baseCurrency: String(f.get('cur')), riskNote: risk || null, paymentsEnabled: flags.paymentsEnabled, payoutsEnabled: flags.payoutsEnabled, refundsEnabled: flags.refundsEnabled, apiAccessEnabled: flags.apiAccessEnabled } }, { onSuccess: () => { void inv(); onClose(); } });
+    const paymentReturnUrl = String(f.get('paymentReturnUrl') || '').trim();
+    up.mutate({ id: m.id, data: { businessName: String(f.get('name')).trim(), baseCurrency: String(f.get('cur')), riskNote: risk || null, paymentReturnUrl: paymentReturnUrl || null, paymentsEnabled: flags.paymentsEnabled, payoutsEnabled: flags.payoutsEnabled, refundsEnabled: flags.refundsEnabled, apiAccessEnabled: flags.apiAccessEnabled } }, { onSuccess: () => { void inv(); onClose(); } });
   }
   return <Modal title={`Edit ${m.businessName}`} onClose={onClose}><form className="form-stack" onSubmit={submit}>
     <Field label="Business name"><input name="name" defaultValue={m.businessName} required minLength={2} maxLength={150} data-testid="input-edit-name" /></Field>
     <Field label="Base currency"><select name="cur" defaultValue={m.baseCurrency}>{[...new Set([m.baseCurrency, ...CURRENCIES])].map((c) => <option key={c}>{c}</option>)}</select></Field>
+    <Field label="Payment return URL" hint="After confirmed success, failure, or cancellation. Reference and status are added to the URL; leave blank to keep customers on Greenpay."><input name="paymentReturnUrl" type="url" defaultValue={m.paymentReturnUrl ?? ''} maxLength={2048} placeholder="https://merchant.example/payment-complete" data-testid="input-merchant-payment-return-url" /></Field>
     <Note tone="warn">Account suspension and reactivation require an audit reason in the merchant controls page.</Note>
     <Field label="Risk notes" hint="Internal only, 1000 characters"><textarea name="risk" defaultValue={m.riskNote ?? ''} maxLength={1000} data-testid="input-edit-risk" /></Field>
     <Field label="Capabilities">{([['paymentsEnabled', 'Payments'], ['payoutsEnabled', 'Payouts'], ['refundsEnabled', 'Refunds'], ['apiAccessEnabled', 'API access']] as const).map(([k, t]) => <div className="setting-row" key={k} style={{ padding: '7px 0' }}><span>{t}</span><Switch on={flags[k]} label={`merchant ${t}`} onChange={(v) => setFlags({ ...flags, [k]: v })} /></div>)}</Field>

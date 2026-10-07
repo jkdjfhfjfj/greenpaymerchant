@@ -33,7 +33,8 @@ import { merchantVerificationTier, type VerificationTier } from "../lib/security
 import { invoiceOutstandingAmount } from "../lib/merchant-business-tools";
 import { CUSTOMER_REIMBURSED_REFUND_STATUSES } from "../lib/payment-safety";
 import {
-  publicCheckoutFailure, publicPaymentFailureReason, resolvePublicCheckoutAmount, resolvePublicCheckoutCurrency,
+  publicCheckoutFailure, publicMerchantReturnUrl, publicPaymentFailureReason,
+  resolvePublicCheckoutAmount, resolvePublicCheckoutCurrency,
 } from "../lib/public-payment-policy";
 
 const router: IRouter = Router();
@@ -352,14 +353,17 @@ router.get("/public/transactions/:reference", async (req, res): Promise<void> =>
   }
   let shopName: string | null = null;
   let shopLogoUrl: string | null = null;
+  let returnUrl: string | null = null;
   if (transaction.merchantId !== null) {
     const [merchant] = await db.select({
       shopName: merchantsTable.shopName,
       shopLogoUrl: merchantsTable.shopLogoUrl,
+      paymentReturnUrl: merchantsTable.paymentReturnUrl,
     }).from(merchantsTable)
       .where(eq(merchantsTable.id, transaction.merchantId)).limit(1);
     shopName = merchant?.shopName ?? null;
     shopLogoUrl = merchant?.shopLogoUrl ?? null;
+    returnUrl = publicMerchantReturnUrl(transaction.status, merchant?.paymentReturnUrl);
   }
   res.json(GetPublicTransactionStatusResponse.parse({
     reference: transaction.reference,
@@ -371,6 +375,7 @@ router.get("/public/transactions/:reference", async (req, res): Promise<void> =>
     shopName,
     shopLogoUrl,
     failureReason: publicPaymentFailureReason(transaction.status, transaction.failureReason),
+    returnUrl,
   }));
 });
 

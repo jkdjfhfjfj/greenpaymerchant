@@ -46,6 +46,32 @@ export type PublicCheckoutCurrencyResult =
   | { currency: string }
   | { error: "unsupported_currency" | "fixed_currency_immutable" };
 
+export type MerchantPaymentReturnUrlResult =
+  | { url: string | null }
+  | { error: "invalid_return_url" };
+
+export function normalizeMerchantPaymentReturnUrl(
+  value: string | null | undefined,
+): MerchantPaymentReturnUrlResult {
+  if (value == null) return { url: null };
+  if (value.length > 2048) return { error: "invalid_return_url" };
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "https:" || url.username || url.password) {
+      return { error: "invalid_return_url" };
+    }
+    return { url: url.toString() };
+  } catch {
+    return { error: "invalid_return_url" };
+  }
+}
+
+export function publicMerchantReturnUrl(status: string, configuredUrl: string | null | undefined): string | null {
+  if (!["success", "failed", "cancelled"].includes(status)) return null;
+  const normalized = normalizeMerchantPaymentReturnUrl(configuredUrl);
+  return "url" in normalized ? normalized.url : null;
+}
+
 export function knownCustomerPaymentFailureReason(detail: string | null | undefined): string | null {
   const normalized = detail?.replace(/\s+/g, " ").trim();
   if (!normalized) return null;

@@ -1085,6 +1085,12 @@ export interface PublicTransactionStatus {
      * @nullable
      */
   failureReason: string | null;
+  /**
+     * Administrator-configured merchant return URL
+     * @maxLength 2048
+     * @nullable
+     */
+  returnUrl: string | null;
 }
 
 export interface RefundInput {
@@ -4264,6 +4270,12 @@ export type AdminMerchant = MerchantProfile & ({
   ownerUserId: string;
   /** @nullable */
   riskNote?: string | null;
+  /**
+     * Administrator-managed URL for returning customers after a confirmed payment result.
+     * @maxLength 2048
+     * @nullable
+     */
+  paymentReturnUrl: string | null;
   /** @nullable */
   diditSessionId?: string | null;
   /** @nullable */
@@ -4342,6 +4354,12 @@ export interface AdminMerchantUpdate {
   payoutsEnabled?: boolean;
   refundsEnabled?: boolean;
   apiAccessEnabled?: boolean;
+  /**
+     * Optional HTTPS URL used after a confirmed success
+     * @maxLength 2048
+     * @nullable
+     */
+  paymentReturnUrl?: string | null;
 }
 
 export type AdminFeeSchedule = FeeSchedule & ({

@@ -1,0 +1,1 @@
+ALTER TABLE "greenpay_merchants" ADD COLUMN "payment_return_url" text;

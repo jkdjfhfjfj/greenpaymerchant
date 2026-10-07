@@ -28,4 +28,10 @@ export interface AdminMerchantUpdate {
   payoutsEnabled?: boolean;
   refundsEnabled?: boolean;
   apiAccessEnabled?: boolean;
+  /**
+     * Optional HTTPS URL used after a confirmed success
+     * @maxLength 2048
+     * @nullable
+     */
+  paymentReturnUrl?: string | null;
 }

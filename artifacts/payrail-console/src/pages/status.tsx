@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useParams } from 'wouter';
 import { LockKeyhole } from 'lucide-react';
 import { useGetPublicTransactionStatus } from '@workspace/api-client-react';
@@ -9,6 +10,12 @@ export function StatusPage() {
   const { reference = '' } = useParams<{ reference: string }>();
   const q = useGetPublicTransactionStatus(reference, { query: { retry: false, queryKey: ['/api/public/status', reference], refetchInterval: (query) => (query.state.data?.status === 'pending' ? 5000 : false) } });
   const t = q.data;
+  const returnDestination = t ? merchantReturnDestination(t.returnUrl, t.reference, t.status) : null;
+  useEffect(() => {
+    if (!returnDestination) return;
+    const timer = window.setTimeout(() => window.location.assign(returnDestination), 3000);
+    return () => window.clearTimeout(timer);
+  }, [returnDestination]);
   const copy: Record<string, string> = { pending: 'Your payment is awaiting confirmation. This page refreshes automatically.', success: 'Your payment has been confirmed.', failed: 'This payment was not completed. You can start again from the original link.', cancelled: 'This payment was cancelled.', refunded: 'This payment was refunded.' };
   return <div className="centered-page"><div className="centered-card" data-testid="card-status">
     <div className="brand"><span className="brand-mark"><span /><span /><span /></span><span className="brand-name">greenpay<span>.</span></span></div>
@@ -21,9 +28,22 @@ export function StatusPage() {
         : <span className="customer-shop-placeholder">{(t.shopName || branding.platformName).slice(0, 1).toUpperCase()}</span>}
       <div className="customer-shop-name"><span>PAYING</span><strong>{t.shopName || branding.platformName}</strong></div>
     </div>}
-    {t && <div className="status-big"><Pill value={t.status} /><div className="amt">{money(t.amount, t.currency)}</div><p>{copy[t.status]}</p>{t.failureReason && <p className="failure-reason" role="alert" data-testid="text-payment-failure-reason">{t.failureReason}</p>}
+    {t && <div className="status-big"><Pill value={t.status} /><div className="amt">{money(t.amount, t.currency)}</div><p>{copy[t.status]}</p>{t.failureReason && <p className="failure-reason" role="alert" data-testid="text-payment-failure-reason">{t.failureReason}</p>}{returnDestination && <p role="status" data-testid="text-merchant-return">Returning to the merchant in a few seconds. <a className="btn btn-secondary btn-sm" href={returnDestination} data-testid="link-merchant-return">Continue now</a></p>}
       <div className="kv" style={{ width: '100%', marginTop: 8 }}><div><span>Reference</span><strong className="mono" style={{ fontSize: 12 }}>{t.reference}</strong></div><div><span>Created</span><strong>{fmtDate(t.createdAt)}</strong></div><div><span>Paid</span><strong>{fmtDate(t.paidAt)}</strong></div></div></div>}
   </div><footer className="support-public-footer"><a href={import.meta.env.BASE_URL} aria-label={`Powered by ${branding.platformName} — visit homepage`}>Powered by {branding.platformName}</a></footer></div>;
+}
+
+function merchantReturnDestination(returnUrl: string | null, reference: string, status: string): string | null {
+  if (!returnUrl || !['success', 'failed', 'cancelled'].includes(status)) return null;
+  try {
+    const url = new URL(returnUrl);
+    if (url.protocol !== 'https:' || url.username || url.password) return null;
+    url.searchParams.set('reference', reference);
+    url.searchParams.set('status', status);
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
 
 export function AuthSetupScreen() {

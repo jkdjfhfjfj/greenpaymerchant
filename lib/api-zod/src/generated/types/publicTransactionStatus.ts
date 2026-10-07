@@ -32,4 +32,10 @@ export interface PublicTransactionStatus {
      * @nullable
      */
   failureReason: string | null;
+  /**
+     * Administrator-configured merchant return URL
+     * @maxLength 2048
+     * @nullable
+     */
+  returnUrl: string | null;
 }

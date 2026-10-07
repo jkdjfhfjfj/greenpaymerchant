@@ -11,6 +11,12 @@ export type AdminMerchant = MerchantProfile & ({
   ownerUserId: string;
   /** @nullable */
   riskNote?: string | null;
+  /**
+     * Administrator-managed URL for returning customers after a confirmed payment result.
+     * @maxLength 2048
+     * @nullable
+     */
+  paymentReturnUrl: string | null;
   /** @nullable */
   diditSessionId?: string | null;
   /** @nullable */

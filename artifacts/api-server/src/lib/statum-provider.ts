@@ -74,6 +74,33 @@ export type StatumSubmission =
   | { kind: "rejected"; reason: string }
   | { kind: "unknown"; reason: string };
 
+export function classifyStatumSubmission(
+  httpStatus: number,
+  body: JsonObject,
+): StatumSubmission {
+  const requestId = text(body.request_id);
+  if (requestId) return { kind: "accepted", requestId };
+
+  const providerCode = Number(body.status_code);
+  const providerReason = text(body.result_desc) ?? text(body.message);
+  const noProviderCredits = Boolean(providerReason && /insufficient[\s\S]{0,40}(?:funds?|balance|credits?|float)|(?:funds?|balance|credits?|float)[\s\S]{0,40}insufficient|not enough[\s\S]{0,30}(?:funds?|balance|credits?|float)|low balance|no (?:airtime )?credits?/i.test(providerReason));
+  if (noProviderCredits) {
+    return {
+      kind: "unknown",
+      reason: "Airtime purchase is awaiting confirmation because provider airtime is unavailable. The Greenpay balance remains reserved; do not retry with a new request.",
+    };
+  }
+
+  const reason = providerReason ?? "Airtime purchase is awaiting provider confirmation.";
+  if (httpStatus >= 500 || httpStatus === 429 || providerCode >= 500) {
+    return { kind: "unknown", reason: "Airtime purchase is awaiting provider confirmation. The reserved Greenpay balance remains held." };
+  }
+  if (httpStatus < 200 || httpStatus >= 300 || (Number.isFinite(providerCode) && providerCode >= 400)) {
+    return { kind: "rejected", reason };
+  }
+  return { kind: "unknown", reason };
+}
+
 export async function submitStatumAirtime(input: { phoneNumber: string; amountKes: number }): Promise<StatumSubmission> {
   const phone = normalizeKenyanPhone(input.phoneNumber);
   const { response, body } = await fetchStatum("https://api.statum.co.ke/api/v2/airtime", {
@@ -81,17 +108,7 @@ export async function submitStatumAirtime(input: { phoneNumber: string; amountKe
     headers: await statumHeaders(),
     body: JSON.stringify({ phone_number: phone, amount: String(input.amountKes) }),
   });
-  const requestId = text(body.request_id);
-  if (requestId) return { kind: "accepted", requestId };
-  const providerCode = Number(body.status_code);
-  const reason = text(body.result_desc) ?? text(body.message) ?? "Statum did not return an airtime request ID.";
-  if (response.status >= 500 || response.status === 429 || providerCode >= 500) {
-    return { kind: "unknown", reason };
-  }
-  if (!response.ok || (Number.isFinite(providerCode) && providerCode >= 400)) {
-    return { kind: "rejected", reason };
-  }
-  return { kind: "unknown", reason };
+  return classifyStatumSubmission(response.status, body);
 }
 
 export async function statumAccountDetails() {

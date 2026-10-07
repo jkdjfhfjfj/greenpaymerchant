@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  knownCustomerPaymentFailureReason,
   publicCheckoutFailure,
+  publicPaymentFailureReason,
   resolvePublicCheckoutAmount,
   resolvePublicCheckoutCurrency,
 } from "./public-payment-policy";
@@ -116,4 +118,24 @@ test("public checkout distinguishes payer validation errors from hidden payment-
     status: 503,
     error: "Collections in NGN are coming soon and are not currently enabled.",
   });
+});
+
+test("customer payment failures explain insufficient funds and cancelled STK prompts without exposing provider text", () => {
+  assert.equal(
+    knownCustomerPaymentFailureReason("Insufficient funds in the user wallet"),
+    "The selected payment account does not have enough funds. Add funds or choose another payment method.",
+  );
+  assert.equal(
+    knownCustomerPaymentFailureReason("STK prompt cancelled by user"),
+    "The payment request was cancelled before it could be completed.",
+  );
+  assert.equal(
+    publicPaymentFailureReason("cancelled", null),
+    "The payment request was cancelled before it could be completed.",
+  );
+  assert.equal(
+    publicPaymentFailureReason("failed", "private gateway code 781"),
+    "The payment could not be completed. Please try another payment method or contact the merchant.",
+  );
+  assert.equal(publicPaymentFailureReason("success", null), null);
 });

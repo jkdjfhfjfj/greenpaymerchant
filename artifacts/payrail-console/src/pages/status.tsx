@@ -21,7 +21,7 @@ export function StatusPage() {
         : <span className="customer-shop-placeholder">{(t.shopName || branding.platformName).slice(0, 1).toUpperCase()}</span>}
       <div className="customer-shop-name"><span>PAYING</span><strong>{t.shopName || branding.platformName}</strong></div>
     </div>}
-    {t && <div className="status-big"><Pill value={t.status} /><div className="amt">{money(t.amount, t.currency)}</div><p>{copy[t.status]}</p>
+    {t && <div className="status-big"><Pill value={t.status} /><div className="amt">{money(t.amount, t.currency)}</div><p>{copy[t.status]}</p>{t.failureReason && <p className="failure-reason" role="alert" data-testid="text-payment-failure-reason">{t.failureReason}</p>}
       <div className="kv" style={{ width: '100%', marginTop: 8 }}><div><span>Reference</span><strong className="mono" style={{ fontSize: 12 }}>{t.reference}</strong></div><div><span>Created</span><strong>{fmtDate(t.createdAt)}</strong></div><div><span>Paid</span><strong>{fmtDate(t.paidAt)}</strong></div></div></div>}
   </div><footer className="support-public-footer"><a href={import.meta.env.BASE_URL} aria-label={`Powered by ${branding.platformName} — visit homepage`}>Powered by {branding.platformName}</a></footer></div>;
 }

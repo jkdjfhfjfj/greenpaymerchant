@@ -8,6 +8,7 @@ import {
 import { providerCredential, providerEnabled } from "./credential-runtime";
 import { ApiError } from "./api-error";
 import { providerPaymentEvidenceMatches } from "./payment-safety";
+import { knownCustomerPaymentFailureReason } from "./public-payment-policy";
 export { ApiError } from "./api-error";
 
 export type ProviderName = "paystack" | "payhero" | "payzaapi";
@@ -179,9 +180,10 @@ export async function getProviderStatuses() {
 }
 
 export async function fetchProviderJson(
-  _provider: string,
+  provider: string,
   url: string,
   init: RequestInit,
+  options: { mapPayzaCustomerFailure?: boolean } = {},
 ): Promise<JsonObject> {
   let response: Response;
   try {
@@ -197,9 +199,32 @@ export async function fetchProviderJson(
     throw new ApiError(502, "Payment could not be started. Try again shortly.");
   }
   if (!response.ok) {
+    if (options.mapPayzaCustomerFailure && provider === "Payzaapi") {
+      const detail = providerFailureDetail(asObject(payload));
+      const customerMessage = knownCustomerPaymentFailureReason(detail);
+      if (customerMessage) throw new ApiError(422, customerMessage);
+    }
     throw new ApiError(502, "Payment could not be started. Try again shortly.");
   }
   return asObject(payload);
+}
+
+function providerFailureDetail(payload: JsonObject): string | undefined {
+  const data = asObject(payload.data);
+  const error = asObject(payload.error);
+  const dataError = asObject(data.error);
+  return stringValue(payload.message) ??
+    stringValue(payload.status_message) ??
+    stringValue(payload.gateway_response) ??
+    stringValue(payload.reason) ??
+    stringValue(payload.error) ??
+    stringValue(error.message) ??
+    stringValue(data.message) ??
+    stringValue(data.status_message) ??
+    stringValue(data.gateway_response) ??
+    stringValue(data.reason) ??
+    stringValue(data.error) ??
+    stringValue(dataError.message);
 }
 
 async function payzaHeaders(): Promise<NonNullable<RequestInit["headers"]>> {
@@ -259,9 +284,7 @@ export function normalizeKenyanPhone(phone: string | null): string {
 export async function startProviderPayment(input: StartPaymentInput): Promise<StartPaymentResult> {
   if (!await providerIsConfigured(input.provider)) throw new ApiError(503, "The selected payment option is temporarily unavailable.");
   const appUrl = getPublicAppUrl();
-  const statusUrl = input.paymentLinkSlug
-    ? `${appUrl}/pay/${encodeURIComponent(input.paymentLinkSlug)}`
-    : `${appUrl}/status/${encodeURIComponent(input.reference)}`;
+  const statusUrl = `${appUrl}/status/${encodeURIComponent(input.reference)}`;
 
   if (input.provider === "paystack") {
     const response = await fetchProviderJson("Paystack", "https://api.paystack.co/transaction/initialize", {
@@ -328,10 +351,12 @@ export async function startProviderPayment(input: StartPaymentInput): Promise<St
       callback_url: getProviderWebhookUrl("payzaapi"),
       redirect_url: `${statusUrl}?reference=${encodeURIComponent(input.reference)}`,
     }),
-  });
+  }, { mapPayzaCustomerFailure: true });
   const data = asObject(response.data);
   const paymentUrl = stringValue(data.payment_url) ?? stringValue(response.payment_url);
   if (response.success !== true || !paymentUrl) {
+    const customerMessage = knownCustomerPaymentFailureReason(providerFailureDetail(response));
+    if (customerMessage) throw new ApiError(422, customerMessage);
     throw new ApiError(502, "Payment could not be started. Try again shortly.");
   }
   return { providerReference: input.reference, paymentUrl };

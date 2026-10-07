@@ -13,6 +13,7 @@ import {
   ApiError, assertSupportedCurrency, providerForCurrency, providerIsConfigured, startProviderPayment,
   resolveCollectionPaymentMethod, type CollectionPaymentMethodId, type ProviderName, type StartPaymentInput, type StartPaymentResult,
 } from "./greenpay-provider";
+import { markTransactionStatus } from "./greenpay-ledger";
 import { assertMerchantMayTransact, assertPlatformEnabled, reserveVerificationUsage } from "./platform";
 import { invoiceOutstandingAmount } from "./merchant-business-tools";
 import { CUSTOMER_REIMBURSED_REFUND_STATUSES } from "./payment-safety";
@@ -189,17 +190,25 @@ export async function createCollection(
   }
   const row = outcome.transaction;
 
-  const payment = await (dependencies.startProviderPayment ?? startProviderPayment)({
-    reference,
-    provider,
-    amount: Number(row.amount),
-    currency,
-    customerEmail: row.customerEmail,
-    customerName: row.customerName,
-    customerPhone: row.customerPhone,
-    description: row.description,
-    paymentLinkSlug: input.paymentLinkSlug ?? null,
-  });
+  let payment: StartPaymentResult;
+  try {
+    payment = await (dependencies.startProviderPayment ?? startProviderPayment)({
+      reference,
+      provider,
+      amount: Number(row.amount),
+      currency,
+      customerEmail: row.customerEmail,
+      customerName: row.customerName,
+      customerPhone: row.customerPhone,
+      description: row.description,
+      paymentLinkSlug: input.paymentLinkSlug ?? null,
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.statusCode >= 400 && error.statusCode < 500) {
+      await markTransactionStatus(reference, { status: "failed", reason: error.message });
+    }
+    throw error;
+  }
   const [updated] = await db.update(transactionsTable).set({
     providerReference: payment.providerReference,
     paymentUrl: payment.paymentUrl,

@@ -46,6 +46,29 @@ export type PublicCheckoutCurrencyResult =
   | { currency: string }
   | { error: "unsupported_currency" | "fixed_currency_immutable" };
 
+export function knownCustomerPaymentFailureReason(detail: string | null | undefined): string | null {
+  const normalized = detail?.replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+  if (/insufficient[\s\S]{0,40}(?:funds?|balance|credits?|float)|(?:funds?|balance|credits?|float)[\s\S]{0,40}insufficient|not enough[\s\S]{0,30}(?:funds?|balance|credits?|float)|low balance|no (?:airtime )?credits?/i.test(normalized)) {
+    return "The selected payment account does not have enough funds. Add funds or choose another payment method.";
+  }
+  if (/cancel(?:led|ed|ation)?|abort(?:ed)?|rejected by user|declined by user|stk.{0,20}cancel/i.test(normalized)) {
+    return "The payment request was cancelled before it could be completed.";
+  }
+  if (/expired|timed?\s*out/i.test(normalized)) {
+    return "The payment request expired before it was completed. Please start a new payment.";
+  }
+  return null;
+}
+
+export function publicPaymentFailureReason(status: string, detail?: string | null): string | null {
+  if (status !== "failed" && status !== "cancelled") return null;
+  return knownCustomerPaymentFailureReason(detail) ??
+    (status === "cancelled"
+      ? "The payment request was cancelled before it could be completed."
+      : "The payment could not be completed. Please try another payment method or contact the merchant.");
+}
+
 export function publicCheckoutFailure(status: number, detail: string): { status: number; error: string } {
   if (status === 409) return { status, error: detail };
   if (status === 400 || status === 422) return { status, error: detail };

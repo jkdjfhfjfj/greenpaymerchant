@@ -26,4 +26,10 @@ export interface PublicTransactionStatus {
      * @nullable
      */
   shopLogoUrl: string | null;
+  /**
+     * Safe customer-facing explanation for a failed or cancelled payment; provider internals are not exposed.
+     * @maxLength 200
+     * @nullable
+     */
+  failureReason: string | null;
 }

@@ -4175,7 +4175,7 @@ components:
           enum: [redirect, mobile_prompt, check_status]
     PublicTransactionStatus:
       type: object
-      required: [reference, status, amount, currency, createdAt, shopName, shopLogoUrl]
+      required: [reference, status, amount, currency, createdAt, shopName, shopLogoUrl, failureReason]
       properties:
         reference: { type: string }
         status:
@@ -4187,6 +4187,7 @@ components:
         createdAt: { type: string, format: date-time }
         shopName: { type: ["string", "null"], maxLength: 100, description: Public merchant display name; never the verified legal name unless the merchant chose it. }
         shopLogoUrl: { type: ["string", "null"], format: uri, description: Public merchant shop image URL. }
+        failureReason: { type: ["string", "null"], maxLength: 200, description: Safe customer-facing explanation for a failed or cancelled payment; provider internals are not exposed. }
     RefundInput:
       type: object
       properties:

@@ -840,6 +840,8 @@ export const GetPublicTransactionStatusParams = zod.object({
 
 export const getPublicTransactionStatusResponseShopNameMax = 100;
 
+export const getPublicTransactionStatusResponseFailureReasonMax = 200;
+
 
 
 export const GetPublicTransactionStatusResponse = zod.object({
@@ -850,7 +852,8 @@ export const GetPublicTransactionStatusResponse = zod.object({
   "paidAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "shopName": zod.string().max(getPublicTransactionStatusResponseShopNameMax).nullable().describe('Public merchant display name; never the verified legal name unless the merchant chose it.'),
-  "shopLogoUrl": zod.string().url().nullable().describe('Public merchant shop image URL.')
+  "shopLogoUrl": zod.string().url().nullable().describe('Public merchant shop image URL.'),
+  "failureReason": zod.string().max(getPublicTransactionStatusResponseFailureReasonMax).nullable().describe('Safe customer-facing explanation for a failed or cancelled payment; provider internals are not exposed.')
 })
 
 

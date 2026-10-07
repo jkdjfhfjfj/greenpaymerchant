@@ -33,7 +33,7 @@ import { merchantVerificationTier, type VerificationTier } from "../lib/security
 import { invoiceOutstandingAmount } from "../lib/merchant-business-tools";
 import { CUSTOMER_REIMBURSED_REFUND_STATUSES } from "../lib/payment-safety";
 import {
-  publicCheckoutFailure, resolvePublicCheckoutAmount, resolvePublicCheckoutCurrency,
+  publicCheckoutFailure, publicPaymentFailureReason, resolvePublicCheckoutAmount, resolvePublicCheckoutCurrency,
 } from "../lib/public-payment-policy";
 
 const router: IRouter = Router();
@@ -370,6 +370,7 @@ router.get("/public/transactions/:reference", async (req, res): Promise<void> =>
     createdAt: transaction.createdAt,
     shopName,
     shopLogoUrl,
+    failureReason: publicPaymentFailureReason(transaction.status, transaction.failureReason),
   }));
 });
 
